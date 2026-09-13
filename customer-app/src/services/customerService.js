@@ -1,0 +1,160 @@
+import api from './api';
+
+export const customerService = {
+  // Auth
+  login: async (identifier, password) => {
+    const res = await api.post('/auth/login', { identifier, password, role: 'customer' });
+    return res.data;
+  },
+
+  register: async userData => {
+    const res = await api.post('/auth/register', userData);
+    return res.data;
+  },
+
+  getMe: async () => {
+    const res = await api.get('/auth/me');
+    return res.data;
+  },
+
+  // Customer Profile
+  getProfile: async () => {
+    const res = await api.get('/customer/profile');
+    return res.data;
+  },
+
+  updateProfile: async profileData => {
+    const res = await api.put('/customer/profile', profileData);
+    return res.data;
+  },
+
+  // Service Control Availability
+  getServicesStatus: async () => {
+    const res = await api.get('/customer/services');
+    return res.data;
+  },
+
+  // Vehicles (Bus, EV-Sewa, Car)
+  getVehicles: async (type, from, to) => {
+    const res = await api.get('/vehicles', { params: { type, from, to } });
+    return res.data;
+  },
+
+  getVehicleDetails: async id => {
+    const res = await api.get(`/vehicles/${id}`);
+    return res.data;
+  },
+
+  // Bus Services
+  getBuses: async (from, to) => {
+    const res = await api.get('/vehicles', { params: { type: 'bus', from, to } });
+    return res.data;
+  },
+
+  getBusDetails: async id => {
+    const res = await api.get(`/vehicles/${id}`);
+    return res.data;
+  },
+
+  // EV-Sewa Services
+  getEvSewa: async () => {
+    const res = await api.get('/vehicles', { params: { type: 'ev-sewa' } });
+    return res.data;
+  },
+
+  getEvSewaDetails: async id => {
+    const res = await api.get(`/vehicles/${id}`);
+    return res.data;
+  },
+
+  // Car Services
+  getCars: async () => {
+    const res = await api.get('/vehicles', { params: { type: 'car' } });
+    return res.data;
+  },
+
+  getCarDetails: async id => {
+    const res = await api.get(`/vehicles/${id}`);
+    return res.data;
+  },
+
+  // Bookings
+  createBooking: async bookingData => {
+    const res = await api.post('/bookings', bookingData);
+    return res.data;
+  },
+
+  getMyBookings: async () => {
+    const res = await api.get('/bookings');
+    return res.data;
+  },
+
+  getBookingDetails: async bookingId => {
+    const res = await api.get(`/bookings/${bookingId}`);
+    return res.data;
+  },
+
+  cancelBooking: async (bookingId, cancellationReason) => {
+    const res = await api.post(`/bookings/${bookingId}/cancel`, { cancellationReason });
+    return res.data;
+  },
+
+  // Payment Test Sandbox
+  createPaymentSession: async (bookingId, paymentMethod) => {
+    const res = await api.post('/payments/create', { bookingId, paymentMethod });
+    return res.data;
+  },
+
+  testPaymentSuccess: async (bookingId, paymentMethod) => {
+    const res = await api.post('/payments/test-success', { bookingId, paymentMethod });
+    return res.data;
+  },
+
+  testPaymentFailure: async (bookingId, failureReason) => {
+    const res = await api.post('/payments/test-failure', { bookingId, failureReason });
+    return res.data;
+  },
+
+  getPaymentForBooking: async bookingId => {
+    const res = await api.get(`/payments/${bookingId}`);
+    return res.data;
+  },
+
+  // Notifications
+  getNotifications: async () => {
+    const res = await api.get('/notifications');
+    return res.data;
+  },
+
+  // Insurance
+  getInsuranceInfo: async (bookingId = null) => {
+    if (bookingId) {
+      const res = await api.get(`/insurance/${bookingId}`);
+      return res.data;
+    }
+    const res = await api.get('/insurance');
+    return res.data;
+  },
+
+  // Support
+  getSupportInfo: async () => {
+    const res = await api.get('/support');
+    return res.data;
+  },
+
+  submitSupportTicket: async ticketData => {
+    const res = await api.post('/support', ticketData);
+    return res.data;
+  },
+
+  // Policies
+  getPolicies: async () => {
+    const res = await api.get('/policies');
+    return res.data;
+  },
+
+  getPolicyByType: async policyType => {
+    const res = await api.get(`/policies/${policyType}`);
+    return res.data;
+  }
+};

@@ -1,0 +1,40 @@
+# Node Dependencies
+node_modules/
+*/node_modules/
+*/*/node_modules/
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# Build outputs & Bundles
+dist/
+build/
+*/build/
+*/dist/
+out/
+.next/
+
+# Android & iOS
+.gradle/
+*/.gradle/
+android/app/build/
+android/.gradle/
+*.apk
+*.aab
+ios/Pods/
+ios/build/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+
+# IDE & System files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
