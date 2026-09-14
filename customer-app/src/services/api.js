@@ -5,20 +5,15 @@ import { Platform } from 'react-native';
 /**
  * BACKEND API BASE URL CONFIGURATION
  * 
- * For REAL ANDROID MOBILE DEVICE (Recommended):
- * - Option A (HTTPS Tunnel - Works over any WiFi or Cellular Data):
- *     Start tunnel:  npx localtunnel --port 5000
- *                    or ngrok http 5000
- *                    or cloudflared tunnel --url http://localhost:5000
- *     Paste your tunnel URL below in BACKEND_TUNNEL_URL (e.g. 'https://xxx.loca.lt')
- * 
- * - Option B (Same Wi-Fi Network LAN IP):
- *     Ensure both your PC and mobile device are connected to the SAME Wi-Fi router.
- *     LAN IP is pre-configured as 'http://192.168.1.2:5000' below.
+ * Works seamlessly across:
+ * - 4G / 5G Cellular Mobile Data
+ * - Real Physical Android / iOS Phones
+ * - Any Wi-Fi Network & Hotspots
+ * - Android Emulators
  */
 
-// 1. If using an HTTPS tunnel (Cloudflare, ngrok, localtunnel), set it here:
-export const BACKEND_TUNNEL_URL = ''; // e.g. 'https://abc-123.loca.lt' or 'https://xyz.ngrok-free.app'
+// 1. Production / HTTPS Public Tunnel URL (Render Live Backend):
+export const BACKEND_TUNNEL_URL = 'https://bus-ev-sewa-car-booking.onrender.com';
 
 // 2. Computer's LAN IP address when phone and PC are on the same Wi-Fi:
 export const BACKEND_LAN_URL = 'http://192.168.1.2:5000';
@@ -26,56 +21,129 @@ export const BACKEND_LAN_URL = 'http://192.168.1.2:5000';
 // 3. Android Emulator loopback alias:
 export const EMULATOR_URL = 'http://10.0.2.2:5000';
 
-export const getBaseUrl = () => {
-  // 1. Highest priority: Public HTTPS Tunnel URL if provided
+/**
+ * Computes default static URL based on hardcoded constants and platform
+ */
+export const getDefaultBaseUrl = () => {
   if (BACKEND_TUNNEL_URL && BACKEND_TUNNEL_URL.trim() !== '') {
     const clean = BACKEND_TUNNEL_URL.trim().replace(/\/+$/, '');
     return clean.endsWith('/api') ? clean : `${clean}/api`;
   }
 
-  // 2. Real Android Device on LAN / Same Wi-Fi
   if (BACKEND_LAN_URL && BACKEND_LAN_URL.trim() !== '') {
     const clean = BACKEND_LAN_URL.trim().replace(/\/+$/, '');
     return clean.endsWith('/api') ? clean : `${clean}/api`;
   }
 
-  // 3. Android Emulator Fallback
   if (Platform.OS === 'android') {
     return `${EMULATOR_URL}/api`;
   }
 
-  // 4. Default / iOS / Web localhost
   return 'http://localhost:5000/api';
 };
 
-export const API_BASE_URL = getBaseUrl();
+/**
+ * Retrieves the actively saved custom server URL from storage
+ */
+export const getCustomServerUrl = async () => {
+  try {
+    const saved = await AsyncStorage.getItem('custom_server_url');
+    return saved ? saved.trim() : null;
+  } catch (e) {
+    return null;
+  }
+};
+
+/**
+ * Saves a new custom server URL into storage
+ */
+export const setCustomServerUrl = async (url) => {
+  try {
+    if (!url || url.trim() === '') {
+      await AsyncStorage.removeItem('custom_server_url');
+    } else {
+      let clean = url.trim().replace(/\/+$/, '');
+      if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+        clean = `https://${clean}`;
+      }
+      await AsyncStorage.setItem('custom_server_url', clean);
+    }
+  } catch (e) {
+    console.error('Failed to save custom server URL:', e);
+  }
+};
+
+/**
+ * Clears custom server URL and reverts to default
+ */
+export const resetServerUrl = async () => {
+  try {
+    await AsyncStorage.removeItem('custom_server_url');
+  } catch (e) {
+    console.error('Failed to reset server URL:', e);
+  }
+};
+
+/**
+ * Returns current active effective base URL
+ */
+export const getEffectiveBaseUrl = async () => {
+  const custom = await getCustomServerUrl();
+  if (custom) {
+    return custom.endsWith('/api') ? custom : `${custom}/api`;
+  }
+  return getDefaultBaseUrl();
+};
+
+export const API_BASE_URL = getDefaultBaseUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'bypass-tunnel-reminder': 'true',
+    'Bypass-Tunnel-Reminder': 'true',
+    'ngrok-skip-browser-warning': 'true',
+    'User-Agent': 'TravelEaseCustomerApp/1.0'
   },
   timeout: 15000
 });
 
+// Dynamic Request Interceptor: Resolves active server URL & injects Auth / Tunnel headers
 api.interceptors.request.use(
-  async config => {
+  async (config) => {
     try {
+      // 1. Dynamic Base URL Resolution
+      const customUrl = await AsyncStorage.getItem('custom_server_url');
+      if (customUrl && customUrl.trim() !== '') {
+        const clean = customUrl.trim().replace(/\/+$/, '');
+        config.baseURL = clean.endsWith('/api') ? clean : `${clean}/api`;
+      } else {
+        config.baseURL = getDefaultBaseUrl();
+      }
+
+      // 2. Tunnel bypass headers
+      config.headers['bypass-tunnel-reminder'] = 'true';
+      config.headers['Bypass-Tunnel-Reminder'] = 'true';
+      config.headers['ngrok-skip-browser-warning'] = 'true';
+
+      // 3. Auth Token
       const token = await AsyncStorage.getItem('customer_token');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
     } catch (e) {
-      console.error('Error fetching token:', e);
+      console.error('Error in request interceptor:', e);
     }
     return config;
   },
-  error => Promise.reject(error)
+  (error) => Promise.reject(error)
 );
 
+// Response Interceptor: Handles unauthorized status
 api.interceptors.response.use(
-  response => response,
-  async error => {
+  (response) => response,
+  async (error) => {
     if (error.response && (error.response.status === 401 || error.response.status === 403)) {
       try {
         await AsyncStorage.removeItem('customer_token');
@@ -87,5 +155,50 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+/**
+ * Health check tester for checking connection to a specific URL or active URL
+ */
+export const testServerConnection = async (targetUrl = null) => {
+  const startTime = Date.now();
+  let testEndpoint = targetUrl;
+
+  if (!testEndpoint) {
+    testEndpoint = await getEffectiveBaseUrl();
+  } else {
+    testEndpoint = testEndpoint.trim().replace(/\/+$/, '');
+    if (!testEndpoint.startsWith('http://') && !testEndpoint.startsWith('https://')) {
+      testEndpoint = `https://${testEndpoint}`;
+    }
+    testEndpoint = testEndpoint.endsWith('/api') ? testEndpoint : `${testEndpoint}/api`;
+  }
+
+  try {
+    const res = await axios.get(`${testEndpoint}/health`, {
+      timeout: 7000,
+      headers: {
+        'bypass-tunnel-reminder': 'true',
+        'Bypass-Tunnel-Reminder': 'true',
+        'ngrok-skip-browser-warning': 'true'
+      }
+    });
+    const latency = Date.now() - startTime;
+    return {
+      success: true,
+      status: res.status,
+      latency,
+      url: testEndpoint,
+      data: res.data
+    };
+  } catch (err) {
+    const latency = Date.now() - startTime;
+    return {
+      success: false,
+      latency,
+      url: testEndpoint,
+      error: err.message || 'Unable to reach backend server'
+    };
+  }
+};
 
 export default api;

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -11,10 +11,12 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useCustomerAuth } from '../../context/CustomerAuthContext';
 import Header from '../../components/Header';
+import ServerSettingsModal from '../../components/ServerSettingsModal';
 import { COLORS } from '../../constants/colors';
 
 const CustomerProfileScreen = ({ navigation }) => {
   const { customer, logout } = useCustomerAuth();
+  const [showServerModal, setShowServerModal] = useState(false);
 
   const handleLogout = () => {
     Alert.alert(
@@ -50,6 +52,18 @@ const CustomerProfileScreen = ({ navigation }) => {
           subtitle: 'Past tickets and transactions',
           icon: 'time-outline',
           action: () => navigation.navigate('BookingHistory')
+        }
+      ]
+    },
+    {
+      title: 'Connectivity & Server',
+      items: [
+        {
+          id: 'server-settings',
+          title: 'Server & Tunnel Settings',
+          subtitle: 'Configure HTTPS Tunnel for 4G/5G & WiFi',
+          icon: 'git-network-outline',
+          action: () => setShowServerModal(true)
         }
       ]
     },
@@ -180,6 +194,12 @@ const CustomerProfileScreen = ({ navigation }) => {
         {/* Version info */}
         <Text style={styles.versionText}>TravelEase Customer App v1.0.0 (Production Build)</Text>
       </ScrollView>
+
+      {/* Server Settings Modal */}
+      <ServerSettingsModal
+        visible={showServerModal}
+        onClose={() => setShowServerModal(false)}
+      />
     </View>
   );
 };
