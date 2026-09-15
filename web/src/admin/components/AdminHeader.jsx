@@ -1,8 +1,8 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Menu, Shield } from 'lucide-react';
+import { Menu, LogOut } from 'lucide-react';
 
-const AdminHeader = ({ title, onToggleSidebar }) => {
+const AdminHeader = ({ title, onToggleSidebar, onOpenLogout }) => {
   const { user } = useAuth();
 
   return (
@@ -30,6 +30,17 @@ const AdminHeader = ({ title, onToggleSidebar }) => {
             <span style={{ fontSize: '0.725rem', color: '#64748b' }}>Platform Root Authority</span>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={onOpenLogout}
+          className="header-logout-btn"
+          aria-label="Logout"
+          title="Sign Out Super Admin"
+        >
+          <LogOut size={16} />
+          <span>Logout</span>
+        </button>
       </div>
     </header>
   );

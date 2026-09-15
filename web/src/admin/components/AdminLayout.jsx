@@ -92,6 +92,7 @@ const AdminLayout = () => {
         <AdminHeader
           title={currentTitle}
           onToggleSidebar={handleToggleSidebar}
+          onOpenLogout={() => setIsLogoutOpen(true)}
         />
         <main className="page-container">
           <Outlet />

@@ -80,6 +80,7 @@ const DriverLayout = () => {
         <DriverHeader
           title={currentTitle}
           onToggleSidebar={handleToggleSidebar}
+          onOpenLogout={() => setIsLogoutOpen(true)}
         />
         <main className="page-container">
           <Outlet />

@@ -1,8 +1,8 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Menu, Truck } from 'lucide-react';
+import { Menu, Truck, LogOut } from 'lucide-react';
 
-const DriverHeader = ({ title, onToggleSidebar }) => {
+const DriverHeader = ({ title, onToggleSidebar, onOpenLogout }) => {
   const { user } = useAuth();
 
   return (
@@ -42,6 +42,17 @@ const DriverHeader = ({ title, onToggleSidebar }) => {
             </span>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={onOpenLogout}
+          className="header-logout-btn"
+          aria-label="Logout"
+          title="Sign Out Driver"
+        >
+          <LogOut size={16} />
+          <span>Logout</span>
+        </button>
       </div>
     </header>
   );
