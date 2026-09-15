@@ -17,13 +17,56 @@ const policyRoutes = require('./routes/policyRoutes');
 
 const app = express();
 
+// Allowed Origins Configuration
+const allowedOrigins = [
+  'https://bus-ev-sewa-car-booking-5ctefa5m0-krpintukr083-rgb.vercel.app',
+  'https://bus-ev-sewa-car-booking.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:5000',
+  'http://127.0.0.1:5173',
+  'http://127.0.0.1:3000'
+];
+
+// Add origins from environment variables if present
+['ALLOWED_ORIGINS', 'CLIENT_URL', 'FRONTEND_URL', 'CORS_ORIGIN'].forEach(envVar => {
+  if (process.env[envVar]) {
+    process.env[envVar].split(',').forEach(url => {
+      const trimmed = url.trim();
+      if (trimmed && !allowedOrigins.includes(trimmed)) {
+        allowedOrigins.push(trimmed);
+      }
+    });
+  }
+});
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow non-browser tools (e.g. mobile apps, curl, server-to-server)
+    if (!origin) return callback(null, true);
+
+    if (
+      allowedOrigins.includes(origin) ||
+      origin.endsWith('.vercel.app') ||
+      origin.includes('localhost') ||
+      origin.includes('127.0.0.1')
+    ) {
+      return callback(null, true);
+    }
+
+    // Default allow requesting origin
+    return callback(null, true);
+  },
+  credentials: true,
+  methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Length', 'X-Requested-With'],
+  optionsSuccessStatus: 204
+};
+
 // Middleware
-app.use(
-  cors({
-    origin: '*', // Allow connections from frontend panels and mobile apps
-    credentials: true
-  })
-);
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

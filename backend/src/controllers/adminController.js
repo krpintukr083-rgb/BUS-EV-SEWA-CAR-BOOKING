@@ -522,8 +522,15 @@ exports.getCars = async (req, res, next) => {
 // ==========================================
 exports.getDriverAssignments = async (req, res, next) => {
   try {
-    const vehicles = await Vehicle.find().populate('assignedDriver');
-    const drivers = await Driver.find({ driverStatus: 'Active' });
+    const [vehicles, drivers] = await Promise.all([
+      Vehicle.find()
+        .select('vehicleNumber vehicleName vehicleType assignedDriver')
+        .populate('assignedDriver', 'name mobileNumber driverStatus profilePhoto')
+        .lean(),
+      Driver.find({ driverStatus: 'Active' })
+        .select('name mobileNumber driverStatus profilePhoto')
+        .lean()
+    ]);
 
     const assignmentList = vehicles.map(v => ({
       vehicleId: v._id,
