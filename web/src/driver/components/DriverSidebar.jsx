@@ -10,10 +10,11 @@ import {
   FileCheck,
   ToggleLeft,
   LifeBuoy,
-  LogOut
+  LogOut,
+  X
 } from 'lucide-react';
 
-const DriverSidebar = ({ onOpenLogout }) => {
+const DriverSidebar = ({ isCollapsed, isMobileOpen, onCloseMobile, onOpenLogout }) => {
   const menuItems = [
     { name: 'Dashboard', path: '/driver/dashboard', icon: LayoutDashboard },
     { name: 'My Profile', path: '/driver/profile', icon: User },
@@ -26,13 +27,30 @@ const DriverSidebar = ({ onOpenLogout }) => {
     { name: 'Support', path: '/driver/support', icon: LifeBuoy }
   ];
 
+  const handleNavClick = () => {
+    if (onCloseMobile) {
+      onCloseMobile();
+    }
+  };
+
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isMobileOpen ? 'mobile-open' : ''}`}>
       <div className="sidebar-header">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <div className="sidebar-brand-title">Transport Fleet</div>
-          <span className="sidebar-brand-badge" style={{ backgroundColor: '#2563eb' }}>Driver Panel</span>
+          <span className="sidebar-brand-badge" style={{ backgroundColor: '#2563eb' }}>
+            Driver Panel
+          </span>
         </div>
+        <button
+          type="button"
+          className="sidebar-close-btn"
+          onClick={onCloseMobile}
+          aria-label="Close menu"
+          title="Close Navigation Drawer"
+        >
+          <X size={20} />
+        </button>
       </div>
 
       <nav className="sidebar-nav">
@@ -42,6 +60,8 @@ const DriverSidebar = ({ onOpenLogout }) => {
             <NavLink
               key={item.path}
               to={item.path}
+              onClick={handleNavClick}
+              title={item.name}
               className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
             >
               <Icon size={18} />
@@ -54,6 +74,7 @@ const DriverSidebar = ({ onOpenLogout }) => {
           onClick={onOpenLogout}
           className="nav-link nav-link-logout"
           style={{ marginTop: 'auto', paddingTop: '12px' }}
+          title="Logout"
         >
           <LogOut size={18} />
           <span>Logout</span>

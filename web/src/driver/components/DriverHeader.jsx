@@ -1,13 +1,22 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Truck } from 'lucide-react';
+import { Menu, Truck } from 'lucide-react';
 
-const DriverHeader = ({ title }) => {
+const DriverHeader = ({ title, onToggleSidebar }) => {
   const { user } = useAuth();
 
   return (
     <header className="top-header">
       <div className="header-title-area">
+        <button
+          type="button"
+          onClick={onToggleSidebar}
+          className="sidebar-toggle-btn"
+          aria-label="Toggle sidebar"
+          title="Toggle Navigation Menu"
+        >
+          <Menu size={20} />
+        </button>
         <h1 className="header-title">{title}</h1>
       </div>
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import AdminSidebar from './AdminSidebar';
 import AdminHeader from './AdminHeader';
@@ -31,11 +31,39 @@ const titlesMap = {
 
 const AdminLayout = () => {
   const [isLogoutOpen, setIsLogoutOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useAuth();
 
   const currentTitle = titlesMap[location.pathname] || 'Super Admin Panel';
+
+  // Automatically close mobile drawer upon navigation
+  useEffect(() => {
+    setIsMobileOpen(false);
+  }, [location.pathname]);
+
+  // Lock background scrolling when mobile drawer is open
+  useEffect(() => {
+    if (isMobileOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMobileOpen]);
+
+  const handleToggleSidebar = () => {
+    if (window.innerWidth < 1024) {
+      setIsMobileOpen(prev => !prev);
+    } else {
+      setIsCollapsed(prev => !prev);
+    }
+  };
 
   const handleLogoutConfirm = () => {
     logout();
@@ -44,14 +72,32 @@ const AdminLayout = () => {
   };
 
   return (
-    <div className="app-container">
-      <AdminSidebar onOpenLogout={() => setIsLogoutOpen(true)} />
+    <div className={`app-container ${isCollapsed ? 'sidebar-collapsed' : ''}`}>
+      {/* Mobile Drawer Backdrop */}
+      <div
+        className={`sidebar-backdrop ${isMobileOpen ? 'mobile-open' : ''}`}
+        onClick={() => setIsMobileOpen(false)}
+        aria-hidden="true"
+      />
+
+      {/* Responsive Super Admin Sidebar */}
+      <AdminSidebar
+        isCollapsed={isCollapsed}
+        isMobileOpen={isMobileOpen}
+        onCloseMobile={() => setIsMobileOpen(false)}
+        onOpenLogout={() => setIsLogoutOpen(true)}
+      />
+
       <div className="main-wrapper">
-        <AdminHeader title={currentTitle} />
+        <AdminHeader
+          title={currentTitle}
+          onToggleSidebar={handleToggleSidebar}
+        />
         <main className="page-container">
           <Outlet />
         </main>
       </div>
+
       <AdminLogoutModal
         isOpen={isLogoutOpen}
         onClose={() => setIsLogoutOpen(false)}

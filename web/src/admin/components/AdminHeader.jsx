@@ -1,13 +1,22 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Shield } from 'lucide-react';
+import { Menu, Shield } from 'lucide-react';
 
-const AdminHeader = ({ title }) => {
+const AdminHeader = ({ title, onToggleSidebar }) => {
   const { user } = useAuth();
 
   return (
     <header className="top-header">
       <div className="header-title-area">
+        <button
+          type="button"
+          onClick={onToggleSidebar}
+          className="sidebar-toggle-btn"
+          aria-label="Toggle sidebar"
+          title="Toggle Navigation Menu"
+        >
+          <Menu size={20} />
+        </button>
         <h1 className="header-title">{title}</h1>
       </div>
 
