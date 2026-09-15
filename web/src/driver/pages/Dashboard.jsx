@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { driverService } from '../../services/driverService';
 import StatCard from '../../components/StatCard';
 import StatusBadge from '../../components/StatusBadge';
+import { DashboardSkeleton } from '../../components/SkeletonLoader';
 import {
   Inbox,
   CheckCircle2,
@@ -11,21 +12,29 @@ import {
   Truck,
   ArrowRight,
   MapPin,
-  Calendar
+  Calendar,
+  AlertTriangle,
+  RotateCw
 } from 'lucide-react';
 
 const Dashboard = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const fetchDashboard = async () => {
+    setLoading(true);
+    setError(null);
     try {
       const res = await driverService.getDashboard();
       if (res.success) {
         setData(res.data);
+      } else {
+        setError(res.message || 'Failed to load driver dashboard');
       }
     } catch (err) {
       console.error(err);
+      setError(err?.response?.data?.message || 'Network error while fetching driver dashboard');
     } finally {
       setLoading(false);
     }
@@ -36,7 +45,39 @@ const Dashboard = () => {
   }, []);
 
   if (loading) {
-    return <div style={{ padding: '24px', color: '#64748b' }}>Loading dashboard data...</div>;
+    return <DashboardSkeleton role="driver" />;
+  }
+
+  if (error) {
+    return (
+      <div
+        className="content-card"
+        style={{
+          padding: '32px',
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '16px',
+          borderLeft: '4px solid #ef4444'
+        }}
+      >
+        <AlertTriangle size={36} color="#ef4444" />
+        <h3 style={{ fontSize: '1.15rem', fontWeight: '700', color: '#1e293b' }}>
+          Unable to Load Driver Dashboard
+        </h3>
+        <p style={{ color: '#64748b', fontSize: '0.9rem', maxWidth: '400px' }}>
+          {error}
+        </p>
+        <button
+          onClick={fetchDashboard}
+          className="btn btn-primary"
+          style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+        >
+          <RotateCw size={16} /> Retry Now
+        </button>
+      </div>
+    );
   }
 
   const { driver, assignedVehicle, stats, documentSummary, recentBookingRequests, recentHistory, recentPayments } =

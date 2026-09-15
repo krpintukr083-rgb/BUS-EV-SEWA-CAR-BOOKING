@@ -3,6 +3,7 @@ const Vehicle = require('../models/Vehicle');
 const Booking = require('../models/Booking');
 const Payment = require('../models/Payment');
 const User = require('../models/User');
+const { dashboardCache } = require('../utils/cache');
 
 // @desc    Get Driver Dashboard Summary
 // @route   GET /api/driver/dashboard
@@ -10,38 +11,64 @@ const User = require('../models/User');
 exports.getDriverDashboard = async (req, res, next) => {
   try {
     const driver = req.driver;
-
-    // Fetch Assigned Vehicle
-    let assignedVehicle = null;
-    if (driver.assignedVehicle) {
-      assignedVehicle = await Vehicle.findById(driver.assignedVehicle._id || driver.assignedVehicle);
+    const cacheKey = `driver_dashboard_${driver._id}`;
+    const cachedData = dashboardCache.get(cacheKey);
+    if (cachedData) {
+      return res.json({
+        success: true,
+        data: cachedData
+      });
     }
 
-    // Fetch Driver Booking Requests (Pending)
-    const bookingRequests = await Booking.find({
-      $or: [{ driver: driver._id }, { vehicle: assignedVehicle ? assignedVehicle._id : null }],
-      bookingStatus: 'Pending'
-    })
-      .populate('vehicle')
-      .sort({ createdAt: -1 })
-      .limit(5);
+    const assignedVehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
 
-    // Fetch Recent Booking History (Completed / Confirmed / Cancelled)
-    const recentHistory = await Booking.find({
-      driver: driver._id,
-      bookingStatus: { $in: ['Confirmed', 'Ongoing', 'Completed', 'Cancelled'] }
-    })
-      .populate('vehicle')
-      .sort({ createdAt: -1 })
-      .limit(5);
+    // Concurrent fetching
+    const [
+      assignedVehicle,
+      bookingRequests,
+      recentHistory,
+      paymentAggregate,
+      recentPayments,
+      completedTripsCount
+    ] = await Promise.all([
+      assignedVehicleId ? Vehicle.findById(assignedVehicleId).lean() : Promise.resolve(null),
+      Booking.find({
+        $or: [
+          { driver: driver._id },
+          ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
+        ],
+        bookingStatus: 'Pending'
+      })
+        .select('bookingId customer serviceType pickupLocation dropLocation fare driverPaymentAmount paymentStatus bookingStatus travelDate passengerDetails busSeatNumbers vehicle driver createdAt')
+        .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory vehicleStatus seatingCapacity')
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean(),
+      Booking.find({
+        driver: driver._id,
+        bookingStatus: { $in: ['Confirmed', 'Ongoing', 'Completed', 'Cancelled'] }
+      })
+        .select('bookingId customer serviceType pickupLocation dropLocation fare driverPaymentAmount paymentStatus bookingStatus travelDate passengerDetails busSeatNumbers vehicle driver createdAt')
+        .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory vehicleStatus seatingCapacity')
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean(),
+      Payment.aggregate([
+        { $match: { driver: driver._id } },
+        { $group: { _id: null, totalEarnings: { $sum: '$driverPayment' } } }
+      ]),
+      Payment.find({ driver: driver._id })
+        .select('booking bookingId customer driver bookingAmount driverPayment paymentStatus transactionReference createdAt')
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean(),
+      Booking.countDocuments({
+        driver: driver._id,
+        bookingStatus: 'Completed'
+      })
+    ]);
 
-    // Fetch Earnings / Payments
-    const payments = await Payment.find({ driver: driver._id }).sort({ createdAt: -1 });
-    const totalEarnings = payments.reduce((acc, curr) => acc + (curr.driverPayment || 0), 0);
-    const completedTripsCount = await Booking.countDocuments({
-      driver: driver._id,
-      bookingStatus: 'Completed'
-    });
+    const totalEarnings = paymentAggregate.length > 0 ? (paymentAggregate[0].totalEarnings || 0) : 0;
 
     // Document Verification Summary
     const documentSummary = {
@@ -63,40 +90,45 @@ exports.getDriverDashboard = async (req, res, next) => {
           : 'Pending'
     };
 
+    const responsePayload = {
+      driver: {
+        id: driver._id,
+        name: driver.name,
+        mobileNumber: driver.mobileNumber,
+        profilePhoto: driver.profilePhoto,
+        driverStatus: driver.driverStatus
+      },
+      assignedVehicle: assignedVehicle
+        ? {
+            id: assignedVehicle._id,
+            vehicleNumber: assignedVehicle.vehicleNumber,
+            vehicleName: assignedVehicle.vehicleName,
+            vehicleType: assignedVehicle.vehicleType,
+            vehicleCategory: assignedVehicle.vehicleCategory,
+            vehicleModel: assignedVehicle.vehicleModel,
+            vehicleStatus: assignedVehicle.vehicleStatus,
+            seatingCapacity: assignedVehicle.seatingCapacity
+          }
+        : null,
+      stats: {
+        pendingRequestsCount: bookingRequests.length,
+        completedTripsCount,
+        totalEarnings,
+        driverStatus: driver.driverStatus,
+        documentStatus: documentSummary.overallStatus
+      },
+      documentSummary,
+      recentBookingRequests: bookingRequests,
+      recentHistory,
+      recentPayments
+    };
+
+    // Cache driver-specific dashboard data for 15s
+    dashboardCache.set(cacheKey, responsePayload, 15000);
+
     res.json({
       success: true,
-      data: {
-        driver: {
-          id: driver._id,
-          name: driver.name,
-          mobileNumber: driver.mobileNumber,
-          profilePhoto: driver.profilePhoto,
-          driverStatus: driver.driverStatus
-        },
-        assignedVehicle: assignedVehicle
-          ? {
-              id: assignedVehicle._id,
-              vehicleNumber: assignedVehicle.vehicleNumber,
-              vehicleName: assignedVehicle.vehicleName,
-              vehicleType: assignedVehicle.vehicleType,
-              vehicleCategory: assignedVehicle.vehicleCategory,
-              vehicleModel: assignedVehicle.vehicleModel,
-              vehicleStatus: assignedVehicle.vehicleStatus,
-              seatingCapacity: assignedVehicle.seatingCapacity
-            }
-          : null,
-        stats: {
-          pendingRequestsCount: bookingRequests.length,
-          completedTripsCount,
-          totalEarnings,
-          driverStatus: driver.driverStatus,
-          documentStatus: documentSummary.overallStatus
-        },
-        documentSummary,
-        recentBookingRequests: bookingRequests,
-        recentHistory,
-        recentPayments: payments.slice(0, 5)
-      }
+      data: responsePayload
     });
   } catch (error) {
     next(error);

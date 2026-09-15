@@ -85,4 +85,11 @@ const bookingSchema = new mongoose.Schema(
   }
 );
 
+// Performance Indexes
+bookingSchema.index({ driver: 1, bookingStatus: 1, createdAt: -1 });
+bookingSchema.index({ vehicle: 1, bookingStatus: 1 });
+bookingSchema.index({ bookingStatus: 1, createdAt: -1 });
+bookingSchema.index({ 'customer.phone': 1 });
+bookingSchema.index({ paymentStatus: 1 });
+
 module.exports = mongoose.model('Booking', bookingSchema);

@@ -64,4 +64,9 @@ const paymentSchema = new mongoose.Schema(
   }
 );
 
+// Performance Indexes
+paymentSchema.index({ driver: 1, createdAt: -1 });
+paymentSchema.index({ paymentStatus: 1 });
+paymentSchema.index({ booking: 1 });
+
 module.exports = mongoose.model('Payment', paymentSchema);

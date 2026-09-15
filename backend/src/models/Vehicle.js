@@ -121,4 +121,8 @@ const vehicleSchema = new mongoose.Schema(
   }
 );
 
+// Performance Indexes
+vehicleSchema.index({ vehicleStatus: 1 });
+vehicleSchema.index({ assignedDriver: 1 });
+
 module.exports = mongoose.model('Vehicle', vehicleSchema);

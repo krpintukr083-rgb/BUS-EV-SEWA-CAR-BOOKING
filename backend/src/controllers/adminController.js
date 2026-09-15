@@ -10,43 +10,81 @@ const Notification = require('../models/Notification');
 const Support = require('../models/Support');
 const Policy = require('../models/Policy');
 const ServiceControl = require('../models/ServiceControl');
+const { dashboardCache } = require('../utils/cache');
 
 // ==========================================
 // 1. ADMIN DASHBOARD
 // ==========================================
 exports.getDashboardStats = async (req, res, next) => {
   try {
-    const customersCount = await User.countDocuments({ role: 'customer' });
-    const driversCount = await Driver.countDocuments();
-    const vehiclesCount = await Vehicle.countDocuments();
-    const activeVehiclesCount = await Vehicle.countDocuments({ vehicleStatus: 'Active' });
-    const inactiveVehiclesCount = await Vehicle.countDocuments({ vehicleStatus: 'Inactive' });
-    const blockedVehiclesCount = await Vehicle.countDocuments({ vehicleStatus: 'Blocked' });
-    const bookingsCount = await Booking.countDocuments();
+    const cachedData = dashboardCache.get('admin_dashboard_stats');
+    if (cachedData) {
+      return res.json({
+        success: true,
+        data: cachedData
+      });
+    }
 
-    const payments = await Payment.find();
-    const totalPaymentsAmount = payments.reduce((acc, curr) => acc + (curr.bookingAmount || 0), 0);
-    const successfulPaymentsCount = payments.filter(p => p.paymentStatus === 'Successful').length;
+    const [
+      customersCount,
+      driversCount,
+      vehiclesCount,
+      activeVehiclesCount,
+      inactiveVehiclesCount,
+      blockedVehiclesCount,
+      bookingsCount,
+      paymentAggregate,
+      pendingDriverVerificationCount,
+      pendingDocumentsCount,
+      cancellationRecordsCount,
+      compensationRecordsCount,
+      insuranceRecordsCount,
+      serviceControlDoc,
+      recentBookings
+    ] = await Promise.all([
+      User.countDocuments({ role: 'customer' }),
+      Driver.countDocuments(),
+      Vehicle.countDocuments(),
+      Vehicle.countDocuments({ vehicleStatus: 'Active' }),
+      Vehicle.countDocuments({ vehicleStatus: 'Inactive' }),
+      Vehicle.countDocuments({ vehicleStatus: 'Blocked' }),
+      Booking.countDocuments(),
+      Payment.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalPaymentsAmount: { $sum: '$bookingAmount' },
+            paymentsCount: {
+              $sum: { $cond: [{ $eq: ['$paymentStatus', 'Successful'] }, 1, 0] }
+            }
+          }
+        }
+      ]),
+      Driver.countDocuments({
+        $or: [
+          { drivingLicenceStatus: 'Pending' },
+          { rcStatus: 'Pending' },
+          { insuranceStatus: 'Pending' },
+          { fitnessStatus: 'Pending' }
+        ]
+      }),
+      Driver.countDocuments({
+        $or: [{ drivingLicenceStatus: 'Pending' }, { rcStatus: 'Pending' }]
+      }),
+      Cancellation.countDocuments(),
+      Compensation.countDocuments(),
+      Insurance.countDocuments(),
+      ServiceControl.findOne().lean(),
+      Booking.find()
+        .select('bookingId customer serviceType pickupLocation dropLocation fare driverPaymentAmount paymentStatus bookingStatus travelDate createdAt vehicle driver')
+        .populate('vehicle', 'vehicleName vehicleNumber vehicleType vehicleCategory seatingCapacity vehicleStatus')
+        .populate('driver', 'name mobileNumber profilePhoto driverStatus')
+        .sort({ createdAt: -1 })
+        .limit(6)
+        .lean()
+    ]);
 
-    const pendingDriverVerificationCount = await Driver.countDocuments({
-      $or: [
-        { drivingLicenceStatus: 'Pending' },
-        { rcStatus: 'Pending' },
-        { insuranceStatus: 'Pending' },
-        { fitnessStatus: 'Pending' }
-      ]
-    });
-
-    const pendingDocumentsCount = await Driver.countDocuments({
-      $or: [{ drivingLicenceStatus: 'Pending' }, { rcStatus: 'Pending' }]
-    });
-
-    const cancellationRecordsCount = await Cancellation.countDocuments();
-    const compensationRecordsCount = await Compensation.countDocuments();
-    const insuranceRecordsCount = await Insurance.countDocuments();
-
-    // Service Controls
-    let serviceControl = await ServiceControl.findOne();
+    let serviceControl = serviceControlDoc;
     if (!serviceControl) {
       serviceControl = await ServiceControl.create({
         busService: 'Active',
@@ -55,35 +93,36 @@ exports.getDashboardStats = async (req, res, next) => {
       });
     }
 
-    // Recent Bookings
-    const recentBookings = await Booking.find()
-      .populate('vehicle')
-      .populate('driver')
-      .sort({ createdAt: -1 })
-      .limit(6);
+    const totalPaymentsAmount = paymentAggregate.length > 0 ? (paymentAggregate[0].totalPaymentsAmount || 0) : 0;
+    const paymentsCount = paymentAggregate.length > 0 ? (paymentAggregate[0].paymentsCount || 0) : 0;
+
+    const responsePayload = {
+      counts: {
+        customers: customersCount,
+        drivers: driversCount,
+        vehicles: vehiclesCount,
+        activeVehicles: activeVehiclesCount,
+        inactiveVehicles: inactiveVehiclesCount,
+        blockedVehicles: blockedVehiclesCount,
+        bookings: bookingsCount,
+        paymentsCount,
+        totalPaymentsAmount,
+        pendingDriverVerification: pendingDriverVerificationCount,
+        pendingDocuments: pendingDocumentsCount,
+        cancellationRecords: cancellationRecordsCount,
+        compensationRecords: compensationRecordsCount,
+        accidentInsuranceRecords: insuranceRecordsCount
+      },
+      serviceControl,
+      recentBookings
+    };
+
+    // Cache non-sensitive aggregate metrics for 30 seconds
+    dashboardCache.set('admin_dashboard_stats', responsePayload, 30000);
 
     res.json({
       success: true,
-      data: {
-        counts: {
-          customers: customersCount,
-          drivers: driversCount,
-          vehicles: vehiclesCount,
-          activeVehicles: activeVehiclesCount,
-          inactiveVehicles: inactiveVehiclesCount,
-          blockedVehicles: blockedVehiclesCount,
-          bookings: bookingsCount,
-          paymentsCount: successfulPaymentsCount,
-          totalPaymentsAmount,
-          pendingDriverVerification: pendingDriverVerificationCount,
-          pendingDocuments: pendingDocumentsCount,
-          cancellationRecords: cancellationRecordsCount,
-          compensationRecords: compensationRecordsCount,
-          accidentInsuranceRecords: insuranceRecordsCount
-        },
-        serviceControl,
-        recentBookings
-      }
+      data: responsePayload
     });
   } catch (error) {
     next(error);
