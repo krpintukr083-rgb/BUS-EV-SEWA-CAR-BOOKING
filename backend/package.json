@@ -21,7 +21,8 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "localtunnel": "^2.0.2",
-    "mongoose": "^8.5.2"
+    "mongoose": "^8.5.2",
+    "razorpay": "^2.9.8"
   },
   "devDependencies": {
     "jest": "^30.5.1",

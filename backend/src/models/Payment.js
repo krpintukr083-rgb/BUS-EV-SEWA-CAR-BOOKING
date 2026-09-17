@@ -37,6 +37,30 @@ const paymentSchema = new mongoose.Schema(
       type: String,
       required: true
     },
+    razorpayOrderId: {
+      type: String,
+      default: ''
+    },
+    razorpayPaymentId: {
+      type: String,
+      default: ''
+    },
+    razorpaySignature: {
+      type: String,
+      default: ''
+    },
+    paymentGateway: {
+      type: String,
+      default: 'Razorpay'
+    },
+    paymentTimestamp: {
+      type: Date,
+      default: Date.now
+    },
+    gatewayResponse: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {}
+    },
     refundAmount: {
       type: Number,
       default: 0

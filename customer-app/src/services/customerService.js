@@ -99,7 +99,32 @@ export const customerService = {
     return res.data;
   },
 
-  // Payment Test Sandbox
+  // Razorpay Test Mode Payment Pipeline
+  createRazorpayOrder: async (bookingId) => {
+    const res = await api.post('/payments/razorpay/create-order', { bookingId });
+    return res.data;
+  },
+
+  verifyRazorpayPayment: async ({ bookingId, razorpayOrderId, razorpayPaymentId, razorpaySignature }) => {
+    const res = await api.post('/payments/razorpay/verify-payment', {
+      bookingId,
+      razorpayOrderId,
+      razorpayPaymentId,
+      razorpaySignature
+    });
+    return res.data;
+  },
+
+  recordRazorpayFailure: async ({ bookingId, razorpayOrderId, error }) => {
+    const res = await api.post('/payments/razorpay/record-failure', {
+      bookingId,
+      razorpayOrderId,
+      error
+    });
+    return res.data;
+  },
+
+  // Payment Test Sandbox (Backward Compatibility)
   createPaymentSession: async (bookingId, paymentMethod) => {
     const res = await api.post('/payments/create', { bookingId, paymentMethod });
     return res.data;
