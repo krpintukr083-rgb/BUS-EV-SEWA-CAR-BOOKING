@@ -179,6 +179,20 @@ const BookingManagement = () => {
                     <td style={{ fontWeight: '700' }}>₹{b.fare}</td>
                     <td>
                       <StatusBadge status={b.paymentStatus} />
+                      <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '3px' }}>
+                        {b.paymentMethod || 'Online'}
+                      </div>
+                      {b.paymentMethod === 'Offline Cash' && (
+                        b.cashCollected ? (
+                          <div style={{ fontSize: '0.72rem', color: '#059669', fontWeight: '700' }}>
+                            ✓ Cash Collected
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: '0.72rem', color: '#d97706', fontWeight: '600' }}>
+                            ⏳ Pending Cash
+                          </div>
+                        )
+                      )}
                     </td>
                     <td>
                       <StatusBadge status={b.bookingStatus} />
@@ -252,6 +266,32 @@ const BookingManagement = () => {
                   {selectedBooking.vehicle?.vehicleName} ({selectedBooking.vehicle?.vehicleNumber})
                 </div>
                 <div style={{ color: '#475569' }}>Driver: {selectedBooking.driver?.name || 'Unassigned'}</div>
+              </div>
+
+              <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px', gridColumn: 'span 2' }}>
+                <span style={{ color: '#64748b' }}>Payment & Collection Audit</span>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '6px' }}>
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Payment Method:</span>
+                    <div style={{ fontWeight: '700' }}>{selectedBooking.paymentMethod || 'Online (Razorpay)'}</div>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Payment Status:</span>
+                    <div style={{ fontWeight: '700' }}>{selectedBooking.paymentStatus}</div>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Cash Collected:</span>
+                    <div style={{ fontWeight: '700', color: selectedBooking.cashCollected ? '#059669' : '#d97706' }}>
+                      {selectedBooking.cashCollected ? '✓ Yes (Collected)' : 'No (Pending)'}
+                    </div>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Collected At:</span>
+                    <div style={{ fontWeight: '600' }}>
+                      {selectedBooking.cashCollectedAt ? new Date(selectedBooking.cashCollectedAt).toLocaleString() : 'N/A'}
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px', gridColumn: 'span 2' }}>

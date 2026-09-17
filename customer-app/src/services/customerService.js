@@ -84,6 +84,11 @@ export const customerService = {
     return res.data;
   },
 
+  confirmOfflineCashBooking: async bookingId => {
+    const res = await api.post(`/bookings/${bookingId}/offline-cash`);
+    return res.data;
+  },
+
   getMyBookings: async () => {
     const res = await api.get('/bookings');
     return res.data;

@@ -171,7 +171,25 @@ const DigitalTicketScreen = ({ route, navigation }) => {
 
               <View style={{ alignItems: 'center' }}>
                 <Text style={styles.fieldLabel}>PAYMENT</Text>
-                <Text style={[styles.fieldVal, { color: COLORS.success }]}>Paid Online</Text>
+                <Text
+                  style={[
+                    styles.fieldVal,
+                    {
+                      color:
+                        booking.paymentStatus === 'Paid' || booking.cashCollected
+                          ? COLORS.success
+                          : booking.paymentMethod === 'Offline Cash'
+                          ? '#d97706'
+                          : COLORS.success
+                    }
+                  ]}
+                >
+                  {booking.paymentMethod === 'Offline Cash'
+                    ? booking.paymentStatus === 'Paid' || booking.cashCollected
+                      ? 'Paid (Cash)'
+                      : 'Pending Cash'
+                    : 'Paid Online'}
+                </Text>
               </View>
 
               <View style={{ alignItems: 'flex-end' }}>
@@ -191,6 +209,52 @@ const DigitalTicketScreen = ({ route, navigation }) => {
             <QRCodeWidget code={booking.bookingId} />
           </View>
         </View>
+
+        {/* Offline Cash Status Callout */}
+        {booking.paymentMethod === 'Offline Cash' && (
+          <View
+            style={[
+              styles.cashCallout,
+              booking.paymentStatus === 'Paid' || booking.cashCollected
+                ? styles.cashCalloutSuccess
+                : styles.cashCalloutPending
+            ]}
+          >
+            <Ionicons
+              name={booking.paymentStatus === 'Paid' || booking.cashCollected ? 'checkmark-circle' : 'cash'}
+              size={20}
+              color={booking.paymentStatus === 'Paid' || booking.cashCollected ? '#059669' : '#d97706'}
+            />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text
+                style={[
+                  styles.cashCalloutTitle,
+                  {
+                    color:
+                      booking.paymentStatus === 'Paid' || booking.cashCollected ? '#065f46' : '#92400e'
+                  }
+                ]}
+              >
+                {booking.paymentStatus === 'Paid' || booking.cashCollected
+                  ? 'Cash Payment Collected'
+                  : 'Cash Payment Pending on Boarding'}
+              </Text>
+              <Text
+                style={[
+                  styles.cashCalloutSub,
+                  {
+                    color:
+                      booking.paymentStatus === 'Paid' || booking.cashCollected ? '#047857' : '#b45309'
+                  }
+                ]}
+              >
+                {booking.paymentStatus === 'Paid' || booking.cashCollected
+                  ? `₹${booking.fare} cash verified and collected by assigned crew.`
+                  : `Please keep exact fare of ₹${booking.fare} in cash ready for the driver / conductor.`}
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* Support note */}
         <View style={styles.guidelineCard}>
@@ -359,6 +423,31 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#cbd5e1',
     borderStyle: 'dashed'
+  },
+  cashCallout: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1.5
+  },
+  cashCalloutSuccess: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#a7f3d0'
+  },
+  cashCalloutPending: {
+    backgroundColor: '#fffbeb',
+    borderColor: '#fde68a'
+  },
+  cashCalloutTitle: {
+    fontSize: 13,
+    fontWeight: '800'
+  },
+  cashCalloutSub: {
+    fontSize: 11,
+    marginTop: 2,
+    lineHeight: 16
   },
   guidelineCard: {
     backgroundColor: '#ffffff',

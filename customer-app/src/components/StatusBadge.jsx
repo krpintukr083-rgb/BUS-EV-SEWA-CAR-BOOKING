@@ -2,14 +2,14 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { COLORS } from '../constants/colors';
 
-const StatusBadge = ({ status }) => {
+const StatusBadge = ({ status, text }) => {
   if (!status) return null;
   const s = status.toLowerCase();
 
   let bg = COLORS.successLight;
   let textCol = COLORS.success;
 
-  if (['pending', 'requested', 'in progress', 'inactive'].includes(s)) {
+  if (['pending', 'pending cash', 'requested', 'in progress', 'inactive'].includes(s)) {
     bg = COLORS.warningLight;
     textCol = COLORS.warning;
   } else if (['cancelled', 'rejected', 'failed', 'blocked'].includes(s)) {
@@ -19,7 +19,7 @@ const StatusBadge = ({ status }) => {
 
   return (
     <View style={[styles.badge, { backgroundColor: bg }]}>
-      <Text style={[styles.badgeText, { color: textCol }]}>{status}</Text>
+      <Text style={[styles.badgeText, { color: textCol }]}>{text || status}</Text>
     </View>
   );
 };

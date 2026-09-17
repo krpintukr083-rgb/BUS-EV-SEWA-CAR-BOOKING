@@ -5,9 +5,9 @@ const StatusBadge = ({ status }) => {
   const s = status.toLowerCase();
 
   let badgeClass = 'badge ';
-  if (['active', 'approved', 'successful', 'confirmed', 'completed', 'assigned', 'processed'].includes(s)) {
+  if (['active', 'approved', 'successful', 'confirmed', 'completed', 'assigned', 'processed', 'paid'].includes(s)) {
     badgeClass += 'badge-active';
-  } else if (['pending', 'inactive', 'requested', 'in progress', 'under review', 'open'].includes(s)) {
+  } else if (['pending', 'pending cash', 'inactive', 'requested', 'in progress', 'under review', 'open'].includes(s)) {
     badgeClass += 'badge-pending';
   } else {
     badgeClass += 'badge-blocked';

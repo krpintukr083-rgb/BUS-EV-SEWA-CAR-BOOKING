@@ -8,6 +8,7 @@ const {
   getBookingRequests,
   acceptBookingRequest,
   rejectBookingRequest,
+  collectCash,
   getBookingHistory,
   getEarnings,
   getDriverDocuments,
@@ -26,6 +27,7 @@ router.get('/vehicle', getAssignedVehicle);
 router.get('/booking-requests', getBookingRequests);
 router.post('/booking-requests/:id/accept', acceptBookingRequest);
 router.post('/booking-requests/:id/reject', rejectBookingRequest);
+router.post('/bookings/:id/collect-cash', collectCash);
 router.get('/booking-history', getBookingHistory);
 router.get('/earnings', getEarnings);
 router.get('/documents', getDriverDocuments);

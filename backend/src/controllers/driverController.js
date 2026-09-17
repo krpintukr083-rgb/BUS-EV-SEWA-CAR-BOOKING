@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Driver = require('../models/Driver');
 const Vehicle = require('../models/Vehicle');
 const Booking = require('../models/Booking');
@@ -244,19 +245,24 @@ exports.getAssignedVehicle = async (req, res, next) => {
   }
 };
 
-// @desc    Get Driver Booking Requests
+// @desc    Get Driver Booking Requests & Assigned Trips (including Offline Cash collection trips)
 // @route   GET /api/driver/booking-requests
 // @access  Private (Driver Only)
 exports.getBookingRequests = async (req, res, next) => {
   try {
     const driver = req.driver;
-    const vehicleId = driver.assignedVehicle ? driver.assignedVehicle._id || driver.assignedVehicle : null;
+    const vehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
 
     const requests = await Booking.find({
-      $or: [{ driver: driver._id }, { vehicle: vehicleId }],
-      bookingStatus: 'Pending'
+      $or: [
+        { driver: driver._id },
+        ...(vehicleId ? [{ vehicle: vehicleId }] : [])
+      ],
+      bookingStatus: { $in: ['Pending', 'Confirmed', 'Ongoing'] }
     })
       .populate('vehicle')
+      .populate('driver')
+      .populate('cashCollectedBy')
       .sort({ createdAt: -1 });
 
     res.json({
@@ -484,6 +490,129 @@ exports.getDriverSupport = async (req, res, next) => {
             description: 'Immediate roadside support contact protocols during active duty.'
           }
         ]
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Collect Cash from Passenger for Offline Cash Booking (Driver / Conductor)
+// @route   POST /api/driver/bookings/:id/collect-cash
+// @access  Private (Driver Only)
+exports.collectCash = async (req, res, next) => {
+  try {
+    const driver = req.driver;
+    const bookingIdParam = req.params.id;
+
+    const query = mongoose.isValidObjectId(bookingIdParam)
+      ? { $or: [{ _id: bookingIdParam }, { bookingId: bookingIdParam }] }
+      : { bookingId: bookingIdParam };
+
+    const booking = await Booking.findOne(query).populate('vehicle');
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    // 1. Cross-Driver Authorization Security Barrier
+    // Verify booking belongs to this driver OR driver's assigned vehicle
+    const driverId = driver._id.toString();
+    const driverAssignedVehicleId = driver.assignedVehicle
+      ? (driver.assignedVehicle._id || driver.assignedVehicle).toString()
+      : null;
+
+    const bookingVehicleId = booking.vehicle
+      ? (booking.vehicle._id || booking.vehicle).toString()
+      : null;
+
+    const bookingDriverId = booking.driver
+      ? (booking.driver._id || booking.driver).toString()
+      : null;
+
+    const vehicleAssignedDriverId = (booking.vehicle && booking.vehicle.assignedDriver)
+      ? (booking.vehicle.assignedDriver._id || booking.vehicle.assignedDriver).toString()
+      : null;
+
+    const isAssignedDriver = bookingDriverId === driverId || vehicleAssignedDriverId === driverId;
+    const isAssignedVehicle = driverAssignedVehicleId && bookingVehicleId && driverAssignedVehicleId === bookingVehicleId;
+
+    if (!isAssignedDriver && !isAssignedVehicle) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access Denied: You are not authorized to collect cash for this booking as it is not assigned to your vehicle or driver account.'
+      });
+    }
+
+    // 2. Validate Payment Method is Offline Cash
+    if (booking.paymentMethod !== 'Offline Cash' && booking.paymentMethod !== 'Cash') {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot collect cash for online payment booking (Method: ${booking.paymentMethod || 'Online'}).`
+      });
+    }
+
+    // 3. Duplicate Protection Check
+    if (booking.cashCollected === true || booking.paymentStatus === 'Paid' || booking.paymentStatus === 'Successful') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cash Already Collected. This booking payment has already been collected and verified.'
+      });
+    }
+
+    // 4. Update Booking record
+    const now = new Date();
+    booking.paymentStatus = 'Paid';
+    booking.cashCollected = true;
+    booking.cashCollectedAt = now;
+    booking.cashCollectedBy = driver._id;
+    if (!booking.driver) {
+      booking.driver = driver._id;
+    }
+    if (booking.bookingStatus === 'Pending') {
+      booking.bookingStatus = 'Confirmed';
+    }
+    await booking.save();
+
+    // 5. Update or Create Payment record
+    let payment = await Payment.findOne({ booking: booking._id });
+    if (payment) {
+      payment.paymentStatus = 'Paid';
+      payment.cashCollected = true;
+      payment.cashCollectedAt = now;
+      payment.cashCollectedBy = driver._id;
+      payment.driver = driver._id;
+      await payment.save();
+    } else {
+      payment = await Payment.create({
+        booking: booking._id,
+        bookingId: booking.bookingId,
+        customer: {
+          name: booking.customer.name,
+          phone: booking.customer.phone
+        },
+        driver: driver._id,
+        bookingAmount: booking.fare,
+        driverPayment: booking.driverPaymentAmount || Math.round(booking.fare * 0.8),
+        paymentMethod: 'Offline Cash',
+        paymentStatus: 'Paid',
+        transactionReference: `CASH-${booking.bookingId}`,
+        paymentGateway: 'Offline Cash',
+        cashCollected: true,
+        cashCollectedAt: now,
+        cashCollectedBy: driver._id
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Cash of ₹${booking.fare} successfully collected and confirmed for booking ${booking.bookingId}!`,
+      data: {
+        booking,
+        payment
       }
     });
   } catch (error) {

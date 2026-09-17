@@ -51,6 +51,12 @@ export const driverService = {
     return res.data;
   },
 
+  // Collect Offline Cash from Passenger
+  collectCash: async bookingId => {
+    const res = await api.post(`/driver/bookings/${bookingId}/collect-cash`);
+    return res.data;
+  },
+
   // Booking History
   getBookingHistory: async () => {
     const res = await api.get('/driver/booking-history');

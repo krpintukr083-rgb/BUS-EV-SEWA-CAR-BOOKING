@@ -21,7 +21,7 @@ const PaymentScreen = ({ route, navigation }) => {
   const { bookingId, bookingCode, amount } = route.params || {};
   const { bookingDraft, updateDraft } = useBooking();
 
-  const [selectedMethod, setSelectedMethod] = useState('Razorpay_UPI');
+  const [selectedMethod, setSelectedMethod] = useState('Offline_Cash');
   const [paymentState, setPaymentState] = useState('idle'); // 'idle' | 'processing' | 'success' | 'failed'
   const [transactionId, setTransactionId] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
@@ -30,27 +30,127 @@ const PaymentScreen = ({ route, navigation }) => {
 
   const paymentOptions = [
     {
+      id: 'Offline_Cash',
+      title: 'Offline Cash (Pay on Boarding)',
+      subtitle: 'Pay the fare in cash directly to the assigned driver / conductor',
+      icon: 'cash-outline',
+      color: '#059669',
+      isOffline: true
+    },
+    {
       id: 'Razorpay_UPI',
       title: 'UPI / QR Payment (Razorpay TEST)',
       subtitle: 'Google Pay, PhonePe, Paytm, BHIM UPI',
       icon: 'phone-portrait-outline',
-      color: '#10b981'
+      color: '#10b981',
+      isOffline: false
     },
     {
       id: 'Razorpay_Card',
       title: 'Credit / Debit Card (Razorpay TEST)',
       subtitle: 'Visa, MasterCard, RuPay, Maestro',
       icon: 'card-outline',
-      color: '#1d4ed8'
+      color: '#1d4ed8',
+      isOffline: false
     },
     {
       id: 'Razorpay_NetBanking',
       title: 'Net Banking (Razorpay TEST)',
       subtitle: 'SBI, HDFC, ICICI, Axis & 50+ Banks',
       icon: 'business-outline',
-      color: '#6366f1'
+      color: '#6366f1',
+      isOffline: false
     }
   ];
+
+  // Confirm Offline Cash Booking
+  const handleConfirmOfflineCash = async () => {
+    setPaymentState('processing');
+    setErrorMessage('');
+
+    try {
+      const activeBookingId = bookingId || bookingCode || bookingDraft.confirmedBooking?._id || bookingDraft.confirmedBooking?.bookingId;
+      if (!activeBookingId) {
+        throw new Error('No active booking ID found to confirm offline cash booking.');
+      }
+
+      const res = await customerService.confirmOfflineCashBooking(activeBookingId);
+      if (res.success && res.data) {
+        setPaymentState('success');
+        updateDraft({ confirmedBooking: res.data.booking });
+
+        setTimeout(() => {
+          navigation.replace('BookingConfirmation', {
+            booking: res.data.booking,
+            payment: res.data.payment
+          });
+        }, 1200);
+      } else {
+        setPaymentState('failed');
+        setErrorMessage(res.message || 'Failed to confirm offline cash booking.');
+      }
+    } catch (err) {
+      console.log('Offline cash booking confirmation error:', err);
+      setPaymentState('failed');
+      setErrorMessage(err.response?.data?.message || err.message || 'Error confirming offline cash booking.');
+    }
+  };
+
+  // Simulate Instant Razorpay Payment (for Sandbox testing)
+  const handleSimulatePayment = async (shouldFail = false) => {
+    try {
+      setPaymentState('processing');
+      const activeBookingId = bookingId || bookingCode || bookingDraft.confirmedBooking?._id || bookingDraft.confirmedBooking?.bookingId;
+      if (!activeBookingId) throw new Error('No booking ID found');
+
+      const orderRes = await customerService.createRazorpayOrder(activeBookingId);
+      if (!orderRes.success) throw new Error(orderRes.message || 'Failed to create order');
+
+      const order = orderRes.data;
+      if (shouldFail) {
+        await customerService.recordRazorpayFailure({
+          bookingId: order.bookingId || order.bookingDbId,
+          razorpayOrderId: order.orderId,
+          error: { description: 'Simulated payment failure for sandbox validation' }
+        });
+        setPaymentState('failed');
+        setErrorMessage('Simulated Razorpay test payment failure');
+      } else {
+        const authRes = await customerService.processRazorpayTestPay({
+          bookingId: order.bookingId || order.bookingDbId,
+          razorpayOrderId: order.orderId,
+          status: 'success',
+          method: selectedMethod
+        });
+        if (!authRes.success) throw new Error(authRes.message || 'Test pay failed');
+
+        const verifyRes = await customerService.verifyRazorpayPayment({
+          bookingId: order.bookingId || order.bookingDbId,
+          razorpayOrderId: authRes.data.razorpayOrderId,
+          razorpayPaymentId: authRes.data.razorpayPaymentId,
+          razorpaySignature: authRes.data.razorpaySignature
+        });
+
+        if (verifyRes.success) {
+          setTransactionId(authRes.data.razorpayPaymentId);
+          setPaymentState('success');
+          updateDraft({ confirmedBooking: verifyRes.data.booking });
+          setTimeout(() => {
+            navigation.replace('BookingConfirmation', {
+              booking: verifyRes.data.booking,
+              payment: verifyRes.data.payment
+            });
+          }, 1200);
+        } else {
+          setPaymentState('failed');
+          setErrorMessage(verifyRes.message || 'Signature verification failed');
+        }
+      }
+    } catch (err) {
+      setPaymentState('failed');
+      setErrorMessage(err.response?.data?.message || err.message || 'Simulation error');
+    }
+  };
 
   // Initiate Razorpay Checkout
   const handleInitiateRazorpay = async () => {
@@ -509,33 +609,50 @@ const PaymentScreen = ({ route, navigation }) => {
   };
 
   if (paymentState === 'processing') {
+    const isOffline = selectedMethod === 'Offline_Cash';
     return (
       <View style={styles.stateContainer}>
         <ActivityIndicator size={54} color={COLORS.primary} />
-        <Text style={styles.stateTitle}>Verifying Payment with Razorpay...</Text>
-        <Text style={styles.stateSub}>Validating HMAC SHA256 security signature server-side. Please do not close the app.</Text>
+        <Text style={styles.stateTitle}>
+          {isOffline ? 'Confirming Offline Cash Booking...' : 'Verifying Payment with Razorpay...'}
+        </Text>
+        <Text style={styles.stateSub}>
+          {isOffline
+            ? 'Reserving your seat(s) and preparing your ticket pass. Please wait a moment...'
+            : 'Validating HMAC SHA256 security signature server-side. Please do not close the app.'}
+        </Text>
         <View style={styles.securityBadge}>
-          <Ionicons name="shield-checkmark" size={16} color={COLORS.success} />
-          <Text style={styles.securityText}>Server-Side Signature Verification Active</Text>
+          <Ionicons name={isOffline ? 'checkmark-circle' : 'shield-checkmark'} size={16} color={COLORS.success} />
+          <Text style={styles.securityText}>
+            {isOffline ? 'Direct Seat Reservation Active' : 'Server-Side Signature Verification Active'}
+          </Text>
         </View>
       </View>
     );
   }
 
   if (paymentState === 'success') {
+    const isOffline = selectedMethod === 'Offline_Cash';
     return (
       <View style={styles.stateContainer}>
         <View style={styles.successIconCircle}>
           <Ionicons name="checkmark" size={44} color="#ffffff" />
         </View>
-        <Text style={styles.stateTitle}>Razorpay Payment Verified!</Text>
-        <Text style={styles.stateSub}>Payment ID: {transactionId}</Text>
-        <Text style={styles.redirectText}>Confirming your booking ticket...</Text>
+        <Text style={styles.stateTitle}>
+          {isOffline ? 'Offline Cash Booking Confirmed!' : 'Razorpay Payment Verified!'}
+        </Text>
+        <Text style={styles.stateSub}>
+          {isOffline
+            ? 'Payment Status: Pending Cash (Pay upon Boarding)'
+            : `Payment ID: ${transactionId}`}
+        </Text>
+        <Text style={styles.redirectText}>Generating your digital ticket...</Text>
       </View>
     );
   }
 
   const finalPayable = amount || bookingDraft.totalFare || 0;
+  const isOfflineSelected = selectedMethod === 'Offline_Cash';
 
   return (
     <View style={styles.container}>
@@ -545,9 +662,11 @@ const PaymentScreen = ({ route, navigation }) => {
         {/* Payable Header Card */}
         <View style={styles.amountCard}>
           <View style={styles.amountHeaderRow}>
-            <View style={styles.testModeBadge}>
-              <Ionicons name="flash" size={12} color="#10b981" />
-              <Text style={styles.testModeText}>RAZORPAY TEST MODE</Text>
+            <View style={[styles.testModeBadge, isOfflineSelected && { borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
+              <Ionicons name={isOfflineSelected ? 'cash' : 'flash'} size={12} color="#10b981" />
+              <Text style={styles.testModeText}>
+                {isOfflineSelected ? 'OFFLINE CASH PAYMENT' : 'RAZORPAY TEST MODE'}
+              </Text>
             </View>
             <Text style={styles.bookingRefText}>Ref: {bookingCode || bookingId || 'BK-PENDING'}</Text>
           </View>
@@ -613,7 +732,7 @@ const PaymentScreen = ({ route, navigation }) => {
           <View style={styles.errorBanner}>
             <Ionicons name="alert-circle" size={24} color={COLORS.danger} />
             <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={styles.errorTitle}>Payment Failed (Test Sandbox)</Text>
+              <Text style={styles.errorTitle}>Booking / Payment Notice</Text>
               <Text style={styles.errorDesc}>{errorMessage}</Text>
               <Text style={styles.errorHint}>Your booking remains in Pending state. You can retry anytime.</Text>
             </View>
@@ -621,7 +740,7 @@ const PaymentScreen = ({ route, navigation }) => {
         )}
 
         {/* Payment Methods */}
-        <Text style={styles.sectionHeader}>Select Razorpay Payment Method</Text>
+        <Text style={styles.sectionHeader}>Select Payment Method</Text>
 
         {paymentOptions.map((option) => (
           <TouchableOpacity
@@ -637,7 +756,14 @@ const PaymentScreen = ({ route, navigation }) => {
               <Ionicons name={option.icon} size={22} color={option.color} />
             </View>
             <View style={styles.methodInfo}>
-              <Text style={styles.methodTitle}>{option.title}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.methodTitle}>{option.title}</Text>
+                {option.isOffline && (
+                  <View style={styles.cashBadge}>
+                    <Text style={styles.cashBadgeText}>POPULAR</Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.methodSub}>{option.subtitle}</Text>
             </View>
             <View style={styles.radioOuter}>
@@ -646,40 +772,68 @@ const PaymentScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         ))}
 
-        {/* Security Guarantee */}
-        <View style={styles.guaranteeBox}>
-          <Ionicons name="shield-checkmark" size={18} color="#059669" />
-          <Text style={styles.guaranteeText}>
-            Razorpay Test Mode — 256-bit encrypted test gateway with HMAC SHA-256 server verification.
-          </Text>
-        </View>
+        {/* Instructions / Guarantee Box */}
+        {isOfflineSelected ? (
+          <View style={styles.offlineGuideBox}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <Ionicons name="cash" size={20} color="#059669" />
+              <Text style={styles.offlineGuideTitle}>Offline Cash Instructions</Text>
+            </View>
+            <Text style={styles.offlineGuideText}>
+              • No immediate online payment is required.
+            </Text>
+            <Text style={styles.offlineGuideText}>
+              • Your seats are reserved with Confirmed booking status.
+            </Text>
+            <Text style={styles.offlineGuideText}>
+              • Pay the exact fare of <Text style={{ fontWeight: '800' }}>₹{finalPayable}</Text> in cash to the conductor or driver when boarding.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.guaranteeBox}>
+            <Ionicons name="shield-checkmark" size={18} color="#059669" />
+            <Text style={styles.guaranteeText}>
+              Razorpay Test Mode — 256-bit encrypted test gateway with HMAC SHA-256 server verification.
+            </Text>
+          </View>
+        )}
       </ScrollView>
 
       {/* Sticky Action Footer */}
       <View style={styles.footer}>
-        <Button
-          title={`Pay ₹${finalPayable} (Razorpay Checkout)`}
-          onPress={handleInitiateRazorpay}
-          style={{ backgroundColor: '#059669', marginBottom: 10 }}
-        />
+        {isOfflineSelected ? (
+          <Button
+            title={`Confirm Booking (Offline Cash - ₹${finalPayable})`}
+            onPress={handleConfirmOfflineCash}
+            style={{ backgroundColor: '#059669' }}
+          />
+        ) : (
+          <>
+            <Button
+              title={`Pay ₹${finalPayable} (Razorpay Checkout)`}
+              onPress={handleInitiateRazorpay}
+              style={{ backgroundColor: '#059669', marginBottom: 10 }}
+            />
 
-        <View style={styles.simButtonsRow}>
-          <TouchableOpacity
-            style={styles.simSuccessBtn}
-            onPress={() => handleSimulatePayment(false)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.simSuccessText}>⚡ Instant Test Success</Text>
-          </TouchableOpacity>
+            <View style={styles.simButtonsRow}>
+              <TouchableOpacity
+                style={styles.simSuccessBtn}
+                onPress={() => handleSimulatePayment(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.simSuccessText}>⚡ Instant Test Success</Text>
+              </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.simFailBtn}
-            onPress={() => handleSimulatePayment(true)}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.simFailText}>❌ Test Failure</Text>
-          </TouchableOpacity>
-        </View>
+              <TouchableOpacity
+                style={styles.simFailBtn}
+                onPress={() => handleSimulatePayment(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.simFailText}>❌ Test Failure</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </View>
 
       {/* Razorpay WebView Checkout Modal */}
@@ -884,6 +1038,36 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     backgroundColor: '#059669'
+  },
+  cashBadge: {
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4
+  },
+  cashBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#15803d'
+  },
+  offlineGuideBox: {
+    backgroundColor: '#ecfdf5',
+    borderWidth: 1.5,
+    borderColor: '#a7f3d0',
+    padding: 14,
+    borderRadius: 12,
+    marginTop: 8
+  },
+  offlineGuideTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#065f46'
+  },
+  offlineGuideText: {
+    fontSize: 12,
+    color: '#047857',
+    marginTop: 4,
+    lineHeight: 18
   },
   guaranteeBox: {
     flexDirection: 'row',

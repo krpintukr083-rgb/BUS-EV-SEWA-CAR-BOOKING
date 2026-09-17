@@ -25,7 +25,8 @@ exports.createBooking = async (req, res, next) => {
       passengerDetails,
       selectedSeats,
       fare,
-      travelDate
+      travelDate,
+      paymentMethod
     } = req.body;
 
     if (!vehicleId || !serviceType || !pickupLocation || !dropLocation) {
@@ -104,6 +105,11 @@ exports.createBooking = async (req, res, next) => {
 
     const bookingId = `BK-${Date.now().toString().slice(-4)}${Math.floor(100 + Math.random() * 900)}`;
 
+    const isOfflineCash = paymentMethod === 'Offline Cash' || paymentMethod === 'Cash';
+    const initialPaymentMethod = isOfflineCash ? 'Offline Cash' : (paymentMethod || 'Online Razorpay');
+    const initialPaymentStatus = isOfflineCash ? 'Pending Cash' : 'Pending';
+    const initialBookingStatus = isOfflineCash ? 'Confirmed' : 'Pending';
+
     const booking = await Booking.create({
       bookingId,
       customer: {
@@ -121,16 +127,41 @@ exports.createBooking = async (req, res, next) => {
         : [{ name: req.user.name, age: 28, gender: 'Male' }],
       fare: finalFare,
       driverPaymentAmount: Math.round(finalFare * 0.8),
-      paymentStatus: 'Pending',
-      bookingStatus: 'Pending',
+      paymentMethod: initialPaymentMethod,
+      paymentStatus: initialPaymentStatus,
+      cashCollected: false,
+      cashCollectedAt: null,
+      cashCollectedBy: null,
+      bookingStatus: initialBookingStatus,
       travelDate: travelDate ? new Date(travelDate) : new Date(),
       busSeatNumbers: selectedSeats || []
     });
 
+    // Create corresponding Payment record
+    const payment = await Payment.create({
+      booking: booking._id,
+      bookingId: booking.bookingId,
+      customer: {
+        name: booking.customer.name,
+        phone: booking.customer.phone
+      },
+      driver: booking.driver || null,
+      bookingAmount: booking.fare,
+      driverPayment: booking.driverPaymentAmount || Math.round(booking.fare * 0.8),
+      paymentMethod: initialPaymentMethod,
+      paymentStatus: initialPaymentStatus,
+      transactionReference: isOfflineCash ? `CASH-${booking.bookingId}` : `PENDING-${booking.bookingId}`,
+      paymentGateway: isOfflineCash ? 'Offline Cash' : 'Razorpay',
+      cashCollected: false
+    });
+
     res.status(201).json({
       success: true,
-      message: 'Booking created successfully. Proceed to payment.',
-      data: booking
+      message: isOfflineCash
+        ? 'Booking confirmed with Offline Cash payment. Please pay the fare to the conductor/driver upon boarding.'
+        : 'Booking created successfully. Proceed to payment.',
+      data: booking,
+      payment
     });
   } catch (error) {
     next(error);
@@ -303,6 +334,76 @@ exports.cancelBooking = async (req, res, next) => {
         booking,
         cancellation,
         refundAmount
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Confirm booking with Offline Cash payment
+// @route   POST /api/bookings/:id/offline-cash
+// @access  Private (Customer)
+exports.confirmOfflineCashBooking = async (req, res, next) => {
+  try {
+    const booking = await Booking.findOne(getBookingQuery(req.params.id))
+      .populate('vehicle')
+      .populate('driver');
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    if (booking.paymentStatus === 'Paid' || booking.paymentStatus === 'Successful') {
+      return res.status(400).json({
+        success: false,
+        message: 'This booking has already been paid.'
+      });
+    }
+
+    booking.paymentMethod = 'Offline Cash';
+    booking.paymentStatus = 'Pending Cash';
+    booking.bookingStatus = 'Confirmed';
+    booking.cashCollected = false;
+    await booking.save();
+
+    // Update or create payment record
+    let payment = await Payment.findOne({ booking: booking._id });
+    if (payment) {
+      payment.paymentMethod = 'Offline Cash';
+      payment.paymentStatus = 'Pending Cash';
+      payment.paymentGateway = 'Offline Cash';
+      payment.transactionReference = `CASH-${booking.bookingId}`;
+      payment.cashCollected = false;
+      await payment.save();
+    } else {
+      payment = await Payment.create({
+        booking: booking._id,
+        bookingId: booking.bookingId,
+        customer: {
+          name: booking.customer.name,
+          phone: booking.customer.phone
+        },
+        driver: booking.driver ? (booking.driver._id || booking.driver) : null,
+        bookingAmount: booking.fare,
+        driverPayment: booking.driverPaymentAmount || Math.round(booking.fare * 0.8),
+        paymentMethod: 'Offline Cash',
+        paymentStatus: 'Pending Cash',
+        transactionReference: `CASH-${booking.bookingId}`,
+        paymentGateway: 'Offline Cash',
+        cashCollected: false
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Booking confirmed with Offline Cash payment. Please pay the fare to the conductor/driver upon boarding.',
+      data: {
+        booking,
+        payment
       }
     });
   } catch (error) {

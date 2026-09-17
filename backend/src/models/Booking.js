@@ -51,10 +51,27 @@ const bookingSchema = new mongoose.Schema(
       type: Number,
       default: 0
     },
+    paymentMethod: {
+      type: String,
+      default: 'Online Razorpay'
+    },
     paymentStatus: {
       type: String,
-      enum: ['Pending', 'Successful', 'Failed', 'Refunded'],
+      enum: ['Pending', 'Pending Cash', 'Paid', 'Successful', 'Failed', 'Refunded'],
       default: 'Pending'
+    },
+    cashCollected: {
+      type: Boolean,
+      default: false
+    },
+    cashCollectedAt: {
+      type: Date,
+      default: null
+    },
+    cashCollectedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Driver',
+      default: null
     },
     bookingStatus: {
       type: String,

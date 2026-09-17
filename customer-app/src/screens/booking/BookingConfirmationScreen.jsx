@@ -92,22 +92,44 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
           <View style={styles.divider} />
 
           <View style={styles.row}>
-            <Text style={styles.rowLabel}>Fare Paid</Text>
+            <Text style={styles.rowLabel}>Total Fare</Text>
             <Text style={styles.fareAmount}>₹{booking?.fare}</Text>
           </View>
 
           <View style={styles.row}>
-            <Text style={styles.rowLabel}>Payment Status</Text>
-            <StatusBadge status="Success" text="Paid Online" />
+            <Text style={styles.rowLabel}>Payment Method</Text>
+            <Text style={styles.rowValue}>
+              {booking?.paymentMethod || payment?.paymentMethod || 'Online (Razorpay)'}
+            </Text>
           </View>
 
-          {payment?.transactionId && (
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Payment Status</Text>
+            <StatusBadge
+              status={booking?.paymentStatus || payment?.paymentStatus || (booking?.paymentMethod === 'Offline Cash' ? 'Pending Cash' : 'Paid')}
+            />
+          </View>
+
+          {payment?.transactionId ? (
             <View style={styles.row}>
               <Text style={styles.rowLabel}>Transaction ID</Text>
               <Text style={styles.txId}>{payment.transactionId}</Text>
             </View>
-          )}
+          ) : null}
         </View>
+
+        {/* Offline Cash Notice Card */}
+        {(booking?.paymentMethod === 'Offline Cash' || payment?.paymentMethod === 'Offline Cash') && (
+          <View style={styles.cashNoticeBox}>
+            <Ionicons name="cash" size={22} color="#059669" />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.cashNoticeTitle}>Cash Payment on Boarding</Text>
+              <Text style={styles.cashNoticeSub}>
+                Your seats are reserved. Please keep <Text style={{ fontWeight: '800' }}>₹{booking?.fare}</Text> cash ready to pay the conductor or driver when you board.
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* Action Buttons */}
         <View style={styles.buttonGroup}>
@@ -237,8 +259,29 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.textSecondary
   },
+  cashNoticeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ecfdf5',
+    borderWidth: 1.5,
+    borderColor: '#a7f3d0',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 16
+  },
+  cashNoticeTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#065f46'
+  },
+  cashNoticeSub: {
+    fontSize: 12,
+    color: '#047857',
+    marginTop: 3,
+    lineHeight: 18
+  },
   buttonGroup: {
-    marginTop: 4
+    marginTop: 8
   }
 });
 
