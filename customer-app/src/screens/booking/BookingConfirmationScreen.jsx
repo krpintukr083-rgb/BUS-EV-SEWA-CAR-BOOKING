@@ -76,7 +76,9 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
           {booking?.busSeatNumbers && booking.busSeatNumbers.length > 0 && (
             <View style={styles.row}>
               <Text style={styles.rowLabel}>Seats</Text>
-              <Text style={styles.rowValue}>{booking.busSeatNumbers.join(', ')}</Text>
+              <Text style={styles.rowValue}>
+                {Array.isArray(booking.busSeatNumbers) ? booking.busSeatNumbers.join(', ') : String(booking.busSeatNumbers)}
+              </Text>
             </View>
           )}
 

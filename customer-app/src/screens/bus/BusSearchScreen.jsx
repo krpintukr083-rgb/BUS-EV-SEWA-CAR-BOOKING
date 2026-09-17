@@ -94,6 +94,27 @@ const BusSearchScreen = ({ navigation }) => {
             onPress={handleSearch}
             style={{ marginTop: 8 }}
           />
+
+          <TouchableOpacity
+            style={{
+              marginTop: 12,
+              paddingVertical: 12,
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderRadius: 10,
+              backgroundColor: '#eff6ff',
+              borderWidth: 1,
+              borderColor: '#bfdbfe'
+            }}
+            onPress={() => {
+              updateDraft({ serviceType: 'Bus' });
+              navigation.navigate('BusListing', { from: '', to: '' });
+            }}
+          >
+            <Text style={{ color: COLORS.primary, fontWeight: '700', fontSize: 13 }}>
+              Browse All Available Buses →
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Popular Intercity Routes */}

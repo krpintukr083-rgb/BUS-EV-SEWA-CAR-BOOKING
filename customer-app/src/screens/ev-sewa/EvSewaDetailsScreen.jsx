@@ -258,17 +258,21 @@ const EvSewaDetailsScreen = ({ navigation, route }) => {
           </View>
 
           {/* Boarding / Dropping points list if provided */}
-          {ev.route?.boardingPoints && ev.route.boardingPoints.length > 0 && (
+          {ev.route?.boardingPoints && (
             <View style={styles.stopsListSection}>
               <Text style={styles.stopsListTitle}>Key Boarding Stops:</Text>
-              <Text style={styles.stopsListText}>{ev.route.boardingPoints.join(' • ')}</Text>
+              <Text style={styles.stopsListText}>
+                {Array.isArray(ev.route.boardingPoints) ? ev.route.boardingPoints.join(' • ') : String(ev.route.boardingPoints)}
+              </Text>
             </View>
           )}
 
-          {ev.route?.droppingPoints && ev.route.droppingPoints.length > 0 && (
+          {ev.route?.droppingPoints && (
             <View style={styles.stopsListSection}>
               <Text style={styles.stopsListTitle}>Key Dropping Stops:</Text>
-              <Text style={styles.stopsListText}>{ev.route.droppingPoints.join(' • ')}</Text>
+              <Text style={styles.stopsListText}>
+                {Array.isArray(ev.route.droppingPoints) ? ev.route.droppingPoints.join(' • ') : String(ev.route.droppingPoints)}
+              </Text>
             </View>
           )}
         </View>

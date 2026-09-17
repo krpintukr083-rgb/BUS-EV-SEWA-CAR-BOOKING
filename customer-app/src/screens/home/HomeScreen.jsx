@@ -98,7 +98,7 @@ const HomeScreen = ({ navigation }) => {
       pickupLocation: bus.route?.origin || 'Delhi (Kashmere Gate ISBT)',
       dropLocation: bus.route?.destination || 'Jaipur (Sindhi Camp)'
     });
-    navigation.navigate('BusDetails', { busId: bus._id });
+    navigation.navigate('BusDetails', { busId: bus._id, bus });
   };
 
   return (
@@ -106,7 +106,7 @@ const HomeScreen = ({ navigation }) => {
       {/* Top App Header with Greeting */}
       <View style={styles.topHeader}>
         <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={() => navigation.navigate('ProfileTab')}>
+          <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
             <Image
               source={{
                 uri: user?.profilePhoto || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=300&q=80'
@@ -125,13 +125,13 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.headerRight}>
           <TouchableOpacity
             style={styles.iconButton}
-            onPress={() => navigation.navigate('CustomerSupportScreen')}
+            onPress={() => navigation.navigate('CustomerSupport')}
           >
             <Ionicons name="help-circle-outline" size={22} color="#ffffff" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.iconButton}
-            onPress={() => navigation.navigate('NotificationsTab')}
+            onPress={() => navigation.navigate('Notifications')}
           >
             <Ionicons name="notifications-outline" size={22} color="#ffffff" />
           </TouchableOpacity>
@@ -143,6 +143,34 @@ const HomeScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchHomeData(); }} />}
       >
+        {/* Special Bus Booking Promo Banner */}
+        <TouchableOpacity
+          style={styles.heroBannerCard}
+          onPress={() => handleSelectService('Bus')}
+          activeOpacity={0.9}
+        >
+          <View style={styles.heroBannerContent}>
+            <View style={styles.heroBannerBadge}>
+              <Ionicons name="sparkles" size={13} color="#f59e0b" />
+              <Text style={styles.heroBannerBadgeText}>EXCLUSIVE BUS OFFER</Text>
+            </View>
+            <Text style={styles.heroBannerTitle}>Intercity Luxury Bus Travel</Text>
+            <Text style={styles.heroBannerSubtitle}>
+              AC Sleeper & Seater coaches with live tracking and instant seat selection.
+            </Text>
+            <View style={styles.heroBannerCtaRow}>
+              <View style={styles.heroBannerCtaBtn}>
+                <Text style={styles.heroBannerCtaText}>Book Bus Tickets</Text>
+                <Ionicons name="arrow-forward" size={14} color="#ffffff" />
+              </View>
+              <Text style={styles.heroBannerOfferText}>Flat 15% OFF</Text>
+            </View>
+          </View>
+          <View style={styles.heroBannerIconCircle}>
+            <Ionicons name="bus" size={38} color="#ffffff" />
+          </View>
+        </TouchableOpacity>
+
         {/* Book Your Journey Section */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Book Your Journey</Text>
@@ -257,15 +285,20 @@ const HomeScreen = ({ navigation }) => {
               </View>
               <TouchableOpacity
                 style={styles.seeAllBtn}
-                onPress={() => navigation.navigate('BusSearch')}
+                onPress={() => navigation.navigate('BusListing')}
               >
-                <Text style={styles.seeAllText}>Search All →</Text>
+                <Text style={styles.seeAllText}>View All Buses →</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.busListContainer}>
               {popularBuses.map((bus) => (
-                <View key={bus._id} style={styles.homeBusCard}>
+                <TouchableOpacity
+                  key={bus._id}
+                  style={styles.homeBusCard}
+                  onPress={() => handleViewBus(bus)}
+                  activeOpacity={0.9}
+                >
                   <Image
                     source={{
                       uri: bus.vehicleImages && bus.vehicleImages.length > 0
@@ -323,17 +356,13 @@ const HomeScreen = ({ navigation }) => {
                         </Text>
                       </View>
 
-                      <TouchableOpacity
-                        style={styles.viewBusBtn}
-                        onPress={() => handleViewBus(bus)}
-                        activeOpacity={0.85}
-                      >
-                        <Text style={styles.viewBusBtnText}>View Bus</Text>
+                      <View style={styles.viewBusBtn}>
+                        <Text style={styles.viewBusBtnText}>Select Seats</Text>
                         <Ionicons name="arrow-forward" size={14} color="#ffffff" />
-                      </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           </View>
@@ -406,6 +435,86 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 20,
     paddingBottom: 40
+  },
+  heroBannerCard: {
+    backgroundColor: '#1e3a8a',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#1e3a8a',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+    overflow: 'hidden'
+  },
+  heroBannerContent: {
+    flex: 1,
+    paddingRight: 12
+  },
+  heroBannerBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+    marginBottom: 8
+  },
+  heroBannerBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#fef08a',
+    letterSpacing: 0.5
+  },
+  heroBannerTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#ffffff',
+    marginBottom: 4
+  },
+  heroBannerSubtitle: {
+    fontSize: 11,
+    color: '#bfdbfe',
+    lineHeight: 16,
+    marginBottom: 12
+  },
+  heroBannerCtaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10
+  },
+  heroBannerCtaBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4
+  },
+  heroBannerCtaText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#ffffff'
+  },
+  heroBannerOfferText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#34d399'
+  },
+  heroBannerIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   sectionHeader: {
     marginBottom: 16

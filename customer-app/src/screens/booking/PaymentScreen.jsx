@@ -371,7 +371,9 @@ const PaymentScreen = ({ route, navigation }) => {
           {bookingDraft.selectedSeats && bookingDraft.selectedSeats.length > 0 && (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Seat(s)</Text>
-              <Text style={styles.summaryVal}>{bookingDraft.selectedSeats.join(', ')}</Text>
+              <Text style={styles.summaryVal}>
+                {Array.isArray(bookingDraft.selectedSeats) ? bookingDraft.selectedSeats.join(', ') : String(bookingDraft.selectedSeats)}
+              </Text>
             </View>
           )}
 

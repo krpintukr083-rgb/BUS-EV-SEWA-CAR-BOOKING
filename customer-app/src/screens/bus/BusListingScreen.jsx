@@ -23,10 +23,10 @@ const BusListingScreen = ({ navigation, route }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const fetchBuses = async () => {
+  const fetchBuses = async (customFrom = from, customTo = to) => {
     try {
       setErrorMessage('');
-      const res = await customerService.getBuses(from, to);
+      const res = await customerService.getBuses(customFrom, customTo);
       if (res && res.success) {
         setBuses(res.data || []);
       } else {
@@ -48,12 +48,19 @@ const BusListingScreen = ({ navigation, route }) => {
 
   const handleSelectBus = (bus) => {
     updateDraft({
+      serviceType: 'Bus',
       vehicle: bus,
       baseFare: bus.fareRate,
       pickupLocation: bus.route?.origin || from || 'Delhi ISBT Kashmere Gate',
       dropLocation: bus.route?.destination || to || 'Jaipur Sindhi Camp'
     });
-    navigation.navigate('BusDetails', { busId: bus._id });
+    navigation.navigate('BusDetails', { busId: bus._id, bus });
+  };
+
+  const getFirstStop = (points, fallback) => {
+    if (Array.isArray(points) && points.length > 0) return points[0];
+    if (typeof points === 'string' && points.trim()) return points;
+    return fallback;
   };
 
   return (
@@ -104,9 +111,18 @@ const BusListingScreen = ({ navigation, route }) => {
               </Text>
               <TouchableOpacity
                 style={styles.modifySearchBtn}
+                onPress={() => {
+                  setLoading(true);
+                  fetchBuses('', '');
+                }}
+              >
+                <Text style={styles.modifySearchBtnText}>Show All Available Buses</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modifySearchBtn, { marginTop: 10, backgroundColor: '#eff6ff' }]}
                 onPress={() => navigation.navigate('BusSearch')}
               >
-                <Text style={styles.modifySearchBtnText}>Modify Route Search</Text>
+                <Text style={[styles.modifySearchBtnText, { color: COLORS.primary }]}>Modify Route Search</Text>
               </TouchableOpacity>
             </View>
           }
@@ -148,13 +164,13 @@ const BusListingScreen = ({ navigation, route }) => {
                   <View style={styles.stopRow}>
                     <Ionicons name="radio-button-on" size={14} color={COLORS.primary} />
                     <Text style={styles.stopText} numberOfLines={1}>
-                      Boarding: {item.route?.boardingPoints?.[0] || item.route?.origin || item.pickupDropDetails?.pickupLocation || 'Delhi ISBT'}
+                      Boarding: {getFirstStop(item.route?.boardingPoints, item.route?.origin || item.pickupDropDetails?.pickupLocation || 'Delhi ISBT')}
                     </Text>
                   </View>
                   <View style={styles.stopRow}>
                     <Ionicons name="location" size={14} color="#ef4444" />
                     <Text style={styles.stopText} numberOfLines={1}>
-                      Dropping: {item.route?.droppingPoints?.[0] || item.route?.destination || item.pickupDropDetails?.dropLocation || 'Jaipur Sindhi Camp'}
+                      Dropping: {getFirstStop(item.route?.droppingPoints, item.route?.destination || item.pickupDropDetails?.dropLocation || 'Jaipur Sindhi Camp')}
                     </Text>
                   </View>
                 </View>
@@ -168,13 +184,10 @@ const BusListingScreen = ({ navigation, route }) => {
                     </Text>
                   </View>
 
-                  <TouchableOpacity
-                    style={styles.selectBtn}
-                    onPress={() => handleSelectBus(item)}
-                  >
-                    <Text style={styles.selectBtnText}>View Details</Text>
+                  <View style={styles.selectBtn}>
+                    <Text style={styles.selectBtnText}>Select Seats</Text>
                     <Ionicons name="arrow-forward" size={14} color="#ffffff" />
-                  </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             </TouchableOpacity>

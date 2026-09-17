@@ -27,18 +27,30 @@ const seatRows = [
 ];
 
 const BusSeatSelectionScreen = ({ navigation, route }) => {
-  const { busId } = route.params || {};
+  const { busId, bus: passedBus } = route.params || {};
   const { bookingDraft, updateDraft } = useBooking();
+  const targetBusId = busId || passedBus?._id || bookingDraft.vehicle?._id;
+  const activeBus = passedBus || bookingDraft.vehicle;
+
   const [selectedSeats, setSelectedSeats] = useState([]);
-  const [bookedSeats, setBookedSeats] = useState([]);
-  const [farePerSeat, setFarePerSeat] = useState(bookingDraft.vehicle?.fareRate || 850);
+  const [bookedSeats, setBookedSeats] = useState(
+    Array.isArray(activeBus?.bookedSeats) ? activeBus.bookedSeats : []
+  );
+  const [farePerSeat, setFarePerSeat] = useState(activeBus?.fareRate || 850);
 
   useEffect(() => {
+    if (activeBus && !bookingDraft.vehicle) {
+      updateDraft({
+        vehicle: activeBus,
+        baseFare: activeBus.fareRate
+      });
+    }
+
     const fetchBusData = async () => {
-      if (busId) {
+      if (targetBusId) {
         try {
-          const res = await customerService.getBusDetails(busId);
-          if (res.success) {
+          const res = await customerService.getBusDetails(targetBusId);
+          if (res.success && res.data) {
             setFarePerSeat(res.data.fareRate);
             if (res.data.bookedSeats && Array.isArray(res.data.bookedSeats)) {
               setBookedSeats(res.data.bookedSeats);
@@ -50,7 +62,7 @@ const BusSeatSelectionScreen = ({ navigation, route }) => {
       }
     };
     fetchBusData();
-  }, [busId]);
+  }, [targetBusId]);
 
   const toggleSeat = (seatNo) => {
     if (bookedSeats.includes(seatNo)) {

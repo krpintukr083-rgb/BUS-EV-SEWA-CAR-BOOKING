@@ -134,10 +134,12 @@ const BookingDetailsScreen = ({ route, navigation }) => {
             </View>
           </View>
 
-          {booking.busSeatNumbers && booking.busSeatNumbers.length > 0 && (
+          {booking.busSeatNumbers && (
             <View style={styles.seatInfo}>
               <Text style={styles.seatInfoLabel}>Allocated Seat(s):</Text>
-              <Text style={styles.seatInfoVal}>{booking.busSeatNumbers.join(', ')}</Text>
+              <Text style={styles.seatInfoVal}>
+                {Array.isArray(booking.busSeatNumbers) ? booking.busSeatNumbers.join(', ') : String(booking.busSeatNumbers)}
+              </Text>
             </View>
           )}
         </View>

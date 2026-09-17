@@ -159,7 +159,7 @@ const DigitalTicketScreen = ({ route, navigation }) => {
                 <View>
                   <Text style={styles.fieldLabel}>SEAT NUMBER(S)</Text>
                   <Text style={[styles.fieldVal, { color: COLORS.primary }]}>
-                    {booking.busSeatNumbers.join(', ')}
+                    {Array.isArray(booking.busSeatNumbers) ? booking.busSeatNumbers.join(', ') : String(booking.busSeatNumbers)}
                   </Text>
                 </View>
               ) : (

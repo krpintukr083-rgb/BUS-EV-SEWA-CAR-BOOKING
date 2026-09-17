@@ -25,6 +25,10 @@ export const EMULATOR_URL = 'http://10.0.2.2:5000';
  * Computes default static URL based on hardcoded constants and platform
  */
 export const getDefaultBaseUrl = () => {
+  if (Platform.OS === 'android') {
+    return `${EMULATOR_URL}/api`;
+  }
+
   if (BACKEND_TUNNEL_URL && BACKEND_TUNNEL_URL.trim() !== '') {
     const clean = BACKEND_TUNNEL_URL.trim().replace(/\/+$/, '');
     return clean.endsWith('/api') ? clean : `${clean}/api`;
@@ -33,10 +37,6 @@ export const getDefaultBaseUrl = () => {
   if (BACKEND_LAN_URL && BACKEND_LAN_URL.trim() !== '') {
     const clean = BACKEND_LAN_URL.trim().replace(/\/+$/, '');
     return clean.endsWith('/api') ? clean : `${clean}/api`;
-  }
-
-  if (Platform.OS === 'android') {
-    return `${EMULATOR_URL}/api`;
   }
 
   return 'http://localhost:5000/api';

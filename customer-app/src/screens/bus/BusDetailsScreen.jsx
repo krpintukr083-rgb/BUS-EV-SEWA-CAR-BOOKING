@@ -15,36 +15,55 @@ import Header from '../../components/Header';
 import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
 
+const formatPoints = (points, fallback) => {
+  if (!points) return fallback || '';
+  if (Array.isArray(points)) {
+    const valid = points.filter(Boolean);
+    return valid.length > 0 ? valid.join(', ') : fallback || '';
+  }
+  return String(points);
+};
+
 const BusDetailsScreen = ({ navigation, route }) => {
-  const { busId } = route.params || {};
-  const { updateDraft } = useBooking();
-  const [bus, setBus] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { busId, bus: initialBus } = route.params || {};
+  const { bookingDraft, updateDraft } = useBooking();
+  
+  const [bus, setBus] = useState(
+    initialBus || (bookingDraft.vehicle?._id === busId ? bookingDraft.vehicle : null)
+  );
+  const [loading, setLoading] = useState(!bus);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const fetchDetails = async () => {
+    const targetId = busId || bus?._id || bookingDraft.vehicle?._id;
+    if (!targetId) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setErrorMessage('');
+      const res = await customerService.getBusDetails(targetId);
+      if (res.success && res.data) {
+        setBus(res.data);
+        updateDraft({
+          vehicle: res.data,
+          baseFare: res.data.fareRate
+        });
+      }
+    } catch (err) {
+      console.log('Error fetching bus details:', err);
+      setErrorMessage(err.response?.data?.message || 'Unable to refresh bus details from server.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchDetails = async () => {
-      try {
-        const res = await customerService.getBusDetails(busId);
-        if (res.success) {
-          setBus(res.data);
-          updateDraft({
-            vehicle: res.data,
-            baseFare: res.data.fareRate
-          });
-        }
-      } catch (err) {
-        console.log('Error fetching bus details:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (busId) {
-      fetchDetails();
-    }
+    fetchDetails();
   }, [busId]);
 
-  if (loading) {
+  if (loading && !bus) {
     return (
       <View style={styles.container}>
         <Header title="Bus Details" onBack={() => navigation.goBack()} />
@@ -61,7 +80,20 @@ const BusDetailsScreen = ({ navigation, route }) => {
       <View style={styles.container}>
         <Header title="Bus Details" onBack={() => navigation.goBack()} />
         <View style={styles.centerContainer}>
-          <Text>Bus information unavailable.</Text>
+          <Ionicons name="alert-circle-outline" size={54} color="#ef4444" />
+          <Text style={styles.errorTitle}>Bus Information Unavailable</Text>
+          <Text style={styles.errorSub}>
+            {errorMessage || 'The selected coach details could not be loaded. Please try again.'}
+          </Text>
+          <TouchableOpacity style={styles.retryButton} onPress={fetchDetails}>
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.navigate('BusListing')}
+          >
+            <Text style={styles.backButtonText}>View All Buses</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -126,7 +158,9 @@ const BusDetailsScreen = ({ navigation, route }) => {
               <Ionicons name="radio-button-on" size={16} color={COLORS.primary} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.stopName}>Origin: {bus.route?.origin || 'Delhi ISBT'}</Text>
-                <Text style={styles.stopSub}>Boarding: {bus.route?.boardingPoints?.join(', ') || 'ISBT Gate 3'}</Text>
+                <Text style={styles.stopSub}>
+                  Boarding: {formatPoints(bus.route?.boardingPoints, bus.route?.origin || 'ISBT Gate 3')}
+                </Text>
               </View>
             </View>
 
@@ -136,7 +170,9 @@ const BusDetailsScreen = ({ navigation, route }) => {
               <Ionicons name="location" size={16} color="#ef4444" />
               <View style={{ flex: 1 }}>
                 <Text style={styles.stopName}>Destination: {bus.route?.destination || 'Jaipur Sindhi Camp'}</Text>
-                <Text style={styles.stopSub}>Dropping: {bus.route?.droppingPoints?.join(', ') || 'Platform 4'}</Text>
+                <Text style={styles.stopSub}>
+                  Dropping: {formatPoints(bus.route?.droppingPoints, bus.route?.destination || 'Platform 4')}
+                </Text>
               </View>
             </View>
           </View>
@@ -174,7 +210,7 @@ const BusDetailsScreen = ({ navigation, route }) => {
         </View>
         <Button
           title="Select Seat"
-          onPress={() => navigation.navigate('BusSeatSelection', { busId: bus._id })}
+          onPress={() => navigation.navigate('BusSeatSelection', { busId: bus._id, bus })}
           style={{ paddingHorizontal: 32 }}
         />
       </View>
@@ -347,6 +383,41 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 10,
     color: COLORS.textSecondary
+  },
+  errorTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: COLORS.darkNavy,
+    marginTop: 14,
+    marginBottom: 6
+  },
+  errorSub: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 18
+  },
+  retryButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginBottom: 10
+  },
+  retryButtonText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700'
+  },
+  backButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 8
+  },
+  backButtonText: {
+    color: COLORS.primary,
+    fontSize: 13,
+    fontWeight: '700'
   }
 });
 
