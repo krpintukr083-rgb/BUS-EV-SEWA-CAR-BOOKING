@@ -22,6 +22,10 @@ const driverSchema = new mongoose.Schema(
       type: String,
       default: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?auto=format&fit=crop&w=300&q=80'
     },
+    driverPhoto: {
+      type: String,
+      default: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?auto=format&fit=crop&w=300&q=80'
+    },
     driverStatus: {
       type: String,
       enum: ['Active', 'Inactive', 'Blocked'],
@@ -115,6 +119,20 @@ const driverSchema = new mongoose.Schema(
     timestamps: true
   }
 );
+
+// Pre-save hook to ensure driverPhoto and profilePhoto are kept in sync
+driverSchema.pre('save', function (next) {
+  if (this.driverPhoto && !this.profilePhoto) {
+    this.profilePhoto = this.driverPhoto;
+  } else if (this.profilePhoto && !this.driverPhoto) {
+    this.driverPhoto = this.profilePhoto;
+  } else if (this.isModified('driverPhoto')) {
+    this.profilePhoto = this.driverPhoto;
+  } else if (this.isModified('profilePhoto')) {
+    this.driverPhoto = this.profilePhoto;
+  }
+  next();
+});
 
 // Performance Indexes
 driverSchema.index({ driverStatus: 1 });

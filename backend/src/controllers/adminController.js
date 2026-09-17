@@ -180,6 +180,56 @@ exports.updateCustomerStatus = async (req, res, next) => {
 };
 
 // ==========================================
+// IMAGE & ASSET UPLOADS
+// ==========================================
+exports.uploadSingleImage = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No image file uploaded or invalid file format' });
+    }
+    const relativeUrl = `/uploads/${req.file.filename}`;
+    const host = req.get('host');
+    const protocol = req.protocol || 'http';
+    const fullUrl = `${protocol}://${host}${relativeUrl}`;
+
+    res.json({
+      success: true,
+      message: 'Image uploaded successfully',
+      url: relativeUrl,
+      fullUrl,
+      filename: req.file.filename,
+      size: req.file.size,
+      mimetype: req.file.mimetype
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.uploadMultipleImages = async (req, res, next) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ success: false, message: 'No image files uploaded or invalid file format' });
+    }
+    const host = req.get('host');
+    const protocol = req.protocol || 'http';
+
+    const urls = req.files.map(file => `/uploads/${file.filename}`);
+    const fullUrls = req.files.map(file => `${protocol}://${host}/uploads/${file.filename}`);
+
+    res.json({
+      success: true,
+      message: `${req.files.length} images uploaded successfully`,
+      urls,
+      fullUrls,
+      count: req.files.length
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
 // 3. DRIVER MANAGEMENT & VERIFICATION
 // ==========================================
 exports.getDrivers = async (req, res, next) => {
@@ -202,7 +252,9 @@ exports.addDriver = async (req, res, next) => {
       rcNumber,
       insurancePolicyNumber,
       fitnessDetails,
-      assignedVehicle
+      assignedVehicle,
+      driverPhoto,
+      profilePhoto
     } = req.body;
 
     // Check if user already exists
@@ -220,6 +272,12 @@ exports.addDriver = async (req, res, next) => {
       status: 'Active'
     });
 
+    const photoToSave =
+      (req.file ? `/uploads/${req.file.filename}` : null) ||
+      driverPhoto ||
+      profilePhoto ||
+      'https://images.unsplash.com/photo-1566492031773-4f4e44671857?auto=format&fit=crop&w=300&q=80';
+
     const driver = await Driver.create({
       user: user._id,
       name,
@@ -229,6 +287,8 @@ exports.addDriver = async (req, res, next) => {
       insurancePolicyNumber: insurancePolicyNumber || '',
       fitnessDetails: fitnessDetails || 'State Transport Safety Certified',
       assignedVehicle: assignedVehicle || null,
+      driverPhoto: photoToSave,
+      profilePhoto: photoToSave,
       driverStatus: 'Active',
       drivingLicenceStatus: 'Approved',
       rcStatus: 'Approved',
@@ -249,7 +309,16 @@ exports.addDriver = async (req, res, next) => {
 
 exports.updateDriver = async (req, res, next) => {
   try {
-    const { name, mobileNumber, driverStatus, assignedVehicle, drivingLicenceNumber } = req.body;
+    const {
+      name,
+      mobileNumber,
+      driverStatus,
+      assignedVehicle,
+      drivingLicenceNumber,
+      driverPhoto,
+      profilePhoto
+    } = req.body;
+
     const driver = await Driver.findById(req.params.id);
     if (!driver) return res.status(404).json({ success: false, message: 'Driver not found' });
 
@@ -257,6 +326,18 @@ exports.updateDriver = async (req, res, next) => {
     if (mobileNumber) driver.mobileNumber = mobileNumber;
     if (driverStatus) driver.driverStatus = driverStatus;
     if (drivingLicenceNumber) driver.drivingLicenceNumber = drivingLicenceNumber;
+
+    if (req.file) {
+      const uploadedUrl = `/uploads/${req.file.filename}`;
+      driver.driverPhoto = uploadedUrl;
+      driver.profilePhoto = uploadedUrl;
+    } else if (driverPhoto !== undefined) {
+      driver.driverPhoto = driverPhoto;
+      driver.profilePhoto = driverPhoto;
+    } else if (profilePhoto !== undefined) {
+      driver.driverPhoto = profilePhoto;
+      driver.profilePhoto = profilePhoto;
+    }
 
     if (assignedVehicle !== undefined) {
       // Clear old vehicle assignedDriver
@@ -367,6 +448,24 @@ exports.addVehicle = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Vehicle with this number already exists' });
     }
 
+    let finalImages = [];
+    if (req.files && req.files.length > 0) {
+      finalImages = req.files.map(f => `/uploads/${f.filename}`);
+    } else if (Array.isArray(vehicleImages) && vehicleImages.length > 0) {
+      finalImages = vehicleImages.slice(0, 5);
+    } else if (typeof vehicleImages === 'string' && vehicleImages.trim() !== '') {
+      try {
+        const parsed = JSON.parse(vehicleImages);
+        finalImages = Array.isArray(parsed) ? parsed.slice(0, 5) : [vehicleImages.trim()];
+      } catch (e) {
+        finalImages = [vehicleImages.trim()];
+      }
+    } else {
+      finalImages = [
+        'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80'
+      ];
+    }
+
     const vehicle = await Vehicle.create({
       vehicleNumber: vehicleNumber.toUpperCase().trim(),
       vehicleType,
@@ -384,9 +483,7 @@ exports.addVehicle = async (req, res, next) => {
       insuranceExpiryDetails: insuranceExpiryDetails || '2026-12-31',
       fitnessDetails: fitnessDetails || 'State Transport Certified Fitness Valid',
       fitnessDocument: fitnessDocument || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=600&q=80',
-      vehicleImages: vehicleImages && vehicleImages.length > 0 ? vehicleImages : [
-        'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80'
-      ],
+      vehicleImages: finalImages,
       fareRate: fareRate || 500,
       route: route || { origin: '', destination: '', boardingPoints: [], droppingPoints: [] },
       pickupDropDetails: pickupDropDetails || { pickupLocation: '', dropLocation: '' },
@@ -408,7 +505,24 @@ exports.addVehicle = async (req, res, next) => {
 
 exports.updateVehicle = async (req, res, next) => {
   try {
-    const vehicle = await Vehicle.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const updatePayload = { ...req.body };
+
+    if (req.files && req.files.length > 0) {
+      updatePayload.vehicleImages = req.files.map(f => `/uploads/${f.filename}`);
+    } else if (req.body.vehicleImages) {
+      if (Array.isArray(req.body.vehicleImages)) {
+        updatePayload.vehicleImages = req.body.vehicleImages.slice(0, 5);
+      } else if (typeof req.body.vehicleImages === 'string') {
+        try {
+          const parsed = JSON.parse(req.body.vehicleImages);
+          updatePayload.vehicleImages = Array.isArray(parsed) ? parsed.slice(0, 5) : [req.body.vehicleImages];
+        } catch (e) {
+          updatePayload.vehicleImages = [req.body.vehicleImages];
+        }
+      }
+    }
+
+    const vehicle = await Vehicle.findByIdAndUpdate(req.params.id, updatePayload, { new: true });
     if (!vehicle) return res.status(404).json({ success: false, message: 'Vehicle not found' });
 
     if (req.body.assignedDriver !== undefined) {

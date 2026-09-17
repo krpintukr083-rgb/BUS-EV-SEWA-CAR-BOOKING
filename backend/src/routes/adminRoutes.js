@@ -36,12 +36,21 @@ const {
   updatePolicy,
   getBasicReports,
   getServiceControl,
-  updateServiceControl
+  updateServiceControl,
+  uploadSingleImage,
+  uploadMultipleImages
 } = require('../controllers/adminController');
 const { verifyToken, adminAuth } = require('../middleware/auth');
+const { handleSingleUpload, handleMultipleUpload } = require('../middleware/upload');
 
 // Protect all admin routes with JWT and admin role verification
 router.use(verifyToken, adminAuth);
+
+// 0. Dedicated Image Upload Endpoints
+router.post('/upload/single', handleSingleUpload('image'), uploadSingleImage);
+router.post('/upload/driver-photo', handleSingleUpload('driverPhoto'), uploadSingleImage);
+router.post('/upload/multiple', handleMultipleUpload('images', 5), uploadMultipleImages);
+router.post('/upload/vehicle-images', handleMultipleUpload('vehicleImages', 5), uploadMultipleImages);
 
 // 1. Dashboard
 router.get('/dashboard', getDashboardStats);
@@ -52,15 +61,15 @@ router.put('/customers/:id/status', updateCustomerStatus);
 
 // 3. Driver Management & Verification
 router.get('/drivers', getDrivers);
-router.post('/drivers', addDriver);
-router.put('/drivers/:id', updateDriver);
+router.post('/drivers', handleSingleUpload('driverPhoto'), addDriver);
+router.put('/drivers/:id', handleSingleUpload('driverPhoto'), updateDriver);
 router.put('/drivers/:id/verify', verifyDriverDocuments);
 router.put('/drivers/:id/status', updateDriverStatus);
 
 // 4. Vehicle Management
 router.get('/vehicles', getVehicles);
-router.post('/vehicles', addVehicle);
-router.put('/vehicles/:id', updateVehicle);
+router.post('/vehicles', handleMultipleUpload('vehicleImages', 5), addVehicle);
+router.put('/vehicles/:id', handleMultipleUpload('vehicleImages', 5), updateVehicle);
 router.put('/vehicles/:id/status', updateVehicleStatus);
 
 // 5. Specific Service Vehicles
