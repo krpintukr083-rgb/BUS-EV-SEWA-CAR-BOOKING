@@ -1,7 +1,17 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { adminService } from '../services/adminService';
 import StatusBadge from '../components/StatusBadge';
-import { ShieldCheck, Check, X, AlertCircle, FileCheck, Eye } from 'lucide-react';
+import { ShieldCheck, Check, X, AlertCircle, FileCheck, Eye, User } from 'lucide-react';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const SERVER_URL = API_BASE_URL.replace(/\/api\/?$/, '');
+
+const getImageUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/')) return `${SERVER_URL}${url}`;
+  return `${SERVER_URL}/${url}`;
+};
 
 const DriverVerification = () => {
   const [drivers, setDrivers] = useState([]);
@@ -149,28 +159,50 @@ const DriverVerification = () => {
                   key={d._id}
                   onClick={() => selectDriverForReview(d)}
                   style={{
-                    padding: '12px',
+                    padding: '10px 12px',
                     borderRadius: '8px',
                     cursor: 'pointer',
                     backgroundColor: isSelected ? '#eff6ff' : '#f8fafc',
                     border: `1px solid ${isSelected ? '#93c5fd' : '#e2e8f0'}`,
-                    transition: 'all 0.15s ease'
+                    transition: 'all 0.15s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
                   }}
                 >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontWeight: '700', fontSize: '0.9rem', color: isSelected ? '#1d4ed8' : '#0f172a' }}>
-                      {d.name}
-                    </span>
-                    {hasPending ? (
-                      <span className="badge badge-pending" style={{ fontSize: '0.65rem' }}>
-                        Pending
+                  <img
+                    src={getImageUrl(d.driverPhoto || d.profilePhoto)}
+                    alt={d.name}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      border: '1px solid #cbd5e1',
+                      backgroundColor: '#ffffff',
+                      flexShrink: 0
+                    }}
+                    onError={e => {
+                      e.target.onerror = null;
+                      e.target.src = 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?auto=format&fit=crop&w=100&q=80';
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontWeight: '700', fontSize: '0.88rem', color: isSelected ? '#1d4ed8' : '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {d.name}
                       </span>
-                    ) : (
-                      <StatusBadge status={d.drivingLicenceStatus} />
-                    )}
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '4px' }}>
-                    DL: {d.drivingLicenceNumber}
+                      {hasPending ? (
+                        <span className="badge badge-pending" style={{ fontSize: '0.65rem' }}>
+                          Pending
+                        </span>
+                      ) : (
+                        <StatusBadge status={d.drivingLicenceStatus} />
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '2px' }}>
+                      DL: {d.drivingLicenceNumber}
+                    </div>
                   </div>
                 </div>
               );
@@ -181,12 +213,30 @@ const DriverVerification = () => {
         {/* Verification Review & Approval Workspace */}
         {selectedDriver ? (
           <div className="content-card">
-            <div className="card-header-flex">
-              <div>
-                <h3 className="card-title">Reviewing: {selectedDriver.name}</h3>
-                <p style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                  Mobile: {selectedDriver.mobileNumber} | Status: <StatusBadge status={selectedDriver.driverStatus} />
-                </p>
+            <div className="card-header-flex" style={{ alignItems: 'center', gap: '14px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <img
+                  src={getImageUrl(selectedDriver.driverPhoto || selectedDriver.profilePhoto)}
+                  alt={selectedDriver.name}
+                  style={{
+                    width: '56px',
+                    height: '56px',
+                    borderRadius: '50%',
+                    objectFit: 'cover',
+                    border: '2px solid #3b82f6',
+                    backgroundColor: '#f8fafc'
+                  }}
+                  onError={e => {
+                    e.target.onerror = null;
+                    e.target.src = 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?auto=format&fit=crop&w=150&q=80';
+                  }}
+                />
+                <div>
+                  <h3 className="card-title" style={{ margin: 0 }}>Reviewing: {selectedDriver.name}</h3>
+                  <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '4px 0 0 0' }}>
+                    Mobile: {selectedDriver.mobileNumber} | Status: <StatusBadge status={selectedDriver.driverStatus} />
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -226,7 +276,7 @@ const DriverVerification = () => {
                   <div>
                     <strong style={{ fontSize: '0.95rem' }}>2. Vehicle Registration Certificate (RC)</strong>
                     <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                      RC No: <code>{selectedDriver.rcNumber || 'Pending Link'}</code> • {selectedDriver.rcDetails}
+                      RC No: <code>{selectedDriver.rcNumber || 'Pending Link'}</code> â€¢ {selectedDriver.rcDetails}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -254,7 +304,7 @@ const DriverVerification = () => {
                   <div>
                     <strong style={{ fontSize: '0.95rem' }}>3. Vehicle Fleet Insurance</strong>
                     <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                      Policy: <code>{selectedDriver.insurancePolicyNumber || 'N/A'}</code> • Expiry: {selectedDriver.insuranceExpiryDetails}
+                      Policy: <code>{selectedDriver.insurancePolicyNumber || 'N/A'}</code> â€¢ Expiry: {selectedDriver.insuranceExpiryDetails}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -336,3 +386,4 @@ const DriverVerification = () => {
 };
 
 export default DriverVerification;
+

@@ -1,7 +1,17 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { adminService } from '../services/adminService';
 import StatusBadge from '../components/StatusBadge';
 import { Bus, MapPin, Users, XOctagon, Check, AlertCircle } from 'lucide-react';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const SERVER_URL = API_BASE_URL.replace(/\/api\/?$/, '');
+
+const getImageUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/')) return `${SERVER_URL}${url}`;
+  return `${SERVER_URL}/${url}`;
+};
 
 const BusManagement = () => {
   const [buses, setBuses] = useState([]);
@@ -77,25 +87,45 @@ const BusManagement = () => {
         {buses.map(bus => (
           <div key={bus._id} className="content-card">
             <div className="card-header-flex">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div
-                  style={{
-                    width: '44px',
-                    height: '44px',
-                    borderRadius: '8px',
-                    backgroundColor: '#eff6ff',
-                    color: '#1d4ed8',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                >
-                  <Bus size={24} />
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                {bus.vehicleImages && bus.vehicleImages.length > 0 ? (
+                  <img
+                    src={getImageUrl(bus.vehicleImages[0])}
+                    alt={bus.vehicleName}
+                    style={{
+                      width: '64px',
+                      height: '48px',
+                      borderRadius: '8px',
+                      objectFit: 'cover',
+                      border: '1px solid #cbd5e1',
+                      flexShrink: 0
+                    }}
+                    onError={e => {
+                      e.target.onerror = null;
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '8px',
+                      backgroundColor: '#eff6ff',
+                      color: '#1d4ed8',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}
+                  >
+                    <Bus size={24} />
+                  </div>
+                )}
                 <div>
                   <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a' }}>{bus.vehicleName}</h3>
                   <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                    Registration: <strong style={{ color: '#1d4ed8' }}>{bus.vehicleNumber}</strong> • {bus.vehicleModel}
+                    Registration: <strong style={{ color: '#1d4ed8' }}>{bus.vehicleNumber}</strong> â€¢ {bus.vehicleModel}
                   </div>
                 </div>
               </div>
@@ -142,7 +172,7 @@ const BusManagement = () => {
 
               <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
                 <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Ticket Fare</span>
-                <div style={{ fontWeight: '800', color: '#0f172a', fontSize: '1.1rem' }}>₹{bus.fareRate}</div>
+                <div style={{ fontWeight: '800', color: '#0f172a', fontSize: '1.1rem' }}>â‚¹{bus.fareRate}</div>
                 <div style={{ fontSize: '0.775rem', color: '#64748b', marginTop: '2px' }}>Per Berth / Seat</div>
               </div>
 
@@ -160,13 +190,13 @@ const BusManagement = () => {
             {/* Route & Stop Points */}
             <div style={{ padding: '14px', backgroundColor: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', color: '#1d4ed8', marginBottom: '6px' }}>
-                <MapPin size={16} /> Route: {bus.route?.origin} → {bus.route?.destination}
+                <MapPin size={16} /> Route: {bus.route?.origin} â†’ {bus.route?.destination}
               </div>
               <div style={{ fontSize: '0.825rem', color: '#1e3a8a' }}>
-                <strong>Boarding Points:</strong> {bus.route?.boardingPoints?.join(' • ') || 'Main Terminal'}
+                <strong>Boarding Points:</strong> {bus.route?.boardingPoints?.join(' â€¢ ') || 'Main Terminal'}
               </div>
               <div style={{ fontSize: '0.825rem', color: '#1e3a8a', marginTop: '4px' }}>
-                <strong>Dropping Points:</strong> {bus.route?.droppingPoints?.join(' • ') || 'Destination ISBT'}
+                <strong>Dropping Points:</strong> {bus.route?.droppingPoints?.join(' â€¢ ') || 'Destination ISBT'}
               </div>
             </div>
           </div>
@@ -177,3 +207,4 @@ const BusManagement = () => {
 };
 
 export default BusManagement;
+

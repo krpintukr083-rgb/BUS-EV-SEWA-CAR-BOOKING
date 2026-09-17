@@ -1,11 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { adminService } from '../../services/adminService';
 import StatusBadge from '../../components/StatusBadge';
-import { Zap, MapPin, UserCheck, FileCheck, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Zap, MapPin, UserCheck, FileCheck, CheckCircle2, ShieldCheck, Check } from 'lucide-react';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const SERVER_URL = API_BASE_URL.replace(/\/api\/?$/, '');
+
+const getImageUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  if (url.startsWith('/')) return `${SERVER_URL}${url}`;
+  return `${SERVER_URL}/${url}`;
+};
 
 const EvSewaManagement = () => {
   const [evs, setEvs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState('');
 
   const fetchEvs = async () => {
     try {
@@ -29,6 +40,7 @@ const EvSewaManagement = () => {
     try {
       const res = await adminService.updateVehicleStatus(id, newStatus);
       if (res.success) {
+        setMessage(`EV-Sewa status updated to ${newStatus}`);
         await fetchEvs();
       }
     } catch (err) {
@@ -37,39 +49,79 @@ const EvSewaManagement = () => {
   };
 
   if (loading) {
-    return <div style={{ padding: '24px', color: '#64748b' }}>Loading EV-Sewa electric fleet...</div>;
+    return <div style={{ padding: '24px', color: '#64748b' }}>Loading EV fleet...</div>;
   }
 
   return (
     <div>
       <div className="card-header-flex" style={{ marginBottom: '20px' }}>
         <div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#0f172a' }}>EV-Sewa Green Transit Management</h2>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#0f172a' }}>EV-Sewa Fleet Management</h2>
           <p style={{ fontSize: '0.85rem', color: '#64748b' }}>
-            Zero-emission electric passenger shuttle corridors, charging specs, and compliance verification.
+            Zero-emission electric shuttles, battery capacities, certified drivers, and point-to-point urban routes.
           </p>
         </div>
       </div>
+
+      {message && (
+        <div
+          style={{
+            backgroundColor: '#ecfdf5',
+            border: '1px solid #a7f3d0',
+            color: '#059669',
+            padding: '10px 14px',
+            borderRadius: '6px',
+            marginBottom: '16px',
+            fontSize: '0.85rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <Check size={16} />
+          <span>{message}</span>
+        </div>
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {evs.map(ev => (
           <div key={ev._id} className="content-card">
             <div className="card-header-flex">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div
-                  style={{
-                    width: '44px',
-                    height: '44px',
-                    borderRadius: '8px',
-                    backgroundColor: '#ecfdf5',
-                    color: '#10b981',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                >
-                  <Zap size={24} />
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                {ev.vehicleImages && ev.vehicleImages.length > 0 ? (
+                  <img
+                    src={getImageUrl(ev.vehicleImages[0])}
+                    alt={ev.vehicleName}
+                    style={{
+                      width: '64px',
+                      height: '48px',
+                      borderRadius: '8px',
+                      objectFit: 'cover',
+                      border: '1px solid #cbd5e1',
+                      flexShrink: 0
+                    }}
+                    onError={e => {
+                      e.target.onerror = null;
+                      e.target.style.display = 'none';
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: '8px',
+                      backgroundColor: '#ecfdf5',
+                      color: '#10b981',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}
+                  >
+                    <Zap size={24} />
+                  </div>
+                )}
                 <div>
                   <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#0f172a' }}>{ev.vehicleName}</h3>
                   <div style={{ fontSize: '0.85rem', color: '#64748b' }}>

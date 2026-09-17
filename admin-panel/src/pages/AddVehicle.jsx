@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminService } from '../services/adminService';
-import { PlusCircle, Check, AlertCircle, Truck, Bus, Zap, Car } from 'lucide-react';
+import { PlusCircle, Check, AlertCircle, Truck, Bus, Zap, Car, Plus, Trash2, Image as ImageIcon, Upload, Star } from 'lucide-react';
 
 const AddVehicle = () => {
   const navigate = useNavigate();
@@ -10,6 +10,12 @@ const AddVehicle = () => {
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  // Vehicle Photos state (Maximum 5 images, Max 2MB each)
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [imagePreviews, setImagePreviews] = useState([]);
+  const [imageError, setImageError] = useState('');
+  const fileInputRef = useRef(null);
 
   // Form Fields
   const [vehicleType, setVehicleType] = useState('Bus');
@@ -64,6 +70,71 @@ const AddVehicle = () => {
     fetchDrivers();
   }, []);
 
+  const handleFilesSelect = e => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setImageError('');
+    const maxLimit = 5;
+    const currentCount = imagePreviews.length;
+    const remainingSlots = maxLimit - currentCount;
+
+    if (remainingSlots <= 0) {
+      setImageError('Maximum limit of 5 vehicle images already reached.');
+      if (e.target) e.target.value = '';
+      return;
+    }
+
+    const filesToProcess = files.slice(0, remainingSlots);
+    if (files.length > remainingSlots) {
+      setImageError(`Only ${remainingSlots} more image(s) can be added (maximum 5 allowed).`);
+    }
+
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+    const maxSize = 2 * 1024 * 1024; // 2MB
+
+    const newValidFiles = [];
+    const newPreviews = [];
+    let hasTypeError = false;
+    let hasSizeError = false;
+
+    for (const file of filesToProcess) {
+      if (!validTypes.includes(file.type.toLowerCase())) {
+        hasTypeError = true;
+        continue;
+      }
+      if (file.size > maxSize) {
+        hasSizeError = true;
+        continue;
+      }
+      newValidFiles.push(file);
+      newPreviews.push({
+        file,
+        previewUrl: URL.createObjectURL(file),
+        name: file.name
+      });
+    }
+
+    if (hasTypeError) {
+      setImageError('Some files were skipped. Only JPG, JPEG, and PNG images are allowed.');
+    } else if (hasSizeError) {
+      setImageError('Some files were skipped because they exceed the 2MB size limit.');
+    }
+
+    if (newValidFiles.length > 0) {
+      setSelectedFiles(prev => [...prev, ...newValidFiles]);
+      setImagePreviews(prev => [...prev, ...newPreviews]);
+    }
+
+    if (e.target) e.target.value = '';
+  };
+
+  const handleRemoveImage = indexToRemove => {
+    setSelectedFiles(prev => prev.filter((_, idx) => idx !== indexToRemove));
+    setImagePreviews(prev => prev.filter((_, idx) => idx !== indexToRemove));
+    setImageError('');
+  };
+
   const handleTypeSelect = type => {
     setVehicleType(type);
     if (type === 'Bus') {
@@ -103,6 +174,14 @@ const AddVehicle = () => {
     setError('');
 
     try {
+      let uploadedImageUrls = [];
+      if (selectedFiles.length > 0) {
+        const uploadRes = await adminService.uploadVehicleImages(selectedFiles);
+        if (uploadRes.success && uploadRes.urls) {
+          uploadedImageUrls = uploadRes.urls;
+        }
+      }
+
       const payload = {
         vehicleNumber: vehicleNumber.toUpperCase().trim(),
         vehicleType,
@@ -119,6 +198,7 @@ const AddVehicle = () => {
         fitnessDetails,
         fareRate: Number(fareRate),
         vehicleStatus,
+        vehicleImages: uploadedImageUrls.length > 0 ? uploadedImageUrls : undefined,
         route: {
           origin,
           destination,
@@ -136,9 +216,9 @@ const AddVehicle = () => {
 
       const res = await adminService.addVehicle(payload);
       if (res.success) {
-        setMessage('Vehicle added to fleet successfully!');
+        setMessage('Vehicle added to fleet successfully with photos!');
         setTimeout(() => {
-          navigate('/vehicles');
+          navigate('/admin/vehicles');
         }, 1200);
       }
     } catch (err) {
@@ -352,7 +432,7 @@ const AddVehicle = () => {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Base Fare / Rate (₹)</label>
+              <label className="form-label">Base Fare / Rate (â‚¹)</label>
               <input
                 type="number"
                 className="form-control"
@@ -392,6 +472,133 @@ const AddVehicle = () => {
                 <option value="Blocked">Blocked</option>
               </select>
             </div>
+          </div>
+        </div>
+
+        {/* Vehicle Photos Upload Section */}
+        <div className="content-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div>
+              <h3 className="card-title" style={{ margin: 0 }}>Vehicle Photos</h3>
+              <p style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '4px' }}>
+                Upload up to 5 photos (JPG, JPEG, PNG, max 2MB each). First image is used as the primary thumbnail.
+              </p>
+            </div>
+            <span style={{ fontSize: '0.8rem', fontWeight: '600', padding: '4px 10px', borderRadius: '12px', backgroundColor: imagePreviews.length === 5 ? '#fef3c7' : '#f1f5f9', color: imagePreviews.length === 5 ? '#d97706' : '#475569' }}>
+              {imagePreviews.length} / 5 Images
+            </span>
+          </div>
+
+          {imageError && (
+            <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <AlertCircle size={16} />
+              <span>{imageError}</span>
+            </div>
+          )}
+
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFilesSelect}
+            accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+            multiple
+            style={{ display: 'none' }}
+          />
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '14px' }}>
+            {imagePreviews.map((item, idx) => (
+              <div
+                key={idx}
+                style={{
+                  position: 'relative',
+                  aspectRatio: '4/3',
+                  borderRadius: '10px',
+                  overflow: 'hidden',
+                  border: idx === 0 ? '2px solid #2563eb' : '1px solid #e2e8f0',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                  backgroundColor: '#f8fafc'
+                }}
+              >
+                <img
+                  src={item.previewUrl}
+                  alt={`Vehicle preview ${idx + 1}`}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+
+                {idx === 0 && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '6px',
+                      left: '6px',
+                      backgroundColor: '#2563eb',
+                      color: '#ffffff',
+                      fontSize: '0.65rem',
+                      fontWeight: '700',
+                      padding: '3px 7px',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                    }}
+                  >
+                    <Star size={10} fill="#ffffff" />
+                    PRIMARY
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => handleRemoveImage(idx)}
+                  title="Remove image"
+                  style={{
+                    position: 'absolute',
+                    top: '6px',
+                    right: '6px',
+                    backgroundColor: 'rgba(239, 68, 68, 0.9)',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '24px',
+                    height: '24px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'transform 0.15s'
+                  }}
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ))}
+
+            {imagePreviews.length < 5 && (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                style={{
+                  aspectRatio: '4/3',
+                  borderRadius: '10px',
+                  border: '2px dashed #93c5fd',
+                  backgroundColor: '#f8fafc',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  cursor: 'pointer',
+                  color: '#2563eb',
+                  transition: 'all 0.2s',
+                  padding: '12px'
+                }}
+              >
+                <Plus size={24} />
+                <span style={{ fontSize: '0.78rem', fontWeight: '600' }}>+ Add Image</span>
+                <span style={{ fontSize: '0.68rem', color: '#64748b' }}>({5 - imagePreviews.length} left)</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -506,7 +713,7 @@ const AddVehicle = () => {
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginBottom: '40px' }}>
-          <button type="button" className="btn btn-outline" onClick={() => navigate('/vehicles')}>
+          <button type="button" className="btn btn-outline" onClick={() => navigate('/admin/vehicles')}>
             Cancel
           </button>
           <button type="submit" className="btn btn-primary" disabled={submitting}>
@@ -520,3 +727,4 @@ const AddVehicle = () => {
 };
 
 export default AddVehicle;
+

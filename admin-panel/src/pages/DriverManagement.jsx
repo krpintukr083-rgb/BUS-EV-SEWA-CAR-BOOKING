@@ -1,8 +1,18 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { adminService } from '../services/adminService';
 import StatusBadge from '../components/StatusBadge';
-import { UserCheck, UserPlus, Truck, Search, Check, AlertCircle, Edit, ShieldCheck } from 'lucide-react';
+import { UserCheck, UserPlus, Truck, Search, Check, AlertCircle, Edit, ShieldCheck, Upload, Trash2, Camera, Image as ImageIcon } from 'lucide-react';
+
+export const getImageUrl = (url, fallback = 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?auto=format&fit=crop&w=300&q=80') => {
+  if (!url) return fallback;
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) {
+    return url;
+  }
+  const backendBase = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://bus-ev-sewa-car-booking.onrender.com' : 'http://localhost:5000');
+  const cleanBase = backendBase.replace(/\/+$/, '').replace(/\/api$/, '');
+  return `${cleanBase}${url.startsWith('/') ? '' : '/'}${url}`;
+};
 
 const DriverManagement = () => {
   const [drivers, setDrivers] = useState([]);
@@ -25,6 +35,13 @@ const DriverManagement = () => {
   const [driverStatus, setDriverStatus] = useState('Active');
   const [submitting, setSubmitting] = useState(false);
 
+  // Photo upload states
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState('');
+  const [photoError, setPhotoError] = useState('');
+  const fileInputRef = useRef(null);
+  const editFileInputRef = useRef(null);
+
   const fetchDriversAndVehicles = async () => {
     try {
       const [dRes, vRes] = await Promise.all([adminService.getDrivers(), adminService.getVehicles()]);
@@ -41,6 +58,44 @@ const DriverManagement = () => {
     fetchDriversAndVehicles();
   }, []);
 
+  const handlePhotoSelect = e => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setPhotoError('');
+
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
+    if (!validTypes.includes(file.type.toLowerCase())) {
+      setPhotoError('Invalid file type. Only JPG, JPEG, and PNG images are allowed.');
+      setPhotoFile(null);
+      setPhotoPreview('');
+      if (e.target) e.target.value = '';
+      return;
+    }
+
+    // Validate file size (max 2MB = 2 * 1024 * 1024 bytes)
+    const maxSize = 2 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setPhotoError('File size exceeds 2MB limit. Please choose a photo under 2MB.');
+      setPhotoFile(null);
+      setPhotoPreview('');
+      if (e.target) e.target.value = '';
+      return;
+    }
+
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
+  };
+
+  const handleRemovePhoto = () => {
+    setPhotoFile(null);
+    setPhotoPreview('');
+    setPhotoError('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (editFileInputRef.current) editFileInputRef.current.value = '';
+  };
+
   const handleOpenAddModal = () => {
     setName('');
     setMobileNumber('');
@@ -48,6 +103,9 @@ const DriverManagement = () => {
     setPassword('Driver@123');
     setDrivingLicenceNumber('');
     setAssignedVehicle('');
+    setPhotoFile(null);
+    setPhotoPreview('');
+    setPhotoError('');
     setIsAddModalOpen(true);
   };
 
@@ -58,6 +116,9 @@ const DriverManagement = () => {
     setDrivingLicenceNumber(driver.drivingLicenceNumber);
     setAssignedVehicle(driver.assignedVehicle?._id || driver.assignedVehicle || '');
     setDriverStatus(driver.driverStatus);
+    setPhotoFile(null);
+    setPhotoPreview(driver.driverPhoto || driver.profilePhoto || '');
+    setPhotoError('');
     setIsEditModalOpen(true);
   };
 
@@ -66,17 +127,27 @@ const DriverManagement = () => {
     setSubmitting(true);
     setError('');
     setMessage('');
+
     try {
+      let uploadedPhotoUrl = '';
+      if (photoFile) {
+        const uploadRes = await adminService.uploadDriverPhoto(photoFile);
+        if (uploadRes.success) {
+          uploadedPhotoUrl = uploadRes.url;
+        }
+      }
+
       const res = await adminService.addDriver({
         name,
         mobileNumber,
         email,
         password,
         drivingLicenceNumber,
-        assignedVehicle: assignedVehicle || undefined
+        assignedVehicle: assignedVehicle || undefined,
+        driverPhoto: uploadedPhotoUrl || undefined
       });
       if (res.success) {
-        setMessage('Driver added successfully!');
+        setMessage('Driver added successfully with photo!');
         setIsAddModalOpen(false);
         await fetchDriversAndVehicles();
       }
@@ -92,16 +163,26 @@ const DriverManagement = () => {
     setSubmitting(true);
     setError('');
     setMessage('');
+
     try {
+      let uploadedPhotoUrl = currentDriver?.driverPhoto || currentDriver?.profilePhoto || '';
+      if (photoFile) {
+        const uploadRes = await adminService.uploadDriverPhoto(photoFile);
+        if (uploadRes.success) {
+          uploadedPhotoUrl = uploadRes.url;
+        }
+      }
+
       const res = await adminService.updateDriver(currentDriver._id, {
         name,
         mobileNumber,
         drivingLicenceNumber,
         driverStatus,
-        assignedVehicle: assignedVehicle || null
+        assignedVehicle: assignedVehicle || null,
+        driverPhoto: uploadedPhotoUrl
       });
       if (res.success) {
-        setMessage('Driver details updated!');
+        setMessage('Driver details and photo updated!');
         setIsEditModalOpen(false);
         await fetchDriversAndVehicles();
       }
@@ -147,7 +228,7 @@ const DriverManagement = () => {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <Link to="/driver-verification" className="btn btn-outline">
+          <Link to="/admin/driver-verification" className="btn btn-outline">
             <ShieldCheck size={16} /> Driver Verification Desk
           </Link>
           <button onClick={handleOpenAddModal} className="btn btn-primary">
@@ -231,11 +312,18 @@ const DriverManagement = () => {
                 filteredDrivers.map(d => (
                   <tr key={d._id}>
                     <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <img
-                          src={d.profilePhoto || 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?auto=format&fit=crop&w=300&q=80'}
-                          alt=""
-                          style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }}
+                          src={getImageUrl(d.driverPhoto || d.profilePhoto)}
+                          alt={d.name}
+                          style={{
+                            width: '42px',
+                            height: '42px',
+                            borderRadius: '50%',
+                            objectFit: 'cover',
+                            border: '2px solid #e2e8f0',
+                            backgroundColor: '#f1f5f9'
+                          }}
                         />
                         <div>
                           <div style={{ fontWeight: '700', color: '#0f172a' }}>{d.name}</div>
@@ -326,11 +414,84 @@ const DriverManagement = () => {
             <div className="card-header-flex">
               <h3 className="card-title">Add New Fleet Driver</h3>
               <button className="btn btn-outline btn-sm" onClick={() => setIsAddModalOpen(false)}>
-                ✕
+                âœ•
               </button>
             </div>
 
             <form onSubmit={handleAddSubmit}>
+              {/* Driver Photo Upload */}
+              <div className="form-group" style={{ marginBottom: '16px', padding: '14px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <label className="form-label" style={{ fontWeight: '700', color: '#0f172a', marginBottom: '8px', display: 'block' }}>
+                  Driver Photo
+                </label>
+
+                {photoError && (
+                  <div style={{ color: '#dc2626', fontSize: '0.8rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <AlertCircle size={15} /> {photoError}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                  <div
+                    style={{
+                      width: '76px',
+                      height: '76px',
+                      borderRadius: '50%',
+                      backgroundColor: '#ffffff',
+                      border: '2px dashed #93c5fd',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      overflow: 'hidden',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                    }}
+                  >
+                    {photoPreview ? (
+                      <img
+                        src={getImageUrl(photoPreview)}
+                        alt="Driver Preview"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <Camera size={28} color="#3b82f6" />
+                    )}
+                  </div>
+
+                  <div style={{ flex: 1, minWidth: '200px' }}>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                      style={{ display: 'none' }}
+                      onChange={handlePhotoSelect}
+                    />
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="btn btn-sm btn-primary"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      >
+                        <Upload size={14} /> {photoPreview ? 'Change Photo' : 'Upload Photo'}
+                      </button>
+                      {photoPreview && (
+                        <button
+                          type="button"
+                          onClick={handleRemovePhoto}
+                          className="btn btn-sm btn-outline"
+                          style={{ color: '#ef4444', borderColor: '#fca5a5', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <Trash2 size={14} /> Remove
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '6px' }}>
+                      JPG, JPEG, or PNG format. Maximum file size 2MB.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                 <div className="form-group">
                   <label className="form-label">Full Name</label>
@@ -429,11 +590,84 @@ const DriverManagement = () => {
             <div className="card-header-flex">
               <h3 className="card-title">Edit Driver: {currentDriver?.name}</h3>
               <button className="btn btn-outline btn-sm" onClick={() => setIsEditModalOpen(false)}>
-                ✕
+                âœ•
               </button>
             </div>
 
             <form onSubmit={handleEditSubmit}>
+              {/* Driver Photo Edit */}
+              <div className="form-group" style={{ marginBottom: '16px', padding: '14px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <label className="form-label" style={{ fontWeight: '700', color: '#0f172a', marginBottom: '8px', display: 'block' }}>
+                  Driver Photo
+                </label>
+
+                {photoError && (
+                  <div style={{ color: '#dc2626', fontSize: '0.8rem', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <AlertCircle size={15} /> {photoError}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                  <div
+                    style={{
+                      width: '76px',
+                      height: '76px',
+                      borderRadius: '50%',
+                      backgroundColor: '#ffffff',
+                      border: '2px solid #cbd5e1',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      overflow: 'hidden',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                    }}
+                  >
+                    {photoPreview ? (
+                      <img
+                        src={getImageUrl(photoPreview)}
+                        alt="Driver Preview"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <Camera size={28} color="#94a3b8" />
+                    )}
+                  </div>
+
+                  <div style={{ flex: 1, minWidth: '200px' }}>
+                    <input
+                      type="file"
+                      ref={editFileInputRef}
+                      accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                      style={{ display: 'none' }}
+                      onChange={handlePhotoSelect}
+                    />
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => editFileInputRef.current?.click()}
+                        className="btn btn-sm btn-primary"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                      >
+                        <Upload size={14} /> Replace Photo
+                      </button>
+                      {photoPreview && photoFile && (
+                        <button
+                          type="button"
+                          onClick={handleRemovePhoto}
+                          className="btn btn-sm btn-outline"
+                          style={{ color: '#ef4444', borderColor: '#fca5a5', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          <Trash2 size={14} /> Reset
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '6px' }}>
+                      JPG, JPEG, or PNG format. Maximum file size 2MB.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                 <div className="form-group">
                   <label className="form-label">Driver Name</label>
@@ -515,3 +749,4 @@ const DriverManagement = () => {
 };
 
 export default DriverManagement;
+

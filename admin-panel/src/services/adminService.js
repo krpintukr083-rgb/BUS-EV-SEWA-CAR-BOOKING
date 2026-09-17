@@ -1,4 +1,4 @@
-import api from './api';
+﻿import api from './api';
 
 export const adminService = {
   // Auth
@@ -9,6 +9,55 @@ export const adminService = {
 
   getMe: async () => {
     const res = await api.get('/auth/me');
+    return res.data;
+  },
+
+  // 0. Image Uploads (Multer multipart/form-data)
+  uploadSingleImage: async (file, fieldName = 'image') => {
+    const formData = new FormData();
+    formData.append(fieldName, file);
+    const res = await api.post('/admin/upload/single', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return res.data;
+  },
+
+  uploadDriverPhoto: async file => {
+    const formData = new FormData();
+    formData.append('driverPhoto', file);
+    const res = await api.post('/admin/upload/driver-photo', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return res.data;
+  },
+
+  uploadMultipleImages: async (files, fieldName = 'images') => {
+    const formData = new FormData();
+    Array.from(files).forEach(file => {
+      formData.append(fieldName, file);
+    });
+    const res = await api.post('/admin/upload/multiple', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    return res.data;
+  },
+
+  uploadVehicleImages: async files => {
+    const formData = new FormData();
+    Array.from(files).forEach(file => {
+      formData.append('vehicleImages', file);
+    });
+    const res = await api.post('/admin/upload/vehicle-images', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
     return res.data;
   },
 
@@ -209,3 +258,4 @@ export const adminService = {
     return res.data;
   }
 };
+
