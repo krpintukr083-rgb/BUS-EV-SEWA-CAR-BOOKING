@@ -124,6 +124,16 @@ export const customerService = {
     return res.data;
   },
 
+  processRazorpayTestPay: async ({ bookingId, razorpayOrderId, status, method }) => {
+    const res = await api.post('/payments/razorpay/test-pay', {
+      bookingId,
+      razorpayOrderId,
+      status,
+      method
+    });
+    return res.data;
+  },
+
   // Payment Test Sandbox (Backward Compatibility)
   createPaymentSession: async (bookingId, paymentMethod) => {
     const res = await api.post('/payments/create', { bookingId, paymentMethod });

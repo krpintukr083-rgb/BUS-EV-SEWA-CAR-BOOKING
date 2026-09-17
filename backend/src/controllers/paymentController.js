@@ -128,6 +128,79 @@ exports.createRazorpayOrder = async (req, res, next) => {
   }
 };
 
+// @desc    Process Razorpay Test Checkout Authorization Simulation
+// @route   POST /api/payments/razorpay/test-pay
+// @access  Private (Customer)
+exports.processRazorpayTestCheckout = async (req, res, next) => {
+  try {
+    const { bookingId, razorpayOrderId, status, method } = req.body;
+
+    if (!bookingId || !razorpayOrderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing bookingId or razorpayOrderId'
+      });
+    }
+
+    const booking = await Booking.findOne(getBookingQuery(bookingId));
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    if (status === 'failed' || status === 'declined') {
+      const errorObj = {
+        code: 'BAD_REQUEST_ERROR',
+        description: 'Payment was declined by issuing bank (Test Mode Simulation)',
+        source: 'gateway',
+        step: 'payment_authentication',
+        reason: 'payment_declined'
+      };
+
+      let payment = await Payment.findOne({ booking: booking._id });
+      if (payment) {
+        payment.paymentStatus = 'Failed';
+        payment.gatewayResponse = errorObj;
+        await payment.save();
+      }
+      booking.paymentStatus = 'Failed';
+      await booking.save();
+
+      return res.status(200).json({
+        success: false,
+        message: 'Payment declined in test mode.',
+        error: errorObj
+      });
+    }
+
+    // Generate Razorpay test payment ID and valid server HMAC SHA256 signature
+    const razorpayPaymentId = `pay_test_${Date.now().toString().slice(-8)}${Math.floor(1000 + Math.random() * 9000)}`;
+    const key_secret = process.env.RAZORPAY_KEY_SECRET || 'sD8wUaPjGz9x7qK3mN1vB4rE';
+    const bodyToSign = `${razorpayOrderId}|${razorpayPaymentId}`;
+    const razorpaySignature = crypto
+      .createHmac('sha256', key_secret)
+      .update(bodyToSign)
+      .digest('hex');
+
+    res.status(200).json({
+      success: true,
+      message: 'Razorpay test payment authorization successful',
+      data: {
+        razorpayOrderId,
+        razorpayPaymentId,
+        razorpaySignature,
+        amount: Math.round(booking.fare * 100),
+        currency: 'INR',
+        method: method || 'UPI'
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Verify Razorpay Payment Signature Server-Side and Confirm Booking
 // @route   POST /api/payments/razorpay/verify-payment
 // @access  Private (Customer)

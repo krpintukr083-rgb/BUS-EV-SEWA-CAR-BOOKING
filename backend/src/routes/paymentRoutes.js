@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   createRazorpayOrder,
+  processRazorpayTestCheckout,
   verifyRazorpayPayment,
   recordRazorpayFailure,
   razorpayWebhook,
@@ -20,6 +21,7 @@ router.use(verifyToken);
 
 // Razorpay Test Payment Pipeline
 router.post('/razorpay/create-order', createRazorpayOrder);
+router.post('/razorpay/test-pay', processRazorpayTestCheckout);
 router.post('/razorpay/verify-payment', verifyRazorpayPayment);
 router.post('/razorpay/record-failure', recordRazorpayFailure);
 

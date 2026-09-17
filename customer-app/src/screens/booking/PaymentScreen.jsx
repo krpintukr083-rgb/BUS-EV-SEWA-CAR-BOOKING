@@ -87,18 +87,44 @@ const PaymentScreen = ({ route, navigation }) => {
       const data = JSON.parse(event.nativeEvent.data);
       setShowRazorpayModal(false);
 
-      if (data.type === 'PAYMENT_SUCCESS') {
+      if (data.type === 'TEST_CHECKOUT_AUTHORIZE' || data.type === 'PAYMENT_SUCCESS') {
         setPaymentState('processing');
-        // Step 2: Server-side HMAC SHA256 Signature Verification
-        const verifyRes = await customerService.verifyRazorpayPayment({
-          bookingId: razorpayOrder.bookingId || razorpayOrder.bookingDbId,
-          razorpayOrderId: data.razorpayOrderId,
+
+        const activeBookingId = razorpayOrder.bookingId || razorpayOrder.bookingDbId;
+        const activeOrderId = data.razorpayOrderId || razorpayOrder.orderId;
+
+        let authData = {
+          razorpayOrderId: activeOrderId,
           razorpayPaymentId: data.razorpayPaymentId,
           razorpaySignature: data.razorpaySignature
+        };
+
+        // If from interactive test checkout, request server-side HMAC authorization
+        if (data.type === 'TEST_CHECKOUT_AUTHORIZE') {
+          const authRes = await customerService.processRazorpayTestPay({
+            bookingId: activeBookingId,
+            razorpayOrderId: activeOrderId,
+            status: data.status || 'success',
+            method: data.method || selectedMethod
+          });
+
+          if (!authRes.success || !authRes.data) {
+            throw new Error(authRes.message || 'Test payment authorization failed on server');
+          }
+
+          authData = authRes.data;
+        }
+
+        // Step 2: Server-side HMAC SHA256 Signature Verification
+        const verifyRes = await customerService.verifyRazorpayPayment({
+          bookingId: activeBookingId,
+          razorpayOrderId: authData.razorpayOrderId,
+          razorpayPaymentId: authData.razorpayPaymentId,
+          razorpaySignature: authData.razorpaySignature
         });
 
         if (verifyRes.success && verifyRes.data) {
-          setTransactionId(data.razorpayPaymentId);
+          setTransactionId(authData.razorpayPaymentId);
           setPaymentState('success');
           updateDraft({ confirmedBooking: verifyRes.data.booking });
 
@@ -119,8 +145,8 @@ const PaymentScreen = ({ route, navigation }) => {
 
         // Record failure in backend
         await customerService.recordRazorpayFailure({
-          bookingId: razorpayOrder.bookingId || razorpayOrder.bookingDbId,
-          razorpayOrderId: razorpayOrder.orderId,
+          bookingId: razorpayOrder?.bookingId || razorpayOrder?.bookingDbId,
+          razorpayOrderId: razorpayOrder?.orderId,
           error: data.error
         });
       }
@@ -128,157 +154,354 @@ const PaymentScreen = ({ route, navigation }) => {
       console.log('Error handling Razorpay response:', err);
       setShowRazorpayModal(false);
       setPaymentState('failed');
-      setErrorMessage('Unexpected response during payment processing.');
-    }
-  };
-
-  // Direct Sandbox Test Simulation (for instant automated test simulation)
-  const handleSimulatePayment = async (forceFailure = false) => {
-    setPaymentState('processing');
-    setErrorMessage('');
-
-    try {
-      const activeBookingId = bookingId || bookingCode || bookingDraft.confirmedBooking?._id || bookingDraft.confirmedBooking?.bookingId;
-
-      if (forceFailure) {
-        const res = await customerService.testPaymentFailure(activeBookingId, 'Card declined by issuing bank (Test Simulation)');
-        setPaymentState('failed');
-        setErrorMessage(res?.message || 'Payment declined in test simulation.');
-      } else {
-        const orderRes = await customerService.createRazorpayOrder(activeBookingId);
-        if (!orderRes.success || !orderRes.data) {
-          throw new Error('Failed to create order on server');
-        }
-
-        const testOrderId = orderRes.data.orderId;
-        const testPaymentId = `pay_test_${Date.now().toString().slice(-6)}${Math.floor(100 + Math.random() * 900)}`;
-        
-        // Use test-success verified endpoint or server verify
-        const res = await customerService.testPaymentSuccess(activeBookingId, selectedMethod);
-
-        if (res && res.success) {
-          setTransactionId(res.data.transactionId || testPaymentId);
-          setPaymentState('success');
-          updateDraft({ confirmedBooking: res.data.booking });
-
-          setTimeout(() => {
-            navigation.replace('BookingConfirmation', {
-              booking: res.data.booking,
-              payment: res.data.payment
-            });
-          }, 1200);
-        } else {
-          setPaymentState('failed');
-          setErrorMessage(res?.message || 'Payment simulation failed.');
-        }
-      }
-    } catch (err) {
-      console.log('Payment simulation error:', err);
-      setPaymentState('failed');
-      setErrorMessage(err.response?.data?.message || err.message || 'Payment failed in test sandbox.');
+      setErrorMessage(err.response?.data?.message || err.message || 'Unexpected response during payment processing.');
     }
   };
 
   // HTML content for Razorpay Embedded Checkout WebView
   const getRazorpayHtml = () => {
     if (!razorpayOrder) return '';
+    const formattedAmount = (razorpayOrder.amount / 100).toFixed(2);
 
     return `
       <!DOCTYPE html>
       <html>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
         <style>
-          * { box-sizing: border-box; }
+          * { box-sizing: border-box; margin: 0; padding: 0; }
           body {
-            margin: 0;
             background: #0f172a;
-            color: #ffffff;
+            color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            min-height: 100vh;
             display: flex;
             flex-direction: column;
+          }
+          .header {
+            background: #1e293b;
+            padding: 16px 20px;
+            border-bottom: 1px solid #334155;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          }
+          .merchant-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+          }
+          .avatar {
+            width: 42px;
+            height: 42px;
+            border-radius: 10px;
+            background: #2563eb;
+            display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 100vh;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            text-align: center;
-            padding: 24px;
+            font-size: 20px;
+            font-weight: 700;
+            color: #ffffff;
           }
-          .spinner {
-            width: 48px;
-            height: 48px;
-            border: 4px solid #1e293b;
-            border-top: 4px solid #10b981;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin-bottom: 24px;
+          .brand-name { font-size: 15px; font-weight: 700; color: #f8fafc; }
+          .brand-desc { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+          .amount-badge {
+            text-align: right;
           }
-          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-          h2 { font-size: 18px; margin: 0 0 8px 0; font-weight: 700; color: #f8fafc; }
-          p { font-size: 13px; color: #94a3b8; margin: 0; line-height: 1.5; }
-          .badge {
-            background: rgba(16, 185, 129, 0.15);
-            color: #10b981;
-            padding: 6px 14px;
-            border-radius: 20px;
+          .amount-val { font-size: 18px; font-weight: 800; color: #10b981; }
+          .amount-curr { font-size: 11px; color: #94a3b8; }
+          
+          .test-banner {
+            background: linear-gradient(90deg, #065f46 0%, #047857 100%);
+            color: #d1fae5;
+            padding: 8px 16px;
             font-size: 12px;
             font-weight: 700;
-            margin-top: 16px;
-            border: 1px solid rgba(16, 185, 129, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #059669;
+          }
+          .content {
+            padding: 16px;
+            flex: 1;
+            overflow-y: auto;
+          }
+          .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+            background: #1e293b;
+            padding: 4px;
+            border-radius: 10px;
+          }
+          .tab {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: #94a3b8;
+            border-radius: 8px;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+          }
+          .tab.active {
+            background: #2563eb;
+            color: #ffffff;
+          }
+          .panel {
+            display: none;
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid #334155;
+          }
+          .panel.active { display: block; }
+          .field-label { font-size: 12px; color: #94a3b8; font-weight: 600; margin-bottom: 6px; display: block; }
+          .input-box {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 12px;
+            color: #ffffff;
+            font-size: 14px;
+            margin-bottom: 14px;
+            outline: none;
+          }
+          .input-box:focus { border-color: #3b82f6; }
+          .test-hints {
+            background: rgba(37, 99, 235, 0.1);
+            border: 1px dashed rgba(59, 130, 246, 0.4);
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 14px;
+          }
+          .test-hint-title { font-size: 11px; font-weight: 700; color: #60a5fa; margin-bottom: 4px; }
+          .test-hint-sub { font-size: 11px; color: #94a3b8; line-height: 1.4; }
+          .btn-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+          }
+          .pay-btn {
+            width: 100%;
+            background: #10b981;
+            color: #ffffff;
+            border: none;
+            border-radius: 10px;
+            padding: 14px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+          }
+          .pay-btn:active { transform: scale(0.98); }
+          .cancel-btn {
+            width: 100%;
+            background: transparent;
+            color: #94a3b8;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+          }
+
+          /* Simulator Modal */
+          .sim-modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 999;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+          }
+          .sim-card {
+            background: #1e293b;
+            border: 1px solid #475569;
+            border-radius: 16px;
+            padding: 24px;
+            width: 100%;
+            max-width: 360px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+          }
+          .sim-icon {
+            font-size: 36px;
+            margin-bottom: 12px;
+          }
+          .sim-title { font-size: 17px; font-weight: 700; color: #f8fafc; margin-bottom: 6px; }
+          .sim-sub { font-size: 12px; color: #94a3b8; margin-bottom: 20px; line-height: 1.5; }
+          .sim-actions { display: flex; flex-direction: column; gap: 10px; }
+          .sim-approve {
+            background: #10b981;
+            color: #ffffff;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+          }
+          .sim-decline {
+            background: #ef4444;
+            color: #ffffff;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
           }
         </style>
       </head>
       <body>
-        <div class="spinner"></div>
-        <h2>Opening Razorpay TEST Checkout...</h2>
-        <p>Complete your test payment in the modal window.</p>
-        <div class="badge">⚡ Razorpay TEST Mode</div>
+        <div class="header">
+          <div class="merchant-info">
+            <div class="avatar">⚡</div>
+            <div>
+              <div class="brand-name">TravelEase Mobility</div>
+              <div class="brand-desc">Booking ${razorpayOrder.bookingId}</div>
+            </div>
+          </div>
+          <div class="amount-badge">
+            <div class="amount-val">₹${formattedAmount}</div>
+            <div class="amount-curr">TEST MODE</div>
+          </div>
+        </div>
+
+        <div class="test-banner">
+          <span>⚡ RAZORPAY TEST ENVIRONMENT</span>
+          <span>INR</span>
+        </div>
+
+        <div class="content">
+          <div class="tabs">
+            <button class="tab active" onclick="setTab('upi')">UPI / QR</button>
+            <button class="tab" onclick="setTab('card')">Card</button>
+            <button class="tab" onclick="setTab('netbanking')">Net Banking</button>
+          </div>
+
+          <!-- UPI Panel -->
+          <div id="panel-upi" class="panel active">
+            <label class="field-label">Virtual Payment Address (VPA)</label>
+            <input type="text" id="upi-id" class="input-box" value="success@razorpay" placeholder="e.g. yourname@upi" />
+            <div class="test-hints">
+              <div class="test-hint-title">💡 Razorpay Test VPA Guide</div>
+              <div class="test-hint-sub">Use <b>success@razorpay</b> for successful authorization, or <b>failure@razorpay</b> to simulate declined transaction.</div>
+            </div>
+            <button class="pay-btn" onclick="openSim('UPI')">Pay ₹${formattedAmount}</button>
+          </div>
+
+          <!-- Card Panel -->
+          <div id="panel-card" class="panel">
+            <label class="field-label">Card Number</label>
+            <input type="text" id="card-no" class="input-box" value="4111 1111 1111 1111" placeholder="Card Number" />
+            <div style="display: flex; gap: 10px;">
+              <div style="flex: 1;">
+                <label class="field-label">Expiry</label>
+                <input type="text" class="input-box" value="12/28" placeholder="MM/YY" />
+              </div>
+              <div style="flex: 1;">
+                <label class="field-label">CVV</label>
+                <input type="password" class="input-box" value="123" placeholder="CVV" />
+              </div>
+            </div>
+            <div class="test-hints">
+              <div class="test-hint-title">💡 Razorpay Test Cards</div>
+              <div class="test-hint-sub">Success: <b>4111 1111 1111 1111</b> | Fail: <b>4000 0000 0000 0002</b> (Any CVV/Expiry).</div>
+            </div>
+            <button class="pay-btn" onclick="openSim('Card')">Pay ₹${formattedAmount}</button>
+          </div>
+
+          <!-- Net Banking Panel -->
+          <div id="panel-netbanking" class="panel">
+            <label class="field-label">Select Bank</label>
+            <select id="bank-select" class="input-box" style="background:#0f172a; color:#fff;">
+              <option value="HDFC">HDFC Bank (Test)</option>
+              <option value="SBI">State Bank of India (Test)</option>
+              <option value="ICICI">ICICI Bank (Test)</option>
+              <option value="AXIS">Axis Bank (Test)</option>
+            </select>
+            <button class="pay-btn" onclick="openSim('NetBanking')">Pay ₹${formattedAmount}</button>
+          </div>
+
+          <button class="cancel-btn" onclick="cancelPayment()">Cancel Checkout</button>
+        </div>
+
+        <!-- 3DS / OTP Simulator Modal -->
+        <div id="sim-modal" class="sim-modal">
+          <div class="sim-card">
+            <div class="sim-icon">🏦</div>
+            <div class="sim-title">Razorpay Bank Simulator</div>
+            <div class="sim-sub">Testing authentication for ₹${formattedAmount} on Order <b>${razorpayOrder.orderId}</b></div>
+            <div class="sim-actions">
+              <button class="sim-approve" onclick="confirmPayment('success')">✓ Authorize Payment (Success)</button>
+              <button class="sim-decline" onclick="confirmPayment('failed')">✕ Decline Payment (Fail)</button>
+            </div>
+          </div>
+        </div>
 
         <script>
-          setTimeout(function() {
-            var options = {
-              key: "${razorpayOrder.keyId}",
-              amount: "${razorpayOrder.amount}",
-              currency: "${razorpayOrder.currency || 'INR'}",
-              name: "TravelEase Mobility",
-              description: "Booking ${razorpayOrder.bookingId} (${razorpayOrder.serviceType || 'Transit'})",
-              image: "https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=200&q=80",
-              order_id: "${razorpayOrder.orderId}",
-              prefill: {
-                name: "${razorpayOrder.customer?.name || 'Traveler'}",
-                email: "${razorpayOrder.customer?.email || 'customer@example.com'}",
-                contact: "${razorpayOrder.customer?.phone || '+919999999999'}"
-              },
-              theme: {
-                color: "#1d4ed8"
-              },
-              modal: {
-                ondismiss: function() {
-                  window.ReactNativeWebView.postMessage(JSON.stringify({
-                    type: 'PAYMENT_CANCELLED',
-                    error: { description: 'Razorpay checkout cancelled by customer' }
-                  }));
-                }
-              },
-              handler: function (response) {
-                window.ReactNativeWebView.postMessage(JSON.stringify({
-                  type: 'PAYMENT_SUCCESS',
-                  razorpayPaymentId: response.razorpay_payment_id,
-                  razorpayOrderId: response.razorpay_order_id,
-                  razorpaySignature: response.razorpay_signature
-                }));
-              }
-            };
+          var currentMethod = 'UPI';
 
-            var rzp = new Razorpay(options);
-            rzp.on('payment.failed', function (response){
+          function setTab(name) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            if (name === 'upi') {
+              document.querySelectorAll('.tab')[0].classList.add('active');
+              document.getElementById('panel-upi').classList.add('active');
+              currentMethod = 'UPI';
+            } else if (name === 'card') {
+              document.querySelectorAll('.tab')[1].classList.add('active');
+              document.getElementById('panel-card').classList.add('active');
+              currentMethod = 'Card';
+            } else if (name === 'netbanking') {
+              document.querySelectorAll('.tab')[2].classList.add('active');
+              document.getElementById('panel-netbanking').classList.add('active');
+              currentMethod = 'NetBanking';
+            }
+          }
+
+          function openSim(method) {
+            currentMethod = method;
+            document.getElementById('sim-modal').style.display = 'flex';
+          }
+
+          function cancelPayment() {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'PAYMENT_CANCELLED',
+              error: { description: 'Razorpay checkout cancelled by customer' }
+            }));
+          }
+
+          function confirmPayment(outcome) {
+            document.getElementById('sim-modal').style.display = 'none';
+
+            if (outcome === 'success') {
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'TEST_CHECKOUT_AUTHORIZE',
+                status: 'success',
+                method: currentMethod,
+                razorpayOrderId: "${razorpayOrder.orderId}"
+              }));
+            } else {
               window.ReactNativeWebView.postMessage(JSON.stringify({
                 type: 'PAYMENT_FAILURE',
-                error: response.error
+                error: {
+                  code: 'PAYMENT_DECLINED',
+                  description: 'Payment was declined by issuing bank in Razorpay test mode'
+                }
               }));
-            });
-            rzp.open();
-          }, 300);
+            }
+          }
         </script>
       </body>
       </html>
