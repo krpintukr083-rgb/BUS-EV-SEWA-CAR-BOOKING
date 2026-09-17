@@ -387,8 +387,8 @@ const VehicleManagement = () => {
               <input
                 type="text"
                 placeholder="Search by name, number, vendor or driver..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
                 className="form-control"
                 style={{ paddingLeft: '38px' }}
               />
