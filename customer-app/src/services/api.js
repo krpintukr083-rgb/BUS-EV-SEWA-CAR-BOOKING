@@ -25,13 +25,14 @@ export const EMULATOR_URL = 'http://10.0.2.2:5000';
  * Computes default static URL based on hardcoded constants and platform
  */
 export const getDefaultBaseUrl = () => {
-  if (Platform.OS === 'android') {
-    return `${EMULATOR_URL}/api`;
-  }
-
+  // If Render tunnel URL is provided, use it as default across all devices (Physical phones, 4G/5G, Wi-Fi, and Emulators)
   if (BACKEND_TUNNEL_URL && BACKEND_TUNNEL_URL.trim() !== '') {
     const clean = BACKEND_TUNNEL_URL.trim().replace(/\/+$/, '');
     return clean.endsWith('/api') ? clean : `${clean}/api`;
+  }
+
+  if (Platform.OS === 'android') {
+    return `${EMULATOR_URL}/api`;
   }
 
   if (BACKEND_LAN_URL && BACKEND_LAN_URL.trim() !== '') {
@@ -41,6 +42,15 @@ export const getDefaultBaseUrl = () => {
 
   return 'http://localhost:5000/api';
 };
+
+/**
+ * Candidate URLs for connectivity fallback
+ */
+export const CANDIDATE_URLS = [
+  BACKEND_TUNNEL_URL ? (BACKEND_TUNNEL_URL.endsWith('/api') ? BACKEND_TUNNEL_URL : `${BACKEND_TUNNEL_URL}/api`) : null,
+  BACKEND_LAN_URL ? (BACKEND_LAN_URL.endsWith('/api') ? BACKEND_LAN_URL : `${BACKEND_LAN_URL}/api`) : null,
+  Platform.OS === 'android' ? `${EMULATOR_URL}/api` : 'http://localhost:5000/api'
+].filter(Boolean);
 
 /**
  * Retrieves the actively saved custom server URL from storage
@@ -106,7 +116,7 @@ const api = axios.create({
     'ngrok-skip-browser-warning': 'true',
     'User-Agent': 'TravelEaseCustomerApp/1.0'
   },
-  timeout: 15000
+  timeout: 18000
 });
 
 // Dynamic Request Interceptor: Resolves active server URL & injects Auth / Tunnel headers
@@ -140,10 +150,27 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor: Handles unauthorized status
+// Response Interceptor: Handles unauthorized status & automatic network fallback retry
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
+    const originalRequest = error.config;
+
+    // Retry with candidate fallback if network error and not already retried
+    if (!error.response && originalRequest && !originalRequest._retry) {
+      originalRequest._retry = true;
+      for (const candidate of CANDIDATE_URLS) {
+        if (originalRequest.baseURL !== candidate) {
+          try {
+            originalRequest.baseURL = candidate;
+            return await axios(originalRequest);
+          } catch (retryErr) {
+            // continue to next candidate
+          }
+        }
+      }
+    }
+
     if (error.response && (error.response.status === 401 || error.response.status === 403)) {
       try {
         await AsyncStorage.removeItem('customer_token');
