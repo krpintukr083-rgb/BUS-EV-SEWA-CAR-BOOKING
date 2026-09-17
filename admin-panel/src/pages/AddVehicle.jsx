@@ -1,7 +1,7 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminService } from '../services/adminService';
-import { PlusCircle, Check, AlertCircle, Truck, Bus, Zap, Car, Plus, Trash2, Image as ImageIcon, Upload, Star } from 'lucide-react';
+import { PlusCircle, Check, AlertCircle, Truck, Bus, Zap, Car, Plus, Trash2, Image as ImageIcon, Upload, Star, Building, ShoppingBag, DollarSign, Calendar, MapPin, User, Phone, FileText } from 'lucide-react';
 
 const AddVehicle = () => {
   const navigate = useNavigate();
@@ -11,24 +11,43 @@ const AddVehicle = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
+  // Vehicle Source: 'OWN' | 'THIRD_PARTY'
+  const [vehicleSource, setVehicleSource] = useState('OWN');
+
   // Vehicle Photos state (Maximum 5 images, Max 2MB each)
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
   const [imageError, setImageError] = useState('');
   const fileInputRef = useRef(null);
 
-  // Form Fields
+  // General Form Fields
   const [vehicleType, setVehicleType] = useState('Bus');
   const [vehicleNumber, setVehicleNumber] = useState('');
   const [vehicleName, setVehicleName] = useState('');
   const [vehicleCategory, setVehicleCategory] = useState('');
   const [vehicleModel, setVehicleModel] = useState('');
   const [seatingCapacity, setSeatingCapacity] = useState(36);
+  const [loadCapacity, setLoadCapacity] = useState('');
   const [ownerName, setOwnerName] = useState('Metro Transport Logistics Ltd');
   const [ownerMobileNumber, setOwnerMobileNumber] = useState('+919811122334');
   const [assignedDriver, setAssignedDriver] = useState('');
   const [fareRate, setFareRate] = useState(850);
   const [vehicleStatus, setVehicleStatus] = useState('Active');
+
+  // Third-Party / Market-Hire Specific Fields
+  const [vendorName, setVendorName] = useState('National Market Logistics / Transporter');
+  const [vendorMobile, setVendorMobile] = useState('+919876012345');
+  const [vendorAddress, setVendorAddress] = useState('Transport Nagar, Central Freight Terminal');
+  const [thirdPartyDriverName, setThirdPartyDriverName] = useState('');
+  const [thirdPartyDriverMobile, setThirdPartyDriverMobile] = useState('');
+  const [thirdPartyDriverLicense, setThirdPartyDriverLicense] = useState('');
+  const [hireAmount, setHireAmount] = useState(2800);
+  const [additionalExpense, setAdditionalExpense] = useState(0);
+  const [hireDate, setHireDate] = useState(new Date().toISOString().split('T')[0]);
+  const [hirePaymentStatus, setHirePaymentStatus] = useState('Pending');
+  const [paymentReference, setPaymentReference] = useState('');
+  const [tripReference, setTripReference] = useState('');
+  const [hireNotes, setHireNotes] = useState('');
 
   // Documents
   const [rcNumber, setRcNumber] = useState('');
@@ -52,6 +71,10 @@ const AddVehicle = () => {
 
   // Car specifics
   const [fuelType, setFuelType] = useState('Electric');
+
+  // Truck specifics
+  const [cargoType, setCargoType] = useState('General Freight & Heavy Goods');
+  const [grossVehicleWeight, setGrossVehicleWeight] = useState('16 Tonnes');
 
   useEffect(() => {
     const fetchDrivers = async () => {
@@ -135,6 +158,34 @@ const AddVehicle = () => {
     setImageError('');
   };
 
+  const handleSourceSelect = source => {
+    setVehicleSource(source);
+    if (source === 'THIRD_PARTY') {
+      setVehicleType('Truck');
+      setVehicleCategory('Market Hired Heavy Transport');
+      setVehicleModel('Tata Prima 3530.K / Ashok Leyland');
+      setVehicleName('Market Hired Freight Truck');
+      setSeatingCapacity(2);
+      setLoadCapacity('10 Tonnes (16 Tonnes GVW)');
+      setFareRate(2800);
+      setHireAmount(2800);
+      setOrigin('Delhi Sanjay Gandhi Transport Nagar');
+      setDestination('Jaipur VKI Industrial Area');
+      setOwnerName('Patel Road Logistics & Transport');
+      setOwnerMobileNumber('+919876012345');
+    } else {
+      setVehicleType('Bus');
+      setVehicleCategory('AC Sleeper 2+1 (Multi-Axle)');
+      setVehicleModel('Volvo 9600 Multi-Axle');
+      setVehicleName('Royal Express Deluxe');
+      setSeatingCapacity(36);
+      setLoadCapacity('');
+      setFareRate(850);
+      setOwnerName('Metro Transport Logistics Ltd');
+      setOwnerMobileNumber('+919811122334');
+    }
+  };
+
   const handleTypeSelect = type => {
     setVehicleType(type);
     if (type === 'Bus') {
@@ -164,6 +215,15 @@ const AddVehicle = () => {
       setDestination('Cyber Hub Gurugram');
       setBoardingPoints('T3 Arrival Gate 5');
       setDroppingPoints('Cyber Hub DLF Phase 2');
+    } else if (type === 'Truck') {
+      setVehicleCategory('Heavy Commercial Haulage / Freight');
+      setVehicleModel('Tata Prima / Eicher Pro Heavy');
+      setSeatingCapacity(2);
+      setLoadCapacity('10 Tonnes');
+      setFareRate(2800);
+      setHireAmount(2800);
+      setOrigin('Delhi Transport Hub');
+      setDestination('Jaipur Freight Hub');
     }
   };
 
@@ -182,21 +242,46 @@ const AddVehicle = () => {
         }
       }
 
+      const isThirdParty = vehicleSource === 'THIRD_PARTY';
+
       const payload = {
+        vehicleSource,
         vehicleNumber: vehicleNumber.toUpperCase().trim(),
         vehicleType,
-        vehicleCategory: vehicleCategory || (vehicleType === 'Bus' ? 'AC Sleeper' : vehicleType === 'EV-Sewa' ? 'Electric Shuttle' : 'Sedan'),
+        vehicleCategory: vehicleCategory || (isThirdParty ? 'Market Hired Vehicle' : 'Commercial Passenger Fleet'),
         vehicleModel: vehicleModel || 'Standard Fleet Model',
         vehicleName: vehicleName || `${vehicleType} Express`,
-        seatingCapacity: Number(seatingCapacity),
-        ownerName,
-        ownerMobileNumber,
+        seatingCapacity: Number(seatingCapacity) || 1,
+        loadCapacity: loadCapacity || (vehicleType === 'Truck' ? '10 Tonnes' : ''),
+        ownerName: isThirdParty ? (vendorName || ownerName) : ownerName,
+        ownerMobileNumber: isThirdParty ? (vendorMobile || ownerMobileNumber) : ownerMobileNumber,
         assignedDriver: assignedDriver || undefined,
+        thirdPartyDriver: isThirdParty ? {
+          driverName: thirdPartyDriverName,
+          driverMobile: thirdPartyDriverMobile,
+          driverLicenseNumber: thirdPartyDriverLicense
+        } : undefined,
+        vendorDetails: isThirdParty ? {
+          vendorName,
+          vendorMobile,
+          vendorAddress
+        } : undefined,
+        hireDetails: isThirdParty ? {
+          hireAmount: Number(hireAmount) || 0,
+          additionalExpense: Number(additionalExpense) || 0,
+          hireDate: hireDate ? new Date(hireDate) : new Date(),
+          paymentStatus: hirePaymentStatus,
+          paymentReference,
+          tripReference,
+          pickup: origin,
+          destination,
+          notes: hireNotes
+        } : undefined,
         rcNumber: rcNumber || `RC-${vehicleNumber.replace(/\s+/g, '')}`,
         insurancePolicyNumber: insurancePolicyNumber || `INS-${Date.now()}`,
         insuranceExpiryDetails,
         fitnessDetails,
-        fareRate: Number(fareRate),
+        fareRate: Number(fareRate) || (isThirdParty ? Number(hireAmount) : 500),
         vehicleStatus,
         vehicleImages: uploadedImageUrls.length > 0 ? uploadedImageUrls : undefined,
         route: {
@@ -211,12 +296,13 @@ const AddVehicle = () => {
         },
         busDetails: vehicleType === 'Bus' ? { busType, seatLayout, availableSeats: Number(seatingCapacity) } : undefined,
         evDetails: vehicleType === 'EV-Sewa' ? { batteryCapacity, rangeKm: Number(rangeKm) } : undefined,
-        carDetails: vehicleType === 'Car' ? { ac: true, fuelType } : undefined
+        carDetails: vehicleType === 'Car' ? { ac: true, fuelType } : undefined,
+        truckDetails: vehicleType === 'Truck' ? { cargoType, grossVehicleWeight } : undefined
       };
 
       const res = await adminService.addVehicle(payload);
       if (res.success) {
-        setMessage('Vehicle added to fleet successfully with photos!');
+        setMessage(isThirdParty ? 'Third-Party / Market-Hired vehicle added successfully and recorded in expenses!' : 'Own vehicle added to fleet successfully!');
         setTimeout(() => {
           navigate('/admin/vehicles');
         }, 1200);
@@ -229,347 +315,546 @@ const AddVehicle = () => {
   };
 
   return (
-    <div style={{ maxWidth: '900px' }}>
+    <div style={{ maxWidth: '950px' }}>
       <div className="card-header-flex" style={{ marginBottom: '20px' }}>
         <div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#0f172a' }}>Add Fleet Vehicle</h2>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#0f172a' }}>Add Vehicle (Own or Market-Hired)</h2>
           <p style={{ fontSize: '0.85rem', color: '#64748b' }}>
-            Register new Bus, EV-Sewa electric shuttle, or Car into the fleet system.
+            Register Company-Owned fleet vehicles or Third-Party / Market-Hired vehicles (e.g. Truck Hire From Market).
           </p>
         </div>
       </div>
 
       {message && (
-        <div
-          style={{
-            backgroundColor: '#ecfdf5',
-            border: '1px solid #a7f3d0',
-            color: '#059669',
-            padding: '12px 16px',
-            borderRadius: '8px',
-            marginBottom: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}
-        >
-          <Check size={18} />
-          <span>{message}</span>
+        <div style={{ padding: '12px 16px', backgroundColor: '#ecfdf5', color: '#065f46', borderRadius: '8px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #a7f3d0' }}>
+          <Check size={18} /> {message}
         </div>
       )}
 
       {error && (
-        <div
-          style={{
-            backgroundColor: '#fef2f2',
-            border: '1px solid #fecaca',
-            color: '#dc2626',
-            padding: '12px 16px',
-            borderRadius: '8px',
-            marginBottom: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}
-        >
-          <AlertCircle size={18} />
-          <span>{error}</span>
+        <div style={{ padding: '12px 16px', backgroundColor: '#fef2f2', color: '#991b1b', borderRadius: '8px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #fecaca' }}>
+          <AlertCircle size={18} /> {error}
         </div>
       )}
 
-      {/* Vehicle Type Selector Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
-        <div
-          onClick={() => handleTypeSelect('Bus')}
-          style={{
-            padding: '18px',
-            borderRadius: '10px',
-            cursor: 'pointer',
-            border: `2px solid ${vehicleType === 'Bus' ? '#1d4ed8' : '#e2e8f0'}`,
-            backgroundColor: vehicleType === 'Bus' ? '#eff6ff' : '#ffffff',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px'
-          }}
-        >
-          <Bus size={26} color={vehicleType === 'Bus' ? '#1d4ed8' : '#64748b'} />
-          <div>
-            <strong style={{ display: 'block', color: '#0f172a' }}>1. Intercity Bus</strong>
-            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Luxury & Sleeper Coaches</span>
+      {/* 1. VEHICLE SOURCE SELECTION (OWN VS THIRD-PARTY) */}
+      <div className="content-card" style={{ marginBottom: '20px', border: '2px solid #e2e8f0' }}>
+        <h3 style={{ fontSize: '1rem', fontWeight: '700', color: '#1e293b', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Building size={18} color="#2563eb" /> Step 1: Select Vehicle Source / Ownership Model
+        </h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+          <div
+            onClick={() => handleSourceSelect('OWN')}
+            style={{
+              padding: '16px',
+              borderRadius: '10px',
+              border: `2px solid ${vehicleSource === 'OWN' ? '#2563eb' : '#e2e8f0'}`,
+              backgroundColor: vehicleSource === 'OWN' ? '#eff6ff' : '#ffffff',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={{ fontWeight: '700', fontSize: '1rem', color: vehicleSource === 'OWN' ? '#1e40af' : '#334155' }}>
+                1. Own / Company Fleet Vehicle
+              </span>
+              <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '700', backgroundColor: '#dbeafe', color: '#1e40af' }}>
+                INTERNAL FLEET
+              </span>
+            </div>
+            <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>
+              Company-owned Buses, EV-Sewa electric shuttles, or Cars operated directly by company drivers.
+            </p>
           </div>
-        </div>
 
-        <div
-          onClick={() => handleTypeSelect('EV-Sewa')}
-          style={{
-            padding: '18px',
-            borderRadius: '10px',
-            cursor: 'pointer',
-            border: `2px solid ${vehicleType === 'EV-Sewa' ? '#10b981' : '#e2e8f0'}`,
-            backgroundColor: vehicleType === 'EV-Sewa' ? '#ecfdf5' : '#ffffff',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px'
-          }}
-        >
-          <Zap size={26} color={vehicleType === 'EV-Sewa' ? '#10b981' : '#64748b'} />
-          <div>
-            <strong style={{ display: 'block', color: '#0f172a' }}>2. EV-Sewa Shuttle</strong>
-            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Green Electric Transit</span>
-          </div>
-        </div>
-
-        <div
-          onClick={() => handleTypeSelect('Car')}
-          style={{
-            padding: '18px',
-            borderRadius: '10px',
-            cursor: 'pointer',
-            border: `2px solid ${vehicleType === 'Car' ? '#6366f1' : '#e2e8f0'}`,
-            backgroundColor: vehicleType === 'Car' ? '#eef2ff' : '#ffffff',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px'
-          }}
-        >
-          <Car size={26} color={vehicleType === 'Car' ? '#6366f1' : '#64748b'} />
-          <div>
-            <strong style={{ display: 'block', color: '#0f172a' }}>3. Car & Cab</strong>
-            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Sedan, SUV & Outstation</span>
+          <div
+            onClick={() => handleSourceSelect('THIRD_PARTY')}
+            style={{
+              padding: '16px',
+              borderRadius: '10px',
+              border: `2px solid ${vehicleSource === 'THIRD_PARTY' ? '#ea580c' : '#e2e8f0'}`,
+              backgroundColor: vehicleSource === 'THIRD_PARTY' ? '#fff7ed' : '#ffffff',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <span style={{ fontWeight: '700', fontSize: '1rem', color: vehicleSource === 'THIRD_PARTY' ? '#c2410c' : '#334155' }}>
+                2. Third-Party / Market-Hired Vehicle
+              </span>
+              <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '700', backgroundColor: '#ffedd5', color: '#c2410c' }}>
+                MARKET HIRE / TRUCK
+              </span>
+            </div>
+            <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>
+              Hired from market vendors (e.g., Truck Hire ₹2,800, external buses, cars). Tracks hire amount & owner payouts separately.
+            </p>
           </div>
         </div>
       </div>
 
       <form onSubmit={handleSubmit}>
-        {/* Core Vehicle Information */}
-        <div className="content-card">
-          <h3 className="card-title" style={{ marginBottom: '16px' }}>Core Vehicle Information</h3>
+        {/* Step 2: Vehicle Type Selection */}
+        <div className="content-card" style={{ marginBottom: '20px' }}>
+          <h3 style={{ fontSize: '0.95rem', fontWeight: '700', color: '#1e293b', marginBottom: '12px' }}>
+            Step 2: Select Vehicle Type
+          </h3>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => handleTypeSelect('Bus')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 18px',
+                borderRadius: '8px',
+                fontWeight: '600',
+                border: `2px solid ${vehicleType === 'Bus' ? '#2563eb' : '#cbd5e1'}`,
+                backgroundColor: vehicleType === 'Bus' ? '#eff6ff' : '#ffffff',
+                color: vehicleType === 'Bus' ? '#1d4ed8' : '#475569',
+                cursor: 'pointer'
+              }}
+            >
+              <Bus size={18} /> Bus
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTypeSelect('EV-Sewa')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 18px',
+                borderRadius: '8px',
+                fontWeight: '600',
+                border: `2px solid ${vehicleType === 'EV-Sewa' ? '#10b981' : '#cbd5e1'}`,
+                backgroundColor: vehicleType === 'EV-Sewa' ? '#ecfdf5' : '#ffffff',
+                color: vehicleType === 'EV-Sewa' ? '#047857' : '#475569',
+                cursor: 'pointer'
+              }}
+            >
+              <Zap size={18} /> EV-Sewa Shuttle
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTypeSelect('Car')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 18px',
+                borderRadius: '8px',
+                fontWeight: '600',
+                border: `2px solid ${vehicleType === 'Car' ? '#8b5cf6' : '#cbd5e1'}`,
+                backgroundColor: vehicleType === 'Car' ? '#f5f3ff' : '#ffffff',
+                color: vehicleType === 'Car' ? '#6d28d9' : '#475569',
+                cursor: 'pointer'
+              }}
+            >
+              <Car size={18} /> Car / SUV
+            </button>
+            <button
+              type="button"
+              onClick={() => handleTypeSelect('Truck')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 18px',
+                borderRadius: '8px',
+                fontWeight: '600',
+                border: `2px solid ${vehicleType === 'Truck' ? '#ea580c' : '#cbd5e1'}`,
+                backgroundColor: vehicleType === 'Truck' ? '#fff7ed' : '#ffffff',
+                color: vehicleType === 'Truck' ? '#c2410c' : '#475569',
+                cursor: 'pointer'
+              }}
+            >
+              <Truck size={18} /> Truck / Haulage
+            </button>
+          </div>
+        </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div className="form-group">
-              <label className="form-label">Vehicle Registration Number</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="e.g. DL 01 AB 4321"
-                value={vehicleNumber}
-                onChange={e => setVehicleNumber(e.target.value)}
-                required
-              />
+        {/* Step 3: Third-Party Market Hire Details (Visible if THIRD_PARTY) */}
+        {vehicleSource === 'THIRD_PARTY' && (
+          <div className="content-card" style={{ marginBottom: '20px', borderLeft: '4px solid #ea580c', backgroundColor: '#fffbf5' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: '700', color: '#c2410c', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShoppingBag size={20} color="#ea580c" /> Third-Party / Market-Hire Financials & Vendor Details
+            </h3>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '16px' }}>
+              <div className="form-group">
+                <label className="form-label" style={{ fontWeight: '700', color: '#9a3412' }}>Vendor / Transporter Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Patel Roadways Transport"
+                  value={vendorName}
+                  onChange={e => setVendorName(e.target.value)}
+                  className="form-control"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontWeight: '700', color: '#9a3412' }}>Vendor Mobile Number *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. +919876012345"
+                  value={vendorMobile}
+                  onChange={e => setVendorMobile(e.target.value)}
+                  className="form-control"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label" style={{ fontWeight: '700', color: '#9a3412' }}>Hire Amount (₹) * (e.g. ₹2,800)</label>
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  placeholder="2800"
+                  value={hireAmount}
+                  onChange={e => setHireAmount(e.target.value)}
+                  className="form-control"
+                  style={{ fontWeight: '700', color: '#ea580c' }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Additional Expense (₹) (Tolls/Loading)</label>
+                <input
+                  type="number"
+                  min="0"
+                  placeholder="0"
+                  value={additionalExpense}
+                  onChange={e => setAdditionalExpense(e.target.value)}
+                  className="form-control"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Hire Date</label>
+                <input
+                  type="date"
+                  value={hireDate}
+                  onChange={e => setHireDate(e.target.value)}
+                  className="form-control"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Owner Payment Status</label>
+                <select
+                  value={hirePaymentStatus}
+                  onChange={e => setHirePaymentStatus(e.target.value)}
+                  className="form-control"
+                >
+                  <option value="Pending">Pending (Unpaid to Owner)</option>
+                  <option value="Paid">Paid (Settled to Owner)</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Trip / Booking Reference (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. TRIP-MKT-991"
+                  value={tripReference}
+                  onChange={e => setTripReference(e.target.value)}
+                  className="form-control"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Payment Ref / Transaction ID</label>
+                <input
+                  type="text"
+                  placeholder="e.g. UPI-REF-4820129"
+                  value={paymentReference}
+                  onChange={e => setPaymentReference(e.target.value)}
+                  className="form-control"
+                />
+              </div>
             </div>
 
-            <div className="form-group">
-              <label className="form-label">Vehicle Commercial Name</label>
-              <input
-                type="text"
+            {/* Third-Party Driver Details */}
+            <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #fed7aa' }}>
+              <h4 style={{ fontSize: '0.85rem', fontWeight: '700', color: '#9a3412', marginBottom: '12px' }}>
+                Hired Vehicle Driver Details (If provided by market vendor)
+              </h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Driver Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Ramesh Singh"
+                    value={thirdPartyDriverName}
+                    onChange={e => setThirdPartyDriverName(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Driver Mobile</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. +919876543210"
+                    value={thirdPartyDriverMobile}
+                    onChange={e => setThirdPartyDriverMobile(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Driver License Number</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. DL-042019001928"
+                    value={thirdPartyDriverLicense}
+                    onChange={e => setThirdPartyDriverLicense(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="form-group" style={{ marginTop: '12px' }}>
+              <label className="form-label">Hire Notes & Contract Specifics</label>
+              <textarea
+                rows="2"
+                placeholder="Notes on hire contract, load requirements, overflow consignment reasons, etc."
+                value={hireNotes}
+                onChange={e => setHireNotes(e.target.value)}
                 className="form-control"
-                placeholder="e.g. Royal Intercity Express"
-                value={vehicleName}
-                onChange={e => setVehicleName(e.target.value)}
-                required
               />
             </div>
           </div>
+        )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+        {/* Step 4: Core Vehicle Details */}
+        <div className="content-card" style={{ marginBottom: '20px' }}>
+          <h3 style={{ fontSize: '0.95rem', fontWeight: '700', color: '#1e293b', marginBottom: '16px' }}>
+            Step {vehicleSource === 'THIRD_PARTY' ? '4' : '3'}: Vehicle Specifications & Details
+          </h3>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
+            <div className="form-group">
+              <label className="form-label">Vehicle Registration Number *</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. DL 01 AB 1234 or HR 55 AB 9988"
+                value={vehicleNumber}
+                onChange={e => setVehicleNumber(e.target.value)}
+                className="form-control"
+                style={{ textTransform: 'uppercase', fontWeight: '700' }}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Vehicle Model / Name *</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Tata Prima / Volvo 9600"
+                value={vehicleModel}
+                onChange={e => setVehicleModel(e.target.value)}
+                className="form-control"
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Vehicle Display Name</label>
+              <input
+                type="text"
+                placeholder="e.g. Market Hired Truck #1 or Royal Deluxe"
+                value={vehicleName}
+                onChange={e => setVehicleName(e.target.value)}
+                className="form-control"
+              />
+            </div>
+
             <div className="form-group">
               <label className="form-label">Vehicle Category</label>
               <input
                 type="text"
-                className="form-control"
-                placeholder="e.g. AC Sleeper 2+1"
+                placeholder="e.g. 10-Ton Heavy Haulage or AC Sleeper"
                 value={vehicleCategory}
                 onChange={e => setVehicleCategory(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Model / Make</label>
-              <input
-                type="text"
                 className="form-control"
-                placeholder="e.g. Volvo 9600"
-                value={vehicleModel}
-                onChange={e => setVehicleModel(e.target.value)}
-                required
               />
             </div>
 
             <div className="form-group">
-              <label className="form-label">Seating Capacity</label>
+              <label className="form-label">{vehicleType === 'Truck' ? 'Cabin Capacity (Persons)' : 'Seating Capacity'}</label>
               <input
                 type="number"
-                className="form-control"
+                min="1"
                 value={seatingCapacity}
                 onChange={e => setSeatingCapacity(e.target.value)}
-                required
+                className="form-control"
               />
             </div>
-          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
             <div className="form-group">
-              <label className="form-label">Owner Name</label>
+              <label className="form-label">Load / Carrying Capacity</label>
               <input
                 type="text"
+                placeholder="e.g. 10 Tonnes / 1500 kg / 36 Seats"
+                value={loadCapacity}
+                onChange={e => setLoadCapacity(e.target.value)}
                 className="form-control"
-                value={ownerName}
-                onChange={e => setOwnerName(e.target.value)}
-                required
               />
             </div>
 
-            <div className="form-group">
-              <label className="form-label">Owner Mobile Number</label>
-              <input
-                type="text"
-                className="form-control"
-                value={ownerMobileNumber}
-                onChange={e => setOwnerMobileNumber(e.target.value)}
-                required
-              />
-            </div>
+            {vehicleSource === 'OWN' && (
+              <>
+                <div className="form-group">
+                  <label className="form-label">Owner / Entity Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={ownerName}
+                    onChange={e => setOwnerName(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Owner Mobile Number *</label>
+                  <input
+                    type="text"
+                    required
+                    value={ownerMobileNumber}
+                    onChange={e => setOwnerMobileNumber(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+              </>
+            )}
 
             <div className="form-group">
-              <label className="form-label">Base Fare / Rate (â‚¹)</label>
-              <input
-                type="number"
-                className="form-control"
-                value={fareRate}
-                onChange={e => setFareRate(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div className="form-group">
-              <label className="form-label">Assign Driver</label>
+              <label className="form-label">Assign Registered Driver (Optional)</label>
               <select
-                className="form-control"
                 value={assignedDriver}
                 onChange={e => setAssignedDriver(e.target.value)}
+                className="form-control"
               >
-                <option value="">-- Unassigned (Assign Later) --</option>
+                <option value="">-- No Driver Assigned (Can assign later) --</option>
                 {drivers.map(d => (
                   <option key={d._id} value={d._id}>
-                    {d.name} ({d.mobileNumber}) - {d.driverStatus}
+                    {d.name} ({d.mobileNumber}) - Status: {d.driverStatus}
                   </option>
                 ))}
               </select>
             </div>
 
             <div className="form-group">
+              <label className="form-label">Base Rate / Customer Fare (₹)</label>
+              <input
+                type="number"
+                min="0"
+                value={fareRate}
+                onChange={e => setFareRate(e.target.value)}
+                className="form-control"
+              />
+            </div>
+
+            <div className="form-group">
               <label className="form-label">Vehicle Status</label>
               <select
-                className="form-control"
                 value={vehicleStatus}
                 onChange={e => setVehicleStatus(e.target.value)}
+                className="form-control"
               >
-                <option value="Active">Active (Available for Bookings)</option>
+                <option value="Active">Active (Ready for booking)</option>
                 <option value="Inactive">Inactive</option>
                 <option value="Blocked">Blocked</option>
               </select>
             </div>
           </div>
+
+          {/* Route details */}
+          <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #f1f5f9' }}>
+            <h4 style={{ fontSize: '0.85rem', fontWeight: '700', color: '#475569', marginBottom: '12px' }}>
+              Pickup & Destination Route
+            </h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div className="form-group">
+                <label className="form-label">Origin / Pickup Location</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Delhi Okhla Industrial Area"
+                  value={origin}
+                  onChange={e => setOrigin(e.target.value)}
+                  className="form-control"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Destination / Drop Location</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Jaipur Sitapura Industrial Hub"
+                  value={destination}
+                  onChange={e => setDestination(e.target.value)}
+                  className="form-control"
+                />
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Vehicle Photos Upload Section */}
-        <div className="content-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <div>
-              <h3 className="card-title" style={{ margin: 0 }}>Vehicle Photos</h3>
-              <p style={{ fontSize: '0.82rem', color: '#64748b', marginTop: '4px' }}>
-                Upload up to 5 photos (JPG, JPEG, PNG, max 2MB each). First image is used as the primary thumbnail.
-              </p>
-            </div>
-            <span style={{ fontSize: '0.8rem', fontWeight: '600', padding: '4px 10px', borderRadius: '12px', backgroundColor: imagePreviews.length === 5 ? '#fef3c7' : '#f1f5f9', color: imagePreviews.length === 5 ? '#d97706' : '#475569' }}>
-              {imagePreviews.length} / 5 Images
-            </span>
-          </div>
-
-          {imageError && (
-            <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <AlertCircle size={16} />
-              <span>{imageError}</span>
-            </div>
-          )}
+        {/* Step 5: Vehicle Photos */}
+        <div className="content-card" style={{ marginBottom: '20px' }}>
+          <h3 style={{ fontSize: '0.95rem', fontWeight: '700', color: '#1e293b', marginBottom: '8px' }}>
+            Vehicle Photos (Max 5 images, Max 2MB each)
+          </h3>
+          <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '16px' }}>
+            Upload real photos of the vehicle (exterior, interior, cargo bay).
+          </p>
 
           <input
             type="file"
             ref={fileInputRef}
             onChange={handleFilesSelect}
-            accept=".jpg,.jpeg,.png,image/jpeg,image/png"
             multiple
+            accept="image/png, image/jpeg, image/jpg"
             style={{ display: 'none' }}
           />
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '14px' }}>
-            {imagePreviews.map((item, idx) => (
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+            {imagePreviews.map((img, idx) => (
               <div
                 key={idx}
                 style={{
                   position: 'relative',
-                  aspectRatio: '4/3',
-                  borderRadius: '10px',
+                  width: '100px',
+                  height: '80px',
+                  borderRadius: '8px',
                   overflow: 'hidden',
-                  border: idx === 0 ? '2px solid #2563eb' : '1px solid #e2e8f0',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-                  backgroundColor: '#f8fafc'
+                  border: '1px solid #cbd5e1'
                 }}
               >
-                <img
-                  src={item.previewUrl}
-                  alt={`Vehicle preview ${idx + 1}`}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-
-                {idx === 0 && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '6px',
-                      left: '6px',
-                      backgroundColor: '#2563eb',
-                      color: '#ffffff',
-                      fontSize: '0.65rem',
-                      fontWeight: '700',
-                      padding: '3px 7px',
-                      borderRadius: '4px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                    }}
-                  >
-                    <Star size={10} fill="#ffffff" />
-                    PRIMARY
-                  </div>
-                )}
-
+                <img src={img.previewUrl} alt={img.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 <button
                   type="button"
                   onClick={() => handleRemoveImage(idx)}
-                  title="Remove image"
                   style={{
                     position: 'absolute',
-                    top: '6px',
-                    right: '6px',
-                    backgroundColor: 'rgba(239, 68, 68, 0.9)',
+                    top: '4px',
+                    right: '4px',
+                    background: 'rgba(0,0,0,0.6)',
                     color: '#ffffff',
                     border: 'none',
                     borderRadius: '50%',
-                    width: '24px',
-                    height: '24px',
-                    cursor: 'pointer',
+                    width: '20px',
+                    height: '20px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    transition: 'transform 0.15s'
+                    cursor: 'pointer'
                   }}
                 >
-                  <Trash2 size={13} />
+                  <Trash2 size={12} />
                 </button>
               </div>
             ))}
@@ -577,148 +862,53 @@ const AddVehicle = () => {
             {imagePreviews.length < 5 && (
               <button
                 type="button"
-                onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                onClick={() => fileInputRef.current?.click()}
                 style={{
-                  aspectRatio: '4/3',
-                  borderRadius: '10px',
-                  border: '2px dashed #93c5fd',
-                  backgroundColor: '#f8fafc',
+                  width: '100px',
+                  height: '80px',
+                  border: '2px dashed #cbd5e1',
+                  borderRadius: '8px',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '6px',
+                  gap: '4px',
+                  background: '#f8fafc',
                   cursor: 'pointer',
-                  color: '#2563eb',
-                  transition: 'all 0.2s',
-                  padding: '12px'
+                  color: '#64748b',
+                  fontSize: '0.75rem'
                 }}
               >
-                <Plus size={24} />
-                <span style={{ fontSize: '0.78rem', fontWeight: '600' }}>+ Add Image</span>
-                <span style={{ fontSize: '0.68rem', color: '#64748b' }}>({5 - imagePreviews.length} left)</span>
+                <Upload size={18} /> Add Photo
               </button>
             )}
           </div>
+
+          {imageError && (
+            <p style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '8px' }}>{imageError}</p>
+          )}
         </div>
 
-        {/* Route & Pickup/Drop Details */}
-        <div className="content-card">
-          <h3 className="card-title" style={{ marginBottom: '16px' }}>Route & Pickup/Drop Schedule</h3>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div className="form-group">
-              <label className="form-label">Origin / Pickup Location</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="e.g. Delhi ISBT"
-                value={origin}
-                onChange={e => setOrigin(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Destination / Drop Location</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="e.g. Jaipur Sindhi Camp"
-                value={destination}
-                onChange={e => setDestination(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div className="form-group">
-              <label className="form-label">Boarding Points (Comma separated)</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Point A (22:00), Point B (22:30)"
-                value={boardingPoints}
-                onChange={e => setBoardingPoints(e.target.value)}
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Dropping Points (Comma separated)</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Drop X (04:00), Drop Y (04:30)"
-                value={droppingPoints}
-                onChange={e => setDroppingPoints(e.target.value)}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Compliance & Legal Documents */}
-        <div className="content-card">
-          <h3 className="card-title" style={{ marginBottom: '16px' }}>Compliance & Vehicle Documents</h3>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div className="form-group">
-              <label className="form-label">RC Number</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="RC Number"
-                value={rcNumber}
-                onChange={e => setRcNumber(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Insurance Policy Number</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Policy Number"
-                value={insurancePolicyNumber}
-                onChange={e => setInsurancePolicyNumber(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div className="form-group">
-              <label className="form-label">Insurance Expiry Date</label>
-              <input
-                type="date"
-                className="form-control"
-                value={insuranceExpiryDetails}
-                onChange={e => setInsuranceExpiryDetails(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Fitness / Vehicle Check Details</label>
-              <input
-                type="text"
-                className="form-control"
-                value={fitnessDetails}
-                onChange={e => setFitnessDetails(e.target.value)}
-                required
-              />
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginBottom: '40px' }}>
-          <button type="button" className="btn btn-outline" onClick={() => navigate('/admin/vehicles')}>
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+          <button
+            type="button"
+            onClick={() => navigate('/admin/vehicles')}
+            className="btn btn-outline"
+            disabled={submitting}
+          >
             Cancel
           </button>
-          <button type="submit" className="btn btn-primary" disabled={submitting}>
-            <PlusCircle size={18} />
-            <span>{submitting ? 'Registering Vehicle...' : 'Save & Register Vehicle'}</span>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={submitting}
+            style={{
+              backgroundColor: vehicleSource === 'THIRD_PARTY' ? '#ea580c' : '#2563eb',
+              borderColor: vehicleSource === 'THIRD_PARTY' ? '#ea580c' : '#2563eb'
+            }}
+          >
+            {submitting ? 'Registering Vehicle...' : vehicleSource === 'THIRD_PARTY' ? 'Save Market Hired Vehicle & Record Expense' : 'Register Own Fleet Vehicle'}
           </button>
         </div>
       </form>
@@ -727,4 +917,3 @@ const AddVehicle = () => {
 };
 
 export default AddVehicle;
-

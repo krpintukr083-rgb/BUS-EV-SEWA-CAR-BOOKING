@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { adminService } from '../services/adminService';
 import StatusBadge from '../components/StatusBadge';
-import { CalendarCheck, Search, Filter, Eye, Check, AlertCircle } from 'lucide-react';
+import { CalendarCheck, Search, Filter, Eye, Check, AlertCircle, Truck, Building, ShoppingBag, DollarSign } from 'lucide-react';
 
 const BookingManagement = () => {
   const [bookings, setBookings] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterService, setFilterService] = useState('All');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [filterSource, setFilterSource] = useState('All');
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [message, setMessage] = useState('');
@@ -50,21 +51,28 @@ const BookingManagement = () => {
   }
 
   const filteredBookings = bookings.filter(b => {
-    return (
+    const matchesSearch =
       b.bookingId.toLowerCase().includes(searchTerm.toLowerCase()) ||
       b.customer?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       b.pickupLocation?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      b.dropLocation?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+      b.dropLocation?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      b.vehicle?.vehicleNumber?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const matchesSource =
+      filterSource === 'All' ||
+      (filterSource === 'THIRD_PARTY' && (b.vehicleSource === 'THIRD_PARTY' || b.vehicle?.vehicleSource === 'THIRD_PARTY')) ||
+      (filterSource === 'OWN' && (b.vehicleSource !== 'THIRD_PARTY' && b.vehicle?.vehicleSource !== 'THIRD_PARTY'));
+
+    return matchesSearch && matchesSource;
   });
 
   return (
     <div>
       <div className="card-header-flex" style={{ marginBottom: '20px' }}>
         <div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#0f172a' }}>Unified Booking Management</h2>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#0f172a' }}>Unified Booking & Trip Management</h2>
           <p style={{ fontSize: '0.85rem', color: '#64748b' }}>
-            Omnichannel booking logs across Intercity Buses, EV-Sewa electric shuttles, and Cars.
+            Omnichannel booking logs across Own Fleet and Third-Party / Market-Hired Vehicles (Buses, EV-Sewa, Cars, Trucks).
           </p>
         </div>
         <div style={{ fontWeight: '700', color: '#1d4ed8' }}>Total Bookings: {bookings.length}</div>
@@ -97,7 +105,7 @@ const BookingManagement = () => {
             <Search size={18} color="#94a3b8" />
             <input
               type="text"
-              placeholder="Search by Booking ID, customer, pickup/drop..."
+              placeholder="Search by Booking ID, customer, vehicle no, pickup/drop..."
               className="form-control"
               style={{ border: 'none', backgroundColor: '#f8fafc' }}
               value={searchTerm}
@@ -105,7 +113,19 @@ const BookingManagement = () => {
             />
           </div>
 
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>Source:</span>
+            <select
+              className="form-control"
+              style={{ width: 'auto', padding: '6px 12px' }}
+              value={filterSource}
+              onChange={e => setFilterSource(e.target.value)}
+            >
+              <option value="All">All Sources</option>
+              <option value="OWN">Own Fleet Trips</option>
+              <option value="THIRD_PARTY">Third-Party / Market Hired</option>
+            </select>
+
             <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>Service:</span>
             <select
               className="form-control"
@@ -117,6 +137,7 @@ const BookingManagement = () => {
               <option value="Bus">Bus</option>
               <option value="EV-Sewa">EV-Sewa</option>
               <option value="Car">Car</option>
+              <option value="Truck">Truck / Haulage</option>
             </select>
 
             <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>Status:</span>
@@ -144,7 +165,7 @@ const BookingManagement = () => {
             <thead>
               <tr>
                 <th>Booking ID</th>
-                <th>Service</th>
+                <th>Service & Source</th>
                 <th>Customer</th>
                 <th>Vehicle & Driver</th>
                 <th>Pickup & Drop</th>
@@ -156,66 +177,78 @@ const BookingManagement = () => {
             </thead>
             <tbody>
               {filteredBookings.length > 0 ? (
-                filteredBookings.map(b => (
-                  <tr key={b._id}>
-                    <td style={{ fontWeight: '700', color: '#1d4ed8' }}>{b.bookingId}</td>
-                    <td>
-                      <span className="badge badge-pending">{b.serviceType}</span>
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: '600' }}>{b.customer?.name}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{b.customer?.phone}</div>
-                    </td>
-                    <td>
-                      <div>{b.vehicle?.vehicleName || 'Vehicle'}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                        {b.vehicle?.vehicleNumber} • Driver: {b.driver?.name || 'Unassigned'}
-                      </div>
-                    </td>
-                    <td style={{ fontSize: '0.8rem', maxWidth: '220px' }}>
-                      <div>{b.pickupLocation}</div>
-                      <div style={{ color: '#64748b' }}>↓ {b.dropLocation}</div>
-                    </td>
-                    <td style={{ fontWeight: '700' }}>₹{b.fare}</td>
-                    <td>
-                      <StatusBadge status={b.paymentStatus} />
-                    </td>
-                    <td>
-                      <StatusBadge status={b.bookingStatus} />
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '4px' }}>
-                        <button
-                          onClick={() => setSelectedBooking(b)}
-                          className="btn btn-sm btn-outline"
-                          title="View Details"
-                        >
-                          <Eye size={13} />
-                        </button>
-                        {b.bookingStatus === 'Pending' && (
-                          <button
-                            onClick={() => handleUpdateStatus(b._id, 'Confirmed')}
-                            className="btn btn-sm btn-success"
-                          >
-                            Confirm
-                          </button>
+                filteredBookings.map(b => {
+                  const isThirdParty = b.vehicleSource === 'THIRD_PARTY' || b.vehicle?.vehicleSource === 'THIRD_PARTY';
+
+                  return (
+                    <tr key={b._id}>
+                      <td style={{ fontWeight: '700', color: '#1d4ed8' }}>{b.bookingId}</td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <span className="badge badge-pending" style={{ width: 'fit-content' }}>{b.serviceType}</span>
+                          {isThirdParty ? (
+                            <span style={{ fontSize: '0.68rem', fontWeight: '700', color: '#c2410c', backgroundColor: '#ffedd5', padding: '1px 5px', borderRadius: '3px', width: 'fit-content' }}>
+                              MARKET HIRED
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.68rem', fontWeight: '700', color: '#1e40af', backgroundColor: '#dbeafe', padding: '1px 5px', borderRadius: '3px', width: 'fit-content' }}>
+                              OWN FLEET
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: '600' }}>{b.customer?.name}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{b.customer?.phone}</div>
+                      </td>
+                      <td>
+                        <div>{b.vehicle?.vehicleName || 'Vehicle'}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                          <strong style={{ color: isThirdParty ? '#ea580c' : '#1d4ed8' }}>{b.vehicle?.vehicleNumber}</strong> • Driver: {b.driver?.name || b.hiredVehicleDetails?.driverName || 'Unassigned'}
+                        </div>
+                      </td>
+                      <td style={{ fontSize: '0.8rem', maxWidth: '220px' }}>
+                        <div>{b.pickupLocation}</div>
+                        <div style={{ color: '#64748b' }}>↓ {b.dropLocation}</div>
+                      </td>
+                      <td style={{ fontWeight: '700' }}>₹{b.fare}</td>
+                      <td>
+                        <StatusBadge status={b.paymentStatus} />
+                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '3px' }}>
+                          {b.paymentMethod || 'Online'}
+                        </div>
+                        {b.paymentMethod === 'Offline Cash' && (
+                          b.cashCollected ? (
+                            <div style={{ fontSize: '0.72rem', color: '#059669', fontWeight: '700' }}>
+                              ✓ Cash Collected
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: '0.72rem', color: '#d97706', fontWeight: '600' }}>
+                              ⏳ Pending Cash
+                            </div>
+                          )
                         )}
-                        {b.bookingStatus === 'Confirmed' && (
+                      </td>
+                      <td>
+                        <StatusBadge status={b.bookingStatus} />
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', gap: '6px' }}>
                           <button
-                            onClick={() => handleUpdateStatus(b._id, 'Completed')}
-                            className="btn btn-sm btn-primary"
+                            className="btn btn-outline btn-sm"
+                            onClick={() => setSelectedBooking(b)}
                           >
-                            Complete
+                            <Eye size={14} /> Details
                           </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan="9" style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
-                    No bookings found matching filters.
+                    No bookings found.
                   </td>
                 </tr>
               )}
@@ -227,50 +260,116 @@ const BookingManagement = () => {
       {/* Booking Details Modal */}
       {selectedBooking && (
         <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '600px' }}>
+          <div className="modal-content" style={{ maxWidth: '620px', maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="card-header-flex">
               <div>
-                <h3 className="card-title">Booking Details: {selectedBooking.bookingId}</h3>
-                <span className="badge badge-pending">{selectedBooking.serviceType}</span>
+                <h3 className="card-title">Booking Details</h3>
+                <span style={{ fontSize: '0.85rem', color: '#1d4ed8', fontWeight: '700' }}>
+                  {selectedBooking.bookingId}
+                </span>
               </div>
               <button className="btn btn-outline btn-sm" onClick={() => setSelectedBooking(null)}>
                 ✕
               </button>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', fontSize: '0.85rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '0.875rem', marginTop: '16px' }}>
               <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px' }}>
-                <span style={{ color: '#64748b' }}>Customer Information</span>
+                <span style={{ color: '#64748b' }}>Customer</span>
+                <div style={{ fontWeight: '700' }}>{selectedBooking.customer?.name}</div>
+                <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{selectedBooking.customer?.phone}</div>
+              </div>
+
+              <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px' }}>
+                <span style={{ color: '#64748b' }}>Service & Vehicle Source</span>
                 <div style={{ fontWeight: '700' }}>
-                  {selectedBooking.customer?.name} ({selectedBooking.customer?.phone})
+                  {selectedBooking.serviceType} ({(selectedBooking.vehicleSource || selectedBooking.vehicle?.vehicleSource) === 'THIRD_PARTY' ? 'Third-Party Market Hired' : 'Own Fleet'})
                 </div>
               </div>
 
               <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px' }}>
-                <span style={{ color: '#64748b' }}>Assigned Vehicle & Driver</span>
+                <span style={{ color: '#64748b' }}>Vehicle Information</span>
+                <div style={{ fontWeight: '700' }}>{selectedBooking.vehicle?.vehicleName || 'Vehicle'}</div>
+                <div style={{ fontSize: '0.8rem', color: '#1d4ed8', fontWeight: '600' }}>
+                  {selectedBooking.vehicle?.vehicleNumber}
+                </div>
+              </div>
+
+              <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px' }}>
+                <span style={{ color: '#64748b' }}>Assigned Driver</span>
                 <div style={{ fontWeight: '700' }}>
-                  {selectedBooking.vehicle?.vehicleName} ({selectedBooking.vehicle?.vehicleNumber})
+                  {selectedBooking.driver?.name || selectedBooking.hiredVehicleDetails?.driverName || 'Unassigned'}
                 </div>
-                <div style={{ color: '#475569' }}>Driver: {selectedBooking.driver?.name || 'Unassigned'}</div>
-              </div>
-
-              <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px', gridColumn: 'span 2' }}>
-                <span style={{ color: '#64748b' }}>Passenger Roster</span>
-                <div style={{ marginTop: '4px' }}>
-                  {selectedBooking.passengerDetails && selectedBooking.passengerDetails.length > 0
-                    ? selectedBooking.passengerDetails.map((p, idx) => (
-                        <div key={idx} style={{ fontWeight: '600' }}>
-                          • {p.name}, Age: {p.age}, Gender: {p.gender} {p.seatNumber ? `(Seat: ${p.seatNumber})` : ''}
-                        </div>
-                      ))
-                    : '1 Passenger'}
+                <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                  {selectedBooking.driver?.mobileNumber || selectedBooking.hiredVehicleDetails?.driverMobile || 'N/A'}
                 </div>
               </div>
 
-              <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px', gridColumn: 'span 2' }}>
-                <span style={{ color: '#64748b' }}>Route Details</span>
-                <div style={{ fontWeight: '600' }}>Pickup: {selectedBooking.pickupLocation}</div>
-                <div style={{ fontWeight: '600' }}>Drop: {selectedBooking.dropLocation}</div>
+              <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px' }}>
+                <span style={{ color: '#64748b' }}>Pickup Point</span>
+                <div style={{ fontWeight: '600' }}>{selectedBooking.pickupLocation}</div>
+              </div>
+
+              <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px' }}>
+                <span style={{ color: '#64748b' }}>Drop Point</span>
+                <div style={{ fontWeight: '600' }}>{selectedBooking.dropLocation}</div>
+              </div>
+
+              <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px' }}>
+                <span style={{ color: '#64748b' }}>Customer Fare</span>
+                <div style={{ fontWeight: '700', fontSize: '1.1rem', color: '#0f172a' }}>
+                  ₹{selectedBooking.fare}
+                </div>
+              </div>
+
+              <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px' }}>
+                <span style={{ color: '#64748b' }}>Payment Details</span>
+                <div><StatusBadge status={selectedBooking.paymentStatus} /></div>
+                <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '2px' }}>
+                  Method: {selectedBooking.paymentMethod}
+                </div>
+              </div>
+            </div>
+
+            {/* Third-Party Market Hired Vehicle Snapshot */}
+            {(selectedBooking.vehicleSource === 'THIRD_PARTY' || selectedBooking.vehicle?.vehicleSource === 'THIRD_PARTY' || selectedBooking.hiredVehicleDetails) && (
+              <div style={{ marginTop: '16px', padding: '14px', backgroundColor: '#fff7ed', borderRadius: '8px', border: '1px solid #fed7aa' }}>
+                <h4 style={{ fontSize: '0.85rem', fontWeight: '700', color: '#c2410c', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <ShoppingBag size={15} /> Market Hired Vehicle Financials & Vendor Details
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '0.8rem' }}>
+                  <div><strong>Vendor Name:</strong> {selectedBooking.hiredVehicleDetails?.vendorName || selectedBooking.vehicle?.vendorDetails?.vendorName || selectedBooking.vehicle?.ownerName || 'Market Vendor'}</div>
+                  <div><strong>Vendor Mobile:</strong> {selectedBooking.hiredVehicleDetails?.vendorMobile || selectedBooking.vehicle?.vendorDetails?.vendorMobile || selectedBooking.vehicle?.ownerMobileNumber || 'N/A'}</div>
+                  <div><strong>Market Hire Cost:</strong> <span style={{ fontWeight: '700', color: '#ea580c' }}>₹{selectedBooking.hiredVehicleDetails?.hireAmount || selectedBooking.vehicle?.hireDetails?.hireAmount || 0}</span></div>
+                  <div><strong>Vendor Payment Status:</strong> <span style={{ fontWeight: '700' }}>{selectedBooking.hiredVehicleDetails?.hirePaymentStatus || selectedBooking.vehicle?.hireDetails?.paymentStatus || 'Pending'}</span></div>
+                  {selectedBooking.hiredVehicleDetails?.driverName && (
+                    <div><strong>Hired Driver:</strong> {selectedBooking.hiredVehicleDetails.driverName} ({selectedBooking.hiredVehicleDetails.driverMobile})</div>
+                  )}
+                  {selectedBooking.hiredVehicleDetails?.notes && (
+                    <div style={{ gridColumn: '1 / -1' }}><strong>Notes:</strong> {selectedBooking.hiredVehicleDetails.notes}</div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Status Modification Controls */}
+            <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: '700', marginBottom: '8px' }}>
+                Update Booking Status:
+              </div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {['Pending', 'Confirmed', 'Ongoing', 'Completed', 'Cancelled'].map(st => (
+                  <button
+                    key={st}
+                    onClick={() => {
+                      handleUpdateStatus(selectedBooking._id, st);
+                      setSelectedBooking(null);
+                    }}
+                    className={`btn btn-sm ${selectedBooking.bookingStatus === st ? 'btn-primary' : 'btn-outline'}`}
+                  >
+                    {st}
+                  </button>
+                ))}
               </div>
             </div>
 

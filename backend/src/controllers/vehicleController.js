@@ -13,6 +13,14 @@ const formatVehicle = (vehicleDoc, req) => {
       return img;
     });
   }
+
+  // Security: Remove internal market hire financial details for non-admin viewers
+  if (v.hireDetails) {
+    delete v.hireDetails.hireAmount;
+    delete v.hireDetails.paidAmount;
+    delete v.hireDetails.paymentReference;
+  }
+
   return v;
 };
 

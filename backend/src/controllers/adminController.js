@@ -10,6 +10,7 @@ const Notification = require('../models/Notification');
 const Support = require('../models/Support');
 const Policy = require('../models/Policy');
 const ServiceControl = require('../models/ServiceControl');
+const Expense = require('../models/Expense');
 const { dashboardCache } = require('../utils/cache');
 
 // ==========================================
@@ -32,8 +33,13 @@ exports.getDashboardStats = async (req, res, next) => {
       activeVehiclesCount,
       inactiveVehiclesCount,
       blockedVehiclesCount,
+      ownVehiclesCount,
+      thirdPartyVehiclesCount,
       bookingsCount,
+      ownBookingsCount,
+      thirdPartyBookingsCount,
       paymentAggregate,
+      hireExpenseAggregate,
       pendingDriverVerificationCount,
       pendingDocumentsCount,
       cancellationRecordsCount,
@@ -48,7 +54,11 @@ exports.getDashboardStats = async (req, res, next) => {
       Vehicle.countDocuments({ vehicleStatus: 'Active' }),
       Vehicle.countDocuments({ vehicleStatus: 'Inactive' }),
       Vehicle.countDocuments({ vehicleStatus: 'Blocked' }),
+      Vehicle.countDocuments({ vehicleSource: { $ne: 'THIRD_PARTY' } }),
+      Vehicle.countDocuments({ vehicleSource: 'THIRD_PARTY' }),
       Booking.countDocuments(),
+      Booking.countDocuments({ vehicleSource: { $ne: 'THIRD_PARTY' } }),
+      Booking.countDocuments({ vehicleSource: 'THIRD_PARTY' }),
       Payment.aggregate([
         {
           $group: {
@@ -56,6 +66,26 @@ exports.getDashboardStats = async (req, res, next) => {
             totalPaymentsAmount: { $sum: '$bookingAmount' },
             paymentsCount: {
               $sum: { $cond: [{ $eq: ['$paymentStatus', 'Successful'] }, 1, 0] }
+            }
+          }
+        }
+      ]),
+      Expense.aggregate([
+        {
+          $group: {
+            _id: null,
+            totalHireExpense: { $sum: '$totalAmount' },
+            pendingHireExpense: {
+              $sum: { $cond: [{ $eq: ['$paymentStatus', 'Pending'] }, '$totalAmount', 0] }
+            },
+            paidHireExpense: {
+              $sum: { $cond: [{ $eq: ['$paymentStatus', 'Paid'] }, '$totalAmount', 0] }
+            },
+            pendingHireCount: {
+              $sum: { $cond: [{ $eq: ['$paymentStatus', 'Pending'] }, 1, 0] }
+            },
+            paidHireCount: {
+              $sum: { $cond: [{ $eq: ['$paymentStatus', 'Paid'] }, 1, 0] }
             }
           }
         }
@@ -76,8 +106,8 @@ exports.getDashboardStats = async (req, res, next) => {
       Insurance.countDocuments(),
       ServiceControl.findOne().lean(),
       Booking.find()
-        .select('bookingId customer serviceType pickupLocation dropLocation fare driverPaymentAmount paymentStatus bookingStatus travelDate createdAt vehicle driver')
-        .populate('vehicle', 'vehicleName vehicleNumber vehicleType vehicleCategory seatingCapacity vehicleStatus')
+        .select('bookingId customer serviceType pickupLocation dropLocation fare driverPaymentAmount paymentStatus bookingStatus travelDate vehicleSource createdAt vehicle driver')
+        .populate('vehicle', 'vehicleName vehicleNumber vehicleType vehicleCategory seatingCapacity vehicleStatus vehicleSource')
         .populate('driver', 'name mobileNumber profilePhoto driverStatus')
         .sort({ createdAt: -1 })
         .limit(6)
@@ -95,6 +125,13 @@ exports.getDashboardStats = async (req, res, next) => {
 
     const totalPaymentsAmount = paymentAggregate.length > 0 ? (paymentAggregate[0].totalPaymentsAmount || 0) : 0;
     const paymentsCount = paymentAggregate.length > 0 ? (paymentAggregate[0].paymentsCount || 0) : 0;
+    const hireSummary = hireExpenseAggregate.length > 0 ? hireExpenseAggregate[0] : {
+      totalHireExpense: 0,
+      pendingHireExpense: 0,
+      paidHireExpense: 0,
+      pendingHireCount: 0,
+      paidHireCount: 0
+    };
 
     const responsePayload = {
       counts: {
@@ -104,9 +141,18 @@ exports.getDashboardStats = async (req, res, next) => {
         activeVehicles: activeVehiclesCount,
         inactiveVehicles: inactiveVehiclesCount,
         blockedVehicles: blockedVehiclesCount,
+        ownVehicles: ownVehiclesCount,
+        thirdPartyVehicles: thirdPartyVehiclesCount,
         bookings: bookingsCount,
+        ownBookings: ownBookingsCount,
+        thirdPartyBookings: thirdPartyBookingsCount,
         paymentsCount,
         totalPaymentsAmount,
+        totalThirdPartyHireExpense: hireSummary.totalHireExpense || 0,
+        pendingThirdPartyHireExpense: hireSummary.pendingHireExpense || 0,
+        paidThirdPartyHireExpense: hireSummary.paidHireExpense || 0,
+        pendingThirdPartyHireCount: hireSummary.pendingHireCount || 0,
+        paidThirdPartyHireCount: hireSummary.paidHireCount || 0,
         pendingDriverVerification: pendingDriverVerificationCount,
         pendingDocuments: pendingDocumentsCount,
         cancellationRecords: cancellationRecordsCount,
@@ -399,13 +445,14 @@ exports.updateDriverStatus = async (req, res, next) => {
 };
 
 // ==========================================
-// 4. VEHICLE MANAGEMENT (BUS, EV-SEWA, CAR)
+// 4. VEHICLE MANAGEMENT (BUS, EV-SEWA, CAR, TRUCK & MARKET HIRE)
 // ==========================================
 exports.getVehicles = async (req, res, next) => {
   try {
-    const { type } = req.query;
+    const { type, source } = req.query;
     const query = {};
-    if (type) query.vehicleType = type;
+    if (type && type !== 'All') query.vehicleType = type;
+    if (source && source !== 'All') query.vehicleSource = source;
 
     const vehicles = await Vehicle.find(query).populate('assignedDriver').sort({ createdAt: -1 });
     res.json({ success: true, count: vehicles.length, data: vehicles });
@@ -414,18 +461,36 @@ exports.getVehicles = async (req, res, next) => {
   }
 };
 
+const parseJsonIfString = (val, defaultVal) => {
+  if (val === undefined || val === null) return defaultVal;
+  if (typeof val === 'object') return val;
+  if (typeof val === 'string') {
+    try {
+      return JSON.parse(val);
+    } catch (e) {
+      return defaultVal !== undefined ? defaultVal : val;
+    }
+  }
+  return val;
+};
+
 exports.addVehicle = async (req, res, next) => {
   try {
     const {
+      vehicleSource = 'OWN',
       vehicleNumber,
       vehicleType,
       vehicleCategory,
       vehicleModel,
       vehicleName,
       seatingCapacity,
+      loadCapacity,
       ownerName,
       ownerMobileNumber,
       assignedDriver,
+      thirdPartyDriver,
+      vendorDetails,
+      hireDetails,
       rcNumber,
       rcDocument,
       insurancePolicyNumber,
@@ -440,8 +505,31 @@ exports.addVehicle = async (req, res, next) => {
       vehicleStatus,
       busDetails,
       evDetails,
-      carDetails
+      carDetails,
+      truckDetails
     } = req.body;
+
+    const parsedThirdPartyDriver = parseJsonIfString(thirdPartyDriver, { driverName: '', driverMobile: '', driverLicenseNumber: '' });
+    const parsedVendorDetails = parseJsonIfString(vendorDetails, { vendorName: '', vendorMobile: '', vendorAddress: '' });
+    const parsedHireDetails = parseJsonIfString(hireDetails, {
+      hireAmount: 0,
+      additionalExpense: 0,
+      hireDate: new Date(),
+      paymentStatus: 'Pending',
+      paidAmount: 0,
+      paymentDate: null,
+      paymentReference: '',
+      tripReference: '',
+      pickup: '',
+      destination: '',
+      notes: ''
+    });
+    const parsedRoute = parseJsonIfString(route, { origin: '', destination: '', boardingPoints: [], droppingPoints: [] });
+    const parsedPickupDrop = parseJsonIfString(pickupDropDetails, { pickupLocation: '', dropLocation: '' });
+    const parsedBusDetails = parseJsonIfString(busDetails, { busType: 'AC Sleeper', seatLayout: '2+1 Luxury Sleeper', availableSeats: seatingCapacity || 36 });
+    const parsedEvDetails = parseJsonIfString(evDetails, { batteryCapacity: '72 kWh', rangeKm: 280 });
+    const parsedCarDetails = parseJsonIfString(carDetails, { ac: true, fuelType: 'Electric / Hybrid' });
+    const parsedTruckDetails = parseJsonIfString(truckDetails, { cargoType: 'General Freight', grossVehicleWeight: '16 Tonnes', axleCount: 2 });
 
     const existingVehicle = await Vehicle.findOne({ vehicleNumber: vehicleNumber.toUpperCase().trim() });
     if (existingVehicle) {
@@ -466,35 +554,70 @@ exports.addVehicle = async (req, res, next) => {
       ];
     }
 
+    const isThirdParty = vehicleSource === 'THIRD_PARTY';
+
     const vehicle = await Vehicle.create({
+      vehicleSource: isThirdParty ? 'THIRD_PARTY' : 'OWN',
       vehicleNumber: vehicleNumber.toUpperCase().trim(),
-      vehicleType,
-      vehicleCategory,
-      vehicleModel,
-      vehicleName,
-      seatingCapacity,
-      ownerName,
-      ownerMobileNumber,
+      vehicleType: vehicleType || 'Bus',
+      vehicleCategory: vehicleCategory || (isThirdParty ? 'Market Hired Transport' : 'Commercial Passenger Fleet'),
+      vehicleModel: vehicleModel || 'Standard Fleet Model',
+      vehicleName: vehicleName || (isThirdParty ? `Hired ${vehicleType || 'Vehicle'}` : 'Company Fleet Vehicle'),
+      seatingCapacity: Number(seatingCapacity) || 1,
+      loadCapacity: loadCapacity || '',
+      ownerName: ownerName || (isThirdParty ? (parsedVendorDetails?.vendorName || 'Market Vendor') : 'Metro Transport Logistics Ltd'),
+      ownerMobileNumber: ownerMobileNumber || (isThirdParty ? (parsedVendorDetails?.vendorMobile || '+919800000000') : '+919811122334'),
       assignedDriver: assignedDriver || null,
-      rcNumber,
+      thirdPartyDriver: parsedThirdPartyDriver,
+      vendorDetails: parsedVendorDetails,
+      hireDetails: parsedHireDetails,
+      rcNumber: rcNumber || 'RC-VERIFIED-COMMERCIAL',
       rcDocument: rcDocument || 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&w=600&q=80',
-      insurancePolicyNumber,
+      insurancePolicyNumber: insurancePolicyNumber || 'INS-FLEET-COVER-VALID',
       insuranceDocument: insuranceDocument || 'https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&w=600&q=80',
       insuranceExpiryDetails: insuranceExpiryDetails || '2026-12-31',
       fitnessDetails: fitnessDetails || 'State Transport Certified Fitness Valid',
       fitnessDocument: fitnessDocument || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=600&q=80',
       vehicleImages: finalImages,
-      fareRate: fareRate || 500,
-      route: route || { origin: '', destination: '', boardingPoints: [], droppingPoints: [] },
-      pickupDropDetails: pickupDropDetails || { pickupLocation: '', dropLocation: '' },
+      fareRate: Number(fareRate) || (isThirdParty ? (Number(parsedHireDetails?.hireAmount) || 500) : 500),
+      route: parsedRoute,
+      pickupDropDetails: parsedPickupDrop,
       vehicleStatus: vehicleStatus || 'Active',
-      busDetails: busDetails || { busType: 'AC Sleeper', seatLayout: '2+1 Luxury Sleeper', availableSeats: seatingCapacity },
-      evDetails: evDetails || { batteryCapacity: '72 kWh', rangeKm: 280 },
-      carDetails: carDetails || { ac: true, fuelType: 'Electric / Hybrid' }
+      busDetails: parsedBusDetails,
+      evDetails: parsedEvDetails,
+      carDetails: parsedCarDetails,
+      truckDetails: parsedTruckDetails
     });
 
     if (assignedDriver) {
       await Driver.findByIdAndUpdate(assignedDriver, { assignedVehicle: vehicle._id });
+    }
+
+    // If Third-Party Vehicle, record separate Company Expense
+    if (isThirdParty && parsedHireDetails && (parsedHireDetails.hireAmount > 0 || parsedHireDetails.additionalExpense > 0)) {
+      const hireAmt = Number(parsedHireDetails.hireAmount) || 0;
+      const addExp = Number(parsedHireDetails.additionalExpense) || 0;
+
+      await Expense.create({
+        expenseType: 'MARKET_VEHICLE_HIRE',
+        vehicle: vehicle._id,
+        vehicleNumber: vehicle.vehicleNumber,
+        vehicleType: vehicle.vehicleType,
+        vendorName: parsedVendorDetails?.vendorName || vehicle.ownerName,
+        vendorMobile: parsedVendorDetails?.vendorMobile || vehicle.ownerMobileNumber,
+        hireAmount: hireAmt,
+        additionalExpense: addExp,
+        totalAmount: hireAmt + addExp,
+        paymentStatus: parsedHireDetails.paymentStatus || 'Pending',
+        paymentDate: parsedHireDetails.paymentStatus === 'Paid' ? (parsedHireDetails.paymentDate || new Date()) : null,
+        paymentReference: parsedHireDetails.paymentReference || '',
+        hireDate: parsedHireDetails.hireDate || new Date(),
+        pickup: parsedHireDetails.pickup || parsedRoute?.origin || '',
+        destination: parsedHireDetails.destination || parsedRoute?.destination || '',
+        loadCapacity: loadCapacity || '',
+        notes: parsedHireDetails.notes || '',
+        recordedBy: req.user ? req.user._id : null
+      });
     }
 
     res.status(201).json({ success: true, message: 'Vehicle added successfully', data: vehicle });
@@ -522,6 +645,19 @@ exports.updateVehicle = async (req, res, next) => {
       }
     }
 
+    if (updatePayload.hireDetails) {
+      updatePayload.hireDetails = parseJsonIfString(updatePayload.hireDetails, updatePayload.hireDetails);
+    }
+    if (updatePayload.vendorDetails) {
+      updatePayload.vendorDetails = parseJsonIfString(updatePayload.vendorDetails, updatePayload.vendorDetails);
+    }
+    if (updatePayload.thirdPartyDriver) {
+      updatePayload.thirdPartyDriver = parseJsonIfString(updatePayload.thirdPartyDriver, updatePayload.thirdPartyDriver);
+    }
+    if (updatePayload.truckDetails) {
+      updatePayload.truckDetails = parseJsonIfString(updatePayload.truckDetails, updatePayload.truckDetails);
+    }
+
     const vehicle = await Vehicle.findByIdAndUpdate(req.params.id, updatePayload, { new: true });
     if (!vehicle) return res.status(404).json({ success: false, message: 'Vehicle not found' });
 
@@ -531,7 +667,186 @@ exports.updateVehicle = async (req, res, next) => {
       }
     }
 
+    // Sync Expense record if Third-Party
+    if (vehicle.vehicleSource === 'THIRD_PARTY' && vehicle.hireDetails) {
+      const hireAmt = Number(vehicle.hireDetails.hireAmount) || 0;
+      const addExp = Number(vehicle.hireDetails.additionalExpense) || 0;
+      const vendorName = vehicle.vendorDetails?.vendorName || vehicle.ownerName;
+      const vendorMobile = vehicle.vendorDetails?.vendorMobile || vehicle.ownerMobileNumber;
+
+      let expense = await Expense.findOne({ vehicle: vehicle._id, expenseType: 'MARKET_VEHICLE_HIRE' });
+      if (expense) {
+        expense.hireAmount = hireAmt;
+        expense.additionalExpense = addExp;
+        expense.totalAmount = hireAmt + addExp;
+        expense.vendorName = vendorName;
+        expense.vendorMobile = vendorMobile;
+        expense.paymentStatus = vehicle.hireDetails.paymentStatus || expense.paymentStatus;
+        expense.paymentDate = vehicle.hireDetails.paymentDate || expense.paymentDate;
+        expense.paymentReference = vehicle.hireDetails.paymentReference || expense.paymentReference;
+        expense.notes = vehicle.hireDetails.notes || expense.notes;
+        await expense.save();
+      } else if (hireAmt > 0 || addExp > 0) {
+        await Expense.create({
+          expenseType: 'MARKET_VEHICLE_HIRE',
+          vehicle: vehicle._id,
+          vehicleNumber: vehicle.vehicleNumber,
+          vehicleType: vehicle.vehicleType,
+          vendorName,
+          vendorMobile,
+          hireAmount: hireAmt,
+          additionalExpense: addExp,
+          totalAmount: hireAmt + addExp,
+          paymentStatus: vehicle.hireDetails.paymentStatus || 'Pending',
+          paymentDate: vehicle.hireDetails.paymentDate || null,
+          paymentReference: vehicle.hireDetails.paymentReference || '',
+          hireDate: vehicle.hireDetails.hireDate || new Date(),
+          notes: vehicle.hireDetails.notes || '',
+          recordedBy: req.user ? req.user._id : null
+        });
+      }
+    }
+
     res.json({ success: true, message: 'Vehicle updated successfully', data: vehicle });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Record/Update Payment to Third-Party Vehicle Owner/Vendor
+// @route   PUT /api/admin/vehicles/:id/hire-payment
+// @access  Private (Admin Only)
+exports.recordHirePayment = async (req, res, next) => {
+  try {
+    const { paymentStatus, paidAmount, paymentDate, paymentReference, notes } = req.body;
+    const vehicle = await Vehicle.findById(req.params.id);
+
+    if (!vehicle) {
+      return res.status(404).json({ success: false, message: 'Vehicle not found' });
+    }
+
+    if (vehicle.vehicleSource !== 'THIRD_PARTY') {
+      return res.status(400).json({ success: false, message: 'Payment recording is only applicable to Third-Party / Market-Hired vehicles.' });
+    }
+
+    if (!vehicle.hireDetails) {
+      vehicle.hireDetails = {};
+    }
+
+    const prevStatus = vehicle.hireDetails.paymentStatus;
+    const newStatus = paymentStatus || (prevStatus === 'Pending' ? 'Paid' : 'Pending');
+    const now = paymentDate ? new Date(paymentDate) : new Date();
+
+    vehicle.hireDetails.paymentStatus = newStatus;
+    if (paidAmount !== undefined) vehicle.hireDetails.paidAmount = Number(paidAmount);
+    if (newStatus === 'Paid') {
+      vehicle.hireDetails.paymentDate = now;
+      if (!vehicle.hireDetails.paidAmount) {
+        vehicle.hireDetails.paidAmount = (vehicle.hireDetails.hireAmount || 0) + (vehicle.hireDetails.additionalExpense || 0);
+      }
+    }
+    if (paymentReference) vehicle.hireDetails.paymentReference = paymentReference;
+    if (notes !== undefined) vehicle.hireDetails.notes = notes;
+
+    await vehicle.save();
+
+    // Sync with Expense record
+    let expense = await Expense.findOne({ vehicle: vehicle._id, expenseType: 'MARKET_VEHICLE_HIRE' });
+    if (expense) {
+      expense.paymentStatus = newStatus;
+      expense.paymentDate = newStatus === 'Paid' ? (expense.paymentDate || now) : null;
+      if (paymentReference) expense.paymentReference = paymentReference;
+      if (notes !== undefined) expense.notes = notes;
+      await expense.save();
+    } else {
+      const hireAmt = Number(vehicle.hireDetails.hireAmount) || 0;
+      const addExp = Number(vehicle.hireDetails.additionalExpense) || 0;
+      expense = await Expense.create({
+        expenseType: 'MARKET_VEHICLE_HIRE',
+        vehicle: vehicle._id,
+        vehicleNumber: vehicle.vehicleNumber,
+        vehicleType: vehicle.vehicleType,
+        vendorName: vehicle.vendorDetails?.vendorName || vehicle.ownerName,
+        vendorMobile: vehicle.vendorDetails?.vendorMobile || vehicle.ownerMobileNumber,
+        hireAmount: hireAmt,
+        additionalExpense: addExp,
+        totalAmount: hireAmt + addExp,
+        paymentStatus: newStatus,
+        paymentDate: newStatus === 'Paid' ? now : null,
+        paymentReference: paymentReference || '',
+        hireDate: vehicle.hireDetails.hireDate || new Date(),
+        notes: notes || vehicle.hireDetails.notes || '',
+        recordedBy: req.user ? req.user._id : null
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Third-Party vehicle owner payment marked as ${newStatus}`,
+      data: {
+        vehicle,
+        expense
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get All Third-Party Hire Expenses & Summary Breakdown
+// @route   GET /api/admin/hire-expenses
+// @access  Private (Admin Only)
+exports.getHireExpenses = async (req, res, next) => {
+  try {
+    const expenses = await Expense.find({ expenseType: 'MARKET_VEHICLE_HIRE' })
+      .populate('vehicle')
+      .populate('booking')
+      .sort({ createdAt: -1 });
+
+    const totalHireExpense = expenses.reduce((sum, item) => sum + (item.totalAmount || 0), 0);
+    const pendingHireExpense = expenses
+      .filter(item => item.paymentStatus === 'Pending')
+      .reduce((sum, item) => sum + (item.totalAmount || 0), 0);
+    const paidHireExpense = expenses
+      .filter(item => item.paymentStatus === 'Paid')
+      .reduce((sum, item) => sum + (item.totalAmount || 0), 0);
+
+    const vehicleBreakdown = {};
+    expenses.forEach(exp => {
+      const vKey = exp.vehicleNumber || 'Unspecified';
+      if (!vehicleBreakdown[vKey]) {
+        vehicleBreakdown[vKey] = {
+          vehicleNumber: vKey,
+          vehicleType: exp.vehicleType || 'Truck',
+          vendorName: exp.vendorName,
+          totalHireAmount: 0,
+          pendingAmount: 0,
+          paidAmount: 0,
+          tripsCount: 0
+        };
+      }
+      vehicleBreakdown[vKey].totalHireAmount += exp.totalAmount || 0;
+      if (exp.paymentStatus === 'Pending') {
+        vehicleBreakdown[vKey].pendingAmount += exp.totalAmount || 0;
+      } else {
+        vehicleBreakdown[vKey].paidAmount += exp.totalAmount || 0;
+      }
+      vehicleBreakdown[vKey].tripsCount += 1;
+    });
+
+    res.json({
+      success: true,
+      summary: {
+        totalRecords: expenses.length,
+        totalHireExpense,
+        pendingHireExpense,
+        paidHireExpense,
+        pendingCount: expenses.filter(e => e.paymentStatus === 'Pending').length,
+        paidCount: expenses.filter(e => e.paymentStatus === 'Paid').length
+      },
+      vehicleBreakdown: Object.values(vehicleBreakdown),
+      data: expenses
+    });
   } catch (error) {
     next(error);
   }
@@ -1032,15 +1347,41 @@ exports.updatePolicy = async (req, res, next) => {
 };
 
 // ==========================================
-// 16. BASIC REPORTS
+// 16. BASIC REPORTS & AUDIT LOGS
 // ==========================================
 exports.getBasicReports = async (req, res, next) => {
   try {
-    const bookings = await Booking.find().populate('vehicle').populate('driver').sort({ createdAt: -1 }).limit(10);
-    const payments = await Payment.find().sort({ createdAt: -1 }).limit(10);
-    const cancellations = await Cancellation.find().sort({ createdAt: -1 }).limit(10);
-    const compensations = await Compensation.find().sort({ createdAt: -1 }).limit(10);
-    const insurances = await Insurance.find().sort({ createdAt: -1 }).limit(10);
+    const [
+      bookings,
+      payments,
+      cancellations,
+      compensations,
+      insurances,
+      hireExpenses,
+      ownVehicleTripsCount,
+      thirdPartyVehicleTripsCount,
+      ownTrips,
+      thirdPartyTrips
+    ] = await Promise.all([
+      Booking.find().populate('vehicle').populate('driver').sort({ createdAt: -1 }).limit(20),
+      Payment.find().sort({ createdAt: -1 }).limit(20),
+      Cancellation.find().sort({ createdAt: -1 }).limit(20),
+      Compensation.find().sort({ createdAt: -1 }).limit(20),
+      Insurance.find().sort({ createdAt: -1 }).limit(20),
+      Expense.find({ expenseType: 'MARKET_VEHICLE_HIRE' }).populate('vehicle').populate('booking').sort({ hireDate: -1 }),
+      Booking.countDocuments({ vehicleSource: { $ne: 'THIRD_PARTY' } }),
+      Booking.countDocuments({ vehicleSource: 'THIRD_PARTY' }),
+      Booking.find({ vehicleSource: { $ne: 'THIRD_PARTY' } }).populate('vehicle').populate('driver').sort({ createdAt: -1 }).limit(10),
+      Booking.find({ vehicleSource: 'THIRD_PARTY' }).populate('vehicle').populate('driver').sort({ createdAt: -1 }).limit(10)
+    ]);
+
+    const totalThirdPartyHireExpense = hireExpenses.reduce((sum, item) => sum + (item.totalAmount || 0), 0);
+    const pendingThirdPartyPayments = hireExpenses
+      .filter(item => item.paymentStatus === 'Pending')
+      .reduce((sum, item) => sum + (item.totalAmount || 0), 0);
+    const paidThirdPartyPayments = hireExpenses
+      .filter(item => item.paymentStatus === 'Paid')
+      .reduce((sum, item) => sum + (item.totalAmount || 0), 0);
 
     res.json({
       success: true,
@@ -1049,7 +1390,19 @@ exports.getBasicReports = async (req, res, next) => {
         payments,
         cancellations,
         compensations,
-        insurances
+        insurances,
+        hireExpenses,
+        hireSummary: {
+          ownVehicleTripsCount,
+          thirdPartyVehicleTripsCount,
+          totalThirdPartyHireExpense,
+          pendingThirdPartyPayments,
+          paidThirdPartyPayments,
+          pendingCount: hireExpenses.filter(e => e.paymentStatus === 'Pending').length,
+          paidCount: hireExpenses.filter(e => e.paymentStatus === 'Paid').length
+        },
+        ownTrips,
+        thirdPartyTrips
       }
     });
   } catch (error) {

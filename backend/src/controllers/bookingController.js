@@ -110,8 +110,24 @@ exports.createBooking = async (req, res, next) => {
     const initialPaymentStatus = isOfflineCash ? 'Pending Cash' : 'Pending';
     const initialBookingStatus = isOfflineCash ? 'Confirmed' : 'Pending';
 
+    const isThirdParty = vehicle.vehicleSource === 'THIRD_PARTY';
+    const hiredVehicleDetails = isThirdParty ? {
+      hireAmount: vehicle.hireDetails?.hireAmount || 0,
+      additionalExpense: vehicle.hireDetails?.additionalExpense || 0,
+      vendorName: vehicle.vendorDetails?.vendorName || vehicle.ownerName || '',
+      vendorMobile: vehicle.vendorDetails?.vendorMobile || vehicle.ownerMobileNumber || '',
+      driverName: vehicle.thirdPartyDriver?.driverName || '',
+      driverMobile: vehicle.thirdPartyDriver?.driverMobile || '',
+      driverLicenseNumber: vehicle.thirdPartyDriver?.driverLicenseNumber || '',
+      hirePaymentStatus: vehicle.hireDetails?.paymentStatus || 'Pending',
+      loadCapacity: vehicle.loadCapacity || '',
+      notes: vehicle.hireDetails?.notes || ''
+    } : undefined;
+
     const booking = await Booking.create({
       bookingId,
+      vehicleSource: isThirdParty ? 'THIRD_PARTY' : 'OWN',
+      hiredVehicleDetails,
       customer: {
         name: req.user.name,
         phone: req.user.phone,

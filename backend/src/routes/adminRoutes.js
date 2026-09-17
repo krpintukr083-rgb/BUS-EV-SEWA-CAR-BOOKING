@@ -13,6 +13,8 @@ const {
   addVehicle,
   updateVehicle,
   updateVehicleStatus,
+  recordHirePayment,
+  getHireExpenses,
   getBuses,
   getEvSewa,
   getCars,
@@ -71,6 +73,8 @@ router.get('/vehicles', getVehicles);
 router.post('/vehicles', handleMultipleUpload('vehicleImages', 5), addVehicle);
 router.put('/vehicles/:id', handleMultipleUpload('vehicleImages', 5), updateVehicle);
 router.put('/vehicles/:id/status', updateVehicleStatus);
+router.put('/vehicles/:id/hire-payment', recordHirePayment);
+router.get('/hire-expenses', getHireExpenses);
 
 // 5. Specific Service Vehicles
 router.get('/buses', getBuses);

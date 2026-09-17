@@ -265,10 +265,20 @@ exports.getBookingRequests = async (req, res, next) => {
       .populate('cashCollectedBy')
       .sort({ createdAt: -1 });
 
+    const sanitized = requests.map(b => {
+      const doc = b.toObject ? b.toObject() : { ...b };
+      if (doc.hiredVehicleDetails) {
+        delete doc.hiredVehicleDetails.hireAmount;
+        delete doc.hiredVehicleDetails.additionalExpense;
+        delete doc.hiredVehicleDetails.hirePaymentStatus;
+      }
+      return doc;
+    });
+
     res.json({
       success: true,
-      count: requests.length,
-      data: requests
+      count: sanitized.length,
+      data: sanitized
     });
   } catch (error) {
     next(error);

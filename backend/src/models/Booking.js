@@ -7,6 +7,11 @@ const bookingSchema = new mongoose.Schema(
       required: true,
       unique: true
     },
+    vehicleSource: {
+      type: String,
+      enum: ['OWN', 'THIRD_PARTY'],
+      default: 'OWN'
+    },
     customer: {
       name: { type: String, required: true },
       phone: { type: String, required: true },
@@ -24,7 +29,7 @@ const bookingSchema = new mongoose.Schema(
     },
     serviceType: {
       type: String,
-      enum: ['Bus', 'EV-Sewa', 'Car'],
+      enum: ['Bus', 'EV-Sewa', 'Car', 'Truck'],
       required: true
     },
     pickupLocation: {
@@ -34,6 +39,23 @@ const bookingSchema = new mongoose.Schema(
     dropLocation: {
       type: String,
       required: true
+    },
+    // Hired Vehicle Details snapshot for audit integrity
+    hiredVehicleDetails: {
+      hireAmount: { type: Number, default: 0 },
+      additionalExpense: { type: Number, default: 0 },
+      vendorName: { type: String, default: '' },
+      vendorMobile: { type: String, default: '' },
+      driverName: { type: String, default: '' },
+      driverMobile: { type: String, default: '' },
+      driverLicenseNumber: { type: String, default: '' },
+      hirePaymentStatus: {
+        type: String,
+        enum: ['Pending', 'Paid'],
+        default: 'Pending'
+      },
+      loadCapacity: { type: String, default: '' },
+      notes: { type: String, default: '' }
     },
     passengerDetails: [
       {
@@ -105,6 +127,7 @@ const bookingSchema = new mongoose.Schema(
 // Performance Indexes
 bookingSchema.index({ driver: 1, bookingStatus: 1, createdAt: -1 });
 bookingSchema.index({ vehicle: 1, bookingStatus: 1 });
+bookingSchema.index({ vehicleSource: 1 });
 bookingSchema.index({ bookingStatus: 1, createdAt: -1 });
 bookingSchema.index({ 'customer.phone': 1 });
 bookingSchema.index({ paymentStatus: 1 });

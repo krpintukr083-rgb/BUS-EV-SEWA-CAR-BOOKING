@@ -1,4 +1,4 @@
-﻿import api from './api';
+import api from './api';
 
 export const adminService = {
   // Auth
@@ -104,9 +104,9 @@ export const adminService = {
     return res.data;
   },
 
-  // 4. Vehicle Management (Bus, EV-Sewa, Car)
-  getVehicles: async type => {
-    const res = await api.get('/admin/vehicles', { params: { type } });
+  // 4. Vehicle Management (Bus, EV-Sewa, Car, Truck & Market Hire)
+  getVehicles: async (type, source) => {
+    const res = await api.get('/admin/vehicles', { params: { type, source } });
     return res.data;
   },
 
@@ -122,6 +122,16 @@ export const adminService = {
 
   updateVehicleStatus: async (id, status) => {
     const res = await api.put(`/admin/vehicles/${id}/status`, { status });
+    return res.data;
+  },
+
+  recordHirePayment: async (id, paymentData) => {
+    const res = await api.put(`/admin/vehicles/${id}/hire-payment`, paymentData);
+    return res.data;
+  },
+
+  getHireExpenses: async () => {
+    const res = await api.get('/admin/hire-expenses');
     return res.data;
   },
 
