@@ -289,11 +289,11 @@ const VehicleManagement = () => {
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#0f172a' }}>Vehicle Fleet & Market Hire Management</h2>
           <p style={{ fontSize: '0.85rem', color: '#64748b' }}>
-            Manage Company-Owned vehicles and Third-Party / Market-Hired vehicles (e.g. Trucks, Buses, Cars).
+            Manage Company-Owned vehicles and Third-Party / Market-Hired vehicles (e.g. Buses, EV-Sewa, Cars).
           </p>
         </div>
         <Link to="/admin/add-vehicle" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <PlusCircle size={18} /> Add Vehicle / Hire Truck
+          <PlusCircle size={18} /> Add Vehicle
         </Link>
       </div>
 
@@ -338,9 +338,9 @@ const VehicleManagement = () => {
           style={{
             padding: '14px 18px',
             borderRadius: '8px',
-            backgroundColor: filterSource === 'OWN' ? '#2563eb' : '#ffffff',
-            color: filterSource === 'OWN' ? '#ffffff' : '#1e40af',
-            border: `1px solid ${filterSource === 'OWN' ? '#2563eb' : '#bfdbfe'}`,
+            backgroundColor: filterSource === 'OWN' ? '#1e40af' : '#ffffff',
+            color: filterSource === 'OWN' ? '#ffffff' : '#1e3a8a',
+            border: '1px solid #93c5fd',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -349,10 +349,10 @@ const VehicleManagement = () => {
           }}
         >
           <div>
-            <div style={{ fontSize: '0.8rem', opacity: 0.85 }}>Own / Company Fleet</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: '800' }}>{ownCount}</div>
+            <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>🏢 Own / Company Fleet</div>
+            <div style={{ fontSize: '1.25rem', fontWeight: '800' }}>{vehicles.filter(v => (v.vehicleSource || 'OWN') === 'OWN').length}</div>
           </div>
-          <Building size={22} style={{ opacity: 0.8 }} />
+          <Building size={22} style={{ opacity: 0.7 }} />
         </div>
 
         <div
@@ -360,9 +360,9 @@ const VehicleManagement = () => {
           style={{
             padding: '14px 18px',
             borderRadius: '8px',
-            backgroundColor: filterSource === 'THIRD_PARTY' ? '#ea580c' : '#ffffff',
-            color: filterSource === 'THIRD_PARTY' ? '#ffffff' : '#c2410c',
-            border: `1px solid ${filterSource === 'THIRD_PARTY' ? '#ea580c' : '#fed7aa'}`,
+            backgroundColor: filterSource === 'THIRD_PARTY' ? '#c2410c' : '#ffffff',
+            color: filterSource === 'THIRD_PARTY' ? '#ffffff' : '#9a3412',
+            border: '1px solid #fdba74',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -371,30 +371,28 @@ const VehicleManagement = () => {
           }}
         >
           <div>
-            <div style={{ fontSize: '0.8rem', opacity: 0.85 }}>Third-Party / Market Hired</div>
-            <div style={{ fontSize: '1.25rem', fontWeight: '800' }}>{thirdPartyCount}</div>
+            <div style={{ fontSize: '0.8rem', opacity: 0.8 }}>🤝 Market-Hired Fleet</div>
+            <div style={{ fontSize: '1.25rem', fontWeight: '800' }}>{vehicles.filter(v => v.vehicleSource === 'THIRD_PARTY').length}</div>
           </div>
-          <ShoppingBag size={22} style={{ opacity: 0.8 }} />
+          <ShoppingBag size={22} style={{ opacity: 0.7 }} />
         </div>
       </div>
 
-      {/* Search & Type Filter Bar */}
-      <div className="content-card" style={{ marginBottom: '16px', padding: '14px' }}>
+      {/* Filter and Search Bar */}
+      <div className="content-card" style={{ marginBottom: '20px' }}>
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ position: 'relative', flex: 1, minWidth: '240px' }}>
-            <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
-            <input
-              type="text"
-              placeholder="Search by vehicle no, name, owner, vendor, driver..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="form-control"
-              style={{ paddingLeft: '36px' }}
-            />
-          </div>
-
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#64748b' }}>Vehicle Type:</span>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', flex: 1 }}>
+            <div style={{ position: 'relative', minWidth: '240px', flex: 1 }}>
+              <Search size={18} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+              <input
+                type="text"
+                placeholder="Search by name, number, vendor or driver..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="form-control"
+                style={{ paddingLeft: '38px' }}
+              />
+            </div>
             <select
               value={filterType}
               onChange={e => setFilterType(e.target.value)}
@@ -405,7 +403,6 @@ const VehicleManagement = () => {
               <option value="Bus">Buses Only</option>
               <option value="EV-Sewa">EV-Sewa Only</option>
               <option value="Car">Cars Only</option>
-              <option value="Truck">Trucks / Haulage</option>
             </select>
           </div>
         </div>

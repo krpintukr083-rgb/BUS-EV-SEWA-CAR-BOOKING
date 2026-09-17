@@ -72,7 +72,7 @@ const BookingManagement = () => {
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#0f172a' }}>Unified Booking & Trip Management</h2>
           <p style={{ fontSize: '0.85rem', color: '#64748b' }}>
-            Omnichannel booking logs across Own Fleet and Third-Party / Market-Hired Vehicles (Buses, EV-Sewa, Cars, Trucks).
+            Omnichannel booking logs across Own Fleet and Third-Party / Market-Hired Vehicles (Buses, EV-Sewa, Cars).
           </p>
         </div>
         <div style={{ fontWeight: '700', color: '#1d4ed8' }}>Total Bookings: {bookings.length}</div>
@@ -137,7 +137,6 @@ const BookingManagement = () => {
               <option value="Bus">Bus</option>
               <option value="EV-Sewa">EV-Sewa</option>
               <option value="Car">Car</option>
-              <option value="Truck">Truck / Haulage</option>
             </select>
 
             <span style={{ fontSize: '0.85rem', color: '#64748b', fontWeight: '600' }}>Status:</span>

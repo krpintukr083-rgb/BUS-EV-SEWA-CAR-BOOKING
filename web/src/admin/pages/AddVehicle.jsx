@@ -161,16 +161,16 @@ const AddVehicle = () => {
   const handleSourceSelect = source => {
     setVehicleSource(source);
     if (source === 'THIRD_PARTY') {
-      setVehicleType('Truck');
-      setVehicleCategory('Market Hired Heavy Transport');
-      setVehicleModel('Tata Prima 3530.K / Ashok Leyland');
-      setVehicleName('Market Hired Freight Truck');
-      setSeatingCapacity(2);
-      setLoadCapacity('10 Tonnes (16 Tonnes GVW)');
-      setFareRate(2800);
+      setVehicleType('Bus');
+      setVehicleCategory('Market Hired AC Bus');
+      setVehicleModel('Volvo / Ashok Leyland');
+      setVehicleName('Market Hired Bus');
+      setSeatingCapacity(36);
+      setLoadCapacity('');
+      setFareRate(850);
       setHireAmount(2800);
-      setOrigin('Delhi Sanjay Gandhi Transport Nagar');
-      setDestination('Jaipur VKI Industrial Area');
+      setOrigin('Delhi (Kashmere Gate ISBT)');
+      setDestination('Jaipur (Sindhi Camp)');
       setOwnerName('Patel Road Logistics & Transport');
       setOwnerMobileNumber('+919876012345');
     } else {
@@ -215,15 +215,6 @@ const AddVehicle = () => {
       setDestination('Cyber Hub Gurugram');
       setBoardingPoints('T3 Arrival Gate 5');
       setDroppingPoints('Cyber Hub DLF Phase 2');
-    } else if (type === 'Truck') {
-      setVehicleCategory('Heavy Commercial Haulage / Freight');
-      setVehicleModel('Tata Prima / Eicher Pro Heavy');
-      setSeatingCapacity(2);
-      setLoadCapacity('10 Tonnes');
-      setFareRate(2800);
-      setHireAmount(2800);
-      setOrigin('Delhi Transport Hub');
-      setDestination('Jaipur Freight Hub');
     }
   };
 
@@ -383,11 +374,11 @@ const AddVehicle = () => {
                 2. Third-Party / Market-Hired Vehicle
               </span>
               <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '700', backgroundColor: '#ffedd5', color: '#c2410c' }}>
-                MARKET HIRE / TRUCK
+                MARKET HIRE
               </span>
             </div>
             <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>
-              Hired from market vendors (e.g., Truck Hire ₹2,800, external buses, cars). Tracks hire amount & owner payouts separately.
+              Hired from market vendors (e.g., external buses, cars, EV-Sewa). Tracks hire amount & owner payouts separately.
             </p>
           </div>
         </div>
@@ -453,24 +444,6 @@ const AddVehicle = () => {
               }}
             >
               <Car size={18} /> Car / SUV
-            </button>
-            <button
-              type="button"
-              onClick={() => handleTypeSelect('Truck')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 18px',
-                borderRadius: '8px',
-                fontWeight: '600',
-                border: `2px solid ${vehicleType === 'Truck' ? '#ea580c' : '#cbd5e1'}`,
-                backgroundColor: vehicleType === 'Truck' ? '#fff7ed' : '#ffffff',
-                color: vehicleType === 'Truck' ? '#c2410c' : '#475569',
-                cursor: 'pointer'
-              }}
-            >
-              <Truck size={18} /> Truck / Haulage
             </button>
           </div>
         </div>

@@ -289,11 +289,11 @@ const VehicleManagement = () => {
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#0f172a' }}>Vehicle Fleet & Market Hire Management</h2>
           <p style={{ fontSize: '0.85rem', color: '#64748b' }}>
-            Manage Company-Owned vehicles and Third-Party / Market-Hired vehicles (e.g. Trucks, Buses, Cars).
+            Manage Company-Owned vehicles and Third-Party / Market-Hired vehicles (e.g. Buses, EV-Sewa, Cars).
           </p>
         </div>
         <Link to="/admin/add-vehicle" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <PlusCircle size={18} /> Add Vehicle / Hire Truck
+          <PlusCircle size={18} /> Add Vehicle
         </Link>
       </div>
 
@@ -405,7 +405,6 @@ const VehicleManagement = () => {
               <option value="Bus">Buses Only</option>
               <option value="EV-Sewa">EV-Sewa Only</option>
               <option value="Car">Cars Only</option>
-              <option value="Truck">Trucks / Haulage</option>
             </select>
           </div>
         </div>
