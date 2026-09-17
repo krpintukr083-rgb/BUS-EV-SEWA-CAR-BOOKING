@@ -9,7 +9,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1d4ed8"
+      "backgroundColor": "#0a1128"
     },
     "ios": {
       "supportsTablet": true
@@ -17,7 +17,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1d4ed8"
+        "backgroundColor": "#0a1128"
       },
       "package": "com.travelease.customer"
     },
