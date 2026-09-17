@@ -14,6 +14,7 @@ import { customerService } from '../../services/customerService';
 import { useBooking } from '../../context/BookingContext';
 import Header from '../../components/Header';
 import { COLORS } from '../../constants/colors';
+import { getPrimaryVehicleImage } from '../../utils/imageUrl';
 
 const BusListingScreen = ({ navigation, route }) => {
   const { from = '', to = '' } = route.params || {};
@@ -135,9 +136,7 @@ const BusListingScreen = ({ navigation, route }) => {
               {/* Bus Image Banner */}
               <Image
                 source={{
-                  uri: item.vehicleImages && item.vehicleImages.length > 0
-                    ? item.vehicleImages[0]
-                    : 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80'
+                  uri: getPrimaryVehicleImage(item, 'Bus')
                 }}
                 style={styles.busImage}
               />

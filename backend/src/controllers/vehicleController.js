@@ -1,6 +1,21 @@
 const Vehicle = require('../models/Vehicle');
 const Booking = require('../models/Booking');
 
+const formatVehicle = (vehicleDoc, req) => {
+  const v = vehicleDoc.toObject ? vehicleDoc.toObject() : { ...vehicleDoc };
+  if (Array.isArray(v.vehicleImages) && v.vehicleImages.length > 0) {
+    const host = req ? req.get('host') : null;
+    const protocol = req && req.protocol ? req.protocol : 'http';
+    v.vehicleImages = v.vehicleImages.map(img => {
+      if (img && typeof img === 'string' && img.startsWith('/uploads/') && host) {
+        return `${protocol}://${host}${img}`;
+      }
+      return img;
+    });
+  }
+  return v;
+};
+
 // @desc    Get vehicles with case-insensitive type filter (?type=bus|ev-sewa|car) and search routes
 // @route   GET /api/vehicles
 // @access  Public
@@ -54,10 +69,12 @@ exports.getVehicles = async (req, res, next) => {
       });
     }
 
+    const formattedVehicles = filtered.map(v => formatVehicle(v, req));
+
     res.json({
       success: true,
-      count: filtered.length,
-      data: filtered
+      count: formattedVehicles.length,
+      data: formattedVehicles
     });
   } catch (error) {
     next(error);
@@ -101,10 +118,12 @@ exports.getVehicleById = async (req, res, next) => {
       bookedSeats = Array.from(new Set(bookedSeats));
     }
 
+    const formattedVehicle = formatVehicle(vehicle, req);
+
     res.json({
       success: true,
       data: {
-        ...vehicle.toObject(),
+        ...formattedVehicle,
         bookedSeats
       }
     });

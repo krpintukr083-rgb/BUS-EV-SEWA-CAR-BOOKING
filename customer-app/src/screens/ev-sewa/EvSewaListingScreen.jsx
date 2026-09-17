@@ -14,9 +14,7 @@ import { customerService } from '../../services/customerService';
 import { useBooking } from '../../context/BookingContext';
 import Header from '../../components/Header';
 import { COLORS } from '../../constants/colors';
-
-const FALLBACK_EV_IMAGE =
-  'https://images.unsplash.com/photo-1570125909232-eb263c188f7e?auto=format&fit=crop&w=800&q=80';
+import { getPrimaryVehicleImage } from '../../utils/imageUrl';
 
 const EvSewaListingScreen = ({ navigation }) => {
   const { updateDraft } = useBooking();
@@ -99,10 +97,7 @@ const EvSewaListingScreen = ({ navigation }) => {
             />
           }
           renderItem={({ item }) => {
-            const vehicleImg =
-              item.vehicleImages && item.vehicleImages.length > 0 && item.vehicleImages[0]
-                ? item.vehicleImages[0]
-                : FALLBACK_EV_IMAGE;
+            const vehicleImg = getPrimaryVehicleImage(item, 'EV-Sewa');
 
             return (
               <TouchableOpacity

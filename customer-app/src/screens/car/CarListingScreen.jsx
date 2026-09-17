@@ -14,6 +14,7 @@ import { customerService } from '../../services/customerService';
 import { useBooking } from '../../context/BookingContext';
 import Header from '../../components/Header';
 import { COLORS } from '../../constants/colors';
+import { getPrimaryVehicleImage } from '../../utils/imageUrl';
 
 const CarListingScreen = ({ navigation }) => {
   const { updateDraft } = useBooking();
@@ -79,9 +80,7 @@ const CarListingScreen = ({ navigation }) => {
             >
               <Image
                 source={{
-                  uri: item.vehicleImages && item.vehicleImages.length > 0
-                    ? item.vehicleImages[0]
-                    : 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80'
+                  uri: getPrimaryVehicleImage(item, 'Car')
                 }}
                 style={styles.carImage}
               />

@@ -14,12 +14,14 @@ import { useBooking } from '../../context/BookingContext';
 import Header from '../../components/Header';
 import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
+import { getPrimaryVehicleImage, getAllVehicleImages } from '../../utils/imageUrl';
 
 const CarDetailsScreen = ({ route, navigation }) => {
   const { carId } = route.params || {};
   const { bookingDraft, updateDraft } = useBooking();
   const [car, setCar] = useState(bookingDraft.vehicle || null);
   const [loading, setLoading] = useState(!car);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   useEffect(() => {
     if (carId && (!car || car._id !== carId)) {
@@ -44,48 +46,95 @@ const CarDetailsScreen = ({ route, navigation }) => {
     }
   }, [carId]);
 
-  const handleProceed = () => {
-    navigation.navigate('PickupDrop');
-  };
-
   if (loading) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#ea580c" />
-        <Text style={styles.loadingText}>Loading vehicle specifications...</Text>
+      <View style={styles.container}>
+        <Header title="Car Details" onBack={() => navigation.goBack()} />
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#ea580c" />
+          <Text style={styles.loadingText}>Loading vehicle specifications...</Text>
+        </View>
       </View>
     );
   }
 
   if (!car) {
     return (
-      <View style={styles.centerContainer}>
-        <Ionicons name="alert-circle-outline" size={48} color={COLORS.danger} />
-        <Text style={styles.errorText}>Vehicle information not found</Text>
-        <Button title="Back to Listing" onPress={() => navigation.goBack()} />
+      <View style={styles.container}>
+        <Header title="Car Details" onBack={() => navigation.goBack()} />
+        <View style={styles.centerContainer}>
+          <Ionicons name="alert-circle-outline" size={54} color={COLORS.textSecondary} />
+          <Text style={styles.errorTitle}>Vehicle Not Found</Text>
+          <Text style={styles.errorSub}>The requested vehicle details could not be loaded.</Text>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+            <Text style={styles.backBtnText}>Back to Listing</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   }
+
+  const carImages = getAllVehicleImages(car, 'Car');
+
+  const handleBookNow = () => {
+    updateDraft({
+      serviceType: 'Car',
+      vehicle: car,
+      baseFare: car.fareRate,
+      totalFare: car.fareRate,
+      pickupLocation: car.pickupDropDetails?.pickupLocation || car.route?.origin || 'Airport T3, New Delhi',
+      dropLocation: car.pickupDropDetails?.dropLocation || car.route?.destination || 'Cyber Hub, Gurugram',
+      selectedSeats: [1],
+      passengerDetails: [{ name: '', phone: '', age: '', gender: 'Male' }]
+    });
+    navigation.navigate('PickupDrop');
+  };
 
   return (
     <View style={styles.container}>
       <Header title="Car Details" onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Car Hero Image */}
+        {/* Hero Image / Carousel */}
         <View style={styles.imageContainer}>
           <Image
             source={{
-              uri: car.vehicleImages && car.vehicleImages.length > 0
-                ? car.vehicleImages[0]
-                : 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80'
+              uri: carImages[activeImageIndex] || getPrimaryVehicleImage(car, 'Car')
             }}
             style={styles.heroImage}
+            resizeMode="cover"
           />
           <View style={styles.categoryBadge}>
             <Text style={styles.categoryBadgeText}>{car.vehicleCategory || 'Premium Sedan'}</Text>
           </View>
         </View>
+
+        {/* Thumbnails if multiple */}
+        {carImages.length > 1 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ marginBottom: 14 }}
+            contentContainerStyle={{ gap: 8, paddingHorizontal: 2 }}
+          >
+            {carImages.map((imgUri, idx) => (
+              <TouchableOpacity
+                key={idx}
+                onPress={() => setActiveImageIndex(idx)}
+                style={{
+                  width: 58,
+                  height: 44,
+                  borderRadius: 8,
+                  overflow: 'hidden',
+                  borderWidth: 2,
+                  borderColor: activeImageIndex === idx ? '#ea580c' : 'transparent'
+                }}
+              >
+                <Image source={{ uri: imgUri }} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
         {/* Title and Fare Card */}
         <View style={styles.mainCard}>

@@ -14,9 +14,7 @@ import { useBooking } from '../../context/BookingContext';
 import Header from '../../components/Header';
 import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
-
-const FALLBACK_EV_IMAGE =
-  'https://images.unsplash.com/photo-1570125909232-eb263c188f7e?auto=format&fit=crop&w=800&q=80';
+import { getPrimaryVehicleImage, getAllVehicleImages } from '../../utils/imageUrl';
 
 const EvSewaDetailsScreen = ({ navigation, route }) => {
   const { evId } = route.params || {};
@@ -107,10 +105,7 @@ const EvSewaDetailsScreen = ({ navigation, route }) => {
     navigation.navigate('PickupDrop');
   };
 
-  const vehicleImg =
-    ev.vehicleImages && ev.vehicleImages.length > 0 && ev.vehicleImages[0]
-      ? ev.vehicleImages[0]
-      : FALLBACK_EV_IMAGE;
+  const vehicleImg = getPrimaryVehicleImage(ev, 'EV-Sewa');
 
   return (
     <View style={styles.container}>

@@ -14,6 +14,7 @@ import { useBooking } from '../../context/BookingContext';
 import Header from '../../components/Header';
 import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
+import { getPrimaryVehicleImage, getAllVehicleImages } from '../../utils/imageUrl';
 
 const formatPoints = (points, fallback) => {
   if (!points) return fallback || '';
@@ -33,6 +34,7 @@ const BusDetailsScreen = ({ navigation, route }) => {
   );
   const [loading, setLoading] = useState(!bus);
   const [errorMessage, setErrorMessage] = useState('');
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   const fetchDetails = async () => {
     const targetId = busId || bus?._id || bookingDraft.vehicle?._id;
@@ -99,20 +101,59 @@ const BusDetailsScreen = ({ navigation, route }) => {
     );
   }
 
+  const busImages = getAllVehicleImages(bus, 'Bus');
+
   return (
     <View style={styles.container}>
       <Header title="Bus Details" onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Large Image Header */}
-        <Image
-          source={{
-            uri: bus.vehicleImages && bus.vehicleImages.length > 0
-              ? bus.vehicleImages[0]
-              : 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80'
-          }}
-          style={styles.heroImage}
-        />
+        {/* Large Image Carousel / Header */}
+        <View style={styles.imageWrapper}>
+          <Image
+            source={{ uri: busImages[activeImageIndex] || getPrimaryVehicleImage(bus, 'Bus') }}
+            style={styles.heroImage}
+            resizeMode="cover"
+          />
+
+          {busImages.length > 1 && (
+            <View style={styles.carouselPills}>
+              {busImages.map((imgUri, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  onPress={() => setActiveImageIndex(idx)}
+                  style={[
+                    styles.indicatorDot,
+                    activeImageIndex === idx && styles.indicatorDotActive
+                  ]}
+                />
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Multi-Image Thumbnails row if multiple images exist */}
+        {busImages.length > 1 && (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.thumbnailRow}
+            contentContainerStyle={{ gap: 8, paddingHorizontal: 2 }}
+          >
+            {busImages.map((imgUri, idx) => (
+              <TouchableOpacity
+                key={idx}
+                onPress={() => setActiveImageIndex(idx)}
+                style={[
+                  styles.thumbnailBtn,
+                  activeImageIndex === idx && styles.thumbnailBtnActive
+                ]}
+              >
+                <Image source={{ uri: imgUri }} style={styles.thumbnailImg} />
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
         {/* Title and Pricing Card */}
         <View style={styles.contentCard}>
@@ -227,11 +268,58 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 100
   },
+  imageWrapper: {
+    position: 'relative',
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginBottom: 12,
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0'
+  },
   heroImage: {
     width: '100%',
-    height: 180,
-    borderRadius: 14,
+    height: 190,
+    borderRadius: 14
+  },
+  carouselPills: {
+    position: 'absolute',
+    bottom: 10,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6
+  },
+  indicatorDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.5)'
+  },
+  indicatorDotActive: {
+    backgroundColor: '#ffffff',
+    width: 20
+  },
+  thumbnailRow: {
     marginBottom: 16
+  },
+  thumbnailBtn: {
+    width: 58,
+    height: 44,
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'transparent',
+    backgroundColor: '#f1f5f9'
+  },
+  thumbnailBtnActive: {
+    borderColor: COLORS.primary
+  },
+  thumbnailImg: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover'
   },
   contentCard: {
     backgroundColor: '#ffffff',
