@@ -78,6 +78,17 @@ export const customerService = {
     return res.data;
   },
 
+  // Truck / Market Hired Services
+  getTrucks: async (from, to) => {
+    const res = await api.get('/vehicles', { params: { type: 'truck', from, to } });
+    return res.data;
+  },
+
+  getTruckDetails: async id => {
+    const res = await api.get(`/vehicles/${id}`);
+    return res.data;
+  },
+
   // Bookings
   createBooking: async bookingData => {
     const res = await api.post('/bookings', bookingData);

@@ -41,6 +41,8 @@ exports.getVehicles = async (req, res, next) => {
         query.vehicleType = 'EV-Sewa';
       } else if (clean === 'car' || clean === 'cars') {
         query.vehicleType = 'Car';
+      } else if (clean === 'truck' || clean === 'trucks') {
+        query.vehicleType = 'Truck';
       }
     }
 
@@ -55,7 +57,8 @@ exports.getVehicles = async (req, res, next) => {
         const allOrigins = [
           v.route?.origin,
           ...(v.route?.boardingPoints || []),
-          v.pickupDropDetails?.pickupLocation
+          v.pickupDropDetails?.pickupLocation,
+          v.hireDetails?.pickup
         ]
           .filter(Boolean)
           .join(' ')
@@ -64,7 +67,8 @@ exports.getVehicles = async (req, res, next) => {
         const allDestinations = [
           v.route?.destination,
           ...(v.route?.droppingPoints || []),
-          v.pickupDropDetails?.dropLocation
+          v.pickupDropDetails?.dropLocation,
+          v.hireDetails?.destination
         ]
           .filter(Boolean)
           .join(' ')
