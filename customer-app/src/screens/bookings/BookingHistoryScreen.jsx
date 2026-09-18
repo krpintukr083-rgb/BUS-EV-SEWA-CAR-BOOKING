@@ -24,7 +24,7 @@ const BookingHistoryScreen = ({ navigation }) => {
       const res = await customerService.getMyBookings();
       if (res && res.success) {
         const list = Array.isArray(res.data)
-          ? res.data.filter(b => ['Completed', 'Cancelled'].includes(b.bookingStatus))
+          ? res.data.filter(b => ['Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus))
           : (res.data?.completed || res.data?.all || []);
         setHistory(list);
       }

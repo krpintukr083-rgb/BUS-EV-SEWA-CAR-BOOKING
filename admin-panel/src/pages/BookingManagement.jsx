@@ -147,6 +147,7 @@ const BookingManagement = () => {
               onChange={e => setFilterStatus(e.target.value)}
             >
               <option value="All">All Statuses</option>
+              <option value="Pending Driver Confirmation">Pending Driver Confirmation</option>
               <option value="Pending">Pending</option>
               <option value="Confirmed">Confirmed</option>
               <option value="Ongoing">Ongoing</option>
@@ -170,6 +171,7 @@ const BookingManagement = () => {
                 <th>Pickup & Drop</th>
                 <th>Fare</th>
                 <th>Payment</th>
+                <th>Driver Confirmation</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -229,6 +231,35 @@ const BookingManagement = () => {
                         )}
                       </td>
                       <td>
+                        <span
+                          style={{
+                            fontSize: '0.75rem',
+                            fontWeight: '700',
+                            padding: '2px 8px',
+                            borderRadius: '4px',
+                            backgroundColor:
+                              b.driverConfirmationStatus === 'Confirmed'
+                                ? '#dcfce7'
+                                : b.driverConfirmationStatus === 'Rejected'
+                                ? '#fee2e2'
+                                : '#fef3c7',
+                            color:
+                              b.driverConfirmationStatus === 'Confirmed'
+                                ? '#15803d'
+                                : b.driverConfirmationStatus === 'Rejected'
+                                ? '#b91c1c'
+                                : '#b45309'
+                          }}
+                        >
+                          {b.driverConfirmationStatus || (b.bookingStatus === 'Confirmed' ? 'Confirmed' : 'Pending')}
+                        </span>
+                        {b.driverConfirmedAt && (
+                          <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>
+                            {new Date(b.driverConfirmedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </div>
+                        )}
+                      </td>
+                      <td>
                         <StatusBadge status={b.bookingStatus} />
                       </td>
                       <td>
@@ -246,7 +277,7 @@ const BookingManagement = () => {
                 })
               ) : (
                 <tr>
-                  <td colSpan="9" style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                  <td colSpan="10" style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
                     No bookings found.
                   </td>
                 </tr>
@@ -327,6 +358,18 @@ const BookingManagement = () => {
                 <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '2px' }}>
                   Method: {selectedBooking.paymentMethod}
                 </div>
+              </div>
+
+              <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px' }}>
+                <span style={{ color: '#64748b' }}>Driver Confirmation</span>
+                <div style={{ fontWeight: '700', color: selectedBooking.driverConfirmationStatus === 'Confirmed' ? '#15803d' : selectedBooking.driverConfirmationStatus === 'Rejected' ? '#b91c1c' : '#b45309' }}>
+                  {selectedBooking.driverConfirmationStatus || 'Pending'}
+                </div>
+                {selectedBooking.driverConfirmedAt && (
+                  <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
+                    Confirmed: {new Date(selectedBooking.driverConfirmedAt).toLocaleString('en-IN')}
+                  </div>
+                )}
               </div>
             </div>
 

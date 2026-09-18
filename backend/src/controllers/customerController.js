@@ -76,7 +76,7 @@ exports.getBusDetails = async (req, res, next) => {
     // Find active confirmed bookings for this bus to compute booked seats
     const activeBookings = await Booking.find({
       vehicle: bus._id,
-      bookingStatus: { $in: ['Confirmed', 'Pending', 'Ongoing'] }
+      bookingStatus: { $in: ['Confirmed', 'Pending', 'Pending Driver Confirmation', 'Ongoing'] }
     });
 
     const bookedSeats = [];
@@ -203,6 +203,29 @@ exports.createBooking = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Selected vehicle is no longer available' });
     }
 
+    // Check seat collision if bus
+    if (serviceType === 'Bus' && selectedSeats && selectedSeats.length > 0) {
+      const activeBookings = await Booking.find({
+        vehicle: vehicle._id,
+        bookingStatus: { $in: ['Confirmed', 'Pending', 'Pending Driver Confirmation', 'Ongoing'] }
+      });
+
+      const alreadyBooked = [];
+      activeBookings.forEach(b => {
+        if (b.busSeatNumbers && b.busSeatNumbers.length > 0) {
+          b.busSeatNumbers.forEach(s => alreadyBooked.push(s));
+        }
+      });
+
+      const conflictingSeats = selectedSeats.filter(s => alreadyBooked.includes(s));
+      if (conflictingSeats.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Seat(s) ${conflictingSeats.join(', ')} are already booked. Please choose different seats.`
+        });
+      }
+    }
+
     const bookingId = `BK-${Date.now().toString().slice(-4)}${Math.floor(100 + Math.random() * 900)}`;
 
     const booking = await Booking.create({
@@ -221,9 +244,23 @@ exports.createBooking = async (req, res, next) => {
       fare: Number(fare),
       driverPaymentAmount: Math.round(Number(fare) * 0.8),
       paymentStatus: 'Pending',
-      bookingStatus: 'Pending',
+      bookingStatus: serviceType === 'Bus' ? 'Pending Driver Confirmation' : 'Pending',
+      driverConfirmationStatus: 'Pending',
+      driverConfirmed: false,
       travelDate: travelDate ? new Date(travelDate) : new Date(),
       busSeatNumbers: selectedSeats || []
+    });
+
+    // Create notification
+    await Notification.create({
+      title: serviceType === 'Bus' ? 'Booking Request Sent' : 'Booking Created',
+      message: serviceType === 'Bus'
+        ? 'Your bus booking request has been sent to the assigned driver.'
+        : 'Your booking has been created.',
+      recipient: `Customer: ${booking.customer.name}`,
+      recipientRole: 'customer',
+      recipientId: req.user._id,
+      status: 'Unread'
     });
 
     res.status(201).json({
@@ -264,8 +301,11 @@ exports.processPayment = async (req, res, next) => {
     });
 
     // Update Booking Status
+    const isBus = booking.serviceType === 'Bus';
     booking.paymentStatus = 'Successful';
-    booking.bookingStatus = 'Confirmed';
+    booking.bookingStatus = isBus ? 'Pending Driver Confirmation' : 'Confirmed';
+    booking.driverConfirmationStatus = isBus ? 'Pending' : 'Confirmed';
+    booking.driverConfirmed = !isBus;
     await booking.save();
 
     // Create Insurance record for passenger
@@ -286,8 +326,10 @@ exports.processPayment = async (req, res, next) => {
 
     // Create notification
     await Notification.create({
-      title: 'Booking Confirmed!',
-      message: `Your booking ${booking.bookingId} (${booking.serviceType}) is confirmed. Safe travels!`,
+      title: isBus ? 'Booking Request Sent' : 'Booking Confirmed!',
+      message: isBus
+        ? 'Your bus booking request has been sent to the assigned driver.'
+        : 'Your booking has been confirmed.',
       recipient: `Customer: ${booking.customer.name}`,
       recipientRole: 'customer',
       recipientId: req.user._id,
@@ -296,7 +338,9 @@ exports.processPayment = async (req, res, next) => {
 
     res.json({
       success: true,
-      message: 'Payment Successful! Booking Confirmed.',
+      message: isBus
+        ? 'Payment Successful! Waiting for assigned driver/conductor confirmation.'
+        : 'Payment Successful! Booking confirmed.',
       data: {
         booking,
         payment,
@@ -318,7 +362,7 @@ exports.getMyBookings = async (req, res, next) => {
       .populate('driver')
       .sort({ createdAt: -1 });
 
-    const upcoming = bookings.filter(b => ['Pending', 'Confirmed', 'Ongoing'].includes(b.bookingStatus));
+    const upcoming = bookings.filter(b => ['Pending', 'Pending Driver Confirmation', 'Confirmed', 'Ongoing'].includes(b.bookingStatus));
     const completed = bookings.filter(b => ['Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus));
 
     res.json({

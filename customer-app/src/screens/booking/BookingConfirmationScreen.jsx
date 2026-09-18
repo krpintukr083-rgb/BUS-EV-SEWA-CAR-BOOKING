@@ -23,22 +23,28 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
     navigation.navigate('Main', { screen: 'Home' });
   };
 
+  const isPendingDriver = booking?.bookingStatus === 'Pending Driver Confirmation';
+
   return (
     <View style={styles.container}>
       <Header
-        title="Booking Confirmation"
+        title={isPendingDriver ? 'Booking Request Submitted' : 'Booking Confirmation'}
         onBack={handleGoHome}
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Success Banner */}
+        {/* Banner Card */}
         <View style={styles.heroCard}>
-          <View style={styles.successIcon}>
-            <Ionicons name="checkmark" size={36} color="#ffffff" />
+          <View style={[styles.successIcon, isPendingDriver && { backgroundColor: '#f59e0b' }]}>
+            <Ionicons name={isPendingDriver ? 'time' : 'checkmark'} size={36} color="#ffffff" />
           </View>
-          <Text style={styles.heroTitle}>Booking Confirmed!</Text>
+          <Text style={styles.heroTitle}>
+            {isPendingDriver ? 'Booking Request Sent' : 'Booking Confirmed!'}
+          </Text>
           <Text style={styles.heroSub}>
-            Your travel reservation has been confirmed and driver has been notified.
+            {isPendingDriver
+              ? 'Waiting for assigned driver/conductor confirmation.'
+              : 'Your travel reservation has been confirmed and driver has been notified.'}
           </Text>
 
           <View style={styles.bookingIdPill}>
@@ -50,6 +56,11 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
         {/* Details Card */}
         <View style={styles.detailsCard}>
           <Text style={styles.sectionTitle}>Reservation Summary</Text>
+
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Booking Status</Text>
+            <StatusBadge status={booking?.bookingStatus || 'Pending Driver Confirmation'} />
+          </View>
 
           <View style={styles.row}>
             <Text style={styles.rowLabel}>Service Type</Text>
@@ -125,7 +136,7 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
             <View style={{ flex: 1, marginLeft: 10 }}>
               <Text style={styles.cashNoticeTitle}>Cash Payment on Boarding</Text>
               <Text style={styles.cashNoticeSub}>
-                Your seats are reserved. Please keep <Text style={{ fontWeight: '800' }}>₹{booking?.fare}</Text> cash ready to pay the conductor or driver when you board.
+                Your seat reservation request has been transmitted. Please keep <Text style={{ fontWeight: '800' }}>₹{booking?.fare}</Text> cash ready to pay the conductor or driver when you board.
               </Text>
             </View>
           </View>
@@ -134,9 +145,9 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
         {/* Action Buttons */}
         <View style={styles.buttonGroup}>
           <Button
-            title="View Digital Ticket"
+            title={isPendingDriver ? 'View Booking Status' : 'View Digital Ticket'}
             onPress={handleViewTicket}
-            style={{ backgroundColor: COLORS.primary, marginBottom: 12 }}
+            style={{ backgroundColor: isPendingDriver ? '#f59e0b' : COLORS.primary, marginBottom: 12 }}
           />
 
           <Button

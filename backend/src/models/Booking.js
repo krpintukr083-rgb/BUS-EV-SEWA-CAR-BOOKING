@@ -97,8 +97,35 @@ const bookingSchema = new mongoose.Schema(
     },
     bookingStatus: {
       type: String,
-      enum: ['Pending', 'Confirmed', 'Ongoing', 'Completed', 'Cancelled', 'Rejected'],
+      enum: ['Pending', 'Pending Driver Confirmation', 'Confirmed', 'Ongoing', 'Completed', 'Cancelled', 'Rejected'],
       default: 'Pending'
+    },
+    driverConfirmationStatus: {
+      type: String,
+      enum: ['Pending', 'Confirmed', 'Rejected'],
+      default: 'Pending'
+    },
+    driverConfirmed: {
+      type: Boolean,
+      default: false
+    },
+    driverConfirmedAt: {
+      type: Date,
+      default: null
+    },
+    driverConfirmedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Driver',
+      default: null
+    },
+    rejectedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Driver',
+      default: null
+    },
+    rejectedAt: {
+      type: Date,
+      default: null
     },
     cancellationStatus: {
       type: String,
@@ -129,6 +156,7 @@ bookingSchema.index({ driver: 1, bookingStatus: 1, createdAt: -1 });
 bookingSchema.index({ vehicle: 1, bookingStatus: 1 });
 bookingSchema.index({ vehicleSource: 1 });
 bookingSchema.index({ bookingStatus: 1, createdAt: -1 });
+bookingSchema.index({ driverConfirmationStatus: 1 });
 bookingSchema.index({ 'customer.phone': 1 });
 bookingSchema.index({ paymentStatus: 1 });
 

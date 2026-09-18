@@ -10,6 +10,9 @@ const BookingRequests = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
+  // Confirmation modal state for Accepting/Rejecting
+  const [confirmModal, setConfirmModal] = useState(null); // { type: 'accept'|'reject', booking: req }
+
   // Cash collection modal state
   const [collectingBooking, setCollectingBooking] = useState(null);
   const [collectingLoading, setCollectingLoading] = useState(false);
@@ -31,35 +34,36 @@ const BookingRequests = () => {
     fetchRequests();
   }, []);
 
-  const handleAccept = async id => {
-    setActionLoading(id);
-    setMessage('');
+  const handleOpenConfirmModal = (type, booking) => {
+    setConfirmModal({ type, booking });
     setError('');
-    try {
-      const res = await driverService.acceptBookingRequest(id);
-      if (res.success) {
-        setMessage(`Booking ${res.data.bookingId} accepted successfully!`);
-        await fetchRequests();
-      }
-    } catch (err) {
-      setError(err.response?.data?.message || 'Failed to accept booking');
-    } finally {
-      setActionLoading(null);
-    }
+    setMessage('');
   };
 
-  const handleReject = async id => {
-    setActionLoading(id);
+  const handleExecuteBookingAction = async () => {
+    if (!confirmModal) return;
+    const { type, booking } = confirmModal;
+    setActionLoading(booking._id);
     setMessage('');
     setError('');
     try {
-      const res = await driverService.rejectBookingRequest(id);
-      if (res.success) {
-        setMessage(`Booking ${res.data.bookingId} declined.`);
-        await fetchRequests();
+      if (type === 'accept') {
+        const res = await driverService.acceptBookingRequest(booking._id);
+        if (res.success) {
+          setMessage(`Booking ${booking.bookingId} confirmed successfully! Customer ticket is now active.`);
+          setConfirmModal(null);
+          await fetchRequests();
+        }
+      } else {
+        const res = await driverService.rejectBookingRequest(booking._id);
+        if (res.success) {
+          setMessage(`Booking ${booking.bookingId} has been rejected.`);
+          setConfirmModal(null);
+          await fetchRequests();
+        }
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to decline booking');
+      setError(err.response?.data?.message || `Failed to ${type} booking`);
     } finally {
       setActionLoading(null);
     }
@@ -101,7 +105,7 @@ const BookingRequests = () => {
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#0f172a' }}>Assigned Trips & Booking Requests</h2>
           <p style={{ fontSize: '0.875rem', color: '#64748b' }}>
-            Manage allocated passenger bookings, verify boarding passes, and collect on-spot Offline Cash fares.
+            Review pending passenger bookings, confirm seat reservations, and collect on-spot Offline Cash fares.
           </p>
         </div>
         <button onClick={fetchRequests} className="btn btn-outline" style={{ fontSize: '0.85rem' }}>
@@ -158,7 +162,21 @@ const BookingRequests = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           {requests.map(req => {
             const isOfflineCash = req.paymentMethod === 'Offline Cash' || req.paymentMethod === 'Cash';
+            const isPendingConfirmation =
+              req.bookingStatus === 'Pending Driver Confirmation' ||
+              req.bookingStatus === 'Pending' ||
+              req.driverConfirmationStatus === 'Pending';
             const isCashPending = isOfflineCash && (req.paymentStatus === 'Pending Cash' || !req.cashCollected);
+
+            const travelDateStr = req.travelDate
+              ? new Date(req.travelDate).toLocaleDateString('en-IN', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric'
+                })
+              : 'Today';
+
+            const passengerCount = req.passengerDetails?.length || req.busSeatNumbers?.length || 1;
 
             return (
               <div key={req._id} className="content-card" style={{ marginBottom: 0 }}>
@@ -179,6 +197,30 @@ const BookingRequests = () => {
                       <span style={{ fontSize: '1.1rem', fontWeight: '800', color: '#1d4ed8' }}>{req.bookingId}</span>
                       <span className="badge badge-pending">{req.serviceType}</span>
                       <StatusBadge status={req.bookingStatus} />
+                      {req.driverConfirmationStatus && (
+                        <span
+                          style={{
+                            fontSize: '0.75rem',
+                            fontWeight: '700',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            backgroundColor:
+                              req.driverConfirmationStatus === 'Confirmed'
+                                ? '#dcfce7'
+                                : req.driverConfirmationStatus === 'Rejected'
+                                ? '#fee2e2'
+                                : '#fef3c7',
+                            color:
+                              req.driverConfirmationStatus === 'Confirmed'
+                                ? '#15803d'
+                                : req.driverConfirmationStatus === 'Rejected'
+                                ? '#b91c1c'
+                                : '#b45309'
+                          }}
+                        >
+                          Driver: {req.driverConfirmationStatus}
+                        </span>
+                      )}
                       {isOfflineCash ? (
                         <span
                           style={{
@@ -212,7 +254,7 @@ const BookingRequests = () => {
                       )}
                     </div>
                     <div style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '4px' }}>
-                      Vehicle: <strong>{req.vehicle?.vehicleName || 'Fleet Vehicle'}</strong> ({req.vehicle?.vehicleNumber || 'Unassigned'})
+                      Vehicle: <strong>{req.vehicle?.vehicleName || req.vehicle?.busName || 'Fleet Vehicle'}</strong> ({req.vehicle?.vehicleNumber || req.vehicle?.busNumber || 'Unassigned'})
                     </div>
                   </div>
 
@@ -236,7 +278,7 @@ const BookingRequests = () => {
                 >
                   <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
                     <div style={{ fontSize: '0.8rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
-                      <MapPin size={14} color="#1d4ed8" /> Route Details
+                      <MapPin size={14} color="#1d4ed8" /> Route & Schedule
                     </div>
                     <div style={{ fontSize: '0.875rem', fontWeight: '600' }}>
                       <strong>Pickup:</strong> {req.pickupLocation}
@@ -244,19 +286,23 @@ const BookingRequests = () => {
                     <div style={{ fontSize: '0.875rem', fontWeight: '600', marginTop: '4px' }}>
                       <strong>Drop-off:</strong> {req.dropLocation}
                     </div>
+                    <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Calendar size={13} />
+                      <span>{travelDateStr} • {req.journeyTime || req.pickupTime || req.vehicle?.departureTime || 'Scheduled'}</span>
+                    </div>
                     {req.busSeatNumbers && req.busSeatNumbers.length > 0 && (
                       <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#1d4ed8', marginTop: '6px' }}>
-                        Selected Seats: {req.busSeatNumbers.join(', ')}
+                        Selected Seats ({passengerCount}): {req.busSeatNumbers.join(', ')}
                       </div>
                     )}
                   </div>
 
                   <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
                     <div style={{ fontSize: '0.8rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
-                      <Users size={14} color="#1d4ed8" /> Customer & Passengers
+                      <Users size={14} color="#1d4ed8" /> Customer & Passengers ({passengerCount})
                     </div>
-                    <div style={{ fontSize: '0.875rem', fontWeight: '700', color: '#0f172a' }}>
-                      {req.customer?.name} ({req.customer?.phone})
+                    <div style={{ fontSize: '0.875rem', fontWeight: '700', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Phone size={13} color="#64748b" /> {req.customer?.name} ({req.customer?.phone || req.customer?.mobileNumber})
                     </div>
                     <div style={{ fontSize: '0.825rem', color: '#475569', marginTop: '4px' }}>
                       {req.passengerDetails && req.passengerDetails.length > 0
@@ -268,44 +314,54 @@ const BookingRequests = () => {
 
                 {/* Cash collection banner or Actions */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                  {isOfflineCash && (
-                    <div style={{ fontSize: '0.82rem', color: isCashPending ? '#b45309' : '#15803d', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      {isCashPending ? (
-                        <>
-                          <AlertCircle size={15} />
-                          <span>Passenger must pay <strong>₹{req.fare}</strong> in cash upon boarding.</span>
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle2 size={15} color="#16a34a" />
-                          <span>Cash fare collected and verified in system.</span>
-                        </>
-                      )}
-                    </div>
-                  )}
+                  <div>
+                    {isPendingConfirmation && (
+                      <div style={{ fontSize: '0.82rem', color: '#b45309', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <AlertCircle size={15} />
+                        <span>Awaiting your confirmation to generate customer digital boarding pass.</span>
+                      </div>
+                    )}
+                    {isOfflineCash && !isPendingConfirmation && (
+                      <div style={{ fontSize: '0.82rem', color: isCashPending ? '#b45309' : '#15803d', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {isCashPending ? (
+                          <>
+                            <AlertCircle size={15} />
+                            <span>Passenger must pay <strong>₹{req.fare}</strong> in cash upon boarding.</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 size={15} color="#16a34a" />
+                            <span>Cash fare collected and verified in system.</span>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
 
                   <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto' }}>
-                    {req.bookingStatus === 'Pending' && (
+                    {isPendingConfirmation && (
                       <>
                         <button
-                          onClick={() => handleReject(req._id)}
+                          type="button"
+                          onClick={() => handleOpenConfirmModal('reject', req)}
                           className="btn btn-outline"
                           style={{ color: '#ef4444', borderColor: '#fca5a5' }}
                           disabled={actionLoading === req._id}
                         >
-                          <X size={16} /> Decline
+                          <X size={16} /> Reject Booking
                         </button>
                         <button
-                          onClick={() => handleAccept(req._id)}
+                          type="button"
+                          onClick={() => handleOpenConfirmModal('accept', req)}
                           className="btn btn-primary"
                           disabled={actionLoading === req._id}
                         >
-                          <Check size={16} /> {actionLoading === req._id ? 'Accepting...' : 'Accept Trip'}
+                          <Check size={16} /> {actionLoading === req._id ? 'Confirming...' : 'Confirm Booking'}
                         </button>
                       </>
                     )}
 
-                    {isCashPending && (
+                    {!isPendingConfirmation && isCashPending && (
                       <button
                         type="button"
                         onClick={() => handleOpenCollectCashModal(req)}
@@ -316,7 +372,7 @@ const BookingRequests = () => {
                       </button>
                     )}
 
-                    {isOfflineCash && !isCashPending && (
+                    {!isPendingConfirmation && isOfflineCash && !isCashPending && (
                       <div
                         style={{
                           display: 'inline-flex',
@@ -339,6 +395,59 @@ const BookingRequests = () => {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Confirmation Action Modal */}
+      {confirmModal && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '460px' }}>
+            <div className="card-header-flex">
+              <h3 className="card-title">
+                {confirmModal.type === 'accept' ? 'Confirm Passenger Booking?' : 'Reject Passenger Booking?'}
+              </h3>
+              <button className="btn btn-outline btn-sm" onClick={() => setConfirmModal(null)}>✕</button>
+            </div>
+
+            <div style={{ margin: '16px 0', padding: '14px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '0.85rem' }}>
+              <div style={{ marginBottom: '6px' }}><strong>Booking ID:</strong> {confirmModal.booking.bookingId}</div>
+              <div style={{ marginBottom: '6px' }}><strong>Customer:</strong> {confirmModal.booking.customer?.name} ({confirmModal.booking.customer?.phone})</div>
+              <div style={{ marginBottom: '6px' }}><strong>Route:</strong> {confirmModal.booking.pickupLocation} → {confirmModal.booking.dropLocation}</div>
+              {confirmModal.booking.busSeatNumbers?.length > 0 && (
+                <div style={{ marginBottom: '6px' }}><strong>Seats:</strong> {confirmModal.booking.busSeatNumbers.join(', ')}</div>
+              )}
+              <div><strong>Fare:</strong> ₹{confirmModal.booking.fare} ({confirmModal.booking.paymentMethod})</div>
+            </div>
+
+            <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '20px' }}>
+              {confirmModal.type === 'accept'
+                ? 'Confirming this booking will activate the passenger\'s digital ticket and seat allocation.'
+                : 'Declining this booking will release the seats and mark the booking as rejected.'}
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={() => setConfirmModal(null)}
+                disabled={actionLoading}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleExecuteBookingAction}
+                disabled={actionLoading}
+                style={{
+                  backgroundColor: confirmModal.type === 'accept' ? '#1d4ed8' : '#dc2626',
+                  borderColor: confirmModal.type === 'accept' ? '#1d4ed8' : '#dc2626'
+                }}
+              >
+                {confirmModal.type === 'accept' ? 'Yes, Confirm Booking' : 'Yes, Reject Booking'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

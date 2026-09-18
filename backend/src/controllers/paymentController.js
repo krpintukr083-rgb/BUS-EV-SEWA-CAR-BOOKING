@@ -227,7 +227,7 @@ exports.verifyRazorpayPayment = async (req, res, next) => {
     // DUPLICATE PROTECTION: Check if payment is already successfully confirmed
     let payment = await Payment.findOne({ booking: booking._id });
     if (
-      booking.bookingStatus === 'Confirmed' &&
+      (booking.bookingStatus === 'Confirmed' || (booking.bookingStatus === 'Pending Driver Confirmation' && booking.paymentStatus === 'Successful')) &&
       payment &&
       payment.paymentStatus === 'Successful' &&
       payment.razorpayPaymentId === razorpayPaymentId
@@ -301,9 +301,12 @@ exports.verifyRazorpayPayment = async (req, res, next) => {
       });
     }
 
-    // Update Booking status to Confirmed & Paid
+    // Update Booking status to Successful payment
+    const isBus = booking.serviceType === 'Bus';
     booking.paymentStatus = 'Successful';
-    booking.bookingStatus = 'Confirmed';
+    booking.bookingStatus = isBus ? 'Pending Driver Confirmation' : 'Confirmed';
+    booking.driverConfirmationStatus = isBus ? 'Pending' : 'Confirmed';
+    booking.driverConfirmed = !isBus;
     await booking.save();
 
     // Create / Update Insurance record
@@ -327,8 +330,10 @@ exports.verifyRazorpayPayment = async (req, res, next) => {
 
     // Create Notification
     await Notification.create({
-      title: 'Booking Confirmed!',
-      message: `Your booking ${booking.bookingId} (${booking.serviceType}) is confirmed via Razorpay test payment of ₹${booking.fare}.`,
+      title: isBus ? 'Booking Request Sent' : 'Booking Confirmed!',
+      message: isBus
+        ? 'Your bus booking request has been sent to the assigned driver.'
+        : 'Your booking has been confirmed.',
       recipient: `Customer: ${booking.customer.name}`,
       recipientRole: 'customer',
       recipientId: req.user ? req.user._id : null,
@@ -337,7 +342,9 @@ exports.verifyRazorpayPayment = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'Razorpay payment verified and booking confirmed successfully!',
+      message: isBus
+        ? 'Razorpay payment verified! Waiting for assigned driver/conductor confirmation.'
+        : 'Razorpay payment verified and booking confirmed!',
       data: {
         booking,
         payment,
@@ -448,10 +455,15 @@ exports.razorpayWebhook = async (req, res, next) => {
         paymentRecord.transactionReference = paymentId;
         await paymentRecord.save();
 
-        await Booking.findByIdAndUpdate(paymentRecord.booking, {
-          paymentStatus: 'Successful',
-          bookingStatus: 'Confirmed'
-        });
+        const targetBooking = await Booking.findById(paymentRecord.booking);
+        if (targetBooking) {
+          const isBus = targetBooking.serviceType === 'Bus';
+          targetBooking.paymentStatus = 'Successful';
+          targetBooking.bookingStatus = isBus ? 'Pending Driver Confirmation' : 'Confirmed';
+          targetBooking.driverConfirmationStatus = isBus ? 'Pending' : 'Confirmed';
+          targetBooking.driverConfirmed = !isBus;
+          await targetBooking.save();
+        }
       }
     }
 
@@ -549,9 +561,12 @@ exports.testPaymentSuccess = async (req, res, next) => {
       });
     }
 
-    // Update Booking status to Confirmed
+    // Update Booking status to Successful payment
+    const isBus = booking.serviceType === 'Bus';
     booking.paymentStatus = 'Successful';
-    booking.bookingStatus = 'Confirmed';
+    booking.bookingStatus = isBus ? 'Pending Driver Confirmation' : 'Confirmed';
+    booking.driverConfirmationStatus = isBus ? 'Pending' : 'Confirmed';
+    booking.driverConfirmed = !isBus;
     await booking.save();
 
     // Create / Update Insurance record
@@ -575,8 +590,10 @@ exports.testPaymentSuccess = async (req, res, next) => {
 
     // Create Notification
     await Notification.create({
-      title: 'Booking Confirmed!',
-      message: `Your booking ${booking.bookingId} (${booking.serviceType}) is confirmed. Payment of ₹${booking.fare} was successful.`,
+      title: isBus ? 'Booking Request Sent' : 'Booking Confirmed!',
+      message: isBus
+        ? 'Your bus booking request has been sent to the assigned driver.'
+        : 'Your booking has been confirmed.',
       recipient: `Customer: ${booking.customer.name}`,
       recipientRole: 'customer',
       recipientId: req.user ? req.user._id : null,
@@ -585,7 +602,9 @@ exports.testPaymentSuccess = async (req, res, next) => {
 
     res.json({
       success: true,
-      message: 'Payment Successful! Booking Confirmed.',
+      message: isBus
+        ? 'Payment Successful! Waiting for assigned driver/conductor confirmation.'
+        : 'Payment Successful! Booking confirmed.',
       data: {
         booking,
         payment,

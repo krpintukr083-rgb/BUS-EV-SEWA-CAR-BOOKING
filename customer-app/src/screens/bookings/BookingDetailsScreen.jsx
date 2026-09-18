@@ -56,9 +56,11 @@ const BookingDetailsScreen = ({ route, navigation }) => {
     );
   }
 
+  const isPendingDriver = booking.bookingStatus === 'Pending Driver Confirmation';
   const isCancellable =
     booking.bookingStatus === 'Confirmed' ||
-    booking.bookingStatus === 'Pending';
+    booking.bookingStatus === 'Pending' ||
+    booking.bookingStatus === 'Pending Driver Confirmation';
 
   const travelDateFormatted = booking.travelDate
     ? new Date(booking.travelDate).toLocaleDateString('en-IN', {
@@ -78,6 +80,19 @@ const BookingDetailsScreen = ({ route, navigation }) => {
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Pending Driver Alert */}
+        {isPendingDriver && (
+          <View style={styles.pendingStatusBanner}>
+            <Ionicons name="time" size={22} color="#b45309" />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.pendingBannerTitle}>Waiting for Driver Confirmation</Text>
+              <Text style={styles.pendingBannerSub}>
+                Your booking request has been sent to the assigned vehicle crew. Your boarding pass will activate once confirmed.
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* Top Header Card */}
         <View style={styles.topCard}>
           <View style={styles.rowBetween}>
@@ -460,6 +475,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.danger,
     marginVertical: 12
+  },
+  pendingStatusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef3c7',
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#fde68a',
+    marginBottom: 16
+  },
+  pendingBannerTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400e'
+  },
+  pendingBannerSub: {
+    fontSize: 11,
+    color: '#b45309',
+    marginTop: 2,
+    lineHeight: 16
   }
 });
 

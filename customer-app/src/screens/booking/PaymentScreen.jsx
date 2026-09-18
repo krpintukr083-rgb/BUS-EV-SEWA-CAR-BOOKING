@@ -639,14 +639,14 @@ const PaymentScreen = ({ route, navigation }) => {
           <Ionicons name="checkmark" size={44} color="#ffffff" />
         </View>
         <Text style={styles.stateTitle}>
-          {isOffline ? 'Offline Cash Booking Confirmed!' : 'Razorpay Payment Verified!'}
+          {isOffline ? 'Booking Request Sent!' : 'Payment Verified — Request Sent!'}
         </Text>
         <Text style={styles.stateSub}>
           {isOffline
-            ? 'Payment Status: Pending Cash (Pay upon Boarding)'
-            : `Payment ID: ${transactionId}`}
+            ? 'Waiting for assigned driver/conductor confirmation. Pay upon boarding.'
+            : 'Payment authorized. Waiting for assigned driver/conductor confirmation.'}
         </Text>
-        <Text style={styles.redirectText}>Generating your digital ticket...</Text>
+        <Text style={styles.redirectText}>Opening your booking summary...</Text>
       </View>
     );
   }
@@ -783,7 +783,7 @@ const PaymentScreen = ({ route, navigation }) => {
               • No immediate online payment is required.
             </Text>
             <Text style={styles.offlineGuideText}>
-              • Your seats are reserved with Confirmed booking status.
+              • Booking request will be sent to the assigned driver/conductor for confirmation.
             </Text>
             <Text style={styles.offlineGuideText}>
               • Pay the exact fare of <Text style={{ fontWeight: '800' }}>₹{finalPayable}</Text> in cash to the conductor or driver when boarding.

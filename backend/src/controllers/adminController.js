@@ -1103,6 +1103,7 @@ exports.getBookings = async (req, res, next) => {
     const bookings = await Booking.find(filter)
       .populate('vehicle')
       .populate('driver')
+      .populate('driverConfirmedBy', 'name phone email')
       .sort({ createdAt: -1 });
 
     res.json({ success: true, count: bookings.length, data: bookings });

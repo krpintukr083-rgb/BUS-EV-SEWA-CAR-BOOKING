@@ -4,6 +4,7 @@ const Vehicle = require('../models/Vehicle');
 const Booking = require('../models/Booking');
 const Payment = require('../models/Payment');
 const User = require('../models/User');
+const Notification = require('../models/Notification');
 const { dashboardCache } = require('../utils/cache');
 
 // @desc    Get Driver Dashboard Summary
@@ -38,7 +39,7 @@ exports.getDriverDashboard = async (req, res, next) => {
           { driver: driver._id },
           ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
         ],
-        bookingStatus: 'Pending'
+        bookingStatus: { $in: ['Pending Driver Confirmation', 'Pending'] }
       })
         .select('bookingId customer serviceType pickupLocation dropLocation fare driverPaymentAmount paymentStatus bookingStatus travelDate passengerDetails busSeatNumbers vehicle driver createdAt')
         .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory vehicleStatus seatingCapacity')
@@ -258,7 +259,7 @@ exports.getBookingRequests = async (req, res, next) => {
         { driver: driver._id },
         ...(vehicleId ? [{ vehicle: vehicleId }] : [])
       ],
-      bookingStatus: { $in: ['Pending', 'Confirmed', 'Ongoing'] }
+      bookingStatus: { $in: ['Pending Driver Confirmation', 'Pending', 'Confirmed', 'Ongoing'] }
     })
       .populate('vehicle')
       .populate('driver')
@@ -285,15 +286,43 @@ exports.getBookingRequests = async (req, res, next) => {
   }
 };
 
-// @desc    Accept Booking Request
+// @desc    Accept / Confirm Booking Request (Assigned Driver / Conductor)
 // @route   POST /api/driver/booking-requests/:id/accept
 // @access  Private (Driver Only)
 exports.acceptBookingRequest = async (req, res, next) => {
   try {
-    const booking = await Booking.findById(req.params.id);
+    const booking = await Booking.findById(req.params.id).populate('vehicle');
 
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking request not found' });
+    }
+
+    // 1. Cross-Driver Authorization Security Barrier
+    const driverId = req.driver._id.toString();
+    const driverAssignedVehicleId = req.driver.assignedVehicle
+      ? (req.driver.assignedVehicle._id || req.driver.assignedVehicle).toString()
+      : null;
+
+    const bookingVehicleId = booking.vehicle
+      ? (booking.vehicle._id || booking.vehicle).toString()
+      : null;
+
+    const bookingDriverId = booking.driver
+      ? (booking.driver._id || booking.driver).toString()
+      : null;
+
+    const vehicleAssignedDriverId = (booking.vehicle && booking.vehicle.assignedDriver)
+      ? (booking.vehicle.assignedDriver._id || booking.vehicle.assignedDriver).toString()
+      : null;
+
+    const isAssignedDriver = bookingDriverId === driverId || vehicleAssignedDriverId === driverId;
+    const isAssignedVehicle = driverAssignedVehicleId && bookingVehicleId && driverAssignedVehicleId === bookingVehicleId;
+
+    if (!isAssignedDriver && !isAssignedVehicle) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access Denied: You are not authorized to confirm bookings for another driver or vehicle.'
+      });
     }
 
     if (req.driver.driverStatus !== 'Active') {
@@ -303,13 +332,39 @@ exports.acceptBookingRequest = async (req, res, next) => {
       });
     }
 
+    const now = new Date();
     booking.bookingStatus = 'Confirmed';
+    booking.driverConfirmationStatus = 'Confirmed';
+    booking.driverConfirmed = true;
+    booking.driverConfirmedAt = now;
+    booking.driverConfirmedBy = req.driver._id;
     booking.driver = req.driver._id;
     await booking.save();
 
+    // Create Notification for Customer
+    let customerUserId = null;
+    if (booking.customer && (booking.customer.phone || booking.customer.email)) {
+      const orConditions = [];
+      if (booking.customer.phone) orConditions.push({ phone: booking.customer.phone });
+      if (booking.customer.email) orConditions.push({ email: booking.customer.email });
+      if (orConditions.length > 0) {
+        const custUser = await User.findOne({ $or: orConditions });
+        if (custUser) customerUserId = custUser._id;
+      }
+    }
+
+    await Notification.create({
+      title: 'Booking Confirmed!',
+      message: `Your bus booking #${booking.bookingId} has been confirmed. Your digital ticket is active.`,
+      recipient: `Customer: ${booking.customer?.name || 'Passenger'}`,
+      recipientRole: 'customer',
+      recipientId: customerUserId,
+      status: 'Unread'
+    });
+
     res.json({
       success: true,
-      message: 'Booking request accepted successfully',
+      message: 'Booking request confirmed successfully',
       data: booking
     });
   } catch (error) {
@@ -317,19 +372,73 @@ exports.acceptBookingRequest = async (req, res, next) => {
   }
 };
 
-// @desc    Reject Booking Request
+// @desc    Reject Booking Request (Assigned Driver / Conductor)
 // @route   POST /api/driver/booking-requests/:id/reject
 // @access  Private (Driver Only)
 exports.rejectBookingRequest = async (req, res, next) => {
   try {
-    const booking = await Booking.findById(req.params.id);
+    const booking = await Booking.findById(req.params.id).populate('vehicle');
 
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking request not found' });
     }
 
+    // 1. Cross-Driver Authorization Security Barrier
+    const driverId = req.driver._id.toString();
+    const driverAssignedVehicleId = req.driver.assignedVehicle
+      ? (req.driver.assignedVehicle._id || req.driver.assignedVehicle).toString()
+      : null;
+
+    const bookingVehicleId = booking.vehicle
+      ? (booking.vehicle._id || booking.vehicle).toString()
+      : null;
+
+    const bookingDriverId = booking.driver
+      ? (booking.driver._id || booking.driver).toString()
+      : null;
+
+    const vehicleAssignedDriverId = (booking.vehicle && booking.vehicle.assignedDriver)
+      ? (booking.vehicle.assignedDriver._id || booking.vehicle.assignedDriver).toString()
+      : null;
+
+    const isAssignedDriver = bookingDriverId === driverId || vehicleAssignedDriverId === driverId;
+    const isAssignedVehicle = driverAssignedVehicleId && bookingVehicleId && driverAssignedVehicleId === bookingVehicleId;
+
+    if (!isAssignedDriver && !isAssignedVehicle) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access Denied: You are not authorized to reject bookings for another driver or vehicle.'
+      });
+    }
+
+    const now = new Date();
     booking.bookingStatus = 'Rejected';
+    booking.driverConfirmationStatus = 'Rejected';
+    booking.driverConfirmed = false;
+    booking.rejectedBy = req.driver._id;
+    booking.rejectedAt = now;
     await booking.save();
+
+    // Create Notification for Customer
+    let customerUserId = null;
+    if (booking.customer && (booking.customer.phone || booking.customer.email)) {
+      const orConditions = [];
+      if (booking.customer.phone) orConditions.push({ phone: booking.customer.phone });
+      if (booking.customer.email) orConditions.push({ email: booking.customer.email });
+      if (orConditions.length > 0) {
+        const custUser = await User.findOne({ $or: orConditions });
+        if (custUser) customerUserId = custUser._id;
+      }
+    }
+
+    await Notification.create({
+      title: 'Booking Rejected',
+      message: `Your bus booking #${booking.bookingId} has been rejected by driver.`,
+      recipient: `Customer: ${booking.customer?.name || 'Passenger'}`,
+      recipientRole: 'customer',
+      recipientId: customerUserId,
+      status: 'Unread'
+    });
 
     res.json({
       success: true,
@@ -513,7 +622,14 @@ exports.getDriverSupport = async (req, res, next) => {
 exports.collectCash = async (req, res, next) => {
   try {
     const driver = req.driver;
-    const bookingIdParam = req.params.id;
+    const bookingIdParam = req.params.id || req.body?.bookingId;
+
+    if (!bookingIdParam) {
+      return res.status(400).json({
+        success: false,
+        message: 'Booking ID is required to collect cash'
+      });
+    }
 
     const query = mongoose.isValidObjectId(bookingIdParam)
       ? { $or: [{ _id: bookingIdParam }, { bookingId: bookingIdParam }] }
@@ -582,8 +698,12 @@ exports.collectCash = async (req, res, next) => {
     if (!booking.driver) {
       booking.driver = driver._id;
     }
-    if (booking.bookingStatus === 'Pending') {
+    if (booking.bookingStatus === 'Pending' || booking.bookingStatus === 'Pending Driver Confirmation') {
       booking.bookingStatus = 'Confirmed';
+      booking.driverConfirmationStatus = 'Confirmed';
+      booking.driverConfirmed = true;
+      if (!booking.driverConfirmedAt) booking.driverConfirmedAt = now;
+      if (!booking.driverConfirmedBy) booking.driverConfirmedBy = driver._id;
     }
     await booking.save();
 

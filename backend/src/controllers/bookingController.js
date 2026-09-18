@@ -79,7 +79,7 @@ exports.createBooking = async (req, res, next) => {
     if (serviceType === 'Bus' && selectedSeats && selectedSeats.length > 0) {
       const activeBookings = await Booking.find({
         vehicle: vehicle._id,
-        bookingStatus: { $in: ['Confirmed', 'Pending', 'Ongoing'] }
+        bookingStatus: { $in: ['Confirmed', 'Pending', 'Pending Driver Confirmation', 'Ongoing'] }
       });
 
       const alreadyBooked = [];
@@ -105,10 +105,11 @@ exports.createBooking = async (req, res, next) => {
 
     const bookingId = `BK-${Date.now().toString().slice(-4)}${Math.floor(100 + Math.random() * 900)}`;
 
+    const isBus = serviceType === 'Bus';
     const isOfflineCash = paymentMethod === 'Offline Cash' || paymentMethod === 'Cash';
     const initialPaymentMethod = isOfflineCash ? 'Offline Cash' : (paymentMethod || 'Online Razorpay');
     const initialPaymentStatus = isOfflineCash ? 'Pending Cash' : 'Pending';
-    const initialBookingStatus = isOfflineCash ? 'Confirmed' : 'Pending';
+    const initialBookingStatus = isBus ? 'Pending Driver Confirmation' : 'Pending';
 
     const isThirdParty = vehicle.vehicleSource === 'THIRD_PARTY';
     const hiredVehicleDetails = isThirdParty ? {
@@ -149,6 +150,10 @@ exports.createBooking = async (req, res, next) => {
       cashCollectedAt: null,
       cashCollectedBy: null,
       bookingStatus: initialBookingStatus,
+      driverConfirmationStatus: 'Pending',
+      driverConfirmed: false,
+      driverConfirmedAt: null,
+      driverConfirmedBy: null,
       travelDate: travelDate ? new Date(travelDate) : new Date(),
       busSeatNumbers: selectedSeats || []
     });
@@ -171,10 +176,22 @@ exports.createBooking = async (req, res, next) => {
       cashCollected: false
     });
 
+    // Create Customer Notification
+    await Notification.create({
+      title: isBus ? 'Booking Request Sent' : 'Booking Created',
+      message: isBus
+        ? 'Your bus booking request has been sent to the assigned driver.'
+        : 'Your booking has been created.',
+      recipient: `Customer: ${booking.customer.name}`,
+      recipientRole: 'customer',
+      recipientId: req.user._id,
+      status: 'Unread'
+    });
+
     res.status(201).json({
       success: true,
       message: isOfflineCash
-        ? 'Booking confirmed with Offline Cash payment. Please pay the fare to the conductor/driver upon boarding.'
+        ? 'Booking request sent with Offline Cash payment. Waiting for assigned driver/conductor confirmation.'
         : 'Booking created successfully. Proceed to payment.',
       data: booking,
       payment
@@ -204,7 +221,7 @@ exports.getMyBookings = async (req, res, next) => {
       .populate('driver')
       .sort({ createdAt: -1 });
 
-    const upcoming = bookings.filter((b) => ['Pending', 'Confirmed', 'Ongoing'].includes(b.bookingStatus));
+    const upcoming = bookings.filter((b) => ['Pending', 'Pending Driver Confirmation', 'Confirmed', 'Ongoing'].includes(b.bookingStatus));
     const completed = bookings.filter((b) => ['Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus));
 
     res.json({
@@ -382,7 +399,9 @@ exports.confirmOfflineCashBooking = async (req, res, next) => {
 
     booking.paymentMethod = 'Offline Cash';
     booking.paymentStatus = 'Pending Cash';
-    booking.bookingStatus = 'Confirmed';
+    booking.bookingStatus = 'Pending Driver Confirmation';
+    booking.driverConfirmationStatus = 'Pending';
+    booking.driverConfirmed = false;
     booking.cashCollected = false;
     await booking.save();
 
@@ -414,9 +433,19 @@ exports.confirmOfflineCashBooking = async (req, res, next) => {
       });
     }
 
+    // Create Notification
+    await Notification.create({
+      title: 'Booking Request Sent',
+      message: 'Your bus booking request has been sent to the assigned driver.',
+      recipient: `Customer: ${booking.customer.name}`,
+      recipientRole: 'customer',
+      recipientId: req.user._id,
+      status: 'Unread'
+    });
+
     res.json({
       success: true,
-      message: 'Booking confirmed with Offline Cash payment. Please pay the fare to the conductor/driver upon boarding.',
+      message: 'Booking request sent with Offline Cash payment. Waiting for assigned driver/conductor confirmation.',
       data: {
         booking,
         payment

@@ -100,7 +100,7 @@ const DigitalTicketScreen = ({ route, navigation }) => {
                 <Ionicons name="bus" size={20} color="#ffffff" />
                 <Text style={styles.brandTitle}>TravelEase Pass</Text>
               </View>
-              <View style={styles.statusPill}>
+              <View style={[styles.statusPill, booking.bookingStatus === 'Pending Driver Confirmation' && { backgroundColor: '#f59e0b' }, booking.bookingStatus === 'Rejected' && { backgroundColor: '#ef4444' }]}>
                 <Text style={styles.statusPillText}>{booking.bookingStatus || 'Confirmed'}</Text>
               </View>
             </View>
@@ -205,8 +205,29 @@ const DigitalTicketScreen = ({ route, navigation }) => {
               <View style={styles.cutoutRight} />
             </View>
 
-            {/* QR Code Section */}
-            <QRCodeWidget code={booking.bookingId} />
+            {/* QR Code Section or Pending Notice */}
+            {booking.bookingStatus === 'Confirmed' ? (
+              <QRCodeWidget code={booking.bookingId} />
+            ) : booking.bookingStatus === 'Pending Driver Confirmation' ? (
+              <View style={styles.pendingQrBox}>
+                <Ionicons name="hourglass-outline" size={40} color="#f59e0b" />
+                <Text style={styles.pendingQrTitle}>Boarding Pass Inactive</Text>
+                <Text style={styles.pendingQrSub}>
+                  Waiting for assigned driver/conductor confirmation. QR pass will activate immediately upon confirmation.
+                </Text>
+                <View style={styles.bookingIdTag}>
+                  <Text style={styles.bookingIdTagText}>Booking #{booking.bookingId}</Text>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.pendingQrBox}>
+                <Ionicons name="close-circle-outline" size={40} color="#ef4444" />
+                <Text style={[styles.pendingQrTitle, { color: '#ef4444' }]}>Booking {booking.bookingStatus}</Text>
+                <Text style={styles.pendingQrSub}>
+                  This booking is {booking.bookingStatus?.toLowerCase()}. No boarding pass is active.
+                </Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -448,6 +469,45 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 2,
     lineHeight: 16
+  },
+  pendingQrBox: {
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    marginVertical: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderStyle: 'dashed'
+  },
+  pendingQrTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginTop: 8
+  },
+  pendingQrSub: {
+    fontSize: 12,
+    color: '#64748b',
+    textAlign: 'center',
+    marginTop: 4,
+    lineHeight: 18,
+    maxWidth: 280
+  },
+  bookingIdTag: {
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    backgroundColor: '#eff6ff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#bfdbfe'
+  },
+  bookingIdTagText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1d4ed8'
   },
   guidelineCard: {
     backgroundColor: '#ffffff',

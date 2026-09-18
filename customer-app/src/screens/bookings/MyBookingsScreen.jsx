@@ -40,11 +40,16 @@ const MyBookingsScreen = ({ navigation }) => {
   }, []);
 
   const upcomingBookings = bookings.filter(
-    b => b.bookingStatus === 'Pending' || b.bookingStatus === 'Confirmed' || b.bookingStatus === 'In-Transit'
+    b =>
+      b.bookingStatus === 'Pending' ||
+      b.bookingStatus === 'Pending Driver Confirmation' ||
+      b.bookingStatus === 'Confirmed' ||
+      b.bookingStatus === 'In-Transit' ||
+      b.bookingStatus === 'Ongoing'
   );
 
   const completedBookings = bookings.filter(
-    b => b.bookingStatus === 'Completed' || b.bookingStatus === 'Cancelled'
+    b => b.bookingStatus === 'Completed' || b.bookingStatus === 'Cancelled' || b.bookingStatus === 'Rejected'
   );
 
   const displayedBookings = activeTab === 'Upcoming' ? upcomingBookings : completedBookings;

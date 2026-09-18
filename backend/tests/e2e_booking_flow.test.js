@@ -2,6 +2,7 @@ const request = require('supertest');
 const app = require('../src/app');
 const { connectTestDB, closeTestDB } = require('./setup');
 const User = require('../src/models/User');
+const Driver = require('../src/models/Driver');
 const Vehicle = require('../src/models/Vehicle');
 const Booking = require('../src/models/Booking');
 const Payment = require('../src/models/Payment');
@@ -14,6 +15,8 @@ const ServiceControl = require('../src/models/ServiceControl');
 
 beforeAll(async () => {
   await connectTestDB();
+  await Booking.deleteMany({});
+  await Payment.deleteMany({});
 });
 
 afterAll(async () => {
@@ -64,8 +67,14 @@ describe('7. End-to-End Complete Booking & Database Verification Suite', () => {
     const existingBooked = detailRes.body.data.bookedSeats || [];
 
     // Choose an available seat
-    const candidateSeats = ['L3', 'L4', 'U3', 'U4', 'L5', 'L6', 'U7', 'U8'];
+    const candidateSeats = ['A1', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'B4', 'L1', 'L2', 'L3', 'L4', 'U1', 'U2', 'U3', 'U4'];
     const chosenSeats = candidateSeats.filter(s => !existingBooked.includes(s)).slice(0, 2);
+
+    // Assign driver to testBus
+    const driverUser = await User.findOne({ email: 'driver@platform.com' });
+    const driverDoc = await Driver.findOne({ user: driverUser._id });
+    await Vehicle.findByIdAndUpdate(testBus._id, { assignedDriver: driverDoc._id });
+    await Driver.findByIdAndUpdate(driverDoc._id, { assignedVehicle: testBus._id });
 
     // 3. Create Booking
     const bookingRes = await request(app)
@@ -77,18 +86,18 @@ describe('7. End-to-End Complete Booking & Database Verification Suite', () => {
         pickupLocation: 'Kashmere Gate ISBT, Delhi',
         dropLocation: 'Sindhi Camp Bus Stand, Jaipur',
         passengerDetails: [
-          { name: customerData.name, age: 29, gender: 'Male', seatNumber: chosenSeats[0] },
-          { name: 'Co-Passenger', age: 26, gender: 'Female', seatNumber: chosenSeats[1] }
+          { name: customerData.name, age: 29, gender: 'Male', seatNumber: chosenSeats[0] || 'L1' },
+          { name: 'Co-Passenger', age: 26, gender: 'Female', seatNumber: chosenSeats[1] || 'L2' }
         ],
-        selectedSeats: chosenSeats,
-        fare: testBus.fareRate * chosenSeats.length,
+        selectedSeats: chosenSeats.length === 2 ? chosenSeats : ['L1', 'L2'],
+        fare: testBus.fareRate * 2,
         travelDate: new Date().toISOString()
       });
 
     expect(bookingRes.status).toBe(201);
     expect(bookingRes.body.success).toBe(true);
     const busBooking = bookingRes.body.data;
-    expect(busBooking.bookingStatus).toBe('Pending');
+    expect(busBooking.bookingStatus).toBe('Pending Driver Confirmation');
 
     // 4. Sandbox Payment Test Success
     const payRes = await request(app)
@@ -101,8 +110,25 @@ describe('7. End-to-End Complete Booking & Database Verification Suite', () => {
 
     expect(payRes.status).toBe(200);
     expect(payRes.body.success).toBe(true);
-    expect(payRes.body.data.booking.bookingStatus).toBe('Confirmed');
+    expect(payRes.body.data.booking.bookingStatus).toBe('Pending Driver Confirmation');
     expect(payRes.body.data.payment.paymentStatus).toBe('Successful');
+
+    // 4b. Driver / Conductor Confirms Bus Booking
+    const driverLogin = await request(app)
+      .post('/api/auth/login')
+      .send({
+        identifier: 'driver@platform.com',
+        password: 'driver123',
+        role: 'driver'
+      });
+    expect(driverLogin.status).toBe(200);
+    const driverToken = driverLogin.body.token;
+
+    const confirmRes = await request(app)
+      .post(`/api/driver/requests/${busBooking._id}/accept`)
+      .set('Authorization', `Bearer ${driverToken}`);
+    expect(confirmRes.status).toBe(200);
+    expect(confirmRes.body.data.bookingStatus).toBe('Confirmed');
 
     // 5. Digital Ticket / Booking Details Verification
     const ticketRes = await request(app)
