@@ -51,14 +51,14 @@ describe('Driver / Conductor Bus Booking Confirmation Flow Suite', () => {
     customerToken = custLogin.body.token;
 
     // 2. Create Driver A User
-    let drvA = await User.findOne({ email: 'driver_alpha@test.com' });
+    let drvA = await User.findOne({ email: 'driver_flow_alpha@test.com' });
     if (!drvA) {
       await User.deleteOne({ phone: '9899003344' });
       drvA = await User.create({
         name: 'Suresh Driver A',
-        email: 'driver_alpha@test.com',
+        email: 'driver_flow_alpha@test.com',
         phone: '9899003344',
-        password: 'password123',
+        password: 'driver123',
         role: 'driver',
         driverStatus: 'Available'
       });
@@ -66,21 +66,21 @@ describe('Driver / Conductor Bus Booking Confirmation Flow Suite', () => {
     driverAUser = drvA;
 
     const drvALogin = await request(app).post('/api/auth/login').send({
-      identifier: 'driver_alpha@test.com',
-      password: 'password123',
+      identifier: 'driver_flow_alpha@test.com',
+      password: 'driver123',
       role: 'driver'
     });
     driverAToken = drvALogin.body.token;
 
     // 3. Create Driver B User
-    let drvB = await User.findOne({ email: 'driver_beta@test.com' });
+    let drvB = await User.findOne({ email: 'driver_flow_beta@test.com' });
     if (!drvB) {
       await User.deleteOne({ phone: '9899005566' });
       drvB = await User.create({
         name: 'Ramesh Driver B',
-        email: 'driver_beta@test.com',
+        email: 'driver_flow_beta@test.com',
         phone: '9899005566',
-        password: 'password123',
+        password: 'driver123',
         role: 'driver',
         driverStatus: 'Available'
       });
@@ -88,8 +88,8 @@ describe('Driver / Conductor Bus Booking Confirmation Flow Suite', () => {
     driverBUser = drvB;
 
     const drvBLogin = await request(app).post('/api/auth/login').send({
-      identifier: 'driver_beta@test.com',
-      password: 'password123',
+      identifier: 'driver_flow_beta@test.com',
+      password: 'driver123',
       role: 'driver'
     });
     driverBToken = drvBLogin.body.token;

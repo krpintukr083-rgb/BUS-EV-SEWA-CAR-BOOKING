@@ -24,10 +24,27 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // Find user by email OR mobile phone
-    const user = await User.findOne({
-      $or: [{ email: identifier.toLowerCase().trim() }, { phone: identifier.trim() }]
-    }).select('+password');
+    const cleanId = identifier.trim();
+    const isEmail = cleanId.includes('@');
+    let user;
+
+    if (isEmail) {
+      user = await User.findOne({ email: cleanId.toLowerCase() }).select('+password');
+    } else {
+      const digits = cleanId.replace(/\D/g, '');
+      const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+      const orConditions = [
+        { phone: cleanId },
+        { phone: `+91${last10}` },
+        { phone: `91${last10}` },
+        { phone: last10 },
+        { email: cleanId.toLowerCase() }
+      ];
+      if (last10.length >= 7) {
+        orConditions.push({ phone: { $regex: new RegExp(last10 + '$') } });
+      }
+      user = await User.findOne({ $or: orConditions }).select('+password');
+    }
 
     if (!user) {
       return res.status(401).json({

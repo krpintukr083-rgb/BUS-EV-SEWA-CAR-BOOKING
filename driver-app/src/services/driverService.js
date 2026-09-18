@@ -37,6 +37,7 @@ export const driverService = {
   requestWithdrawal: (data) => apiClient.post(ENDPOINTS.WITHDRAW, data),
   getIncentives: () => apiClient.get(ENDPOINTS.INCENTIVES),
   getHistory: () => apiClient.get(ENDPOINTS.HISTORY),
+  getRideHistory: () => apiClient.get(ENDPOINTS.HISTORY),
 
   // EV & Safety
   getEVHub: () => apiClient.get(ENDPOINTS.EV_HUB),
@@ -49,3 +50,5 @@ export const driverService = {
   createTicket: (ticket) => apiClient.post(ENDPOINTS.SUPPORT_TICKET, ticket),
   updateLanguage: (language) => apiClient.put(ENDPOINTS.LANGUAGE, { language })
 };
+
+export default driverService;

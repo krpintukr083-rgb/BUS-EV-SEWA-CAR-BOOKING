@@ -1,39 +1,46 @@
 import { Platform } from 'react-native';
 
 // 1. Live Production / HTTPS Public Tunnel URL (Render Live Backend):
-export const BACKEND_TUNNEL_URL = 'https://bus-ev-sewa-car-booking.onrender.com/api';
+export const BACKEND_TUNNEL_URL = 'https://bus-ev-sewa-car-booking.onrender.com';
 
 // 2. Local Wi-Fi LAN IP fallback:
-export const BACKEND_LAN_URL = 'http://192.168.1.2:5000/api';
+export const BACKEND_LAN_URL = 'http://192.168.1.2:5000';
 
 // 3. Android Emulator loopback alias:
-export const EMULATOR_URL = 'http://10.0.2.2:5000/api';
+export const EMULATOR_URL = 'http://10.0.2.2:5000';
 
 /**
- * Computes default API Base URL with fallback hierarchy:
- * 1. EXPO_PUBLIC_API_URL environment variable if provided
- * 2. Live Backend Tunnel URL (for 4G/5G real physical phones)
- * 3. Android Emulator URL
- * 4. Localhost fallback
+ * Computes default static Base URL based on constants and platform
  */
-export const getApiBaseUrl = () => {
+export const getDefaultBaseUrl = () => {
   if (process.env.EXPO_PUBLIC_API_URL && process.env.EXPO_PUBLIC_API_URL.trim() !== '') {
     const clean = process.env.EXPO_PUBLIC_API_URL.trim().replace(/\/+$/, '');
     return clean.endsWith('/api') ? clean : `${clean}/api`;
   }
 
-  if (BACKEND_TUNNEL_URL && BACKEND_TUNNEL_URL.trim() !== '') {
-    return BACKEND_TUNNEL_URL;
+  if (Platform.OS === 'android') {
+    return `${EMULATOR_URL}/api`;
   }
 
-  if (Platform.OS === 'android') {
-    return EMULATOR_URL;
+  if (BACKEND_TUNNEL_URL && BACKEND_TUNNEL_URL.trim() !== '') {
+    const clean = BACKEND_TUNNEL_URL.trim().replace(/\/+$/, '');
+    return clean.endsWith('/api') ? clean : `${clean}/api`;
   }
 
   return 'http://localhost:5000/api';
 };
 
-export const API_BASE_URL = getApiBaseUrl();
+/**
+ * Candidate URLs for connectivity fallback
+ */
+export const CANDIDATE_URLS = [
+  BACKEND_TUNNEL_URL ? (BACKEND_TUNNEL_URL.endsWith('/api') ? BACKEND_TUNNEL_URL : `${BACKEND_TUNNEL_URL}/api`) : null,
+  Platform.OS === 'android' ? `${EMULATOR_URL}/api` : null,
+  BACKEND_LAN_URL ? (BACKEND_LAN_URL.endsWith('/api') ? BACKEND_LAN_URL : `${BACKEND_LAN_URL}/api`) : null,
+  'http://localhost:5000/api'
+].filter(Boolean);
+
+export const API_BASE_URL = getDefaultBaseUrl();
 
 export const ENDPOINTS = {
   // Auth
@@ -69,7 +76,7 @@ export const ENDPOINTS = {
   INCENTIVES: '/driver/incentives',
   HISTORY: '/driver/booking-history',
 
-  // EV & Emergency
+  // EV & Emergency (Zero-GPS)
   EV_HUB: '/driver/ev-hub',
   EV_BATTERY: '/driver/ev-battery',
   SOS: '/driver/sos',

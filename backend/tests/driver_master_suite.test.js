@@ -28,15 +28,10 @@ describe('Driver App / Driver Panel Master Test Suite', () => {
   beforeAll(async () => {
     await connectTestDB();
     
-    // Clean up test collections
-    await Driver.deleteMany({});
-    await Vehicle.deleteMany({});
-    await Booking.deleteMany({});
-    await User.deleteMany({});
-    await Withdrawal.deleteMany({});
-    await Incentive.deleteMany({});
-    await Support.deleteMany({});
-    await Notification.deleteMany({});
+    // Clean up only test specific collections/records
+    await User.deleteMany({ $or: [{ email: { $in: ['ramesh.customer@test.com', 'hari.driver@test.com', 'shyam.driver@test.com'] } }, { phone: { $in: ['9800000001', '9841000001', '9841000002', '9841999999'] } }] });
+    await Driver.deleteMany({ $or: [{ name: { $in: ['Hari Bahadur', 'Shyam Kumar', 'Bikram Thapa'] } }, { drivingLicenceNumber: 'DL-TEST-9999' }] });
+    await Vehicle.deleteMany({ vehicleNumber: { $in: ['BA-2-PA-9901', 'BA-1-KHA-1234'] } });
 
     // 1. Create Users
     customerUser = await User.create({

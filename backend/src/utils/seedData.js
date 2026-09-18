@@ -86,6 +86,26 @@ const seedDatabase = async () => {
       profilePhoto: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=300&q=80'
     });
 
+    const driverUser5 = await User.create({
+      name: 'Test Driver A',
+      email: 'driver_alpha@test.com',
+      phone: '9899003344',
+      password: 'driver123',
+      role: 'driver',
+      status: 'Active',
+      profilePhoto: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80'
+    });
+
+    const driverUser6 = await User.create({
+      name: 'Test Driver B',
+      email: 'driver_beta@test.com',
+      phone: '9899005566',
+      password: 'driver123',
+      role: 'driver',
+      status: 'Active',
+      profilePhoto: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=300&q=80'
+    });
+
     // 3. Create Customers
     const testCustomer = await User.create({
       name: 'Test Customer',
@@ -228,6 +248,40 @@ const seedDatabase = async () => {
       fitnessStatus: 'Rejected',
       requiredDocumentsStatus: 'Rejected',
       rejectionReason: 'Invalid licence renewal and expired vehicle insurance copy.'
+    });
+
+    const driver5 = await Driver.create({
+      user: driverUser5._id,
+      name: 'Test Driver A',
+      mobileNumber: '9899003344',
+      profilePhoto: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+      driverStatus: 'Active',
+      drivingLicenceNumber: 'DL-01-2022-0001',
+      drivingLicenceStatus: 'Approved',
+      rcNumber: 'DL 01 BUS 001',
+      rcDetails: 'Commercial Transport Permit',
+      rcStatus: 'Approved',
+      insurancePolicyNumber: 'INS-DRV-A-2026-001',
+      insuranceStatus: 'Approved',
+      fitnessStatus: 'Approved',
+      requiredDocumentsStatus: 'Approved'
+    });
+
+    const driver6 = await Driver.create({
+      user: driverUser6._id,
+      name: 'Test Driver B',
+      mobileNumber: '9899005566',
+      profilePhoto: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=300&q=80',
+      driverStatus: 'Active',
+      drivingLicenceNumber: 'RJ-14-2022-0002',
+      drivingLicenceStatus: 'Approved',
+      rcNumber: 'RJ 14 BUS 002',
+      rcDetails: 'Commercial Transport Permit',
+      rcStatus: 'Approved',
+      insurancePolicyNumber: 'INS-DRV-B-2026-002',
+      insuranceStatus: 'Approved',
+      fitnessStatus: 'Approved',
+      requiredDocumentsStatus: 'Approved'
     });
 
     // 5. Create Vehicles (Bus, EV-Sewa, Car)
@@ -465,6 +519,39 @@ const seedDatabase = async () => {
       }
     });
 
+    const truck1 = await Vehicle.create({
+      vehicleNumber: 'HR 55 MKT 21021',
+      vehicleType: 'Truck',
+      vehicleCategory: 'Heavy Commercial Cargo Multi-Axle',
+      vehicleModel: 'BharatBenz 2823R Heavy Duty Truck',
+      vehicleName: 'Bharat Freightliner Intercity Cargo',
+      seatingCapacity: 3,
+      ownerName: 'National Logistics Express Cargo',
+      ownerMobileNumber: '+919811122339',
+      assignedDriver: driver1._id,
+      vehicleImages: [
+        'https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&w=800&q=80'
+      ],
+      vehicleStatus: 'Active',
+      rcNumber: 'HR-55-TR-2023-21021',
+      rcDocument: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&w=600&q=80',
+      insurancePolicyNumber: 'NIC-TRK-2024-99011',
+      insuranceDocument: 'https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&w=600&q=80',
+      insuranceExpiryDetails: '2026-12-31',
+      fitnessDetails: 'Valid Commercial Stage Cargo Permit',
+      fitnessDocument: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=600&q=80',
+      fareRate: 1500,
+      pickupDropDetails: {
+        pickupLocation: 'Delhi Sanjay Gandhi Transport Nagar',
+        dropLocation: 'Jaipur VKIA Industrial Area'
+      },
+      truckDetails: {
+        cargoType: 'General Freight / Dry Goods',
+        grossVehicleWeight: '16 Tonnes',
+        axleCount: 2
+      }
+    });
+
     // Update driver assignedVehicle links
     driver1.assignedVehicle = vehicle1._id;
     await driver1.save();
@@ -474,6 +561,10 @@ const seedDatabase = async () => {
     await driver3.save();
     driver4.assignedVehicle = vehicle4._id;
     await driver4.save();
+    driver5.assignedVehicle = bus2._id;
+    await driver5.save();
+    driver6.assignedVehicle = bus3._id;
+    await driver6.save();
 
     // 6. Create Bookings
     const booking1 = await Booking.create({

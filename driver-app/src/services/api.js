@@ -1,38 +1,124 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_BASE_URL } from '../constants/api';
+import { getDefaultBaseUrl, CANDIDATE_URLS } from '../constants/api';
+
+/**
+ * Retrieves custom server URL saved in storage
+ */
+export const getCustomServerUrl = async () => {
+  try {
+    const saved = await AsyncStorage.getItem('custom_driver_server_url');
+    return saved ? saved.trim() : null;
+  } catch (e) {
+    return null;
+  }
+};
+
+/**
+ * Saves a new custom server URL into storage
+ */
+export const setCustomServerUrl = async (url) => {
+  try {
+    if (!url || url.trim() === '') {
+      await AsyncStorage.removeItem('custom_driver_server_url');
+    } else {
+      let clean = url.trim().replace(/\/+$/, '');
+      if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+        const isLocal = clean.includes('10.0.2.2') || clean.includes('localhost') || clean.includes('127.0.0.1') || clean.includes('192.168.');
+        clean = `${isLocal ? 'http://' : 'https://'}${clean}`;
+      }
+      await AsyncStorage.setItem('custom_driver_server_url', clean);
+    }
+  } catch (e) {
+    console.error('Failed to save custom server URL:', e);
+  }
+};
+
+/**
+ * Clears custom server URL and reverts to default
+ */
+export const resetServerUrl = async () => {
+  try {
+    await AsyncStorage.removeItem('custom_driver_server_url');
+  } catch (e) {
+    console.error('Failed to reset server URL:', e);
+  }
+};
+
+/**
+ * Returns current effective base URL
+ */
+export const getEffectiveBaseUrl = async () => {
+  const custom = await getCustomServerUrl();
+  if (custom) {
+    return custom.endsWith('/api') ? custom : `${custom}/api`;
+  }
+  return getDefaultBaseUrl();
+};
 
 const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 15000,
+  baseURL: getDefaultBaseUrl(),
+  timeout: 18000,
   headers: {
     'Content-Type': 'application/json',
-    Accept: 'application/json'
+    Accept: 'application/json',
+    'bypass-tunnel-reminder': 'true',
+    'Bypass-Tunnel-Reminder': 'true',
+    'ngrok-skip-browser-warning': 'true',
+    'User-Agent': 'TravelEaseDriverApp/1.0'
   }
 });
 
-// Request Interceptor: Attach Bearer JWT
+// Dynamic Request Interceptor: Resolves active server URL & injects Bearer JWT
 apiClient.interceptors.request.use(
   async (config) => {
     try {
+      const customUrl = await AsyncStorage.getItem('custom_driver_server_url');
+      if (customUrl && customUrl.trim() !== '') {
+        const clean = customUrl.trim().replace(/\/+$/, '');
+        config.baseURL = clean.endsWith('/api') ? clean : `${clean}/api`;
+      } else {
+        config.baseURL = getDefaultBaseUrl();
+      }
+
+      config.headers['bypass-tunnel-reminder'] = 'true';
+      config.headers['Bypass-Tunnel-Reminder'] = 'true';
+      config.headers['ngrok-skip-browser-warning'] = 'true';
+
       const token = await AsyncStorage.getItem('@driver_jwt_token');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
     } catch (e) {
-      console.warn('Error reading token from storage', e);
+      console.warn('Error in driver request interceptor:', e);
     }
     return config;
   },
   (error) => Promise.reject(error)
 );
 
-// Response Interceptor: Error handling
+// Response Interceptor: Handles fallback retry and clean error propagation
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response && error.response.status === 401) {
-      // Token expired or invalid
+    const originalRequest = error.config;
+
+    // Retry with candidate fallback on network error
+    if (!error.response && originalRequest && !originalRequest._retry) {
+      originalRequest._retry = true;
+      for (const candidate of CANDIDATE_URLS) {
+        if (originalRequest.baseURL !== candidate) {
+          try {
+            originalRequest.baseURL = candidate;
+            return await axios(originalRequest);
+          } catch (retryErr) {
+            // continue to next candidate
+          }
+        }
+      }
+    }
+
+    if (error.response && error.response.status === 401 && !originalRequest.url?.includes('/auth/login')) {
       try {
         await AsyncStorage.removeItem('@driver_jwt_token');
         await AsyncStorage.removeItem('@driver_user_data');
@@ -43,5 +129,51 @@ apiClient.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+/**
+ * Health check tester for checking connection to a specific URL or active URL
+ */
+export const testServerConnection = async (targetUrl = null) => {
+  const startTime = Date.now();
+  let testEndpoint = targetUrl;
+
+  if (!testEndpoint) {
+    testEndpoint = await getEffectiveBaseUrl();
+  } else {
+    testEndpoint = testEndpoint.trim().replace(/\/+$/, '');
+    if (!testEndpoint.startsWith('http://') && !testEndpoint.startsWith('https://')) {
+      const isLocal = testEndpoint.includes('10.0.2.2') || testEndpoint.includes('localhost') || testEndpoint.includes('127.0.0.1') || testEndpoint.includes('192.168.');
+      testEndpoint = `${isLocal ? 'http://' : 'https://'}${testEndpoint}`;
+    }
+    testEndpoint = testEndpoint.endsWith('/api') ? testEndpoint : `${testEndpoint}/api`;
+  }
+
+  try {
+    const res = await axios.get(`${testEndpoint}/health`, {
+      timeout: 7000,
+      headers: {
+        'bypass-tunnel-reminder': 'true',
+        'Bypass-Tunnel-Reminder': 'true',
+        'ngrok-skip-browser-warning': 'true'
+      }
+    });
+    const latency = Date.now() - startTime;
+    return {
+      success: true,
+      status: res.status,
+      latency,
+      url: testEndpoint,
+      data: res.data
+    };
+  } catch (err) {
+    const latency = Date.now() - startTime;
+    return {
+      success: false,
+      latency,
+      url: testEndpoint,
+      error: err.message || 'Unable to reach backend server'
+    };
+  }
+};
 
 export default apiClient;
