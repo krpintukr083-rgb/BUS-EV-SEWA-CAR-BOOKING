@@ -28,26 +28,17 @@ export default function VehicleDetailsScreen({ navigation }) {
 
   const fetchVehicle = async () => {
     try {
-      const res = await driverService.getAssignedVehicle();
-      if (res.success && res.data) {
-        setVehicle(res.data);
+      const res = await driverService.getVehicle();
+      // axios wraps the response: actual JSON is at res.data
+      if (res?.data?.success && res.data.data) {
+        setVehicle(res.data.data);
       } else {
-        // Fallback default vehicle details
-        setVehicle({
-          plateNumber: 'BA-2-PA-9921',
-          make: 'Tata',
-          model: 'Ultra Electric Bus 2024',
-          type: 'BUS',
-          fuelType: 'ELECTRIC',
-          seatingCapacity: 36,
-          isAC: true,
-          amenities: ['WiFi', 'USB Charging', 'Reclining Seats', 'GPS Free Route Navigation'],
-          assignedRoute: 'Kathmandu - Pokhara Express',
-          fitnessStatus: 'ACTIVE',
-        });
+        // null => shows "No vehicle assigned" empty state
+        setVehicle(null);
       }
     } catch (err) {
-      console.log('Error fetching vehicle:', err);
+      console.log('Error fetching vehicle:', err?.response?.data || err.message);
+      setVehicle(null);
     } finally {
       setLoading(false);
       setRefreshing(false);

@@ -61,9 +61,12 @@ const BookingRequestsScreen = ({ navigation }) => {
     try {
       const res = await driverService.acceptRide(bookingId);
       if (res.data?.success) {
-        Alert.alert('Ride Accepted', 'Trip is now active. Please proceed to the pickup location.');
+        // Immediately remove card from local state — don't wait for next poll
+        setRequests((prev) => prev.filter((r) => r._id !== bookingId && r.bookingId !== bookingId));
+
         const accepted = res.data.data;
-        if (accepted?.serviceType === 'Bus') {
+        Alert.alert('Ride Accepted', 'Trip is now active. Please proceed to the pickup location.');
+        if (accepted?.serviceType === 'Bus' || accepted?.serviceType === 'BUS') {
           navigation.navigate('BusConfirmation', { bookingId: accepted._id || bookingId });
         } else {
           navigation.navigate('ActiveRide', { bookingId: accepted._id || bookingId });

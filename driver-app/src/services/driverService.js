@@ -20,8 +20,13 @@ export const driverService = {
 
   // Booking Requests & Ride Lifecycle
   getBookingRequests: () => apiClient.get(ENDPOINTS.BOOKING_REQUESTS),
+  // Alias used by BusConfirmationScreen
+  getAssignedBookings: () => apiClient.get(ENDPOINTS.BOOKING_REQUESTS),
   acceptRide: (id) => apiClient.post(`/driver/booking-requests/${id}/accept`),
   rejectRide: (id, reason) => apiClient.post(`/driver/booking-requests/${id}/reject`, { reason }),
+  // Bus-specific aliases used by BusConfirmationScreen
+  confirmBusBooking: (id) => apiClient.post(`/driver/booking-requests/${id}/accept`),
+  rejectBusBooking: (id, reason) => apiClient.post(`/driver/booking-requests/${id}/reject`, { reason }),
   arriveAtPickup: (id) => apiClient.post(`/driver/rides/${id}/arrived`),
   verifyOtp: (id, otp) => apiClient.post(`/driver/rides/${id}/verify-otp`, { otp }),
   startRide: (id) => apiClient.post(`/driver/rides/${id}/start`),
@@ -30,6 +35,8 @@ export const driverService = {
 
   // Cash Collection
   collectCash: (id, amount) => apiClient.post(`/driver/bookings/${id}/collect-cash`, { amountCollected: amount }),
+  // Alias used by BusConfirmationScreen
+  collectCashPayment: (id) => apiClient.post(`/driver/bookings/${id}/collect-cash`, { amountCollected: 0 }),
 
   // Earnings, Wallet & Withdrawals
   getEarnings: () => apiClient.get(ENDPOINTS.EARNINGS),

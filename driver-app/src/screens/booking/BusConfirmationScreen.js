@@ -43,15 +43,24 @@ export default function BusConfirmationScreen({ navigation }) {
   const fetchBusBookings = async () => {
     try {
       const res = await driverService.getAssignedBookings();
-      if (res.success && res.data) {
-        // Filter for Bus & EV-Sewa trips
-        const busTrips = res.data.filter(
-          (b) => b.serviceType === 'BUS' || b.serviceType === 'EV_SEWA' || b.bookingType === 'BUS' || !!b.seats?.length
+      // axios wraps response: actual JSON is at res.data
+      if (res?.data?.success && res.data.data) {
+        const allBookings = res.data.data;
+        // Filter for Bus & EV-Sewa trips (backend uses 'Bus' and 'EV-Sewa' casing)
+        const busTrips = allBookings.filter(
+          (b) =>
+            b.serviceType === 'BUS' ||
+            b.serviceType === 'Bus' ||
+            b.serviceType === 'EV_SEWA' ||
+            b.serviceType === 'EV-Sewa' ||
+            b.bookingType === 'BUS' ||
+            !!b.seats?.length ||
+            !!b.busSeatNumbers?.length
         );
         setBookings(busTrips);
       }
     } catch (err) {
-      console.log('Error fetching bus bookings:', err);
+      console.log('Error fetching bus bookings:', err?.response?.data || err.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -68,11 +77,11 @@ export default function BusConfirmationScreen({ navigation }) {
     setActionLoadingId(bookingId);
     try {
       const res = await driverService.confirmBusBooking(bookingId);
-      if (res.success) {
+      if (res?.data?.success) {
         Alert.alert(t('success'), 'Passenger booking confirmed successfully.');
         fetchBusBookings();
       } else {
-        Alert.alert(t('error'), res.message || 'Failed to confirm booking');
+        Alert.alert(t('error'), res?.data?.message || 'Failed to confirm booking');
       }
     } catch (err) {
       Alert.alert(t('error'), err.response?.data?.message || 'Failed to confirm booking');
@@ -95,11 +104,11 @@ export default function BusConfirmationScreen({ navigation }) {
             setActionLoadingId(bookingId);
             try {
               const res = await driverService.collectCashPayment(bookingId);
-              if (res.success) {
+              if (res?.data?.success) {
                 Alert.alert(t('success'), `₹${amount} Cash Collected! Payment marked as PAID.`);
                 fetchBusBookings();
               } else {
-                Alert.alert(t('error'), res.message || 'Failed to update payment');
+                Alert.alert(t('error'), res?.data?.message || 'Failed to update payment');
               }
             } catch (err) {
               Alert.alert(t('error'), err.response?.data?.message || 'Failed to collect cash payment');
@@ -128,11 +137,11 @@ export default function BusConfirmationScreen({ navigation }) {
         selectedBooking._id,
         rejectReason || 'Seats unavailable / schedule change'
       );
-      if (res.success) {
+      if (res?.data?.success) {
         Alert.alert(t('success'), 'Booking request has been rejected.');
         fetchBusBookings();
       } else {
-        Alert.alert(t('error'), res.message || 'Failed to reject booking');
+        Alert.alert(t('error'), res?.data?.message || 'Failed to reject booking');
       }
     } catch (err) {
       Alert.alert(t('error'), err.response?.data?.message || 'Failed to reject booking');
