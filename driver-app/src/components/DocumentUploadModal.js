@@ -104,14 +104,14 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
       return;
     }
 
-    if (!selectedAsset && !docType) {
+    if (!selectedAsset) {
       Alert.alert('Validation Error', 'Please select or capture a document file/photo.');
       return;
     }
 
     setLoading(true);
     try {
-      const docUrlPayload = selectedAsset?.base64 || selectedAsset?.uri || `https://storage.travelease.com/docs/${docType}_${Date.now()}.jpg`;
+      const docUrlPayload = selectedAsset?.base64 || selectedAsset?.uri || `data:image/jpeg;base64,doc_${Date.now()}`;
 
       const res = await driverService.uploadDocument({
         docType,

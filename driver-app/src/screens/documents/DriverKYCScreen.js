@@ -38,6 +38,25 @@ export default function DriverKYCScreen({ navigation }) {
     fetchDocuments();
   }, []);
 
+  const normalizeDoc = (doc, fallback) => {
+    if (!doc && !fallback) return { status: 'MISSING', documentNumber: '', expiryDate: '', number: '', expiry: '' };
+    const src = doc || fallback || {};
+    const documentNumber = src.documentNumber || src.number || src.docNumber || fallback?.documentNumber || fallback?.number || '';
+    const expiryDate = src.expiryDate || src.expiry || src.expiryDetails || fallback?.expiryDate || fallback?.expiry || '';
+    const docUrl = src.docUrl || src.url || src.citizenshipDoc || src.drivingLicenceDoc || src.rcDoc || src.insuranceDoc || src.fitnessDoc || fallback?.docUrl || fallback?.url || '';
+    const status = src.status || fallback?.status || 'PENDING';
+    return {
+      ...src,
+      documentNumber,
+      number: documentNumber,
+      expiryDate,
+      expiry: expiryDate,
+      docUrl,
+      url: docUrl,
+      status,
+    };
+  };
+
   const fetchDocuments = async () => {
     try {
       const res = await driverService.getDocuments();
@@ -45,13 +64,11 @@ export default function DriverKYCScreen({ navigation }) {
       if (payload) {
         const docsMap = payload.documents || payload;
         setDocuments((prev) => ({
-          ...prev,
-          ...docsMap,
-          citizenship: docsMap.citizenship || prev.citizenship,
-          drivingLicense: docsMap.drivingLicense || docsMap.drivingLicence || prev.drivingLicense,
-          vehicleRc: docsMap.vehicleRc || docsMap.rc || prev.vehicleRc,
-          insurance: docsMap.insurance || prev.insurance,
-          fitnessCertificate: docsMap.fitnessCertificate || docsMap.fitness || prev.fitnessCertificate,
+          citizenship: normalizeDoc(docsMap.citizenship, prev.citizenship),
+          drivingLicense: normalizeDoc(docsMap.drivingLicense || docsMap.drivingLicence, prev.drivingLicense),
+          vehicleRc: normalizeDoc(docsMap.vehicleRc || docsMap.rc, prev.vehicleRc),
+          insurance: normalizeDoc(docsMap.insurance, prev.insurance),
+          fitnessCertificate: normalizeDoc(docsMap.fitnessCertificate || docsMap.fitness, prev.fitnessCertificate),
         }));
       }
     } catch (err) {
@@ -112,13 +129,15 @@ export default function DriverKYCScreen({ navigation }) {
   ];
 
   // Check for expired or expiring soon documents
-  const hasExpiredDoc = Object.values(documents).some((d) => d?.status === 'EXPIRED');
+  const hasExpiredDoc = Object.values(documents).some((d) => d?.status?.toUpperCase() === 'EXPIRED');
 
   const getStatusColor = (status) => {
     switch (status?.toUpperCase()) {
       case 'VERIFIED':
+      case 'APPROVED':
         return COLORS.success;
       case 'EXPIRED':
+      case 'REJECTED':
         return COLORS.danger;
       case 'UNDER_REVIEW':
       case 'PENDING':
@@ -126,6 +145,15 @@ export default function DriverKYCScreen({ navigation }) {
       default:
         return COLORS.textMuted;
     }
+  };
+
+  const isDocSubmitted = (docData) => {
+    if (!docData) return false;
+    const s = docData.status?.toUpperCase();
+    if (s === 'VERIFIED' || s === 'APPROVED' || s === 'PENDING' || s === 'UNDER_REVIEW' || s === 'EXPIRED') {
+      return true;
+    }
+    return !!(docData.documentNumber || docData.number);
   };
 
   return (
@@ -168,6 +196,7 @@ export default function DriverKYCScreen({ navigation }) {
           docConfigs.map((doc) => {
             const docData = documents[doc.key] || { status: 'MISSING' };
             const statusColor = getStatusColor(docData.status);
+            const submitted = isDocSubmitted(docData);
 
             return (
               <View key={doc.key} style={styles.docCard}>
@@ -190,15 +219,15 @@ export default function DriverKYCScreen({ navigation }) {
                 <View style={styles.docMetaRow}>
                   <View style={styles.metaCol}>
                     <Text style={styles.metaLabel}>Doc / License No:</Text>
-                    <Text style={styles.metaVal}>{docData.documentNumber || 'Not submitted'}</Text>
+                    <Text style={styles.metaVal}>{docData.documentNumber || docData.number || 'Not submitted'}</Text>
                   </View>
                   <View style={styles.metaCol}>
                     <Text style={styles.metaLabel}>{t('expiryDate')}:</Text>
                     <Text style={[
                       styles.metaVal,
-                      docData.status === 'EXPIRED' && { color: COLORS.danger, fontWeight: '700' }
+                      docData.status?.toUpperCase() === 'EXPIRED' && { color: COLORS.danger, fontWeight: '700' }
                     ]}>
-                      {docData.expiryDate || 'N/A'}
+                      {docData.expiryDate || docData.expiry || 'N/A'}
                     </Text>
                   </View>
                 </View>
@@ -207,20 +236,20 @@ export default function DriverKYCScreen({ navigation }) {
                 <TouchableOpacity
                   style={[
                     styles.uploadBtn,
-                    docData.status === 'VERIFIED' && styles.reuploadBtn,
+                    submitted && styles.reuploadBtn,
                   ]}
                   onPress={() => handleOpenUpload(doc.key)}
                 >
                   <MaterialCommunityIcons
-                    name={docData.status === 'VERIFIED' ? 'file-replace' : 'cloud-upload'}
+                    name={submitted ? 'file-replace' : 'cloud-upload'}
                     size={16}
-                    color={docData.status === 'VERIFIED' ? COLORS.primary : COLORS.white}
+                    color={submitted ? COLORS.primary : COLORS.white}
                   />
                   <Text style={[
                     styles.uploadBtnText,
-                    docData.status === 'VERIFIED' && { color: COLORS.primary }
+                    submitted && { color: COLORS.primary }
                   ]}>
-                    {docData.status === 'VERIFIED' ? 'Update / Re-upload' : t('uploadDocument')}
+                    {submitted ? 'Update / Re-upload' : t('uploadDocument')}
                   </Text>
                 </TouchableOpacity>
               </View>
