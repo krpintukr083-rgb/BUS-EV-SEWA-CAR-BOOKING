@@ -41,10 +41,17 @@ export default function DriverKYCScreen({ navigation }) {
   const fetchDocuments = async () => {
     try {
       const res = await driverService.getDocuments();
-      if (res.success && res.data) {
+      const payload = res?.data?.data || res?.data || {};
+      if (payload) {
+        const docsMap = payload.documents || payload;
         setDocuments((prev) => ({
           ...prev,
-          ...res.data,
+          ...docsMap,
+          citizenship: docsMap.citizenship || prev.citizenship,
+          drivingLicense: docsMap.drivingLicense || docsMap.drivingLicence || prev.drivingLicense,
+          vehicleRc: docsMap.vehicleRc || docsMap.rc || prev.vehicleRc,
+          insurance: docsMap.insurance || prev.insurance,
+          fitnessCertificate: docsMap.fitnessCertificate || docsMap.fitness || prev.fitnessCertificate,
         }));
       }
     } catch (err) {

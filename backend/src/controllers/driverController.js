@@ -444,7 +444,19 @@ exports.getDriverDocuments = async (req, res, next) => {
         expiry: driver.drivingLicenceExpiry || '',
         status: driver.drivingLicenceStatus || 'Pending'
       },
+      drivingLicense: {
+        number: driver.drivingLicenceNumber || '',
+        url: driver.drivingLicenceDoc || '',
+        expiry: driver.drivingLicenceExpiry || '',
+        status: driver.drivingLicenceStatus || 'Pending'
+      },
       rc: {
+        number: driver.rcNumber || '',
+        url: driver.rcDoc || '',
+        expiry: driver.rcExpiry || '',
+        status: driver.rcStatus || 'Pending'
+      },
+      vehicleRc: {
         number: driver.rcNumber || '',
         url: driver.rcDoc || '',
         expiry: driver.rcExpiry || '',
@@ -461,6 +473,12 @@ exports.getDriverDocuments = async (req, res, next) => {
         url: driver.fitnessDoc || '',
         expiry: driver.fitnessExpiry || '',
         status: driver.fitnessStatus || 'Pending'
+      },
+      fitnessCertificate: {
+        number: driver.fitnessDetails || '',
+        url: driver.fitnessDoc || '',
+        expiry: driver.fitnessExpiry || '',
+        status: driver.fitnessStatus || 'Pending'
       }
     };
 
@@ -471,7 +489,16 @@ exports.getDriverDocuments = async (req, res, next) => {
         driverName: driver.name,
         overallStatus: driver.driverStatus,
         documentsList: documents,
-        documents: docsDictionary
+        documents: docsDictionary,
+        // Direct top-level map for seamless frontend state merge
+        citizenship: docsDictionary.citizenship,
+        drivingLicence: docsDictionary.drivingLicence,
+        drivingLicense: docsDictionary.drivingLicense,
+        rc: docsDictionary.rc,
+        vehicleRc: docsDictionary.vehicleRc,
+        insurance: docsDictionary.insurance,
+        fitness: docsDictionary.fitness,
+        fitnessCertificate: docsDictionary.fitnessCertificate
       }
     });
   } catch (error) {
@@ -489,7 +516,7 @@ exports.uploadDriverDocument = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Driver not found' });
     }
 
-    const docType = (req.body.docType || req.body.documentType || '').toLowerCase();
+    const docType = (req.body.docType || req.body.documentType || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const docUrl = req.body.docUrl || req.body.documentUrl || req.body.url;
     const documentNumber = req.body.documentNumber || req.body.docNumber || req.body.number;
     const expiryDate = req.body.expiryDate || req.body.expiry;
@@ -500,12 +527,14 @@ exports.uploadDriverDocument = async (req, res, next) => {
 
     switch (docType) {
       case 'citizenship':
+      case 'citizenshipdoc':
         if (documentNumber) driver.citizenshipNumber = documentNumber;
         driver.citizenshipDoc = docUrl;
         if (expiryDate) driver.citizenshipExpiry = expiryDate;
         driver.citizenshipStatus = 'Pending';
         break;
       case 'drivinglicence':
+      case 'drivinglicense':
       case 'driving_licence':
       case 'license':
         if (documentNumber) driver.drivingLicenceNumber = documentNumber;
@@ -514,6 +543,7 @@ exports.uploadDriverDocument = async (req, res, next) => {
         driver.drivingLicenceStatus = 'Pending';
         break;
       case 'rc':
+      case 'vehiclerc':
       case 'bluebook':
         if (documentNumber) driver.rcNumber = documentNumber;
         driver.rcDoc = docUrl;
@@ -527,6 +557,7 @@ exports.uploadDriverDocument = async (req, res, next) => {
         driver.insuranceStatus = 'Pending';
         break;
       case 'fitness':
+      case 'fitnesscertificate':
       case 'permit':
         if (documentNumber) driver.fitnessDetails = documentNumber;
         driver.fitnessDoc = docUrl;
@@ -534,7 +565,7 @@ exports.uploadDriverDocument = async (req, res, next) => {
         driver.fitnessStatus = 'Pending';
         break;
       default:
-        return res.status(400).json({ success: false, message: 'Invalid document type' });
+        return res.status(400).json({ success: false, message: `Invalid document type '${docType}'` });
     }
 
     await driver.save();

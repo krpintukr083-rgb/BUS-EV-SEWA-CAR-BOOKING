@@ -1,38 +1,135 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ActivityIndicator, Alert, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { COLORS, SPACING } from '../constants/theme';
 import { driverService } from '../services/driverService';
 
 const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess }) => {
   const [docNumber, setDocNumber] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
-  const [docUrl, setDocUrl] = useState('');
+  const [selectedAsset, setSelectedAsset] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (visible) {
+      setDocNumber('');
+      setExpiryDate('');
+      setSelectedAsset(null);
+      setLoading(false);
+    }
+  }, [visible]);
+
+  const handlePickFromGallery = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission Denied', 'Media library permission is required to select document photos.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+        base64: true,
+      });
+      if (result.canceled) return;
+      const asset = result.assets?.[0];
+      if (asset) {
+        setSelectedAsset({
+          uri: asset.uri,
+          name: asset.fileName || `${docType}_${Date.now()}.jpg`,
+          mimeType: asset.mimeType || 'image/jpeg',
+          base64: asset.base64 ? `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}` : null,
+          isImage: true,
+        });
+      }
+    } catch (err) {
+      Alert.alert('Selection Error', err.message || 'Could not pick photo');
+    }
+  };
+
+  const handlePickFromCamera = async () => {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Permission Denied', 'Camera permission is required to take a document photo.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        quality: 0.8,
+        base64: true,
+      });
+      if (result.canceled) return;
+      const asset = result.assets?.[0];
+      if (asset) {
+        setSelectedAsset({
+          uri: asset.uri,
+          name: asset.fileName || `${docType}_${Date.now()}.jpg`,
+          mimeType: asset.mimeType || 'image/jpeg',
+          base64: asset.base64 ? `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}` : null,
+          isImage: true,
+        });
+      }
+    } catch (err) {
+      Alert.alert('Camera Error', err.message || 'Could not capture photo');
+    }
+  };
+
+  const handlePickDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['image/*', 'application/pdf'],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+      const asset = result.assets?.[0];
+      if (asset) {
+        setSelectedAsset({
+          uri: asset.uri,
+          name: asset.name || `${docType}_${Date.now()}.pdf`,
+          mimeType: asset.mimeType || 'application/pdf',
+          base64: null,
+          isImage: asset.mimeType ? asset.mimeType.startsWith('image/') : true,
+        });
+      }
+    } catch (err) {
+      Alert.alert('Document Error', err.message || 'Could not pick document');
+    }
+  };
+
   const handleUpload = async () => {
-    if (!docNumber) {
+    if (!docNumber || docNumber.trim() === '') {
       Alert.alert('Validation Error', 'Please enter the document number.');
+      return;
+    }
+
+    if (!selectedAsset && !docType) {
+      Alert.alert('Validation Error', 'Please select or capture a document file/photo.');
       return;
     }
 
     setLoading(true);
     try {
-      const sampleUrl = docUrl || `https://storage.travelease.com/docs/${docType}_${Date.now()}.jpg`;
+      const docUrlPayload = selectedAsset?.base64 || selectedAsset?.uri || `https://storage.travelease.com/docs/${docType}_${Date.now()}.jpg`;
+
       const res = await driverService.uploadDocument({
         docType,
-        documentNumber: docNumber,
-        docUrl: sampleUrl,
-        expiryDate: expiryDate || '2029-12-31'
+        documentNumber: docNumber.trim(),
+        docUrl: docUrlPayload,
+        expiryDate: expiryDate.trim() || '2029-12-31',
       });
 
-      if (res.data?.success) {
-        Alert.alert('Success', `${docTitle} submitted for review and set to Pending verification.`);
+      if (res.data?.success || res.success) {
+        Alert.alert('Success', `${docTitle || 'Document'} submitted for review and set to Pending verification.`);
         if (onSuccess) onSuccess();
         onClose();
+      } else {
+        Alert.alert('Upload Failed', res.data?.message || 'Could not upload document');
       }
     } catch (e) {
-      Alert.alert('Upload Failed', e.response?.data?.message || 'Could not upload document');
+      console.log('Upload error:', e?.response?.data || e.message);
+      Alert.alert('Upload Failed', e.response?.data?.message || e.message || 'Could not upload document');
     } finally {
       setLoading(false);
     }
@@ -43,13 +140,13 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
       <View style={styles.overlay}>
         <View style={styles.modalCard}>
           <View style={styles.header}>
-            <Text style={styles.title}>Upload {docTitle}</Text>
-            <TouchableOpacity onPress={onClose}>
+            <Text style={styles.title}>Upload {docTitle || 'Document'}</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <Ionicons name="close" size={22} color={COLORS.textMuted} />
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.label}>Document Number</Text>
+          <Text style={styles.label}>Document / License Number *</Text>
           <TextInput
             style={styles.input}
             placeholder="e.g. DL-01-2024-9982"
@@ -67,14 +164,44 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
             onChangeText={setExpiryDate}
           />
 
-          <View style={styles.uploadPlaceholder}>
-            <Ionicons name="cloud-upload" size={36} color={COLORS.primary} />
-            <Text style={styles.uploadText}>Document Photo / Scan Attached</Text>
-            <Text style={styles.uploadSub}>Clear front & back image will be uploaded</Text>
-          </View>
+          <Text style={styles.label}>Select Document File / Photo *</Text>
+          
+          {selectedAsset ? (
+            <View style={styles.selectedBadge}>
+              {selectedAsset.isImage && selectedAsset.uri ? (
+                <Image source={{ uri: selectedAsset.uri }} style={styles.previewImage} />
+              ) : (
+                <Ionicons name="document-text" size={32} color={COLORS.primary} />
+              )}
+              <View style={{ flex: 1, marginLeft: 10 }}>
+                <Text style={styles.fileNameText} numberOfLines={1}>{selectedAsset.name}</Text>
+                <Text style={styles.fileSubText}>File selected & attached</Text>
+              </View>
+              <TouchableOpacity onPress={() => setSelectedAsset(null)}>
+                <Ionicons name="trash-outline" size={20} color={COLORS.danger || '#ef4444'} />
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.pickerButtonGroup}>
+              <TouchableOpacity style={styles.pickerBtn} onPress={handlePickFromCamera} activeOpacity={0.8}>
+                <Ionicons name="camera" size={22} color={COLORS.primary} />
+                <Text style={styles.pickerBtnText}>Camera</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.pickerBtn} onPress={handlePickFromGallery} activeOpacity={0.8}>
+                <Ionicons name="images" size={22} color={COLORS.primary} />
+                <Text style={styles.pickerBtnText}>Gallery</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.pickerBtn} onPress={handlePickDocument} activeOpacity={0.8}>
+                <Ionicons name="folder-open" size={22} color={COLORS.primary} />
+                <Text style={styles.pickerBtnText}>PDF / File</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           <TouchableOpacity
-            style={styles.submitBtn}
+            style={[styles.submitBtn, loading && { opacity: 0.7 }]}
             onPress={handleUpload}
             disabled={loading}
             activeOpacity={0.8}
@@ -97,76 +224,105 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: SPACING.lg
+    padding: SPACING.lg || 16,
   },
   modalCard: {
     width: '100%',
-    backgroundColor: COLORS.surface,
+    backgroundColor: COLORS.surface || COLORS.bgCard || '#1E293B',
     borderRadius: 20,
-    padding: SPACING.xl,
+    padding: SPACING.xl || 20,
     borderWidth: 1,
-    borderColor: COLORS.border
+    borderColor: COLORS.border || '#334155',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.lg
+    marginBottom: SPACING.lg || 16,
+  },
+  closeBtn: {
+    padding: 4,
   },
   title: {
     fontSize: 16,
     fontWeight: '800',
-    color: COLORS.textPrimary
+    color: COLORS.textPrimary || '#F8FAFC',
   },
   label: {
     fontSize: 12,
     fontWeight: '700',
-    color: COLORS.textSecondary,
-    marginBottom: 4
+    color: COLORS.textSecondary || '#94A3B8',
+    marginBottom: 4,
+    marginTop: 6,
   },
   input: {
-    backgroundColor: COLORS.surfaceLight,
+    backgroundColor: COLORS.surfaceLight || '#0F172A',
     borderRadius: 10,
-    paddingHorizontal: SPACING.md,
+    paddingHorizontal: SPACING.md || 12,
     paddingVertical: 10,
-    color: COLORS.textPrimary,
+    color: COLORS.textPrimary || '#F8FAFC',
     borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: SPACING.md
+    borderColor: COLORS.border || '#334155',
+    marginBottom: SPACING.xs || 6,
   },
-  uploadPlaceholder: {
-    backgroundColor: 'rgba(10, 102, 194, 0.1)',
+  pickerButtonGroup: {
+    flexDirection: 'row',
+    gap: 10,
+    marginVertical: 10,
+  },
+  pickerBtn: {
+    flex: 1,
+    backgroundColor: 'rgba(10, 102, 194, 0.12)',
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: COLORS.primary,
-    borderStyle: 'dashed',
-    padding: SPACING.lg,
+    borderColor: COLORS.primary || '#0A66C2',
+    paddingVertical: 14,
     alignItems: 'center',
-    marginVertical: SPACING.sm
+    justifyContent: 'center',
+    gap: 4,
   },
-  uploadText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: COLORS.textPrimary,
-    marginTop: 6
-  },
-  uploadSub: {
+  pickerBtnText: {
     fontSize: 11,
-    color: COLORS.textMuted,
-    marginTop: 2
+    fontWeight: '700',
+    color: COLORS.textPrimary || '#F8FAFC',
+  },
+  selectedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(10, 102, 194, 0.15)',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary || '#0A66C2',
+    padding: 10,
+    marginVertical: 10,
+  },
+  previewImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 6,
+  },
+  fileNameText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textPrimary || '#F8FAFC',
+  },
+  fileSubText: {
+    fontSize: 11,
+    color: COLORS.success || '#10B981',
+    marginTop: 2,
   },
   submitBtn: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: COLORS.primary || '#0A66C2',
     borderRadius: 12,
-    paddingVertical: SPACING.md,
+    paddingVertical: 14,
     alignItems: 'center',
-    marginTop: SPACING.lg
+    marginTop: 16,
   },
   submitBtnText: {
     color: '#FFF',
     fontSize: 14,
-    fontWeight: '800'
-  }
+    fontWeight: '800',
+  },
 });
 
 export default DocumentUploadModal;
