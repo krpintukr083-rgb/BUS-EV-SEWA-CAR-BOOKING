@@ -1,6 +1,6 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getDefaultBaseUrl, CANDIDATE_URLS } from '../constants/api';
+import { getDefaultBaseUrl, sanitizeApiUrl, CANDIDATE_URLS } from '../constants/api';
 
 /**
  * Retrieves custom server URL saved in storage
@@ -8,7 +8,7 @@ import { getDefaultBaseUrl, CANDIDATE_URLS } from '../constants/api';
 export const getCustomServerUrl = async () => {
   try {
     const saved = await AsyncStorage.getItem('custom_driver_server_url');
-    return saved ? saved.trim() : null;
+    return saved ? sanitizeApiUrl(saved) : null;
   } catch (e) {
     return null;
   }
@@ -22,11 +22,7 @@ export const setCustomServerUrl = async (url) => {
     if (!url || url.trim() === '') {
       await AsyncStorage.removeItem('custom_driver_server_url');
     } else {
-      let clean = url.trim().replace(/\/+$/, '');
-      if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
-        const isLocal = clean.includes('10.0.2.2') || clean.includes('localhost') || clean.includes('127.0.0.1') || clean.includes('192.168.');
-        clean = `${isLocal ? 'http://' : 'https://'}${clean}`;
-      }
+      const clean = sanitizeApiUrl(url);
       await AsyncStorage.setItem('custom_driver_server_url', clean);
     }
   } catch (e) {
@@ -51,9 +47,20 @@ export const resetServerUrl = async () => {
 export const getEffectiveBaseUrl = async () => {
   const custom = await getCustomServerUrl();
   if (custom) {
-    return custom.endsWith('/api') ? custom : `${custom}/api`;
+    return sanitizeApiUrl(custom);
   }
   return getDefaultBaseUrl();
+};
+
+/**
+ * Categorizes an API URL for UI and logs
+ */
+export const getUrlEnvironment = (url) => {
+  if (!url) return 'UNKNOWN';
+  if (url.startsWith('https://')) return 'PUBLIC HTTPS';
+  if (url.includes('10.0.2.2')) return 'LOCAL EMULATOR';
+  if (url.includes('192.168.') || url.includes('172.') || url.includes('10.')) return 'LAN WI-FI';
+  return 'LOCAL HTTP';
 };
 
 const apiClient = axios.create({
@@ -73,13 +80,8 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   async (config) => {
     try {
-      const customUrl = await AsyncStorage.getItem('custom_driver_server_url');
-      if (customUrl && customUrl.trim() !== '') {
-        const clean = customUrl.trim().replace(/\/+$/, '');
-        config.baseURL = clean.endsWith('/api') ? clean : `${clean}/api`;
-      } else {
-        config.baseURL = getDefaultBaseUrl();
-      }
+      const effectiveUrl = await getEffectiveBaseUrl();
+      config.baseURL = effectiveUrl;
 
       config.headers['bypass-tunnel-reminder'] = 'true';
       config.headers['Bypass-Tunnel-Reminder'] = 'true';
@@ -110,7 +112,10 @@ apiClient.interceptors.response.use(
         if (originalRequest.baseURL !== candidate) {
           try {
             originalRequest.baseURL = candidate;
-            return await axios(originalRequest);
+            const fallbackRes = await axios(originalRequest);
+            // If fallback succeeded, update stored effective URL to working candidate
+            await setCustomServerUrl(candidate);
+            return fallbackRes;
           } catch (retryErr) {
             // continue to next candidate
           }
@@ -135,18 +140,7 @@ apiClient.interceptors.response.use(
  */
 export const testServerConnection = async (targetUrl = null) => {
   const startTime = Date.now();
-  let testEndpoint = targetUrl;
-
-  if (!testEndpoint) {
-    testEndpoint = await getEffectiveBaseUrl();
-  } else {
-    testEndpoint = testEndpoint.trim().replace(/\/+$/, '');
-    if (!testEndpoint.startsWith('http://') && !testEndpoint.startsWith('https://')) {
-      const isLocal = testEndpoint.includes('10.0.2.2') || testEndpoint.includes('localhost') || testEndpoint.includes('127.0.0.1') || testEndpoint.includes('192.168.');
-      testEndpoint = `${isLocal ? 'http://' : 'https://'}${testEndpoint}`;
-    }
-    testEndpoint = testEndpoint.endsWith('/api') ? testEndpoint : `${testEndpoint}/api`;
-  }
+  let testEndpoint = targetUrl ? sanitizeApiUrl(targetUrl) : await getEffectiveBaseUrl();
 
   try {
     const res = await axios.get(`${testEndpoint}/health`, {
@@ -163,6 +157,7 @@ export const testServerConnection = async (targetUrl = null) => {
       status: res.status,
       latency,
       url: testEndpoint,
+      environment: getUrlEnvironment(testEndpoint),
       data: res.data
     };
   } catch (err) {
@@ -171,6 +166,7 @@ export const testServerConnection = async (targetUrl = null) => {
       success: false,
       latency,
       url: testEndpoint,
+      environment: getUrlEnvironment(testEndpoint),
       error: err.message || 'Unable to reach backend server'
     };
   }

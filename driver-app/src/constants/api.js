@@ -1,46 +1,96 @@
 import { Platform } from 'react-native';
 
-// 1. Live Production / HTTPS Public Tunnel URL (Render Live Backend):
-export const BACKEND_TUNNEL_URL = 'https://bus-ev-sewa-car-booking.onrender.com';
+/**
+ * Sanitizes and normalizes any server/API URL.
+ * Guarantees:
+ * - Proper protocol (https:// or http:// for local)
+ * - No duplicate protocols (e.g. http://https://)
+ * - Single /api suffix (no /api/api)
+ * - No trailing slashes
+ */
+export const sanitizeApiUrl = (rawUrl) => {
+  if (!rawUrl || typeof rawUrl !== 'string') return '';
+  let url = rawUrl.trim();
 
-// 2. Local Wi-Fi LAN IP fallback:
+  // Remove duplicate protocols
+  url = url.replace(/^(https?:\/\/)+(https?:\/\/)+/i, '$2');
+
+  // Add protocol if missing
+  if (!/^https?:\/\//i.test(url)) {
+    const isLocal =
+      url.includes('10.0.2.2') ||
+      url.includes('localhost') ||
+      url.includes('127.0.0.1') ||
+      url.includes('192.168.');
+    url = `${isLocal ? 'http://' : 'https://'}${url}`;
+  }
+
+  // Remove trailing slashes
+  url = url.replace(/\/+$/, '');
+
+  // Ensure /api suffix without duplication
+  if (!url.endsWith('/api')) {
+    url = `${url}/api`;
+  }
+
+  return url;
+};
+
+// 1. Primary Public HTTPS Cloudflare Tunnel URL:
+export const CLOUDFLARE_TUNNEL_URL = 'https://archived-updating-louisiana-program.trycloudflare.com';
+
+// 2. Production Render Cloud Backend:
+export const PRODUCTION_RENDER_URL = 'https://bus-ev-sewa-car-booking.onrender.com';
+
+// 3. Local Wi-Fi LAN IP (Development only):
 export const BACKEND_LAN_URL = 'http://192.168.1.2:5000';
 
-// 3. Android Emulator loopback alias:
+// 4. Android Emulator loopback alias (Development only):
 export const EMULATOR_URL = 'http://10.0.2.2:5000';
 
 /**
- * Computes default static Base URL based on constants and platform
+ * Resolves the primary default API Base URL:
+ * 1. EXPO_PUBLIC_API_BASE_URL from .env if present
+ * 2. Public Cloudflare Tunnel HTTPS URL
+ * 3. Render Production HTTPS URL
  */
 export const getDefaultBaseUrl = () => {
-  if (process.env.EXPO_PUBLIC_API_URL && process.env.EXPO_PUBLIC_API_URL.trim() !== '') {
-    const clean = process.env.EXPO_PUBLIC_API_URL.trim().replace(/\/+$/, '');
-    return clean.endsWith('/api') ? clean : `${clean}/api`;
+  if (process.env.EXPO_PUBLIC_API_BASE_URL && process.env.EXPO_PUBLIC_API_BASE_URL.trim() !== '') {
+    return sanitizeApiUrl(process.env.EXPO_PUBLIC_API_BASE_URL);
+  }
+
+  if (CLOUDFLARE_TUNNEL_URL && CLOUDFLARE_TUNNEL_URL.trim() !== '') {
+    return sanitizeApiUrl(CLOUDFLARE_TUNNEL_URL);
+  }
+
+  if (PRODUCTION_RENDER_URL && PRODUCTION_RENDER_URL.trim() !== '') {
+    return sanitizeApiUrl(PRODUCTION_RENDER_URL);
   }
 
   if (Platform.OS === 'android') {
-    return `${EMULATOR_URL}/api`;
-  }
-
-  if (BACKEND_TUNNEL_URL && BACKEND_TUNNEL_URL.trim() !== '') {
-    const clean = BACKEND_TUNNEL_URL.trim().replace(/\/+$/, '');
-    return clean.endsWith('/api') ? clean : `${clean}/api`;
+    return sanitizeApiUrl(EMULATOR_URL);
   }
 
   return 'http://localhost:5000/api';
 };
 
 /**
- * Candidate URLs for connectivity fallback
+ * Single source of truth constant
+ */
+export const DRIVER_API_BASE_URL = getDefaultBaseUrl();
+export const API_BASE_URL = DRIVER_API_BASE_URL;
+
+/**
+ * Candidate URLs for automatic connectivity fallback (tested sequentially if primary fails)
  */
 export const CANDIDATE_URLS = [
-  BACKEND_TUNNEL_URL ? (BACKEND_TUNNEL_URL.endsWith('/api') ? BACKEND_TUNNEL_URL : `${BACKEND_TUNNEL_URL}/api`) : null,
-  Platform.OS === 'android' ? `${EMULATOR_URL}/api` : null,
-  BACKEND_LAN_URL ? (BACKEND_LAN_URL.endsWith('/api') ? BACKEND_LAN_URL : `${BACKEND_LAN_URL}/api`) : null,
+  getDefaultBaseUrl(),
+  sanitizeApiUrl(CLOUDFLARE_TUNNEL_URL),
+  sanitizeApiUrl(PRODUCTION_RENDER_URL),
+  sanitizeApiUrl(BACKEND_LAN_URL),
+  sanitizeApiUrl(EMULATOR_URL),
   'http://localhost:5000/api'
-].filter(Boolean);
-
-export const API_BASE_URL = getDefaultBaseUrl();
+].filter((url, index, self) => url && self.indexOf(url) === index);
 
 export const ENDPOINTS = {
   // Auth

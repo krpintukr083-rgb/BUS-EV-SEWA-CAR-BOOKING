@@ -20,8 +20,10 @@ import {
   getEffectiveBaseUrl,
   setCustomServerUrl,
   resetServerUrl,
-  testServerConnection
+  testServerConnection,
+  getUrlEnvironment
 } from '../../services/api';
+import { PRODUCTION_RENDER_URL, CLOUDFLARE_TUNNEL_URL, sanitizeApiUrl } from '../../constants/api';
 
 const LoginScreen = ({ navigation }) => {
   const { login } = useAuth();
@@ -60,7 +62,11 @@ const LoginScreen = ({ navigation }) => {
       const result = await testServerConnection(targetUrl || customInputUrl || currentBaseUrl);
       setTestStatus(result);
     } catch (err) {
-      setTestStatus({ success: false, error: err.message });
+      setTestStatus({
+        success: false,
+        error: err.message,
+        environment: getUrlEnvironment(targetUrl || customInputUrl || currentBaseUrl)
+      });
     } finally {
       setTestingConnection(false);
     }
@@ -68,20 +74,31 @@ const LoginScreen = ({ navigation }) => {
 
   const handleSaveCustomServer = async () => {
     if (!customInputUrl.trim()) {
-      Alert.alert('Empty URL', 'Please enter a valid server URL or click Reset to Default.');
+      Alert.alert('Empty URL', 'Please enter a valid server URL or click Reset to Production.');
       return;
     }
-    await setCustomServerUrl(customInputUrl.trim());
+    const cleanUrl = sanitizeApiUrl(customInputUrl.trim());
+    await setCustomServerUrl(cleanUrl);
     await loadEffectiveUrl();
-    Alert.alert('Server Saved', 'Driver Backend API URL updated successfully.');
+    Alert.alert('Server Saved', `Driver Backend API URL updated to:\n${cleanUrl}`);
     setServerModalVisible(false);
   };
 
-  const handleResetServer = async () => {
-    await resetServerUrl();
+  const handleResetToProduction = async () => {
+    const prodUrl = sanitizeApiUrl(PRODUCTION_RENDER_URL);
+    await setCustomServerUrl(prodUrl);
     await loadEffectiveUrl();
     setTestStatus(null);
-    Alert.alert('Reset Complete', 'Backend API URL reset to default Render cloud server.');
+    Alert.alert('Reset Complete', `Backend API URL set to Production Cloud:\n${prodUrl}`);
+    setServerModalVisible(false);
+  };
+
+  const handleResetToTunnel = async () => {
+    const tunnelUrl = sanitizeApiUrl(CLOUDFLARE_TUNNEL_URL);
+    await setCustomServerUrl(tunnelUrl);
+    await loadEffectiveUrl();
+    setTestStatus(null);
+    Alert.alert('Tunnel Active', `Backend API URL set to Development Tunnel:\n${tunnelUrl}`);
     setServerModalVisible(false);
   };
 
@@ -224,7 +241,7 @@ const LoginScreen = ({ navigation }) => {
             </View>
 
             <Text style={styles.modalSub}>
-              Driver App connects to high-availability cloud backend. You can also specify an emulator or local IP.
+              Driver App connects to public HTTPS cloud backend or verified development tunnel.
             </Text>
 
             <Text style={styles.fieldLabel}>Active Server URL</Text>
@@ -232,12 +249,13 @@ const LoginScreen = ({ navigation }) => {
               style={styles.modalInput}
               value={customInputUrl}
               onChangeText={setCustomInputUrl}
-              placeholder="https://bus-ev-sewa-car-booking.onrender.com/api"
+              placeholder="https://archived-updating-louisiana-program.trycloudflare.com/api"
               placeholderTextColor="#94a3b8"
               autoCapitalize="none"
               autoCorrect={false}
             />
 
+            {/* Connection Information Card */}
             {testStatus && (
               <View
                 style={[
@@ -247,19 +265,30 @@ const LoginScreen = ({ navigation }) => {
               >
                 <Ionicons
                   name={testStatus.success ? 'checkmark-circle' : 'alert-circle'}
-                  size={18}
+                  size={20}
                   color={testStatus.success ? '#16a34a' : '#dc2626'}
                 />
-                <Text
-                  style={[
-                    styles.statusCardText,
-                    { color: testStatus.success ? '#15803d' : '#b91c1c' }
-                  ]}
-                >
-                  {testStatus.success
-                    ? `Connected! Status ${testStatus.status} OK (${testStatus.latency}ms)`
-                    : `Connection Failed: ${testStatus.error}`}
-                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={[
+                      styles.statusCardTitle,
+                      { color: testStatus.success ? '#15803d' : '#b91c1c' }
+                    ]}
+                  >
+                    Connection: {testStatus.success ? 'CONNECTED' : 'FAILED'}
+                  </Text>
+                  <Text style={styles.statusMetaText}>
+                    Environment: {testStatus.environment || getUrlEnvironment(testStatus.url)}
+                  </Text>
+                  <Text style={styles.statusMetaText}>
+                    Latency: {testStatus.latency} ms
+                  </Text>
+                  {!testStatus.success && (
+                    <Text style={[styles.statusMetaText, { color: '#b91c1c' }]}>
+                      Error: {testStatus.error}
+                    </Text>
+                  )}
+                </View>
               </View>
             )}
 
@@ -278,10 +307,18 @@ const LoginScreen = ({ navigation }) => {
               )}
             </TouchableOpacity>
 
-            <View style={styles.modalActionRow}>
-              <TouchableOpacity style={styles.resetBtn} onPress={handleResetServer}>
-                <Text style={styles.resetBtnText}>Reset to Default</Text>
+            <View style={styles.quickSelectRow}>
+              <TouchableOpacity style={styles.quickBtn} onPress={handleResetToProduction}>
+                <Ionicons name="cloud-done-outline" size={14} color="#0369a1" />
+                <Text style={styles.quickBtnText}>Production</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={styles.quickBtn} onPress={handleResetToTunnel}>
+                <Ionicons name="shield-checkmark-outline" size={14} color="#0369a1" />
+                <Text style={styles.quickBtnText}>Cloudflare Tunnel</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalActionRow}>
               <TouchableOpacity style={styles.saveBtn} onPress={handleSaveCustomServer}>
                 <Text style={styles.saveBtnText}>Save URL</Text>
               </TouchableOpacity>
@@ -472,9 +509,9 @@ const styles = StyleSheet.create({
   },
   statusCard: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    padding: 10,
+    alignItems: 'flex-start',
+    gap: 10,
+    padding: 12,
     borderRadius: 8,
     marginBottom: 12
   },
@@ -488,10 +525,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#fecaca'
   },
-  statusCardText: {
-    fontSize: 12,
-    fontWeight: '600',
-    flex: 1
+  statusCardTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    marginBottom: 2
+  },
+  statusMetaText: {
+    fontSize: 11,
+    color: '#475569',
+    marginTop: 1
   },
   testBtn: {
     backgroundColor: '#0f172a',
@@ -501,30 +543,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    marginBottom: 14
+    marginBottom: 10
   },
   testBtnText: {
     color: '#ffffff',
     fontSize: 13,
     fontWeight: '600'
   },
-  modalActionRow: {
+  quickSelectRow: {
     flexDirection: 'row',
-    gap: 10
+    gap: 8,
+    marginBottom: 12
   },
-  resetBtn: {
+  quickBtn: {
     flex: 1,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 8,
-    paddingVertical: 12,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#f0f9ff',
     borderWidth: 1,
-    borderColor: '#e2e8f0'
+    borderColor: '#bae6fd',
+    borderRadius: 8,
+    paddingVertical: 8
   },
-  resetBtnText: {
-    color: '#475569',
-    fontSize: 13,
-    fontWeight: '600'
+  quickBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#0369a1'
+  },
+  modalActionRow: {
+    flexDirection: 'row'
   },
   saveBtn: {
     flex: 1,
