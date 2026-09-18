@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl, Alert, Modal, TouchableOpacity, TextInput } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING } from '../../constants/theme';
@@ -18,6 +19,7 @@ const REJECTION_REASONS = [
 ];
 
 const BookingRequestsScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const { isOnline, toggleOnlineStatus } = useAuth();
   const { t } = useLanguage();
 
@@ -94,7 +96,12 @@ const BookingRequestsScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[
+      styles.container,
+      {
+        paddingTop: insets.top,
+      },
+    ]}>
       <DriverHeader navigation={navigation} title="Booking Requests" showBack={false} />
 
       {!isOnline && (
