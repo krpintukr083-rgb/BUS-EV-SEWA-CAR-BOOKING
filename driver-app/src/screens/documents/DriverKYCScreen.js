@@ -31,6 +31,7 @@ export default function DriverKYCScreen({ navigation }) {
   });
 
   const [selectedDocKey, setSelectedDocKey] = useState(null);
+  const [selectedDocTitle, setSelectedDocTitle] = useState('');
   const [uploadModalVisible, setUploadModalVisible] = useState(false);
 
   useEffect(() => {
@@ -60,7 +61,9 @@ export default function DriverKYCScreen({ navigation }) {
   };
 
   const handleOpenUpload = (docKey) => {
+    const docConfig = docConfigs.find((d) => d.key === docKey);
     setSelectedDocKey(docKey);
+    setSelectedDocTitle(docConfig ? docConfig.title : '');
     setUploadModalVisible(true);
   };
 
@@ -223,7 +226,8 @@ export default function DriverKYCScreen({ navigation }) {
       <DocumentUploadModal
         visible={uploadModalVisible}
         onClose={() => setUploadModalVisible(false)}
-        documentType={selectedDocKey}
+        docType={selectedDocKey}
+        docTitle={selectedDocTitle}
         onSuccess={handleDocumentSubmitted}
       />
     </View>
