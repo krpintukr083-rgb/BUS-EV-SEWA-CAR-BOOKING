@@ -28,13 +28,44 @@ const driverSchema = new mongoose.Schema(
     },
     driverStatus: {
       type: String,
-      enum: ['Active', 'Inactive', 'Blocked'],
+      enum: ['Active', 'Inactive', 'Blocked', 'Pending Verification', 'Approved', 'Rejected', 'Suspended'],
       default: 'Active'
+    },
+    isOnline: {
+      type: Boolean,
+      default: true
+    },
+    address: {
+      type: String,
+      default: ''
+    },
+    emergencyContact: {
+      name: { type: String, default: '' },
+      phone: { type: String, default: '' },
+      relation: { type: String, default: 'Family' }
     },
     assignedVehicle: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Vehicle',
       default: null
+    },
+    // Citizenship / National ID Details
+    citizenshipNumber: {
+      type: String,
+      default: ''
+    },
+    citizenshipDoc: {
+      type: String,
+      default: ''
+    },
+    citizenshipExpiry: {
+      type: String,
+      default: '2030-01-01'
+    },
+    citizenshipStatus: {
+      type: String,
+      enum: ['Pending', 'Approved', 'Rejected'],
+      default: 'Approved'
     },
     // Driving Licence Details
     drivingLicenceNumber: {
@@ -44,6 +75,10 @@ const driverSchema = new mongoose.Schema(
     drivingLicenceDoc: {
       type: String,
       default: 'https://images.unsplash.com/photo-1628155930542-3c7a64e2c833?auto=format&fit=crop&w=600&q=80'
+    },
+    drivingLicenceExpiry: {
+      type: String,
+      default: '2028-12-31'
     },
     drivingLicenceStatus: {
       type: String,
@@ -62,6 +97,10 @@ const driverSchema = new mongoose.Schema(
     rcDoc: {
       type: String,
       default: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&w=600&q=80'
+    },
+    rcExpiry: {
+      type: String,
+      default: '2029-06-30'
     },
     rcStatus: {
       type: String,
@@ -99,6 +138,10 @@ const driverSchema = new mongoose.Schema(
       type: String,
       default: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=600&q=80'
     },
+    fitnessExpiry: {
+      type: String,
+      default: '2027-03-31'
+    },
     fitnessStatus: {
       type: String,
       enum: ['Pending', 'Approved', 'Rejected'],
@@ -113,6 +156,63 @@ const driverSchema = new mongoose.Schema(
     rejectionReason: {
       type: String,
       default: ''
+    },
+    // Driver Wallet & Financials (Authoritative Backend State)
+    walletBalance: {
+      type: Number,
+      default: 0
+    },
+    totalEarnings: {
+      type: Number,
+      default: 0
+    },
+    totalBonus: {
+      type: Number,
+      default: 0
+    },
+    totalCommission: {
+      type: Number,
+      default: 0
+    },
+    totalWithdrawn: {
+      type: Number,
+      default: 0
+    },
+    payoutMethods: {
+      bankName: { type: String, default: '' },
+      accountNumber: { type: String, default: '' },
+      accountHolderName: { type: String, default: '' },
+      branch: { type: String, default: '' },
+      esewaId: { type: String, default: '' },
+      khaltiId: { type: String, default: '' }
+    },
+    // Ratings & Performance
+    rating: {
+      type: Number,
+      default: 4.8
+    },
+    totalRatingsCount: {
+      type: Number,
+      default: 12
+    },
+    // Language Preference
+    language: {
+      type: String,
+      enum: ['en', 'ne', 'hi'],
+      default: 'en'
+    },
+    // EV Specific State (Manually/System Provided - Strictly NO Fake Live Telemetry)
+    batteryPercentage: {
+      type: Number,
+      default: 85
+    },
+    estimatedRangeKm: {
+      type: Number,
+      default: 180
+    },
+    lastChargedAt: {
+      type: Date,
+      default: null
     }
   },
   {
@@ -135,7 +235,7 @@ driverSchema.pre('save', function (next) {
 });
 
 // Performance Indexes
-driverSchema.index({ driverStatus: 1 });
+driverSchema.index({ driverStatus: 1, isOnline: 1 });
 driverSchema.index({ drivingLicenceStatus: 1, rcStatus: 1, insuranceStatus: 1, fitnessStatus: 1 });
 
 module.exports = mongoose.model('Driver', driverSchema);

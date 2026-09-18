@@ -12,6 +12,11 @@ const bookingSchema = new mongoose.Schema(
       enum: ['OWN', 'THIRD_PARTY'],
       default: 'OWN'
     },
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
     customer: {
       name: { type: String, required: true },
       phone: { type: String, required: true },
@@ -144,6 +149,38 @@ const bookingSchema = new mongoose.Schema(
     cancellationReason: {
       type: String,
       default: ''
+    },
+    cancelledBy: {
+      type: String,
+      default: ''
+    },
+    // Ride Lifecycle Management (Car / EV-Sewa / Driver Operations)
+    rideStatus: {
+      type: String,
+      enum: ['None', 'Accepted', 'Arrived', 'Started', 'Completed', 'Cancelled'],
+      default: 'None'
+    },
+    rideOtp: {
+      type: String,
+      default: function () {
+        return Math.floor(1000 + Math.random() * 9000).toString();
+      }
+    },
+    otpVerified: {
+      type: Boolean,
+      default: false
+    },
+    arrivedAt: {
+      type: Date,
+      default: null
+    },
+    startedAt: {
+      type: Date,
+      default: null
+    },
+    completedAt: {
+      type: Date,
+      default: null
     },
     travelDate: {
       type: Date,

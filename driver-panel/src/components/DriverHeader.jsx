@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import { Menu, Truck, LogOut, Globe, AlertTriangle, Radio } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import SafetySOS from './SafetySOS';

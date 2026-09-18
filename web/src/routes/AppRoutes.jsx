@@ -60,8 +60,11 @@ const DriverDashboard = lazy(() => import('../driver/pages/Dashboard'));
 const MyProfile = lazy(() => import('../driver/pages/MyProfile'));
 const AssignedVehicle = lazy(() => import('../driver/pages/AssignedVehicle'));
 const BookingRequests = lazy(() => import('../driver/pages/BookingRequests'));
+const ActiveRide = lazy(() => import('../driver/pages/ActiveRide'));
 const BookingHistory = lazy(() => import('../driver/pages/BookingHistory'));
 const EarningsRecords = lazy(() => import('../driver/pages/EarningsRecords'));
+const Wallet = lazy(() => import('../driver/pages/Wallet'));
+const EVHub = lazy(() => import('../driver/pages/EVHub'));
 const DriverDocuments = lazy(() => import('../driver/pages/DriverDocuments'));
 const DriverStatus = lazy(() => import('../driver/pages/DriverStatus'));
 const Support = lazy(() => import('../driver/pages/Support'));
@@ -164,8 +167,11 @@ export default function AppRoutes() {
           <Route path="profile" element={<MyProfile />} />
           <Route path="assigned-vehicle" element={<AssignedVehicle />} />
           <Route path="booking-requests" element={<BookingRequests />} />
+          <Route path="active-ride" element={<ActiveRide />} />
           <Route path="booking-history" element={<BookingHistory />} />
           <Route path="earnings" element={<EarningsRecords />} />
+          <Route path="wallet" element={<Wallet />} />
+          <Route path="ev-hub" element={<EVHub />} />
           <Route path="documents" element={<DriverDocuments />} />
           <Route path="driver-status" element={<DriverStatus />} />
           <Route path="support" element={<Support />} />

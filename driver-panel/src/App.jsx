@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { LanguageProvider } from './context/LanguageContext';
 import DriverLayout from './layouts/DriverLayout';
 
 // Pages
@@ -9,8 +10,11 @@ import Dashboard from './pages/Dashboard';
 import MyProfile from './pages/MyProfile';
 import AssignedVehicle from './pages/AssignedVehicle';
 import BookingRequests from './pages/BookingRequests';
+import ActiveRide from './pages/ActiveRide';
 import BookingHistory from './pages/BookingHistory';
 import EarningsRecords from './pages/EarningsRecords';
+import Wallet from './pages/Wallet';
+import EVHub from './pages/EVHub';
 import DriverDocuments from './pages/DriverDocuments';
 import DriverStatus from './pages/DriverStatus';
 import Support from './pages/Support';
@@ -45,8 +49,11 @@ function AppRoutes() {
         <Route path="profile" element={<MyProfile />} />
         <Route path="assigned-vehicle" element={<AssignedVehicle />} />
         <Route path="booking-requests" element={<BookingRequests />} />
+        <Route path="active-ride" element={<ActiveRide />} />
         <Route path="booking-history" element={<BookingHistory />} />
         <Route path="earnings" element={<EarningsRecords />} />
+        <Route path="wallet" element={<Wallet />} />
+        <Route path="ev-hub" element={<EVHub />} />
         <Route path="documents" element={<DriverDocuments />} />
         <Route path="driver-status" element={<DriverStatus />} />
         <Route path="support" element={<Support />} />
@@ -60,9 +67,11 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
+      <LanguageProvider>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </LanguageProvider>
     </AuthProvider>
   );
 }

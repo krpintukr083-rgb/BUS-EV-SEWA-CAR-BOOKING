@@ -126,6 +126,7 @@ exports.createBooking = async (req, res, next) => {
 
     const booking = await Booking.create({
       bookingId,
+      user: req.user?._id,
       vehicleSource: isThirdParty ? 'THIRD_PARTY' : 'OWN',
       hiredVehicleDetails,
       customer: {

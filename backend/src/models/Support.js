@@ -20,6 +20,16 @@ const supportSchema = new mongoose.Schema(
       type: String,
       required: true
     },
+    driver: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Driver',
+      default: null
+    },
+    category: {
+      type: String,
+      enum: ['General', 'Payment Issue', 'Customer Issue', 'Vehicle Issue', 'KYC/Account', 'Other'],
+      default: 'General'
+    },
     bookingId: {
       type: String,
       default: 'N/A'
