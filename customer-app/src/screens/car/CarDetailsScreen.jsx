@@ -90,6 +90,9 @@ const CarDetailsScreen = ({ route, navigation }) => {
     navigation.navigate('PickupDrop');
   };
 
+  // Alias used by the footer Continue button
+  const handleProceed = handleBookNow;
+
   return (
     <View style={styles.container}>
       <Header title="Car Details" onBack={() => navigation.goBack()} />
@@ -457,6 +460,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: COLORS.danger,
     marginVertical: 12
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: COLORS.darkNavy,
+    marginTop: 12
+  },
+  errorSub: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginTop: 6
+  },
+  backBtn: {
+    marginTop: 16,
+    backgroundColor: '#ea580c',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8
+  },
+  backBtnText: {
+    color: '#ffffff',
+    fontWeight: '700'
   }
 });
 
