@@ -81,22 +81,11 @@ export const AuthProvider = ({ children }) => {
     try {
       const res = await driverService.register(registrationData);
       if (res.data?.success) {
-        const { token: jwtToken, user: userData, driver: driverData } = res.data;
-        setToken(jwtToken);
-        setUser(userData);
-        setDriver(driverData || null);
-        setIsOnline(false);
-
-        await AsyncStorage.setItem('@driver_jwt_token', jwtToken);
-        await AsyncStorage.setItem('@driver_user_data', JSON.stringify(userData));
-        if (driverData) {
-          await AsyncStorage.setItem('@driver_profile_data', JSON.stringify(driverData));
-        }
-        return { success: true };
+        return { success: true, message: res.data.message };
       }
       return { success: false, message: res.data?.message || 'Registration failed' };
     } catch (e) {
-      const msg = e.response?.data?.message || 'Registration failed. Check details.';
+      const msg = e.response?.data?.message || 'Registration failed';
       return { success: false, message: msg };
     }
   };
@@ -106,26 +95,27 @@ export const AuthProvider = ({ children }) => {
       const res = await driverService.toggleStatus(newStatus);
       if (res.data?.success) {
         setIsOnline(newStatus);
-        setDriver((prev) => (prev ? { ...prev, isOnline: newStatus } : prev));
+        if (driver) {
+          const updated = { ...driver, isOnline: newStatus };
+          setDriver(updated);
+          await AsyncStorage.setItem('@driver_profile_data', JSON.stringify(updated));
+        }
         return { success: true };
       }
-      return { success: false, message: res.data?.message || 'Failed to update status' };
+      return { success: false };
     } catch (e) {
-      const msg = e.response?.data?.message || 'Could not update online status';
-      return { success: false, message: msg };
+      console.warn('Error toggling online status', e);
+      return { success: false };
     }
   };
 
   const logout = async () => {
     try {
-      if (isOnline) {
-        await driverService.toggleStatus(false).catch(() => {});
-      }
       await AsyncStorage.removeItem('@driver_jwt_token');
       await AsyncStorage.removeItem('@driver_user_data');
       await AsyncStorage.removeItem('@driver_profile_data');
     } catch (e) {
-      console.warn('Logout cleanup error', e);
+      // ignore
     } finally {
       setToken(null);
       setUser(null);
@@ -140,8 +130,10 @@ export const AuthProvider = ({ children }) => {
         user,
         driver,
         token,
+        isAuthenticated: Boolean(token && user),
         isOnline,
         isLoading,
+        loading: isLoading,
         login,
         register,
         toggleOnlineStatus,
