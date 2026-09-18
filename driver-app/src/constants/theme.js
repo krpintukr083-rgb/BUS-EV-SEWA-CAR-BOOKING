@@ -3,9 +3,14 @@ export const COLORS = {
   primary: '#0A66C2',
   primaryDark: '#004182',
   primaryLight: '#3B82F6',
+  secondary: '#2563EB',
   accent: '#06B6D4',
+  white: '#FFFFFF',
 
   // Dark Theme Surfaces
+  bgDark: '#0B0F19',
+  bgSurface: '#131B2E',
+  bgCard: '#182238',
   background: '#0B0F19',
   surface: '#131B2E',
   surfaceLight: '#1E293B',
@@ -40,12 +45,28 @@ export const COLORS = {
 
 export const SPACING = {
   xs: 4,
+  s: 8,
   sm: 8,
+  m: 12,
   md: 12,
+  l: 16,
   lg: 16,
   xl: 20,
   xxl: 24,
   huge: 32
+};
+
+export const RADIUS = {
+  xs: 4,
+  s: 6,
+  sm: 8,
+  m: 10,
+  md: 12,
+  l: 14,
+  lg: 16,
+  xl: 20,
+  full: 9999,
+  round: 9999
 };
 
 export const FONTS = {

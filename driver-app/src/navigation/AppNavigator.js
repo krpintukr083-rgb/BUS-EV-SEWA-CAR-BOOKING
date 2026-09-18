@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { COLORS } from '../constants/theme';
 import { useAuth } from '../state/AuthContext';
 
@@ -19,7 +19,7 @@ import SafetyScreen from '../screens/safety/SafetyScreen';
 import SupportScreen from '../screens/support/SupportScreen';
 import NotificationsScreen from '../screens/notifications/NotificationsScreen';
 
-const Stack = createStackNavigator();
+const Stack = createNativeStackNavigator();
 
 export default function AppNavigator() {
   const { isAuthenticated, loading } = useAuth();
@@ -36,18 +36,18 @@ export default function AppNavigator() {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        cardStyle: { backgroundColor: COLORS.bgDark },
+        contentStyle: { backgroundColor: COLORS.bgDark },
       }}
     >
       {!isAuthenticated ? (
         // Auth Stack
-        <>
+        <Stack.Group>
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="Register" component={RegisterScreen} />
-        </>
+        </Stack.Group>
       ) : (
         // Authenticated Driver Stack
-        <>
+        <Stack.Group>
           <Stack.Screen name="MainTabs" component={TabNavigator} />
           <Stack.Screen name="ActiveRide" component={ActiveRideScreen} />
           <Stack.Screen name="BusConfirmation" component={BusConfirmationScreen} />
@@ -59,7 +59,7 @@ export default function AppNavigator() {
           <Stack.Screen name="Safety" component={SafetyScreen} />
           <Stack.Screen name="Support" component={SupportScreen} />
           <Stack.Screen name="Notifications" component={NotificationsScreen} />
-        </>
+        </Stack.Group>
       )}
     </Stack.Navigator>
   );
