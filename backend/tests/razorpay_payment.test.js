@@ -114,15 +114,15 @@ describe('RAZORPAY TEST PAYMENT INTEGRATION SUITE', () => {
     expect(verifyRes.status).toBe(200);
     expect(verifyRes.body.success).toBe(true);
     expect(verifyRes.body.data.booking.bookingStatus).toBe('Confirmed');
-    expect(verifyRes.body.data.booking.paymentStatus).toBe('Successful');
+    expect(verifyRes.body.data.booking.paymentStatus).toBe('Paid');
 
     // Verify in MongoDB
     const updatedBooking = await Booking.findById(testBooking._id);
     expect(updatedBooking.bookingStatus).toBe('Confirmed');
-    expect(updatedBooking.paymentStatus).toBe('Successful');
+    expect(updatedBooking.paymentStatus).toBe('Paid');
 
     const updatedPayment = await Payment.findOne({ booking: testBooking._id });
-    expect(updatedPayment.paymentStatus).toBe('Successful');
+    expect(updatedPayment.paymentStatus).toBe('Paid');
     expect(updatedPayment.razorpayPaymentId).toBe(razorpayPaymentId);
     expect(updatedPayment.razorpaySignature).toBe(validSignature);
   });
@@ -279,6 +279,6 @@ describe('RAZORPAY TEST PAYMENT INTEGRATION SUITE', () => {
     );
     expect(foundBooking).toBeDefined();
     expect(foundBooking.bookingStatus).toBe('Confirmed');
-    expect(foundBooking.paymentStatus).toBe('Successful');
+    expect(foundBooking.paymentStatus).toBe('Paid');
   });
 });

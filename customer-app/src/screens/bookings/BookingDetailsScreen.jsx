@@ -57,10 +57,12 @@ const BookingDetailsScreen = ({ route, navigation }) => {
   }
 
   const isPendingDriver = booking.bookingStatus === 'Pending Driver Confirmation';
+  const isAwaitingCash = booking.bookingStatus === 'Awaiting Cash Collection';
   const isCancellable =
     booking.bookingStatus === 'Confirmed' ||
     booking.bookingStatus === 'Pending' ||
-    booking.bookingStatus === 'Pending Driver Confirmation';
+    booking.bookingStatus === 'Pending Driver Confirmation' ||
+    booking.bookingStatus === 'Awaiting Cash Collection';
 
   const travelDateFormatted = booking.travelDate
     ? new Date(booking.travelDate).toLocaleDateString('en-IN', {
@@ -88,6 +90,19 @@ const BookingDetailsScreen = ({ route, navigation }) => {
               <Text style={styles.pendingBannerTitle}>Waiting for Driver Confirmation</Text>
               <Text style={styles.pendingBannerSub}>
                 Your booking request has been sent to the assigned vehicle crew. Your boarding pass will activate once confirmed.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Awaiting Cash Collection Alert */}
+        {isAwaitingCash && (
+          <View style={[styles.pendingStatusBanner, { backgroundColor: '#eef2ff', borderColor: '#c7d2fe' }]}>
+            <Ionicons name="cash" size={22} color="#4f46e5" />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={[styles.pendingBannerTitle, { color: '#3730a3' }]}>Awaiting Cash Collection</Text>
+              <Text style={[styles.pendingBannerSub, { color: '#4338ca' }]}>
+                Seat confirmed by driver! Please pay ₹{booking.fare} cash upon boarding to activate your ticket.
               </Text>
             </View>
           </View>

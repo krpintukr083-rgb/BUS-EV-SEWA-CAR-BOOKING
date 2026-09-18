@@ -97,7 +97,8 @@ describe('7. End-to-End Complete Booking & Database Verification Suite', () => {
     expect(bookingRes.status).toBe(201);
     expect(bookingRes.body.success).toBe(true);
     const busBooking = bookingRes.body.data;
-    expect(busBooking.bookingStatus).toBe('Pending Driver Confirmation');
+    expect(busBooking.bookingStatus).toBe('Pending');
+    expect(busBooking.paymentStatus).toBe('Pending');
 
     // 4. Sandbox Payment Test Success
     const payRes = await request(app)
@@ -111,7 +112,7 @@ describe('7. End-to-End Complete Booking & Database Verification Suite', () => {
     expect(payRes.status).toBe(200);
     expect(payRes.body.success).toBe(true);
     expect(payRes.body.data.booking.bookingStatus).toBe('Pending Driver Confirmation');
-    expect(payRes.body.data.payment.paymentStatus).toBe('Successful');
+    expect(payRes.body.data.payment.paymentStatus).toBe('Paid');
 
     // 4b. Driver / Conductor Confirms Bus Booking
     const driverLogin = await request(app)
@@ -143,11 +144,11 @@ describe('7. End-to-End Complete Booking & Database Verification Suite', () => {
     // 6. Verify MongoDB persistence
     const bookingInDb = await Booking.findOne({ bookingId: busBooking.bookingId });
     expect(bookingInDb.bookingStatus).toBe('Confirmed');
-    expect(bookingInDb.paymentStatus).toBe('Successful');
+    expect(bookingInDb.paymentStatus).toBe('Paid');
 
     const paymentInDb = await Payment.findOne({ booking: busBooking._id });
     expect(paymentInDb).toBeDefined();
-    expect(paymentInDb.paymentStatus).toBe('Successful');
+    expect(paymentInDb.paymentStatus).toBe('Paid');
 
     const insuranceInDb = await Insurance.findOne({ booking: busBooking._id });
     expect(insuranceInDb).toBeDefined();

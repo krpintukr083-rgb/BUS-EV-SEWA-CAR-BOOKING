@@ -76,7 +76,7 @@ exports.getBusDetails = async (req, res, next) => {
     // Find active confirmed bookings for this bus to compute booked seats
     const activeBookings = await Booking.find({
       vehicle: bus._id,
-      bookingStatus: { $in: ['Confirmed', 'Pending', 'Pending Driver Confirmation', 'Ongoing'] }
+      bookingStatus: { $in: ['Confirmed', 'Pending', 'Pending Driver Confirmation', 'Awaiting Cash Collection', 'Ongoing'] }
     });
 
     const bookedSeats = [];
@@ -207,7 +207,7 @@ exports.createBooking = async (req, res, next) => {
     if (serviceType === 'Bus' && selectedSeats && selectedSeats.length > 0) {
       const activeBookings = await Booking.find({
         vehicle: vehicle._id,
-        bookingStatus: { $in: ['Confirmed', 'Pending', 'Pending Driver Confirmation', 'Ongoing'] }
+        bookingStatus: { $in: ['Confirmed', 'Pending', 'Pending Driver Confirmation', 'Awaiting Cash Collection', 'Ongoing'] }
       });
 
       const alreadyBooked = [];
@@ -227,6 +227,7 @@ exports.createBooking = async (req, res, next) => {
     }
 
     const bookingId = `BK-${Date.now().toString().slice(-4)}${Math.floor(100 + Math.random() * 900)}`;
+    const isOfflineCash = req.body.paymentMethod === 'Offline Cash' || req.body.paymentMethod === 'Cash';
 
     const booking = await Booking.create({
       bookingId,
@@ -243,8 +244,9 @@ exports.createBooking = async (req, res, next) => {
       passengerDetails: passengerDetails || [{ name: req.user.name, age: 28, gender: 'Male' }],
       fare: Number(fare),
       driverPaymentAmount: Math.round(Number(fare) * 0.8),
-      paymentStatus: 'Pending',
-      bookingStatus: serviceType === 'Bus' ? 'Pending Driver Confirmation' : 'Pending',
+      paymentMethod: isOfflineCash ? 'Offline Cash' : (req.body.paymentMethod || 'Online Razorpay'),
+      paymentStatus: isOfflineCash ? 'Pending Cash' : 'Pending',
+      bookingStatus: isOfflineCash ? 'Pending Driver Confirmation' : 'Pending',
       driverConfirmationStatus: 'Pending',
       driverConfirmed: false,
       travelDate: travelDate ? new Date(travelDate) : new Date(),
@@ -253,10 +255,10 @@ exports.createBooking = async (req, res, next) => {
 
     // Create notification
     await Notification.create({
-      title: serviceType === 'Bus' ? 'Booking Request Sent' : 'Booking Created',
-      message: serviceType === 'Bus'
+      title: isOfflineCash ? 'Booking Request Sent' : 'Booking Created',
+      message: isOfflineCash
         ? 'Your bus booking request has been sent to the assigned driver.'
-        : 'Your booking has been created.',
+        : 'Your booking has been created. Please complete payment.',
       recipient: `Customer: ${booking.customer.name}`,
       recipientRole: 'customer',
       recipientId: req.user._id,
@@ -265,7 +267,9 @@ exports.createBooking = async (req, res, next) => {
 
     res.status(201).json({
       success: true,
-      message: 'Booking created. Proceed to payment.',
+      message: isOfflineCash
+        ? 'Booking request sent. Awaiting driver confirmation.'
+        : 'Booking created. Proceed to payment.',
       data: booking
     });
   } catch (error) {
@@ -296,16 +300,26 @@ exports.processPayment = async (req, res, next) => {
       driver: booking.driver || null,
       bookingAmount: booking.fare,
       driverPayment: booking.driverPaymentAmount || Math.round(booking.fare * 0.8),
-      paymentStatus: 'Successful',
+      paymentStatus: 'Paid',
       transactionReference
     });
 
     // Update Booking Status
     const isBus = booking.serviceType === 'Bus';
-    booking.paymentStatus = 'Successful';
-    booking.bookingStatus = isBus ? 'Pending Driver Confirmation' : 'Confirmed';
-    booking.driverConfirmationStatus = isBus ? 'Pending' : 'Confirmed';
-    booking.driverConfirmed = !isBus;
+    booking.paymentStatus = 'Paid';
+    if (isBus) {
+      if (booking.driverConfirmationStatus === 'Confirmed') {
+        booking.bookingStatus = 'Confirmed';
+        booking.driverConfirmed = true;
+      } else {
+        booking.bookingStatus = 'Pending Driver Confirmation';
+        booking.driverConfirmed = false;
+      }
+    } else {
+      booking.bookingStatus = 'Confirmed';
+      booking.driverConfirmationStatus = 'Confirmed';
+      booking.driverConfirmed = true;
+    }
     await booking.save();
 
     // Create Insurance record for passenger
@@ -362,7 +376,7 @@ exports.getMyBookings = async (req, res, next) => {
       .populate('driver')
       .sort({ createdAt: -1 });
 
-    const upcoming = bookings.filter(b => ['Pending', 'Pending Driver Confirmation', 'Confirmed', 'Ongoing'].includes(b.bookingStatus));
+    const upcoming = bookings.filter(b => ['Pending', 'Pending Driver Confirmation', 'Awaiting Cash Collection', 'Confirmed', 'Ongoing'].includes(b.bookingStatus));
     const completed = bookings.filter(b => ['Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus));
 
     res.json({

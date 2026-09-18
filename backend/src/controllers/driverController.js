@@ -39,7 +39,7 @@ exports.getDriverDashboard = async (req, res, next) => {
           { driver: driver._id },
           ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
         ],
-        bookingStatus: { $in: ['Pending Driver Confirmation', 'Pending'] }
+        bookingStatus: { $in: ['Pending Driver Confirmation', 'Awaiting Cash Collection', 'Pending'] }
       })
         .select('bookingId customer serviceType pickupLocation dropLocation fare driverPaymentAmount paymentStatus bookingStatus travelDate passengerDetails busSeatNumbers vehicle driver createdAt')
         .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory vehicleStatus seatingCapacity')
@@ -259,7 +259,7 @@ exports.getBookingRequests = async (req, res, next) => {
         { driver: driver._id },
         ...(vehicleId ? [{ vehicle: vehicleId }] : [])
       ],
-      bookingStatus: { $in: ['Pending Driver Confirmation', 'Pending', 'Confirmed', 'Ongoing'] }
+      bookingStatus: { $in: ['Pending Driver Confirmation', 'Awaiting Cash Collection', 'Pending', 'Confirmed', 'Ongoing'] }
     })
       .populate('vehicle')
       .populate('driver')
@@ -333,12 +333,25 @@ exports.acceptBookingRequest = async (req, res, next) => {
     }
 
     const now = new Date();
-    booking.bookingStatus = 'Confirmed';
     booking.driverConfirmationStatus = 'Confirmed';
     booking.driverConfirmed = true;
     booking.driverConfirmedAt = now;
     booking.driverConfirmedBy = req.driver._id;
     booking.driver = req.driver._id;
+
+    // Strict Backend State Invariant:
+    // Only mark Confirmed if payment is already Paid/Successful.
+    // For Offline Cash awaiting collection, mark 'Awaiting Cash Collection'.
+    const isPaid = booking.paymentStatus === 'Paid' || booking.paymentStatus === 'Successful';
+    const isOfflineCash = booking.paymentMethod === 'Offline Cash' || booking.paymentStatus === 'Pending Cash';
+
+    if (isPaid) {
+      booking.bookingStatus = 'Confirmed';
+    } else if (isOfflineCash) {
+      booking.bookingStatus = 'Awaiting Cash Collection';
+    } else {
+      booking.bookingStatus = 'Pending';
+    }
     await booking.save();
 
     // Create Notification for Customer
@@ -353,9 +366,16 @@ exports.acceptBookingRequest = async (req, res, next) => {
       }
     }
 
+    let notifTitle = 'Booking Confirmed!';
+    let notifMsg = `Your bus booking #${booking.bookingId} has been confirmed. Your digital ticket is active.`;
+    if (booking.bookingStatus === 'Awaiting Cash Collection') {
+      notifTitle = 'Seat Confirmed - Awaiting Cash';
+      notifMsg = `Your bus booking #${booking.bookingId} seat has been confirmed by driver. Please pay ₹${booking.fare} cash upon boarding.`;
+    }
+
     await Notification.create({
-      title: 'Booking Confirmed!',
-      message: `Your bus booking #${booking.bookingId} has been confirmed. Your digital ticket is active.`,
+      title: notifTitle,
+      message: notifMsg,
       recipient: `Customer: ${booking.customer?.name || 'Passenger'}`,
       recipientRole: 'customer',
       recipientId: customerUserId,
@@ -364,7 +384,9 @@ exports.acceptBookingRequest = async (req, res, next) => {
 
     res.json({
       success: true,
-      message: 'Booking request confirmed successfully',
+      message: booking.bookingStatus === 'Confirmed'
+        ? 'Booking confirmed successfully'
+        : 'Booking seat request confirmed. Awaiting cash collection upon passenger boarding.',
       data: booking
     });
   } catch (error) {
@@ -698,12 +720,16 @@ exports.collectCash = async (req, res, next) => {
     if (!booking.driver) {
       booking.driver = driver._id;
     }
-    if (booking.bookingStatus === 'Pending' || booking.bookingStatus === 'Pending Driver Confirmation') {
+    // Strict State Invariant:
+    // When cash is collected, paymentStatus is Paid.
+    // If driver has confirmed, bookingStatus becomes Confirmed.
+    if (booking.driverConfirmationStatus === 'Confirmed') {
       booking.bookingStatus = 'Confirmed';
-      booking.driverConfirmationStatus = 'Confirmed';
       booking.driverConfirmed = true;
       if (!booking.driverConfirmedAt) booking.driverConfirmedAt = now;
       if (!booking.driverConfirmedBy) booking.driverConfirmedBy = driver._id;
+    } else {
+      booking.bookingStatus = 'Pending Driver Confirmation';
     }
     await booking.save();
 
@@ -734,6 +760,29 @@ exports.collectCash = async (req, res, next) => {
         cashCollected: true,
         cashCollectedAt: now,
         cashCollectedBy: driver._id
+      });
+    }
+
+    // 6. Notification to Customer
+    let customerUserId = null;
+    if (booking.customer && (booking.customer.phone || booking.customer.email)) {
+      const orConditions = [];
+      if (booking.customer.phone) orConditions.push({ phone: booking.customer.phone });
+      if (booking.customer.email) orConditions.push({ email: booking.customer.email });
+      if (orConditions.length > 0) {
+        const custUser = await User.findOne({ $or: orConditions });
+        if (custUser) customerUserId = custUser._id;
+      }
+    }
+
+    if (booking.bookingStatus === 'Confirmed') {
+      await Notification.create({
+        title: 'Payment Received & Ticket Confirmed!',
+        message: `Cash payment of ₹${booking.fare} for booking #${booking.bookingId} collected. Your digital ticket is active.`,
+        recipient: `Customer: ${booking.customer?.name || 'Passenger'}`,
+        recipientRole: 'customer',
+        recipientId: customerUserId,
+        status: 'Unread'
       });
     }
 

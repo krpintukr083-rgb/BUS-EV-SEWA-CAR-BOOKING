@@ -494,7 +494,12 @@ const seedDatabase = async () => {
       ],
       fare: 1700,
       driverPaymentAmount: 1360,
-      paymentStatus: 'Successful',
+      paymentMethod: 'Online Razorpay',
+      paymentStatus: 'Paid',
+      driverConfirmationStatus: 'Confirmed',
+      driverConfirmed: true,
+      driverConfirmedAt: new Date('2026-09-14T20:00:00Z'),
+      driverConfirmedBy: driver1._id,
       bookingStatus: 'Confirmed',
       travelDate: new Date('2026-09-14T22:00:00Z'),
       busSeatNumbers: ['SL-04', 'SL-05']
@@ -517,8 +522,11 @@ const seedDatabase = async () => {
       ],
       fare: 850,
       driverPaymentAmount: 680,
-      paymentStatus: 'Pending',
-      bookingStatus: 'Pending',
+      paymentMethod: 'Offline Cash',
+      paymentStatus: 'Pending Cash',
+      driverConfirmationStatus: 'Pending',
+      driverConfirmed: false,
+      bookingStatus: 'Pending Driver Confirmation',
       travelDate: new Date('2026-09-15T22:45:00Z'),
       busSeatNumbers: ['SL-12']
     });

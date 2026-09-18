@@ -148,11 +148,13 @@ const BookingManagement = () => {
             >
               <option value="All">All Statuses</option>
               <option value="Pending Driver Confirmation">Pending Driver Confirmation</option>
+              <option value="Awaiting Cash Collection">Awaiting Cash Collection</option>
               <option value="Pending">Pending</option>
               <option value="Confirmed">Confirmed</option>
               <option value="Ongoing">Ongoing</option>
               <option value="Completed">Completed</option>
               <option value="Cancelled">Cancelled</option>
+              <option value="Rejected">Rejected</option>
             </select>
           </div>
         </div>

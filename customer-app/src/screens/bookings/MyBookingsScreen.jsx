@@ -43,6 +43,7 @@ const MyBookingsScreen = ({ navigation }) => {
     b =>
       b.bookingStatus === 'Pending' ||
       b.bookingStatus === 'Pending Driver Confirmation' ||
+      b.bookingStatus === 'Awaiting Cash Collection' ||
       b.bookingStatus === 'Confirmed' ||
       b.bookingStatus === 'In-Transit' ||
       b.bookingStatus === 'Ongoing'

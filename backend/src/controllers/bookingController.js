@@ -79,7 +79,7 @@ exports.createBooking = async (req, res, next) => {
     if (serviceType === 'Bus' && selectedSeats && selectedSeats.length > 0) {
       const activeBookings = await Booking.find({
         vehicle: vehicle._id,
-        bookingStatus: { $in: ['Confirmed', 'Pending', 'Pending Driver Confirmation', 'Ongoing'] }
+        bookingStatus: { $in: ['Confirmed', 'Pending', 'Pending Driver Confirmation', 'Awaiting Cash Collection', 'Ongoing'] }
       });
 
       const alreadyBooked = [];
@@ -109,9 +109,8 @@ exports.createBooking = async (req, res, next) => {
     const isOfflineCash = paymentMethod === 'Offline Cash' || paymentMethod === 'Cash';
     const initialPaymentMethod = isOfflineCash ? 'Offline Cash' : (paymentMethod || 'Online Razorpay');
     const initialPaymentStatus = isOfflineCash ? 'Pending Cash' : 'Pending';
-    const initialBookingStatus = isBus ? 'Pending Driver Confirmation' : 'Pending';
-
     const isThirdParty = vehicle.vehicleSource === 'THIRD_PARTY';
+    const initialBookingStatus = isOfflineCash ? 'Pending Driver Confirmation' : 'Pending';
     const hiredVehicleDetails = isThirdParty ? {
       hireAmount: vehicle.hireDetails?.hireAmount || 0,
       additionalExpense: vehicle.hireDetails?.additionalExpense || 0,
@@ -178,10 +177,10 @@ exports.createBooking = async (req, res, next) => {
 
     // Create Customer Notification
     await Notification.create({
-      title: isBus ? 'Booking Request Sent' : 'Booking Created',
-      message: isBus
+      title: isOfflineCash ? 'Booking Request Sent' : 'Booking Created',
+      message: isOfflineCash
         ? 'Your bus booking request has been sent to the assigned driver.'
-        : 'Your booking has been created.',
+        : 'Your booking has been created. Please complete payment.',
       recipient: `Customer: ${booking.customer.name}`,
       recipientRole: 'customer',
       recipientId: req.user._id,
@@ -221,7 +220,7 @@ exports.getMyBookings = async (req, res, next) => {
       .populate('driver')
       .sort({ createdAt: -1 });
 
-    const upcoming = bookings.filter((b) => ['Pending', 'Pending Driver Confirmation', 'Confirmed', 'Ongoing'].includes(b.bookingStatus));
+    const upcoming = bookings.filter((b) => ['Pending', 'Pending Driver Confirmation', 'Awaiting Cash Collection', 'Confirmed', 'Ongoing'].includes(b.bookingStatus));
     const completed = bookings.filter((b) => ['Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus));
 
     res.json({

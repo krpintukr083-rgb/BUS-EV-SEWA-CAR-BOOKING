@@ -97,7 +97,16 @@ const bookingSchema = new mongoose.Schema(
     },
     bookingStatus: {
       type: String,
-      enum: ['Pending', 'Pending Driver Confirmation', 'Confirmed', 'Ongoing', 'Completed', 'Cancelled', 'Rejected'],
+      enum: [
+        'Pending',
+        'Pending Driver Confirmation',
+        'Awaiting Cash Collection',
+        'Confirmed',
+        'Ongoing',
+        'Completed',
+        'Cancelled',
+        'Rejected'
+      ],
       default: 'Pending'
     },
     driverConfirmationStatus: {

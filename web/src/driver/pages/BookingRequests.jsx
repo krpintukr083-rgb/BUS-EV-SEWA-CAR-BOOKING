@@ -421,7 +421,9 @@ const BookingRequests = () => {
 
             <p style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '20px' }}>
               {confirmModal.type === 'accept'
-                ? 'Confirming this booking will activate the passenger\'s digital ticket and seat allocation.'
+                ? (confirmModal.booking.paymentMethod === 'Offline Cash' || confirmModal.booking.paymentStatus === 'Pending Cash'
+                    ? 'Confirming this booking reserves the seat. The booking will be in "Awaiting Cash Collection" status until you collect the cash upon boarding.'
+                    : 'Confirming this online-paid booking will verify the seat and fully activate the passenger\'s confirmed digital boarding pass.')
                 : 'Declining this booking will release the seats and mark the booking as rejected.'}
             </p>
 

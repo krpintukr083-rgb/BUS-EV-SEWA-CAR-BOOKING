@@ -206,12 +206,23 @@ const DigitalTicketScreen = ({ route, navigation }) => {
             </View>
 
             {/* QR Code Section or Pending Notice */}
-            {booking.bookingStatus === 'Confirmed' ? (
+            {booking.bookingStatus === 'Confirmed' && booking.driverConfirmationStatus === 'Confirmed' && (booking.paymentStatus === 'Paid' || booking.paymentStatus === 'Successful') ? (
               <QRCodeWidget code={booking.bookingId} />
+            ) : booking.bookingStatus === 'Awaiting Cash Collection' ? (
+              <View style={styles.pendingQrBox}>
+                <Ionicons name="cash-outline" size={40} color="#6366f1" />
+                <Text style={[styles.pendingQrTitle, { color: '#4f46e5' }]}>Awaiting Cash Collection</Text>
+                <Text style={styles.pendingQrSub}>
+                  Your seat is confirmed by the driver! Please pay ₹{booking.fare} in cash to the conductor/driver upon boarding to activate your verified digital boarding pass.
+                </Text>
+                <View style={styles.bookingIdTag}>
+                  <Text style={styles.bookingIdTagText}>Booking #{booking.bookingId}</Text>
+                </View>
+              </View>
             ) : booking.bookingStatus === 'Pending Driver Confirmation' ? (
               <View style={styles.pendingQrBox}>
                 <Ionicons name="hourglass-outline" size={40} color="#f59e0b" />
-                <Text style={styles.pendingQrTitle}>Boarding Pass Inactive</Text>
+                <Text style={styles.pendingQrTitle}>Waiting for Driver Confirmation</Text>
                 <Text style={styles.pendingQrSub}>
                   Waiting for assigned driver/conductor confirmation. QR pass will activate immediately upon confirmation.
                 </Text>

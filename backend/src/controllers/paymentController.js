@@ -227,9 +227,9 @@ exports.verifyRazorpayPayment = async (req, res, next) => {
     // DUPLICATE PROTECTION: Check if payment is already successfully confirmed
     let payment = await Payment.findOne({ booking: booking._id });
     if (
-      (booking.bookingStatus === 'Confirmed' || (booking.bookingStatus === 'Pending Driver Confirmation' && booking.paymentStatus === 'Successful')) &&
+      (booking.bookingStatus === 'Confirmed' || (booking.bookingStatus === 'Pending Driver Confirmation' && (booking.paymentStatus === 'Paid' || booking.paymentStatus === 'Successful'))) &&
       payment &&
-      payment.paymentStatus === 'Successful' &&
+      (payment.paymentStatus === 'Paid' || payment.paymentStatus === 'Successful') &&
       payment.razorpayPaymentId === razorpayPaymentId
     ) {
       return res.status(200).json({
@@ -272,7 +272,7 @@ exports.verifyRazorpayPayment = async (req, res, next) => {
 
     // Signature Valid - Process Confirmation
     if (payment) {
-      payment.paymentStatus = 'Successful';
+      payment.paymentStatus = 'Paid';
       payment.transactionReference = razorpayPaymentId;
       payment.razorpayOrderId = razorpayOrderId;
       payment.razorpayPaymentId = razorpayPaymentId;
@@ -291,7 +291,7 @@ exports.verifyRazorpayPayment = async (req, res, next) => {
         driver: booking.driver || null,
         bookingAmount: booking.fare,
         driverPayment: booking.driverPaymentAmount || Math.round(booking.fare * 0.8),
-        paymentStatus: 'Successful',
+        paymentStatus: 'Paid',
         transactionReference: razorpayPaymentId,
         razorpayOrderId,
         razorpayPaymentId,
@@ -301,12 +301,22 @@ exports.verifyRazorpayPayment = async (req, res, next) => {
       });
     }
 
-    // Update Booking status to Successful payment
+    // Update Booking status to Paid
     const isBus = booking.serviceType === 'Bus';
-    booking.paymentStatus = 'Successful';
-    booking.bookingStatus = isBus ? 'Pending Driver Confirmation' : 'Confirmed';
-    booking.driverConfirmationStatus = isBus ? 'Pending' : 'Confirmed';
-    booking.driverConfirmed = !isBus;
+    booking.paymentStatus = 'Paid';
+    if (isBus) {
+      if (booking.driverConfirmationStatus === 'Confirmed') {
+        booking.bookingStatus = 'Confirmed';
+        booking.driverConfirmed = true;
+      } else {
+        booking.bookingStatus = 'Pending Driver Confirmation';
+        booking.driverConfirmed = false;
+      }
+    } else {
+      booking.bookingStatus = 'Confirmed';
+      booking.driverConfirmationStatus = 'Confirmed';
+      booking.driverConfirmed = true;
+    }
     await booking.save();
 
     // Create / Update Insurance record
@@ -449,8 +459,8 @@ exports.razorpayWebhook = async (req, res, next) => {
       const paymentId = paymentEntity.id;
 
       const paymentRecord = await Payment.findOne({ razorpayOrderId: orderId });
-      if (paymentRecord && paymentRecord.paymentStatus !== 'Successful') {
-        paymentRecord.paymentStatus = 'Successful';
+      if (paymentRecord && paymentRecord.paymentStatus !== 'Paid' && paymentRecord.paymentStatus !== 'Successful') {
+        paymentRecord.paymentStatus = 'Paid';
         paymentRecord.razorpayPaymentId = paymentId;
         paymentRecord.transactionReference = paymentId;
         await paymentRecord.save();
@@ -458,10 +468,20 @@ exports.razorpayWebhook = async (req, res, next) => {
         const targetBooking = await Booking.findById(paymentRecord.booking);
         if (targetBooking) {
           const isBus = targetBooking.serviceType === 'Bus';
-          targetBooking.paymentStatus = 'Successful';
-          targetBooking.bookingStatus = isBus ? 'Pending Driver Confirmation' : 'Confirmed';
-          targetBooking.driverConfirmationStatus = isBus ? 'Pending' : 'Confirmed';
-          targetBooking.driverConfirmed = !isBus;
+          targetBooking.paymentStatus = 'Paid';
+          if (isBus) {
+            if (targetBooking.driverConfirmationStatus === 'Confirmed') {
+              targetBooking.bookingStatus = 'Confirmed';
+              targetBooking.driverConfirmed = true;
+            } else {
+              targetBooking.bookingStatus = 'Pending Driver Confirmation';
+              targetBooking.driverConfirmed = false;
+            }
+          } else {
+            targetBooking.bookingStatus = 'Confirmed';
+            targetBooking.driverConfirmationStatus = 'Confirmed';
+            targetBooking.driverConfirmed = true;
+          }
           await targetBooking.save();
         }
       }
@@ -542,7 +562,7 @@ exports.testPaymentSuccess = async (req, res, next) => {
 
     let payment = await Payment.findOne({ booking: booking._id });
     if (payment) {
-      payment.paymentStatus = 'Successful';
+      payment.paymentStatus = 'Paid';
       payment.transactionReference = transactionReference;
       await payment.save();
     } else {
@@ -556,17 +576,27 @@ exports.testPaymentSuccess = async (req, res, next) => {
         driver: booking.driver || null,
         bookingAmount: booking.fare,
         driverPayment: booking.driverPaymentAmount || Math.round(booking.fare * 0.8),
-        paymentStatus: 'Successful',
+        paymentStatus: 'Paid',
         transactionReference
       });
     }
 
-    // Update Booking status to Successful payment
+    // Update Booking status to Paid
     const isBus = booking.serviceType === 'Bus';
-    booking.paymentStatus = 'Successful';
-    booking.bookingStatus = isBus ? 'Pending Driver Confirmation' : 'Confirmed';
-    booking.driverConfirmationStatus = isBus ? 'Pending' : 'Confirmed';
-    booking.driverConfirmed = !isBus;
+    booking.paymentStatus = 'Paid';
+    if (isBus) {
+      if (booking.driverConfirmationStatus === 'Confirmed') {
+        booking.bookingStatus = 'Confirmed';
+        booking.driverConfirmed = true;
+      } else {
+        booking.bookingStatus = 'Pending Driver Confirmation';
+        booking.driverConfirmed = false;
+      }
+    } else {
+      booking.bookingStatus = 'Confirmed';
+      booking.driverConfirmationStatus = 'Confirmed';
+      booking.driverConfirmed = true;
+    }
     await booking.save();
 
     // Create / Update Insurance record
