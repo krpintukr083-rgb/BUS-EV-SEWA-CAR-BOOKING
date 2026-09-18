@@ -67,7 +67,11 @@ const verifyDriverVehicleAccess = async (driver, booking) => {
 exports.getDriverDashboard = async (req, res, next) => {
   try {
     const driver = req.driver;
-    const assignedVehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
+    let assignedVehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
+    if (!assignedVehicleId) {
+      const vByDriver = await Vehicle.findOne({ assignedDriver: driver._id }).select('_id').lean();
+      if (vByDriver) assignedVehicleId = vByDriver._id;
+    }
 
     // Fetch dashboard components concurrently
     const [
@@ -323,7 +327,13 @@ exports.updateDriverProfile = async (req, res, next) => {
 exports.getAssignedVehicle = async (req, res, next) => {
   try {
     const driver = req.driver;
-    if (!driver.assignedVehicle) {
+    let assignedVehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
+    if (!assignedVehicleId) {
+      const vByDriver = await Vehicle.findOne({ assignedDriver: driver._id }).select('_id').lean();
+      if (vByDriver) assignedVehicleId = vByDriver._id;
+    }
+
+    if (!assignedVehicleId) {
       return res.json({
         success: true,
         data: null,
@@ -331,7 +341,7 @@ exports.getAssignedVehicle = async (req, res, next) => {
       });
     }
 
-    const vehicle = await Vehicle.findById(driver.assignedVehicle).lean();
+    const vehicle = await Vehicle.findById(assignedVehicleId).lean();
     if (!vehicle) {
       return res.status(404).json({ success: false, message: 'Assigned vehicle details not found' });
     }

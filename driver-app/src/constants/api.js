@@ -59,12 +59,12 @@ export const getDefaultBaseUrl = () => {
     return sanitizeApiUrl(process.env.EXPO_PUBLIC_API_BASE_URL);
   }
 
-  if (CLOUDFLARE_TUNNEL_URL && CLOUDFLARE_TUNNEL_URL.trim() !== '') {
-    return sanitizeApiUrl(CLOUDFLARE_TUNNEL_URL);
-  }
-
   if (PRODUCTION_RENDER_URL && PRODUCTION_RENDER_URL.trim() !== '') {
     return sanitizeApiUrl(PRODUCTION_RENDER_URL);
+  }
+
+  if (CLOUDFLARE_TUNNEL_URL && CLOUDFLARE_TUNNEL_URL.trim() !== '') {
+    return sanitizeApiUrl(CLOUDFLARE_TUNNEL_URL);
   }
 
   if (Platform.OS === 'android') {
