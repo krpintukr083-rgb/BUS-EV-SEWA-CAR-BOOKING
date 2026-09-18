@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING, FONTS } from '../constants/theme';
 import { useAuth } from '../state/AuthContext';
@@ -24,7 +25,7 @@ const DriverHeader = ({ navigation, title, showBack = false }) => {
   const profilePhoto = driver?.profilePhoto || user?.profilePhoto || 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?auto=format&fit=crop&w=300&q=80';
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       {showBack ? (
         <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack()}>
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
@@ -81,7 +82,7 @@ const DriverHeader = ({ navigation, title, showBack = false }) => {
 
       <LanguageModal visible={langModalVisible} onClose={() => setLangModalVisible(false)} />
       <SafetySOSModal visible={sosModalVisible} onClose={() => setSosModalVisible(false)} />
-    </View>
+    </SafeAreaView>
   );
 };
 
