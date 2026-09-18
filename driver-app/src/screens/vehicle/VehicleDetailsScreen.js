@@ -77,6 +77,9 @@ export default function VehicleDetailsScreen({ navigation }) {
           <View style={styles.emptyContainer}>
             <MaterialCommunityIcons name="bus-alert" size={56} color={COLORS.textMuted} />
             <Text style={styles.emptyText}>No vehicle assigned to your profile yet.</Text>
+            <Text style={[styles.emptyText, { fontSize: 12, marginTop: 6 }]}>
+              Ask your admin to assign a vehicle from the Admin Panel.
+            </Text>
           </View>
         ) : (
           <>
@@ -84,20 +87,44 @@ export default function VehicleDetailsScreen({ navigation }) {
             <View style={styles.heroCard}>
               <View style={styles.vehicleIconCircle}>
                 <MaterialCommunityIcons
-                  name={vehicle.fuelType === 'ELECTRIC' ? 'lightning-bolt' : 'bus'}
+                  name={
+                    vehicle.vehicleType === 'EV-Sewa'
+                      ? 'lightning-bolt'
+                      : vehicle.vehicleType === 'Car'
+                      ? 'car'
+                      : 'bus'
+                  }
                   size={36}
-                  color={vehicle.fuelType === 'ELECTRIC' ? COLORS.primary : COLORS.secondary}
+                  color={vehicle.vehicleType === 'EV-Sewa' ? COLORS.primary : COLORS.secondary}
                 />
               </View>
+              {/* vehicleName = "Rajdhani Express" etc from DB */}
               <Text style={styles.vehicleName}>
-                {vehicle.make} {vehicle.model}
+                {vehicle.vehicleName || vehicle.vehicleModel || 'Assigned Vehicle'}
               </Text>
+              {vehicle.vehicleModel && vehicle.vehicleName !== vehicle.vehicleModel && (
+                <Text style={[styles.routeText, { marginBottom: 4 }]}>
+                  {vehicle.vehicleModel}
+                </Text>
+              )}
+              {/* vehicleNumber = plate number from DB */}
               <View style={styles.plateBadge}>
-                <Text style={styles.plateText}>{vehicle.plateNumber || 'N/A'}</Text>
+                <Text style={styles.plateText}>
+                  {vehicle.vehicleNumber || 'N/A'}
+                </Text>
               </View>
-              <Text style={styles.routeText}>
-                Route: {vehicle.assignedRoute || 'Intercity Express Service'}
-              </Text>
+              {/* vehicleCategory e.g. "AC Sleeper", "Executive SUV" */}
+              {vehicle.vehicleCategory ? (
+                <Text style={styles.routeText}>{vehicle.vehicleCategory}</Text>
+              ) : null}
+              {/* Route from DB route.origin → route.destination */}
+              {(vehicle.route?.origin || vehicle.route?.destination) && (
+                <Text style={[styles.routeText, { marginTop: 4 }]}>
+                  {vehicle.route.origin}
+                  {vehicle.route.origin && vehicle.route.destination ? ' → ' : ''}
+                  {vehicle.route.destination}
+                </Text>
+              )}
             </View>
 
             {/* Specifications Card */}
@@ -113,37 +140,98 @@ export default function VehicleDetailsScreen({ navigation }) {
                 <View style={styles.specDivider} />
                 <View style={styles.specItem}>
                   <MaterialCommunityIcons
-                    name={vehicle.fuelType === 'ELECTRIC' ? 'ev-station' : 'gas-station'}
+                    name={
+                      vehicle.vehicleType === 'EV-Sewa' ||
+                      vehicle.carDetails?.fuelType === 'Electric' ||
+                      vehicle.evDetails
+                        ? 'ev-station'
+                        : 'gas-station'
+                    }
                     size={20}
                     color={COLORS.primary}
                   />
                   <Text style={styles.specLabel}>{t('fuelType')}</Text>
-                  <Text style={styles.specVal}>{vehicle.fuelType || 'Electric'}</Text>
+                  <Text style={styles.specVal}>
+                    {vehicle.fuelType ||
+                      vehicle.carDetails?.fuelType ||
+                      (vehicle.vehicleType === 'EV-Sewa' ? 'Electric' : 'Diesel')}
+                  </Text>
                 </View>
                 <View style={styles.specDivider} />
                 <View style={styles.specItem}>
                   <MaterialCommunityIcons name="air-conditioner" size={20} color={COLORS.primary} />
                   <Text style={styles.specLabel}>Air Conditioning</Text>
-                  <Text style={styles.specVal}>{vehicle.isAC ? 'AC' : 'Non-AC'}</Text>
+                  <Text style={styles.specVal}>
+                    {vehicle.carDetails?.ac ||
+                    vehicle.busDetails?.busType?.toLowerCase().includes('ac') ||
+                    vehicle.vehicleCategory?.toLowerCase().includes('ac')
+                      ? 'AC'
+                      : 'Non-AC'}
+                  </Text>
                 </View>
               </View>
             </View>
 
-            {/* Amenities Card */}
+            {/* Route / Service Card */}
+            {(vehicle.route || vehicle.pickupDropDetails) && (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Operating Route</Text>
+                <View style={{ gap: 8 }}>
+                  {(vehicle.route?.boardingPoints || []).length > 0 && (
+                    <Text style={styles.specLabel}>
+                      Boarding: {vehicle.route.boardingPoints.join(' | ')}
+                    </Text>
+                  )}
+                  {vehicle.route?.departureTime && (
+                    <Text style={styles.specLabel}>
+                      Departure: {vehicle.route.departureTime}
+                      {vehicle.route.arrivalTime ? `  →  Arrival: ${vehicle.route.arrivalTime}` : ''}
+                    </Text>
+                  )}
+                  {vehicle.route?.duration && (
+                    <Text style={styles.specLabel}>Duration: {vehicle.route.duration}</Text>
+                  )}
+                </View>
+              </View>
+            )}
+
+            {/* Vehicle Type Badge Card */}
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>Amenities & Features</Text>
+              <Text style={styles.cardTitle}>Vehicle Info</Text>
               <View style={styles.amenitiesWrap}>
-                {(vehicle.amenities || ['WiFi', 'USB Ports', 'First Aid']).map((a, i) => (
-                  <View key={i} style={styles.amenityChip}>
+                <View style={styles.amenityChip}>
+                  <MaterialCommunityIcons name="check" size={14} color={COLORS.success} />
+                  <Text style={styles.amenityText}>Type: {vehicle.vehicleType}</Text>
+                </View>
+                {vehicle.vehicleStatus && (
+                  <View style={styles.amenityChip}>
                     <MaterialCommunityIcons name="check" size={14} color={COLORS.success} />
-                    <Text style={styles.amenityText}>{a}</Text>
+                    <Text style={styles.amenityText}>Status: {vehicle.vehicleStatus}</Text>
                   </View>
-                ))}
+                )}
+                {vehicle.rcNumber && (
+                  <View style={styles.amenityChip}>
+                    <MaterialCommunityIcons name="check" size={14} color={COLORS.success} />
+                    <Text style={styles.amenityText}>RC: {vehicle.rcNumber}</Text>
+                  </View>
+                )}
+                {vehicle.busDetails?.busType && (
+                  <View style={styles.amenityChip}>
+                    <MaterialCommunityIcons name="check" size={14} color={COLORS.success} />
+                    <Text style={styles.amenityText}>{vehicle.busDetails.busType}</Text>
+                  </View>
+                )}
+                {vehicle.busDetails?.seatLayout && (
+                  <View style={styles.amenityChip}>
+                    <MaterialCommunityIcons name="check" size={14} color={COLORS.success} />
+                    <Text style={styles.amenityText}>Layout: {vehicle.busDetails.seatLayout}</Text>
+                  </View>
+                )}
               </View>
             </View>
 
-            {/* Quick Link to EV Hub if vehicle is electric */}
-            {vehicle.fuelType === 'ELECTRIC' && (
+            {/* Quick Link to EV Hub if EV-Sewa vehicle */}
+            {vehicle.vehicleType === 'EV-Sewa' && (
               <TouchableOpacity
                 style={styles.evBannerBtn}
                 onPress={() => navigation.navigate('EVHub')}

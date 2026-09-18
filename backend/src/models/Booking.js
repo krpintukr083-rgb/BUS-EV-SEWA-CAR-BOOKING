@@ -200,6 +200,8 @@ const bookingSchema = new mongoose.Schema(
 // Performance Indexes
 bookingSchema.index({ driver: 1, bookingStatus: 1, createdAt: -1 });
 bookingSchema.index({ vehicle: 1, bookingStatus: 1 });
+// Composite index for date-wise seat availability queries (critical for bus seat occupancy)
+bookingSchema.index({ vehicle: 1, travelDate: 1, bookingStatus: 1 });
 bookingSchema.index({ vehicleSource: 1 });
 bookingSchema.index({ bookingStatus: 1, createdAt: -1 });
 bookingSchema.index({ driverConfirmationStatus: 1 });

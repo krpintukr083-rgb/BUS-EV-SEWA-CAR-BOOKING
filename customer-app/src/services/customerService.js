@@ -40,8 +40,9 @@ export const customerService = {
     return res.data;
   },
 
-  getVehicleDetails: async id => {
-    const res = await api.get(`/vehicles/${id}`);
+  getVehicleDetails: async (id, travelDate) => {
+    const params = travelDate ? { travelDate } : {};
+    const res = await api.get(`/vehicles/${id}`, { params });
     return res.data;
   },
 
@@ -51,8 +52,10 @@ export const customerService = {
     return res.data;
   },
 
-  getBusDetails: async id => {
-    const res = await api.get(`/vehicles/${id}`);
+  // getBusDetails accepts optional travelDate — backend filters booked seats for that date only
+  getBusDetails: async (id, travelDate) => {
+    const params = travelDate ? { travelDate } : {};
+    const res = await api.get(`/vehicles/${id}`, { params });
     return res.data;
   },
 

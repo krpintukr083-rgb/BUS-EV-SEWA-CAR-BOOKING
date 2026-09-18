@@ -93,8 +93,8 @@ exports.getVehicles = async (req, res, next) => {
   }
 };
 
-// @desc    Get single vehicle details + booked seats if bus
-// @route   GET /api/vehicles/:id
+// @desc    Get single vehicle details + booked seats if bus (date-specific)
+// @route   GET /api/vehicles/:id?travelDate=YYYY-MM-DD
 // @access  Public
 exports.getVehicleById = async (req, res, next) => {
   try {
@@ -114,12 +114,25 @@ exports.getVehicleById = async (req, res, next) => {
       });
     }
 
-    // If bus, get currently booked seats across active bookings
+    // If bus, get booked seats ONLY for the requested travel date (date-specific)
     let bookedSeats = [];
     if (vehicle.vehicleType === 'Bus') {
+      // Parse travelDate from query param; default to today if not provided
+      const rawDate = req.query.travelDate;
+      const targetDate = rawDate ? new Date(rawDate) : new Date();
+
+      // Day-boundary range so time component doesn't matter
+      const startOfDay = new Date(targetDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(targetDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
       const activeBookings = await Booking.find({
         vehicle: vehicle._id,
-        bookingStatus: { $in: ['Confirmed', 'Pending', 'Ongoing'] }
+        travelDate: { $gte: startOfDay, $lte: endOfDay },
+        bookingStatus: {
+          $in: ['Confirmed', 'Pending', 'Pending Driver Confirmation', 'Awaiting Cash Collection', 'Ongoing']
+        }
       });
 
       activeBookings.forEach((b) => {

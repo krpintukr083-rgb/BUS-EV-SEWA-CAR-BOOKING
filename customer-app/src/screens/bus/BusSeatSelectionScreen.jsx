@@ -49,7 +49,9 @@ const BusSeatSelectionScreen = ({ navigation, route }) => {
     const fetchBusData = async () => {
       if (targetBusId) {
         try {
-          const res = await customerService.getBusDetails(targetBusId);
+          // Pass travelDate so backend returns only seats occupied on that specific date
+          const travelDate = bookingDraft.travelDate || route.params?.travelDate;
+          const res = await customerService.getBusDetails(targetBusId, travelDate);
           if (res.success && res.data) {
             setFarePerSeat(res.data.fareRate);
             if (res.data.bookedSeats && Array.isArray(res.data.bookedSeats)) {
@@ -62,7 +64,7 @@ const BusSeatSelectionScreen = ({ navigation, route }) => {
       }
     };
     fetchBusData();
-  }, [targetBusId]);
+  }, [targetBusId, bookingDraft.travelDate]);
 
   const toggleSeat = (seatNo) => {
     if (bookedSeats.includes(seatNo)) {

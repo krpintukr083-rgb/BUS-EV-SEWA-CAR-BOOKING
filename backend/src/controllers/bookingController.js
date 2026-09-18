@@ -75,10 +75,19 @@ exports.createBooking = async (req, res, next) => {
       });
     }
 
-    // 3. Check Seat Availability on Backend for Buses
+    // 3. Check Seat Availability on Backend for Buses (DATE-SPECIFIC)
     if (serviceType === 'Bus' && selectedSeats && selectedSeats.length > 0) {
+      const bookingTravelDate = travelDate ? new Date(travelDate) : new Date();
+
+      // Day-boundary range for the target travel date
+      const startOfDay = new Date(bookingTravelDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(bookingTravelDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
       const activeBookings = await Booking.find({
         vehicle: vehicle._id,
+        travelDate: { $gte: startOfDay, $lte: endOfDay },
         bookingStatus: { $in: ['Confirmed', 'Pending', 'Pending Driver Confirmation', 'Awaiting Cash Collection', 'Ongoing'] }
       });
 
@@ -93,7 +102,7 @@ exports.createBooking = async (req, res, next) => {
       if (conflictingSeats.length > 0) {
         return res.status(400).json({
           success: false,
-          message: `Seat(s) ${conflictingSeats.join(', ')} are already booked. Please choose different seats.`
+          message: `Seat(s) ${conflictingSeats.join(', ')} are already booked for this date. Please choose different seats.`
         });
       }
     }
