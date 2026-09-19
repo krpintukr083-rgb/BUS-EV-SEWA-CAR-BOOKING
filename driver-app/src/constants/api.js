@@ -36,52 +36,26 @@ export const sanitizeApiUrl = (rawUrl) => {
   return url;
 };
 
-// 1. Primary Public HTTPS Cloudflare Tunnel URL:
-export const CLOUDFLARE_TUNNEL_URL = 'https://archived-updating-louisiana-program.trycloudflare.com';
-
-// 2. Production Render Cloud Backend:
+// Pure Production Render Cloud Backend API Endpoint (Client/Production Single Source of Truth)
 export const PRODUCTION_RENDER_URL = 'https://bus-ev-sewa-car-booking.onrender.com';
 
-// 3. Local Wi-Fi LAN IP (Development only):
-export const BACKEND_LAN_URL = 'http://192.168.1.2:5000';
-
-// 4. Android Emulator loopback alias (Development only):
-export const EMULATOR_URL = 'http://10.0.2.2:5000';
-
 /**
- * Resolves the primary default API Base URL:
- * 1. EXPO_PUBLIC_API_BASE_URL from .env if present
- * 2. Public Cloudflare Tunnel HTTPS URL
- * 3. Render Production HTTPS URL
+ * Resolves the primary production API Base URL
  */
 export const getDefaultBaseUrl = () => {
-  if (process.env.EXPO_PUBLIC_API_BASE_URL && process.env.EXPO_PUBLIC_API_BASE_URL.trim() !== '') {
-    return sanitizeApiUrl(process.env.EXPO_PUBLIC_API_BASE_URL);
-  }
-
-  // Canonical Production Render Cloud Backend URL for Production Release APK
-  if (PRODUCTION_RENDER_URL && PRODUCTION_RENDER_URL.trim() !== '') {
-    return sanitizeApiUrl(PRODUCTION_RENDER_URL);
-  }
-
   return 'https://bus-ev-sewa-car-booking.onrender.com/api';
 };
 
 /**
  * Single source of truth constant
  */
-export const DRIVER_API_BASE_URL = getDefaultBaseUrl();
-export const API_BASE_URL = DRIVER_API_BASE_URL;
+export const DRIVER_API_BASE_URL = 'https://bus-ev-sewa-car-booking.onrender.com/api';
+export const API_BASE_URL = 'https://bus-ev-sewa-car-booking.onrender.com/api';
 
 /**
- * Candidate URLs for automatic connectivity fallback (tested sequentially if primary fails)
+ * Client Release APK candidate endpoints (Strictly ONLY Render Production API)
  */
-export const CANDIDATE_URLS = [
-  sanitizeApiUrl(PRODUCTION_RENDER_URL),
-  'http://127.0.0.1:5000/api',
-  'http://192.168.1.2:5000/api',
-  sanitizeApiUrl(CLOUDFLARE_TUNNEL_URL),
-].filter((url, index, self) => url && self.indexOf(url) === index);
+export const CANDIDATE_URLS = ['https://bus-ev-sewa-car-booking.onrender.com/api'];
 
 export const ENDPOINTS = {
   // Auth
