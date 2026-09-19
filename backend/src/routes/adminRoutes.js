@@ -66,6 +66,16 @@ router.get('/drivers', getDrivers);
 router.post('/drivers', handleSingleUpload('driverPhoto'), addDriver);
 router.put('/drivers/:id', handleSingleUpload('driverPhoto'), updateDriver);
 router.put('/drivers/:id/verify', verifyDriverDocuments);
+router.patch('/drivers/:id/kyc/documents/:docType/approve', (req, res, next) => {
+  req.body.docType = req.params.docType;
+  req.body.status = 'Approved';
+  return verifyDriverDocuments(req, res, next);
+});
+router.patch('/drivers/:id/kyc/documents/:docType/reject', (req, res, next) => {
+  req.body.docType = req.params.docType;
+  req.body.status = 'Rejected';
+  return verifyDriverDocuments(req, res, next);
+});
 router.put('/drivers/:id/status', updateDriverStatus);
 
 // 4. Vehicle Management

@@ -38,6 +38,8 @@ export default function DriverKYCScreen({ navigation }) {
     fetchDocuments();
   }, []);
 
+  const [rejectionReason, setRejectionReason] = useState('');
+
   const normalizeDoc = (doc, fallback) => {
     if (!doc && !fallback) return { status: 'MISSING', documentNumber: '', expiryDate: '', number: '', expiry: '' };
     const src = doc || fallback || {};
@@ -45,6 +47,7 @@ export default function DriverKYCScreen({ navigation }) {
     const expiryDate = src.expiryDate || src.expiry || src.expiryDetails || fallback?.expiryDate || fallback?.expiry || '';
     const docUrl = src.docUrl || src.url || src.citizenshipDoc || src.drivingLicenceDoc || src.rcDoc || src.insuranceDoc || src.fitnessDoc || fallback?.docUrl || fallback?.url || '';
     const status = src.status || fallback?.status || 'PENDING';
+    const reason = src.rejectionReason || fallback?.rejectionReason || '';
     return {
       ...src,
       documentNumber,
@@ -54,6 +57,7 @@ export default function DriverKYCScreen({ navigation }) {
       docUrl,
       url: docUrl,
       status,
+      rejectionReason: reason,
     };
   };
 
@@ -63,6 +67,9 @@ export default function DriverKYCScreen({ navigation }) {
       const payload = res?.data?.data || res?.data || {};
       if (payload) {
         const docsMap = payload.documents || payload;
+        if (payload.rejectionReason || docsMap.rejectionReason) {
+          setRejectionReason(payload.rejectionReason || docsMap.rejectionReason);
+        }
         setDocuments((prev) => ({
           citizenship: normalizeDoc(docsMap.citizenship, prev.citizenship),
           drivingLicense: normalizeDoc(docsMap.drivingLicense || docsMap.drivingLicence, prev.drivingLicense),
@@ -197,6 +204,8 @@ export default function DriverKYCScreen({ navigation }) {
             const docData = documents[doc.key] || { status: 'MISSING' };
             const statusColor = getStatusColor(docData.status);
             const submitted = isDocSubmitted(docData);
+            const isRejected = docData.status?.toUpperCase() === 'REJECTED';
+            const docRejectionReason = docData.rejectionReason || rejectionReason;
 
             return (
               <View key={doc.key} style={styles.docCard}>
@@ -231,6 +240,20 @@ export default function DriverKYCScreen({ navigation }) {
                     </Text>
                   </View>
                 </View>
+
+                {/* Rejection Note if Rejected */}
+                {isRejected && (
+                  <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.15)', borderWidth: 1, borderColor: '#ef4444', borderRadius: 8, padding: 10, marginBottom: 12 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#ef4444' }}>
+                      Rejected by Admin
+                    </Text>
+                    {docRejectionReason ? (
+                      <Text style={{ fontSize: 11, color: '#f8fafc', marginTop: 2 }}>
+                        Reason: {docRejectionReason}
+                      </Text>
+                    ) : null}
+                  </View>
+                )}
 
                 {/* Upload / Re-upload Button */}
                 <TouchableOpacity

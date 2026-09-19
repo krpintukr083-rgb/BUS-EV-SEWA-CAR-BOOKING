@@ -405,18 +405,89 @@ exports.updateDriver = async (req, res, next) => {
 
 exports.verifyDriverDocuments = async (req, res, next) => {
   try {
-    const { drivingLicenceStatus, rcStatus, insuranceStatus, fitnessStatus, rejectionReason } = req.body;
+    const {
+      citizenshipStatus,
+      drivingLicenceStatus,
+      rcStatus,
+      insuranceStatus,
+      fitnessStatus,
+      rejectionReason,
+      docType,
+      status
+    } = req.body;
+
     const driver = await Driver.findById(req.params.id);
     if (!driver) return res.status(404).json({ success: false, message: 'Driver not found' });
 
-    if (drivingLicenceStatus) driver.drivingLicenceStatus = drivingLicenceStatus;
-    if (rcStatus) driver.rcStatus = rcStatus;
-    if (insuranceStatus) driver.insuranceStatus = insuranceStatus;
-    if (fitnessStatus) driver.fitnessStatus = fitnessStatus;
-    if (rejectionReason !== undefined) driver.rejectionReason = rejectionReason;
+    // Single document action handler
+    if (docType && status) {
+      const cleanType = docType.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const normalizeStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase(); // 'Approved', 'Rejected', 'Pending'
+
+      if (normalizeStatus === 'Rejected' && (!rejectionReason || !rejectionReason.trim())) {
+        return res.status(400).json({ success: false, message: 'Rejection reason is required when rejecting a document' });
+      }
+
+      switch (cleanType) {
+        case 'citizenship':
+        case 'citizenshipdoc':
+          driver.citizenshipStatus = normalizeStatus;
+          break;
+        case 'drivinglicence':
+        case 'drivinglicense':
+          driver.drivingLicenceStatus = normalizeStatus;
+          break;
+        case 'rc':
+        case 'vehiclerc':
+          driver.rcStatus = normalizeStatus;
+          break;
+        case 'insurance':
+          driver.insuranceStatus = normalizeStatus;
+          break;
+        case 'fitness':
+        case 'fitnesscertificate':
+          driver.fitnessStatus = normalizeStatus;
+          break;
+        default:
+          return res.status(400).json({ success: false, message: `Invalid document type '${docType}'` });
+      }
+
+      if (rejectionReason !== undefined) {
+        driver.rejectionReason = rejectionReason.trim();
+      }
+    } else {
+      // Multi-field update
+      if (citizenshipStatus) driver.citizenshipStatus = citizenshipStatus;
+      if (drivingLicenceStatus) driver.drivingLicenceStatus = drivingLicenceStatus;
+      if (rcStatus) driver.rcStatus = rcStatus;
+      if (insuranceStatus) driver.insuranceStatus = insuranceStatus;
+      if (fitnessStatus) driver.fitnessStatus = fitnessStatus;
+      if (rejectionReason !== undefined) driver.rejectionReason = rejectionReason;
+    }
+
+    // Calculate overall driver status
+    const allStatuses = [
+      driver.citizenshipStatus,
+      driver.drivingLicenceStatus,
+      driver.rcStatus,
+      driver.insuranceStatus,
+      driver.fitnessStatus
+    ].map(s => (s || '').toLowerCase());
+
+    if (allStatuses.some(s => s === 'rejected')) {
+      driver.driverStatus = 'Rejected';
+    } else if (allStatuses.every(s => s === 'approved')) {
+      driver.driverStatus = 'Active';
+    } else {
+      driver.driverStatus = 'Pending Verification';
+    }
 
     await driver.save();
-    res.json({ success: true, message: 'Driver document verification status updated', data: driver });
+    res.json({
+      success: true,
+      message: 'Driver document verification status updated',
+      data: driver
+    });
   } catch (error) {
     next(error);
   }

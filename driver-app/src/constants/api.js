@@ -59,8 +59,12 @@ export const getDefaultBaseUrl = () => {
     return sanitizeApiUrl(process.env.EXPO_PUBLIC_API_BASE_URL);
   }
 
-  // Prioritize active reverse tunnel / LAN API for direct real device debugging
-  return 'http://127.0.0.1:5000/api';
+  // Canonical Production Render Cloud Backend URL for Production Release APK
+  if (PRODUCTION_RENDER_URL && PRODUCTION_RENDER_URL.trim() !== '') {
+    return sanitizeApiUrl(PRODUCTION_RENDER_URL);
+  }
+
+  return 'https://bus-ev-sewa-car-booking.onrender.com/api';
 };
 
 /**
@@ -73,12 +77,10 @@ export const API_BASE_URL = DRIVER_API_BASE_URL;
  * Candidate URLs for automatic connectivity fallback (tested sequentially if primary fails)
  */
 export const CANDIDATE_URLS = [
-  getDefaultBaseUrl(),
-  sanitizeApiUrl(CLOUDFLARE_TUNNEL_URL),
   sanitizeApiUrl(PRODUCTION_RENDER_URL),
-  sanitizeApiUrl(BACKEND_LAN_URL),
-  sanitizeApiUrl(EMULATOR_URL),
-  'http://localhost:5000/api'
+  'http://127.0.0.1:5000/api',
+  'http://192.168.1.2:5000/api',
+  sanitizeApiUrl(CLOUDFLARE_TUNNEL_URL),
 ].filter((url, index, self) => url && self.indexOf(url) === index);
 
 export const ENDPOINTS = {
