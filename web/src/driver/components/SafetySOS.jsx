@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AlertTriangle, Phone, ShieldCheck, X, CheckCircle, Radio } from 'lucide-react';
-import api from '../services/api';
+import api from '../../services/api';
 import { useLanguage } from '../context/LanguageContext';
 
 const SafetySOS = ({ isOpen, onClose, driver }) => {
