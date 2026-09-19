@@ -572,6 +572,10 @@ exports.uploadDriverDocument = async (req, res, next) => {
         return res.status(400).json({ success: false, message: `Invalid document type '${docType}'` });
     }
 
+    if (['Unverified', 'Rejected', 'Inactive', 'Suspended'].includes(driver.driverStatus) || !driver.driverStatus) {
+      driver.driverStatus = 'Pending Verification';
+    }
+
     await driver.save();
 
     res.json({
@@ -579,6 +583,11 @@ exports.uploadDriverDocument = async (req, res, next) => {
       message: `${docType} submitted for review and set to Pending verification`,
       data: {
         ...driver.toObject(),
+        docType,
+        docUrl,
+        fileUrl: docUrl,
+        documentUrl: docUrl,
+        url: docUrl,
         citizenshipStatus: driver.citizenshipStatus?.toLowerCase(),
         drivingLicenceStatus: driver.drivingLicenceStatus?.toLowerCase(),
         rcStatus: driver.rcStatus?.toLowerCase(),

@@ -210,42 +210,42 @@ const DriverVerification = () => {
     {
       key: 'citizenship',
       title: '1. Citizenship Certificate / National ID',
-      docNum: selectedDriver.citizenshipNumber || 'Not submitted',
-      expiry: selectedDriver.citizenshipExpiry || 'N/A',
-      url: selectedDriver.citizenshipDoc,
-      status: selectedDriver.citizenshipStatus || 'Pending'
+      docNum: selectedDriver.citizenshipNumber || selectedDriver.documents?.citizenship?.documentNumber || 'Not submitted',
+      expiry: selectedDriver.citizenshipExpiry || selectedDriver.documents?.citizenship?.expiryDate || 'N/A',
+      url: selectedDriver.citizenshipDoc || selectedDriver.documents?.citizenship?.url || selectedDriver.documents?.citizenship?.fileUrl,
+      status: selectedDriver.citizenshipStatus || selectedDriver.documents?.citizenship?.status || 'Pending'
     },
     {
       key: 'drivingLicence',
       title: '2. Commercial Driving Licence',
-      docNum: selectedDriver.drivingLicenceNumber || 'Not submitted',
-      expiry: selectedDriver.drivingLicenceExpiry || '2028-12-31',
-      url: selectedDriver.drivingLicenceDoc,
-      status: selectedDriver.drivingLicenceStatus || 'Pending'
+      docNum: selectedDriver.drivingLicenceNumber || selectedDriver.documents?.drivingLicence?.documentNumber || selectedDriver.documents?.drivingLicense?.documentNumber || 'Not submitted',
+      expiry: selectedDriver.drivingLicenceExpiry || selectedDriver.documents?.drivingLicence?.expiryDate || selectedDriver.documents?.drivingLicense?.expiryDate || '2028-12-31',
+      url: selectedDriver.drivingLicenceDoc || selectedDriver.drivingLicenseDoc || selectedDriver.documents?.drivingLicence?.url || selectedDriver.documents?.drivingLicence?.fileUrl || selectedDriver.documents?.drivingLicense?.url || selectedDriver.documents?.drivingLicense?.fileUrl,
+      status: selectedDriver.drivingLicenceStatus || selectedDriver.documents?.drivingLicence?.status || selectedDriver.documents?.drivingLicense?.status || 'Pending'
     },
     {
       key: 'rc',
       title: '3. Vehicle Registration Certificate (Blue Book / RC)',
-      docNum: selectedDriver.rcNumber || 'Not submitted',
-      expiry: selectedDriver.rcExpiry || '2029-06-30',
-      url: selectedDriver.rcDoc,
-      status: selectedDriver.rcStatus || 'Pending'
+      docNum: selectedDriver.rcNumber || selectedDriver.documents?.rc?.documentNumber || selectedDriver.documents?.vehicleRc?.documentNumber || 'Not submitted',
+      expiry: selectedDriver.rcExpiry || selectedDriver.documents?.rc?.expiryDate || selectedDriver.documents?.vehicleRc?.expiryDate || '2029-06-30',
+      url: selectedDriver.rcDoc || selectedDriver.vehicleRcDoc || selectedDriver.documents?.rc?.url || selectedDriver.documents?.rc?.fileUrl || selectedDriver.documents?.vehicleRc?.url || selectedDriver.documents?.vehicleRc?.fileUrl,
+      status: selectedDriver.rcStatus || selectedDriver.documents?.rc?.status || selectedDriver.documents?.vehicleRc?.status || 'Pending'
     },
     {
       key: 'insurance',
       title: '4. Commercial Vehicle Insurance Policy',
-      docNum: selectedDriver.insurancePolicyNumber || 'Not submitted',
-      expiry: selectedDriver.insuranceExpiryDetails || '2026-12-31',
-      url: selectedDriver.insuranceDoc,
-      status: selectedDriver.insuranceStatus || 'Pending'
+      docNum: selectedDriver.insurancePolicyNumber || selectedDriver.documents?.insurance?.documentNumber || 'Not submitted',
+      expiry: selectedDriver.insuranceExpiryDetails || selectedDriver.documents?.insurance?.expiryDate || '2026-12-31',
+      url: selectedDriver.insuranceDoc || selectedDriver.documents?.insurance?.url || selectedDriver.documents?.insurance?.fileUrl,
+      status: selectedDriver.insuranceStatus || selectedDriver.documents?.insurance?.status || 'Pending'
     },
     {
       key: 'fitness',
       title: '5. State Fitness Certificate / Vehicle Safety Permit',
-      docNum: selectedDriver.fitnessDetails || 'Not submitted',
-      expiry: selectedDriver.fitnessExpiry || '2027-03-31',
-      url: selectedDriver.fitnessDoc,
-      status: selectedDriver.fitnessStatus || 'Pending'
+      docNum: selectedDriver.fitnessDetails || selectedDriver.documents?.fitness?.documentNumber || selectedDriver.documents?.fitnessCertificate?.documentNumber || 'Not submitted',
+      expiry: selectedDriver.fitnessExpiry || selectedDriver.documents?.fitness?.expiryDate || selectedDriver.documents?.fitnessCertificate?.expiryDate || '2027-03-31',
+      url: selectedDriver.fitnessDoc || selectedDriver.fitnessCertificateDoc || selectedDriver.documents?.fitness?.url || selectedDriver.documents?.fitness?.fileUrl || selectedDriver.documents?.fitnessCertificate?.url || selectedDriver.documents?.fitnessCertificate?.fileUrl,
+      status: selectedDriver.fitnessStatus || selectedDriver.documents?.fitness?.status || selectedDriver.documents?.fitnessCertificate?.status || 'Pending'
     }
   ] : [];
 

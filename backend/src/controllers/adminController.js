@@ -280,8 +280,78 @@ exports.uploadMultipleImages = async (req, res, next) => {
 // ==========================================
 exports.getDrivers = async (req, res, next) => {
   try {
-    const drivers = await Driver.find().populate('assignedVehicle').populate('user').sort({ createdAt: -1 });
-    res.json({ success: true, count: drivers.length, data: drivers });
+    const driversList = await Driver.find().populate('assignedVehicle').populate('user').sort({ createdAt: -1 });
+    const formattedDrivers = driversList.map(driver => {
+      const obj = driver.toObject();
+      const docsObj = {
+        citizenship: {
+          documentNumber: obj.citizenshipNumber || '',
+          url: obj.citizenshipDoc || '',
+          fileUrl: obj.citizenshipDoc || '',
+          expiryDate: obj.citizenshipExpiry || '',
+          status: obj.citizenshipStatus || 'Pending'
+        },
+        drivingLicence: {
+          documentNumber: obj.drivingLicenceNumber || '',
+          url: obj.drivingLicenceDoc || '',
+          fileUrl: obj.drivingLicenceDoc || '',
+          expiryDate: obj.drivingLicenceExpiry || '',
+          status: obj.drivingLicenceStatus || 'Pending'
+        },
+        drivingLicense: {
+          documentNumber: obj.drivingLicenceNumber || '',
+          url: obj.drivingLicenceDoc || '',
+          fileUrl: obj.drivingLicenceDoc || '',
+          expiryDate: obj.drivingLicenceExpiry || '',
+          status: obj.drivingLicenceStatus || 'Pending'
+        },
+        rc: {
+          documentNumber: obj.rcNumber || '',
+          url: obj.rcDoc || '',
+          fileUrl: obj.rcDoc || '',
+          expiryDate: obj.rcExpiry || '',
+          status: obj.rcStatus || 'Pending'
+        },
+        vehicleRc: {
+          documentNumber: obj.rcNumber || '',
+          url: obj.rcDoc || '',
+          fileUrl: obj.rcDoc || '',
+          expiryDate: obj.rcExpiry || '',
+          status: obj.rcStatus || 'Pending'
+        },
+        insurance: {
+          documentNumber: obj.insurancePolicyNumber || '',
+          url: obj.insuranceDoc || '',
+          fileUrl: obj.insuranceDoc || '',
+          expiryDate: obj.insuranceExpiryDetails || '',
+          status: obj.insuranceStatus || 'Pending'
+        },
+        fitness: {
+          documentNumber: obj.fitnessDetails || '',
+          url: obj.fitnessDoc || '',
+          fileUrl: obj.fitnessDoc || '',
+          expiryDate: obj.fitnessExpiry || '',
+          status: obj.fitnessStatus || 'Pending'
+        },
+        fitnessCertificate: {
+          documentNumber: obj.fitnessDetails || '',
+          url: obj.fitnessDoc || '',
+          fileUrl: obj.fitnessDoc || '',
+          expiryDate: obj.fitnessExpiry || '',
+          status: obj.fitnessStatus || 'Pending'
+        }
+      };
+
+      return {
+        ...obj,
+        drivingLicenseDoc: obj.drivingLicenceDoc,
+        vehicleRcDoc: obj.rcDoc,
+        fitnessCertificateDoc: obj.fitnessDoc,
+        documents: docsObj
+      };
+    });
+
+    res.json({ success: true, count: formattedDrivers.length, data: formattedDrivers });
   } catch (error) {
     next(error);
   }
@@ -411,18 +481,20 @@ exports.verifyDriverDocuments = async (req, res, next) => {
       rcStatus,
       insuranceStatus,
       fitnessStatus,
-      rejectionReason,
-      docType,
-      status
+      rejectionReason
     } = req.body;
 
     const driver = await Driver.findById(req.params.id);
     if (!driver) return res.status(404).json({ success: false, message: 'Driver not found' });
 
+    const targetDocType = req.body.docType || req.params.docType;
+    const targetStatus = req.body.status || req.params.status;
+
     // Single document action handler
-    if (docType && status) {
-      const cleanType = docType.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const normalizeStatus = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase(); // 'Approved', 'Rejected', 'Pending'
+    if (targetDocType && targetStatus) {
+      const cleanType = targetDocType.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const normalizeStatus = targetStatus.charAt(0).toUpperCase() + targetStatus.slice(1).toLowerCase(); // 'Approved', 'Rejected', 'Pending'
+      console.log(`[DEBUG VERIFY] cleanType=${cleanType}, normalizeStatus=${normalizeStatus}`);
 
       if (normalizeStatus === 'Rejected' && (!rejectionReason || !rejectionReason.trim())) {
         return res.status(400).json({ success: false, message: 'Rejection reason is required when rejecting a document' });
@@ -436,6 +508,7 @@ exports.verifyDriverDocuments = async (req, res, next) => {
         case 'drivinglicence':
         case 'drivinglicense':
           driver.drivingLicenceStatus = normalizeStatus;
+          console.log(`[DEBUG VERIFY] Set drivingLicenceStatus to ${normalizeStatus}`);
           break;
         case 'rc':
         case 'vehiclerc':
@@ -449,7 +522,7 @@ exports.verifyDriverDocuments = async (req, res, next) => {
           driver.fitnessStatus = normalizeStatus;
           break;
         default:
-          return res.status(400).json({ success: false, message: `Invalid document type '${docType}'` });
+          return res.status(400).json({ success: false, message: `Invalid document type '${targetDocType}'` });
       }
 
       if (rejectionReason !== undefined) {
