@@ -46,6 +46,10 @@ const DriverVerification = () => {
   const [rejectionReasonText, setRejectionReasonText] = useState('');
   const [modalError, setModalError] = useState('');
 
+  // Document Preview Modal State
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState(null);
+
   const fetchDrivers = async () => {
     try {
       const res = await adminService.getDrivers();
@@ -77,6 +81,22 @@ const DriverVerification = () => {
     setSelectedDriver(driver);
     setMessage('');
     setError('');
+  };
+
+  const handleViewDocument = (doc) => {
+    if (!doc.url || doc.url.trim() === '') return;
+    const fullUrl = getImageUrl(doc.url);
+    const isPdf = doc.url.toLowerCase().endsWith('.pdf');
+    if (isPdf) {
+      window.open(fullUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      setPreviewDoc({
+        ...doc,
+        fullUrl,
+        isPdf
+      });
+      setPreviewModalOpen(true);
+    }
   };
 
   const handleApproveDocument = async (docKey, docTitle) => {
@@ -452,8 +472,6 @@ const DriverVerification = () => {
                 {documentConfigs.map((doc) => {
                   const statusInfo = getDocStatus(doc.status);
                   const hasFile = doc.url && doc.url.trim() !== '';
-                  const fullFileUrl = getImageUrl(doc.url);
-                  const isPdf = doc.url && doc.url.toLowerCase().endsWith('.pdf');
 
                   return (
                     <div
@@ -501,34 +519,46 @@ const DriverVerification = () => {
                         </div>
 
                         {/* File Preview & Actions */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          {/* File Document View Box */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          {/* View Document / Document Not Uploaded Button */}
                           {hasFile ? (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#f8fafc', padding: '6px 10px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                              {isPdf ? (
-                                <FileText size={28} color="#dc2626" />
-                              ) : (
-                                <img
-                                  src={fullFileUrl}
-                                  alt="Document"
-                                  style={{ width: '38px', height: '38px', borderRadius: '4px', objectFit: 'cover', border: '1px solid #cbd5e1' }}
-                                  onError={e => { e.target.onerror = null; e.target.style.display = 'none'; }}
-                                />
-                              )}
-                              <a
-                                href={fullFileUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="btn btn-sm btn-outline"
-                                style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none', color: '#0A66C2', borderColor: '#0A66C2' }}
-                              >
-                                <Eye size={13} /> View File <ExternalLink size={11} />
-                              </a>
-                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleViewDocument(doc)}
+                              className="btn btn-sm btn-outline"
+                              style={{
+                                fontSize: '0.78rem',
+                                fontWeight: '700',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                color: '#0A66C2',
+                                borderColor: '#0A66C2',
+                                backgroundColor: 'rgba(10, 102, 194, 0.05)',
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              <Eye size={14} /> View Document
+                            </button>
                           ) : (
-                            <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontStyle: 'italic' }}>
-                              No file uploaded
-                            </span>
+                            <button
+                              type="button"
+                              disabled
+                              style={{
+                                fontSize: '0.75rem',
+                                fontWeight: '600',
+                                color: '#94a3b8',
+                                backgroundColor: '#f1f5f9',
+                                border: '1px solid #cbd5e1',
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                cursor: 'not-allowed'
+                              }}
+                            >
+                              Document Not Uploaded
+                            </button>
                           )}
 
                           {/* Action Buttons */}
@@ -621,6 +651,94 @@ const DriverVerification = () => {
               >
                 {actionLoading ? 'Saving...' : 'Confirm Rejection'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DOCUMENT PREVIEW MODAL */}
+      {previewModalOpen && previewDoc && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.85)', zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ backgroundColor: '#ffffff', borderRadius: '16px', maxWidth: '750px', width: '100%', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            {/* Modal Header */}
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc' }}>
+              <div>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <FileText size={18} color="#0A66C2" /> {previewDoc.title}
+                </h3>
+                <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '2px 0 0 0' }}>
+                  Driver: <strong>{selectedDriver?.name}</strong> ({selectedDriver?.mobileNumber}) | Doc No: <code>{previewDoc.docNum}</code>
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <a
+                  href={previewDoc.fullUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-sm btn-outline"
+                  style={{ fontSize: '0.75rem', padding: '4px 10px', textDecoration: 'none', color: '#0A66C2', borderColor: '#0A66C2', display: 'flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <ExternalLink size={13} /> Open Full Tab
+                </a>
+                <button
+                  onClick={() => setPreviewModalOpen(false)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', padding: '4px', borderRadius: '4px' }}
+                >
+                  <X size={22} />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Image Display */}
+            <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' }}>
+              <img
+                src={previewDoc.fullUrl}
+                alt={previewDoc.title}
+                style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}
+                onError={e => {
+                  e.target.onerror = null;
+                  setError('Could not load document preview image.');
+                }}
+              />
+            </div>
+
+            {/* Modal Footer with Actions */}
+            <div style={{ padding: '14px 20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#ffffff' }}>
+              <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                Current Compliance Status: <strong>{previewDoc.status}</strong>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-success"
+                  onClick={() => {
+                    setPreviewModalOpen(false);
+                    handleApproveDocument(previewDoc.key, previewDoc.title);
+                  }}
+                  style={{ fontSize: '0.8rem', padding: '6px 14px' }}
+                >
+                  <Check size={14} /> Approve Document
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-danger"
+                  onClick={() => {
+                    setPreviewModalOpen(false);
+                    handleOpenRejectModal(previewDoc.key, previewDoc.title);
+                  }}
+                  style={{ fontSize: '0.8rem', padding: '6px 14px' }}
+                >
+                  <X size={14} /> Reject Document
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline"
+                  onClick={() => setPreviewModalOpen(false)}
+                  style={{ fontSize: '0.8rem', padding: '6px 14px' }}
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
