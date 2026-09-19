@@ -31,16 +31,16 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         quality: 0.8,
-        base64: true,
       });
       if (result.canceled) return;
       const asset = result.assets?.[0];
       if (asset) {
+        const rawName = asset.fileName || asset.uri.split('/').pop() || `${docType}_${Date.now()}.jpg`;
+        const mimeType = asset.mimeType || (rawName.endsWith('.png') ? 'image/png' : 'image/jpeg');
         setSelectedAsset({
           uri: asset.uri,
-          name: asset.fileName || `${docType}_${Date.now()}.jpg`,
-          mimeType: asset.mimeType || 'image/jpeg',
-          base64: asset.base64 ? `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}` : null,
+          name: rawName,
+          mimeType: mimeType,
           isImage: true,
         });
       }
@@ -58,16 +58,16 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
       }
       const result = await ImagePicker.launchCameraAsync({
         quality: 0.8,
-        base64: true,
       });
       if (result.canceled) return;
       const asset = result.assets?.[0];
       if (asset) {
+        const rawName = asset.fileName || asset.uri.split('/').pop() || `${docType}_${Date.now()}.jpg`;
+        const mimeType = asset.mimeType || 'image/jpeg';
         setSelectedAsset({
           uri: asset.uri,
-          name: asset.fileName || `${docType}_${Date.now()}.jpg`,
-          mimeType: asset.mimeType || 'image/jpeg',
-          base64: asset.base64 ? `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}` : null,
+          name: rawName,
+          mimeType: mimeType,
           isImage: true,
         });
       }
@@ -85,12 +85,13 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
       if (result.canceled) return;
       const asset = result.assets?.[0];
       if (asset) {
+        const rawName = asset.name || asset.uri.split('/').pop() || `${docType}_${Date.now()}.pdf`;
+        const mimeType = asset.mimeType || (rawName.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
         setSelectedAsset({
           uri: asset.uri,
-          name: asset.name || `${docType}_${Date.now()}.pdf`,
-          mimeType: asset.mimeType || 'application/pdf',
-          base64: null,
-          isImage: asset.mimeType ? asset.mimeType.startsWith('image/') : true,
+          name: rawName,
+          mimeType: mimeType,
+          isImage: mimeType ? mimeType.startsWith('image/') : !rawName.endsWith('.pdf'),
         });
       }
     } catch (err) {
@@ -111,21 +112,24 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
 
     setLoading(true);
     try {
-      const docUrlPayload = selectedAsset?.base64 || selectedAsset?.uri || `data:image/jpeg;base64,doc_${Date.now()}`;
-
-      const res = await driverService.uploadDocument({
-        docType,
-        documentNumber: docNumber.trim(),
-        docUrl: docUrlPayload,
-        expiryDate: expiryDate.trim() || '2029-12-31',
+      const formData = new FormData();
+      formData.append('document', {
+        uri: selectedAsset.uri,
+        name: selectedAsset.name || `${docType}_${Date.now()}.jpg`,
+        type: selectedAsset.mimeType || 'image/jpeg',
       });
+      formData.append('docType', docType);
+      formData.append('documentNumber', docNumber.trim());
+      formData.append('expiryDate', expiryDate.trim() || '2029-12-31');
+
+      const res = await driverService.uploadDocument(formData);
 
       if (res.data?.success || res.success) {
         Alert.alert('Success', `${docTitle || 'Document'} submitted for review and set to Pending verification.`);
         if (onSuccess) onSuccess();
         onClose();
       } else {
-        Alert.alert('Upload Failed', res.data?.message || 'Could not upload document');
+        Alert.alert('Upload Failed', res.data?.message || res.message || 'Could not upload document');
       }
     } catch (e) {
       console.log('Upload error:', e?.response?.data || e.message);

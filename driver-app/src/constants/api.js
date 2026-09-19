@@ -59,19 +59,8 @@ export const getDefaultBaseUrl = () => {
     return sanitizeApiUrl(process.env.EXPO_PUBLIC_API_BASE_URL);
   }
 
-  if (PRODUCTION_RENDER_URL && PRODUCTION_RENDER_URL.trim() !== '') {
-    return sanitizeApiUrl(PRODUCTION_RENDER_URL);
-  }
-
-  if (CLOUDFLARE_TUNNEL_URL && CLOUDFLARE_TUNNEL_URL.trim() !== '') {
-    return sanitizeApiUrl(CLOUDFLARE_TUNNEL_URL);
-  }
-
-  if (Platform.OS === 'android') {
-    return sanitizeApiUrl(EMULATOR_URL);
-  }
-
-  return 'http://localhost:5000/api';
+  // Prioritize active reverse tunnel / LAN API for direct real device debugging
+  return 'http://127.0.0.1:5000/api';
 };
 
 /**

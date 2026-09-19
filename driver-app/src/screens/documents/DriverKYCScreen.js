@@ -24,10 +24,10 @@ export default function DriverKYCScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [documents, setDocuments] = useState({
     citizenship: { status: 'PENDING', documentNumber: '', expiryDate: '' },
-    drivingLicense: { status: 'VERIFIED', documentNumber: 'DL-9820-2022', expiryDate: '2028-12-31' },
-    vehicleRc: { status: 'VERIFIED', documentNumber: 'BA-2-PA-8821', expiryDate: '2027-05-15' },
-    insurance: { status: 'EXPIRED', documentNumber: 'INS-7721890', expiryDate: '2024-01-10' },
-    fitnessCertificate: { status: 'PENDING', documentNumber: 'FIT-2024-09', expiryDate: '2025-08-30' },
+    drivingLicense: { status: 'PENDING', documentNumber: '', expiryDate: '' },
+    vehicleRc: { status: 'PENDING', documentNumber: '', expiryDate: '' },
+    insurance: { status: 'PENDING', documentNumber: '', expiryDate: '' },
+    fitnessCertificate: { status: 'PENDING', documentNumber: '', expiryDate: '' },
   });
 
   const [selectedDocKey, setSelectedDocKey] = useState(null);

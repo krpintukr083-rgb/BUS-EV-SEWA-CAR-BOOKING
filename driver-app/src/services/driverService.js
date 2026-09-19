@@ -15,7 +15,17 @@ export const driverService = {
 
   // Documents & Vehicle
   getDocuments: () => apiClient.get(ENDPOINTS.DOCUMENTS),
-  uploadDocument: (docData) => apiClient.post(ENDPOINTS.DOCUMENTS, docData),
+  uploadDocument: (docData) => {
+    if (typeof FormData !== 'undefined' && docData instanceof FormData) {
+      return apiClient.post(ENDPOINTS.DOCUMENTS, docData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        transformRequest: (data) => data,
+      });
+    }
+    return apiClient.post(ENDPOINTS.DOCUMENTS, docData);
+  },
   getVehicle: () => apiClient.get(ENDPOINTS.VEHICLE),
 
   // Booking Requests & Ride Lifecycle

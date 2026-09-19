@@ -32,6 +32,7 @@ const {
   createSupportTicket
 } = require('../controllers/driverController');
 const { verifyToken, driverAuth } = require('../middleware/auth');
+const { handleSingleUpload } = require('../middleware/upload');
 
 // All driver routes are protected with JWT and driver role verification
 router.use(verifyToken, driverAuth);
@@ -44,7 +45,7 @@ router.get('/vehicle', getAssignedVehicle);
 
 // 2. Documents & KYC
 router.get('/documents', getDriverDocuments);
-router.post('/documents', uploadDriverDocument);
+router.post('/documents', handleSingleUpload(), uploadDriverDocument);
 
 // 3. Online/Offline Status Toggle
 router.get('/status', getDriverStatus);

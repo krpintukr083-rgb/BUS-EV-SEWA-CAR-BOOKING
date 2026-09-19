@@ -517,12 +517,15 @@ exports.uploadDriverDocument = async (req, res, next) => {
     }
 
     const docType = (req.body.docType || req.body.documentType || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const docUrl = req.body.docUrl || req.body.documentUrl || req.body.url;
+    let docUrl = req.body.docUrl || req.body.documentUrl || req.body.url;
+    if (req.file) {
+      docUrl = `/uploads/${req.file.filename}`;
+    }
     const documentNumber = req.body.documentNumber || req.body.docNumber || req.body.number;
     const expiryDate = req.body.expiryDate || req.body.expiry;
 
     if (!docType || !docUrl) {
-      return res.status(400).json({ success: false, message: 'Document type and document URL/file are required' });
+      return res.status(400).json({ success: false, message: 'Document type and document file are required' });
     }
 
     switch (docType) {

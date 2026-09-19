@@ -24,23 +24,23 @@ const storage = multer.diskStorage({
   }
 });
 
-// File Filter: Accept JPG, JPEG, PNG only
+// File Filter: Accept JPG, JPEG, PNG, PDF documents
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png/;
+  const allowedTypes = /jpeg|jpg|png|pdf/;
   const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = allowedTypes.test(file.mimetype);
+  const mimetype = allowedTypes.test(file.mimetype) || file.mimetype === 'application/pdf';
 
-  if (extname && mimetype) {
+  if (extname || mimetype) {
     return cb(null, true);
   }
-  return cb(new Error('Invalid file type. Only JPG, JPEG, and PNG images are allowed.'), false);
+  return cb(new Error('Invalid file type. Only JPG, JPEG, PNG, and PDF documents are allowed.'), false);
 };
 
-// Multer Upload Instance with 2MB limit per file
+// Multer Upload Instance with 10MB limit per file
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 2 * 1024 * 1024 // 2MB max file size
+    fileSize: 10 * 1024 * 1024 // 10MB max file size
   },
   fileFilter: fileFilter
 });
