@@ -104,32 +104,32 @@ export default function DriverKYCScreen({ navigation }) {
 
   const docConfigs = [
     {
-      key: 'drivingLicense',
-      title: t('drivingLicense'),
-      icon: 'card-account-details',
-      desc: 'Valid heavy/light commercial transport driving licence',
-    },
-    {
       key: 'citizenship',
-      title: t('citizenshipDoc'),
+      title: t('citizenshipTitle'),
       icon: 'account-badge',
       desc: 'National Identity Card or Citizenship Certificate',
     },
     {
+      key: 'drivingLicense',
+      title: t('drivingLicenceTitle'),
+      icon: 'card-account-details',
+      desc: 'Valid heavy/light commercial transport driving licence',
+    },
+    {
       key: 'vehicleRc',
-      title: t('vehicleRc'),
+      title: t('vehicleRcTitle'),
       icon: 'file-document-outline',
       desc: 'Vehicle Blue Book / Registration Certificate',
     },
     {
       key: 'insurance',
-      title: t('insurance'),
+      title: t('insuranceTitle'),
       icon: 'shield-check',
       desc: 'Comprehensive third-party & passenger insurance policy',
     },
     {
       key: 'fitnessCertificate',
-      title: t('fitnessCertificate'),
+      title: t('fitnessTitle'),
       icon: 'car-wrench',
       desc: 'Authorized transport department fitness certificate',
     },
