@@ -307,7 +307,8 @@ exports.updateDriverProfile = async (req, res, next) => {
     if (driver.user) {
       await User.findByIdAndUpdate(driver.user, {
         name: driver.name,
-        phone: driver.mobileNumber
+        phone: driver.mobileNumber,
+        ...(profilePhoto ? { profilePhoto } : {})
       });
     }
 

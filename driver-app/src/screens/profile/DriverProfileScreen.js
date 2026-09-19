@@ -6,19 +6,97 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useAuth } from '../../state/AuthContext';
 import { useLanguage } from '../../state/LanguageContext';
 import LanguageModal from '../../components/LanguageModal';
+import { driverService } from '../../services/driverService';
 
 export default function DriverProfileScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const { driver, logout } = useAuth();
+  const { driver, logout, fetchFreshProfile } = useAuth();
   const { t, currentLanguage } = useLanguage();
   const [langModalVisible, setLangModalVisible] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+
+  const handleUpdatePhoto = async () => {
+    try {
+      Alert.alert(
+        'Update Profile Photo',
+        'Choose an option to update your profile photo:',
+        [
+          {
+            text: 'Take Photo (Camera)',
+            onPress: async () => {
+              const perm = await ImagePicker.requestCameraPermissionsAsync();
+              if (!perm.granted) {
+                Alert.alert('Permission Required', 'Camera permission is required.');
+                return;
+              }
+              const res = await ImagePicker.launchCameraAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.7,
+                base64: true
+              });
+              if (!res.canceled && res.assets?.[0]) {
+                uploadPhoto(res.assets[0]);
+              }
+            }
+          },
+          {
+            text: 'Choose from Gallery',
+            onPress: async () => {
+              const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+              if (!perm.granted) {
+                Alert.alert('Permission Required', 'Gallery permission is required.');
+                return;
+              }
+              const res = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.7,
+                base64: true
+              });
+              if (!res.canceled && res.assets?.[0]) {
+                uploadPhoto(res.assets[0]);
+              }
+            }
+          },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+    } catch (e) {
+      Alert.alert('Error', e.message || 'Could not launch photo picker');
+    }
+  };
+
+  const uploadPhoto = async (asset) => {
+    setPhotoUploading(true);
+    try {
+      const mime = asset.mimeType || 'image/jpeg';
+      const base64Uri = `data:${mime};base64,${asset.base64}`;
+      const res = await driverService.updateProfile({ profilePhoto: base64Uri });
+      if (res.data?.success) {
+        Alert.alert('Success', 'Profile photo updated successfully!');
+        if (fetchFreshProfile) fetchFreshProfile();
+      } else {
+        Alert.alert('Update Failed', res.data?.message || 'Could not update photo.');
+      }
+    } catch (err) {
+      Alert.alert('Update Error', err.response?.data?.message || err.message || 'Failed to update photo.');
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -42,6 +120,8 @@ export default function DriverProfileScreen({ navigation }) {
     if (currentLanguage === 'hi') return 'हिन्दी (Hindi)';
     return 'English';
   };
+
+  const photoUrl = driver?.profilePhoto || driver?.driverPhoto || driver?.user?.profilePhoto;
 
   const menuSections = [
     {
@@ -125,13 +205,26 @@ export default function DriverProfileScreen({ navigation }) {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Profile Card */}
         <View style={styles.profileCard}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>
-              {(driver?.name || 'Driver').charAt(0).toUpperCase()}
-            </Text>
-          </View>
+          <TouchableOpacity style={styles.avatarWrapper} onPress={handleUpdatePhoto} activeOpacity={0.8}>
+            {photoUrl ? (
+              <Image source={{ uri: photoUrl }} style={styles.avatarImage} />
+            ) : (
+              <View style={styles.avatar}>
+                <Text style={styles.avatarText}>
+                  {(driver?.name || 'Driver').charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <View style={styles.cameraIconBadge}>
+              {photoUploading ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <MaterialCommunityIcons name="camera" size={14} color="#FFF" />
+              )}
+            </View>
+          </TouchableOpacity>
           <Text style={styles.driverName}>{driver?.name || 'Partner Driver'}</Text>
-          <Text style={styles.driverPhone}>{driver?.phone || '+977-98XXXXXXXX'}</Text>
+          <Text style={styles.driverPhone}>{driver?.phone || driver?.mobileNumber || '+977-98XXXXXXXX'}</Text>
 
           <View style={styles.badgeRow}>
             <View style={styles.statusBadge}>
@@ -247,6 +340,30 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.l,
     ...SHADOWS.card,
   },
+  avatarWrapper: {
+    position: 'relative',
+    marginBottom: SPACING.s,
+  },
+  avatarImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+  },
+  cameraIconBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: COLORS.bgCard,
+  },
   avatar: {
     width: 72,
     height: 72,
@@ -254,7 +371,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: SPACING.s,
     borderWidth: 2,
     borderColor: COLORS.primary,
   },
