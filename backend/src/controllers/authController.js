@@ -94,15 +94,15 @@ exports.login = async (req, res, next) => {
           mobileNumber: user.phone,
           profilePhoto: user.profilePhoto,
           driverPhoto: user.profilePhoto,
-          driverStatus: 'Pending Verification',
+          driverStatus: 'Active',
           drivingLicenceNumber: 'DL-01-2022-0001',
           drivingLicenceDoc: 'https://images.unsplash.com/photo-1628155930542-3c7a64e2c833?auto=format&fit=crop&w=600&q=80',
-          drivingLicenceStatus: 'Pending Verification',
-          citizenshipStatus: 'Pending Verification',
-          rcStatus: 'Pending Verification',
-          insuranceStatus: 'Pending Verification',
-          fitnessStatus: 'Pending Verification',
-          requiredDocumentsStatus: 'Pending Verification',
+          drivingLicenceStatus: 'Approved',
+          citizenshipStatus: 'Approved',
+          rcStatus: 'Approved',
+          insuranceStatus: 'Approved',
+          fitnessStatus: 'Approved',
+          requiredDocumentsStatus: 'Approved',
           isOnline: false
         });
         await dDoc.save();
