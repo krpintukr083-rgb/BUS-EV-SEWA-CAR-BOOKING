@@ -57,24 +57,8 @@ const BookingRequestsScreen = ({ navigation }) => {
     setRefreshing(false);
   };
 
-  const handleAccept = async (bookingId) => {
-    try {
-      const res = await driverService.acceptRide(bookingId);
-      if (res.data?.success) {
-        // Immediately remove card from local state — don't wait for next poll
-        setRequests((prev) => prev.filter((r) => r._id !== bookingId && r.bookingId !== bookingId));
-
-        const accepted = res.data.data;
-        Alert.alert('Ride Accepted', 'Trip is now active. Please proceed to the pickup location.');
-        if (accepted?.serviceType === 'Bus' || accepted?.serviceType === 'BUS') {
-          navigation.navigate('BusConfirmation', { bookingId: accepted._id || bookingId });
-        } else {
-          navigation.navigate('ActiveRide', { bookingId: accepted._id || bookingId });
-        }
-      }
-    } catch (e) {
-      Alert.alert('Accept Failed', e.response?.data?.message || 'Could not accept ride request.');
-    }
+  const handleAccept = (bookingId) => {
+    navigation.navigate('BusConfirmation', { bookingId });
   };
 
   const promptReject = (bookingId) => {
