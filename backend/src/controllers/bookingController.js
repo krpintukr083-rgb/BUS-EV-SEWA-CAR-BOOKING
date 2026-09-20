@@ -217,12 +217,12 @@ exports.getMyBookings = async (req, res, next) => {
   try {
     let query = {};
     if (req.user.role === 'customer') {
-      query = {
-        $or: [
-          { 'customer.phone': req.user.phone },
-          { 'customer.email': req.user.email }
-        ]
-      };
+      const orConditions = [
+        { 'customer.phone': req.user.phone },
+        ...(req.user.email ? [{ 'customer.email': req.user.email }] : []),
+        ...(req.user._id ? [{ user: req.user._id }] : [])
+      ];
+      query = { $or: orConditions };
     }
 
     const bookings = await Booking.find(query)

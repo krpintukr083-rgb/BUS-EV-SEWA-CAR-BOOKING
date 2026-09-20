@@ -91,7 +91,10 @@ exports.getDriverDashboard = async (req, res, next) => {
               { driver: driver._id },
               ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
             ],
-            bookingStatus: { $in: ['Pending Driver Confirmation', 'Awaiting Cash Collection', 'Pending'] }
+            bookingStatus: { $in: ['Pending Driver Confirmation', 'Pending'] },
+            cashCollected: { $ne: true },
+            paymentStatus: { $nin: ['Paid', 'Successful'] },
+            driverConfirmationStatus: { $ne: 'Confirmed' }
           })
             .select('bookingId customer serviceType pickupLocation dropLocation fare driverPaymentAmount paymentStatus bookingStatus rideStatus travelDate passengerDetails busSeatNumbers vehicle driver createdAt')
             .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory vehicleStatus seatingCapacity fuelType')
@@ -710,7 +713,10 @@ exports.getBookingRequests = async (req, res, next) => {
         { driver: driver._id },
         ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
       ],
-      bookingStatus: { $in: ['Pending Driver Confirmation', 'Awaiting Cash Collection', 'Pending'] }
+      bookingStatus: { $in: ['Pending Driver Confirmation', 'Pending'] },
+      cashCollected: { $ne: true },
+      paymentStatus: { $nin: ['Paid', 'Successful'] },
+      driverConfirmationStatus: { $ne: 'Confirmed' }
     };
 
     const requests = await Booking.find(query)
@@ -1230,11 +1236,11 @@ exports.collectCash = async (req, res, next) => {
     booking.cashCollectedAt = new Date();
     booking.cashCollectedBy = driver._id;
     booking.paymentStatus = 'Paid';
-
-    // If driver confirmation has also occurred, promote to Confirmed
-    if (booking.driverConfirmationStatus === 'Confirmed') {
-      booking.bookingStatus = 'Confirmed';
-    }
+    booking.driverConfirmationStatus = 'Confirmed';
+    booking.driverConfirmed = true;
+    booking.driverConfirmedAt = booking.driverConfirmedAt || new Date();
+    booking.driverConfirmedBy = booking.driverConfirmedBy || driver._id;
+    booking.bookingStatus = 'Confirmed';
 
     await booking.save();
 

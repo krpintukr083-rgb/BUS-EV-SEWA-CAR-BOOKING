@@ -231,6 +231,7 @@ exports.createBooking = async (req, res, next) => {
 
     const booking = await Booking.create({
       bookingId,
+      user: req.user?._id,
       customer: {
         name: req.user.name,
         phone: req.user.phone,
@@ -369,9 +370,12 @@ exports.processPayment = async (req, res, next) => {
 // 10. Get Customer Bookings (Upcoming & Completed)
 exports.getMyBookings = async (req, res, next) => {
   try {
-    const bookings = await Booking.find({
-      $or: [{ 'customer.phone': req.user.phone }, { 'customer.email': req.user.email }]
-    })
+    const userQuery = [
+      { 'customer.phone': req.user.phone },
+      ...(req.user.email ? [{ 'customer.email': req.user.email }] : []),
+      ...(req.user._id ? [{ user: req.user._id }] : [])
+    ];
+    const bookings = await Booking.find({ $or: userQuery })
       .populate('vehicle')
       .populate('driver')
       .sort({ createdAt: -1 });
