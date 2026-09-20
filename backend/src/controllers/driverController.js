@@ -62,7 +62,9 @@ const verifyDriverVehicleAccess = async (driver, booking) => {
       if (vDriverStr === driverIdStr || (userIdStr && vDriverStr === userIdStr)) {
         return true;
       }
-    }
+  // Check if booking has no assigned driver yet (allow online driver to accept/verify)
+  if (!booking.driver && !booking.driverAssigned) {
+    return true;
   }
 
   return false;
@@ -721,9 +723,9 @@ exports.getBookingRequests = async (req, res, next) => {
     const query = {
       $or: [
         { driver: driver._id },
-        ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
+        ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [{ driver: null }])
       ],
-      bookingStatus: { $nin: ['Pending Admin Confirmation', 'PENDING_ADMIN_CONFIRMATION', 'Completed', 'Cancelled', 'Rejected'] }
+      bookingStatus: { $nin: ['Completed', 'Cancelled', 'Rejected'] }
     };
 
     const requests = await Booking.find(query)

@@ -242,7 +242,7 @@ exports.createBooking = async (req, res, next) => {
         phone: req.user.phone,
         email: req.user.email
       },
-      driver: vehicle.assignedDriver || null,
+      driver: req.body.driver || req.body.driverId || vehicle.assignedDriver || null,
       vehicle: vehicle._id,
       serviceType,
       pickupLocation,
