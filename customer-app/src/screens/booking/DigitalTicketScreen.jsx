@@ -187,6 +187,8 @@ const DigitalTicketScreen = ({ route, navigation }) => {
                   {booking.paymentMethod === 'Offline Cash'
                     ? booking.paymentStatus === 'Paid' || booking.cashCollected
                       ? 'Paid (Cash)'
+                      : booking.driverConfirmationStatus === 'Confirmed' || booking.bookingStatus === 'Awaiting Cash Collection'
+                      ? 'Seat Confirmed (Pay Cash on Boarding)'
                       : 'Pending Cash'
                     : 'Paid Online'}
                 </Text>
