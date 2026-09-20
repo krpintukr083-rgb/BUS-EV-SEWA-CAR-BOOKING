@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Image, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING } from '../../constants/theme';
@@ -15,6 +15,23 @@ const DashboardScreen = ({ navigation }) => {
   const [dashboardData, setDashboardData] = useState(null);
   const [incomingRequests, setIncomingRequests] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+
+  const isPendingVerification = ['Pending Verification', 'Pending', 'Rejected'].includes(driver?.driverStatus);
+
+  const handleToggleOnline = async () => {
+    if (isPendingVerification && !isOnline) {
+      Alert.alert(
+        'Account Pending Verification',
+        'Your driver account is currently Pending Admin Verification. Once Admin approves your KYC documents, you will be able to go online and accept ride requests.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Open KYC Documents', onPress: () => navigation.navigate('DriverKYC') }
+        ]
+      );
+      return;
+    }
+    toggleOnlineStatus(!isOnline);
+  };
 
   const loadDashboard = async () => {
     try {
@@ -61,6 +78,46 @@ const DashboardScreen = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
       >
+        {/* Pending Verification Alert Banner */}
+        {isPendingVerification && (
+          <View style={{
+            backgroundColor: 'rgba(245, 158, 11, 0.15)',
+            borderWidth: 1,
+            borderColor: '#f59e0b',
+            borderRadius: 14,
+            padding: 16,
+            marginBottom: 16
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Ionicons name="alert-circle" size={24} color="#f59e0b" />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 15, fontWeight: '800', color: '#f59e0b' }}>
+                  {driver?.driverStatus === 'Rejected' ? 'KYC Document Rejected' : 'Account Pending Verification'}
+                </Text>
+                <Text style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                  {driver?.driverStatus === 'Rejected'
+                    ? (driver?.rejectionReason ? `Reason: ${driver.rejectionReason}` : 'One or more documents were rejected by Admin. Please re-upload.')
+                    : 'Documents Submitted — Pending Admin Verification. Upload required KYC documents to activate ride acceptance.'}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#f59e0b',
+                borderRadius: 10,
+                paddingVertical: 10,
+                alignItems: 'center',
+                marginTop: 12
+              }}
+              onPress={() => navigation.navigate('DriverKYC')}
+            >
+              <Text style={{ color: '#0f172a', fontWeight: '800', fontSize: 13 }}>
+                Open KYC / Upload Documents
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Online / Offline Status Card */}
         <View style={[styles.statusBanner, { borderColor: isOnline ? 'rgba(16, 185, 129, 0.4)' : COLORS.border }]}>
           <View style={styles.statusLeft}>
@@ -76,7 +133,7 @@ const DashboardScreen = ({ navigation }) => {
           </View>
           <TouchableOpacity
             style={[styles.toggleBtn, { backgroundColor: isOnline ? COLORS.surfaceLight : COLORS.primary }]}
-            onPress={() => toggleOnlineStatus(!isOnline)}
+            onPress={handleToggleOnline}
             activeOpacity={0.8}
           >
             <Text style={[styles.toggleBtnText, { color: isOnline ? COLORS.textPrimary : '#FFF' }]}>

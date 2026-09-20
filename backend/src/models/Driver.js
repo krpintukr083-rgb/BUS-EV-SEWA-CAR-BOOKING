@@ -64,7 +64,7 @@ const driverSchema = new mongoose.Schema(
     },
     citizenshipStatus: {
       type: String,
-      enum: ['Pending', 'Approved', 'Rejected'],
+      enum: ['Pending', 'Pending Verification', 'Approved', 'Rejected'],
       default: 'Approved'
     },
     // Driving Licence Details
@@ -82,7 +82,7 @@ const driverSchema = new mongoose.Schema(
     },
     drivingLicenceStatus: {
       type: String,
-      enum: ['Pending', 'Approved', 'Rejected'],
+      enum: ['Pending', 'Pending Verification', 'Approved', 'Rejected'],
       default: 'Approved'
     },
     // RC Details
@@ -104,7 +104,7 @@ const driverSchema = new mongoose.Schema(
     },
     rcStatus: {
       type: String,
-      enum: ['Pending', 'Approved', 'Rejected'],
+      enum: ['Pending', 'Pending Verification', 'Approved', 'Rejected'],
       default: 'Approved'
     },
     // Vehicle Insurance Details
@@ -126,7 +126,7 @@ const driverSchema = new mongoose.Schema(
     },
     insuranceStatus: {
       type: String,
-      enum: ['Pending', 'Approved', 'Rejected'],
+      enum: ['Pending', 'Pending Verification', 'Approved', 'Rejected'],
       default: 'Approved'
     },
     // Fitness / Vehicle Check Certificate
@@ -144,13 +144,13 @@ const driverSchema = new mongoose.Schema(
     },
     fitnessStatus: {
       type: String,
-      enum: ['Pending', 'Approved', 'Rejected'],
+      enum: ['Pending', 'Pending Verification', 'Approved', 'Rejected'],
       default: 'Approved'
     },
     // Required Driver Documents (General / Background Verification)
     requiredDocumentsStatus: {
       type: String,
-      enum: ['Pending', 'Approved', 'Rejected'],
+      enum: ['Pending', 'Pending Verification', 'Approved', 'Rejected'],
       default: 'Approved'
     },
     rejectionReason: {
