@@ -75,6 +75,9 @@ router.post('/rides/:id/start', startRide);
 router.post('/start-ride/:id', startRide);
 router.post('/rides/:id/end', endRide);
 router.post('/end-ride/:id', endRide);
+router.post('/rides/:id/complete', endRide);
+router.post('/bookings/:id/complete', endRide);
+router.post('/rides/:id/destination-reached', endRide);
 router.post('/rides/:id/cancel', cancelRide);
 router.post('/cancel-ride/:id', cancelRide);
 

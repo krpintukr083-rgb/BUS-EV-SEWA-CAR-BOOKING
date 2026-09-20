@@ -175,20 +175,20 @@ export default function ActiveRideScreen({ route, navigation }) {
     }
   };
 
-  // 4. End / Complete Ride
+  // 4. Destination Reached / Complete Ride
   const handleEndRide = async () => {
     Alert.alert(
-      t('endRide'),
-      'Are you sure you have reached the destination and wish to complete this ride?',
+      t('confirmDestinationReachedTitle') || 'Destination Reached',
+      t('confirmDestinationReachedMessage') || "Have you reached the customer's destination?",
       [
-        { text: t('cancel'), style: 'cancel' },
+        { text: t('cancel') || 'Cancel', style: 'cancel' },
         {
-          text: t('confirm'),
+          text: t('confirm') || 'Confirm',
           style: 'default',
           onPress: async () => {
             setActionLoading(true);
             try {
-              const res = await driverService.completeRide(booking._id);
+              const res = await driverService.reachDestination(booking._id);
               if (res.success) {
                 setRideStep('COMPLETED');
                 setFareData(res.fareBreakdown || {
@@ -466,7 +466,7 @@ export default function ActiveRideScreen({ route, navigation }) {
               ) : (
                 <>
                   <MaterialCommunityIcons name="flag-checkered" size={20} color={COLORS.white} />
-                  <Text style={styles.endRideBtnText}>{t('endRide')}</Text>
+                  <Text style={styles.endRideBtnText}>{t('destinationReached') || 'Destination Reached'}</Text>
                 </>
               )}
             </TouchableOpacity>

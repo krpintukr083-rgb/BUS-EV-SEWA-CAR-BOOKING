@@ -41,6 +41,8 @@ export const driverService = {
   verifyOtp: (id, otp) => apiClient.post(`/driver/rides/${id}/verify-otp`, { otp }),
   startRide: (id) => apiClient.post(`/driver/rides/${id}/start`),
   endRide: (id, tripDetails) => apiClient.post(`/driver/rides/${id}/end`, tripDetails),
+  completeRide: (id, tripDetails) => apiClient.post(`/driver/rides/${id}/complete`, tripDetails),
+  reachDestination: (id, tripDetails) => apiClient.post(`/driver/rides/${id}/complete`, tripDetails),
   cancelRide: (id, reason) => apiClient.post(`/driver/rides/${id}/cancel`, { reason }),
 
   // Cash Collection

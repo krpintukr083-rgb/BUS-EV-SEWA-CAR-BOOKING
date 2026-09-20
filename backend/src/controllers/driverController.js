@@ -1062,6 +1062,27 @@ exports.endRide = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Unauthorized for this ride' });
     }
 
+    // Idempotency & cancellation checks
+    if (booking.bookingStatus === 'Completed' || booking.rideStatus === 'Completed') {
+      return res.json({
+        success: true,
+        message: 'Ride is already completed.',
+        data: {
+          ...booking.toObject(),
+          bookingId: booking.bookingId,
+          rideStatus: 'Completed',
+          bookingStatus: 'Completed'
+        }
+      });
+    }
+
+    if (['Cancelled', 'Rejected'].includes(booking.bookingStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: `Booking is ${booking.bookingStatus} and cannot be completed.`
+      });
+    }
+
     booking.rideStatus = 'Completed';
     booking.bookingStatus = 'Completed';
     booking.completedAt = new Date();
