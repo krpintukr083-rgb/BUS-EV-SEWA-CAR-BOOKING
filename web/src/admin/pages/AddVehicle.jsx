@@ -55,9 +55,12 @@ const AddVehicle = () => {
   const [insuranceExpiryDetails, setInsuranceExpiryDetails] = useState('2026-12-31');
   const [fitnessDetails, setFitnessDetails] = useState('State Transport Roadworthiness Certified');
 
-  // Routes
+  // Routes & Timing
   const [origin, setOrigin] = useState('');
   const [destination, setDestination] = useState('');
+  const [departureTime, setDepartureTime] = useState('06:00 AM');
+  const [arrivalTime, setArrivalTime] = useState('11:30 AM');
+  const [duration, setDuration] = useState('5h 30m');
   const [boardingPoints, setBoardingPoints] = useState('');
   const [droppingPoints, setDroppingPoints] = useState('');
 
@@ -278,6 +281,9 @@ const AddVehicle = () => {
         route: {
           origin,
           destination,
+          departureTime: departureTime || '06:00 AM',
+          arrivalTime: arrivalTime || '11:30 AM',
+          duration: duration || '5h 30m',
           boardingPoints: boardingPoints ? boardingPoints.split(',').map(s => s.trim()) : [],
           droppingPoints: droppingPoints ? droppingPoints.split(',').map(s => s.trim()) : []
         },

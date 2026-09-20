@@ -792,6 +792,9 @@ exports.updateVehicle = async (req, res, next) => {
       }
     }
 
+    const existingVehicleObj = await Vehicle.findById(req.params.id);
+    if (!existingVehicleObj) return res.status(404).json({ success: false, message: 'Vehicle not found' });
+
     if (updatePayload.hireDetails) {
       updatePayload.hireDetails = parseJsonIfString(updatePayload.hireDetails, updatePayload.hireDetails);
     }
@@ -803,6 +806,20 @@ exports.updateVehicle = async (req, res, next) => {
     }
     if (updatePayload.truckDetails) {
       updatePayload.truckDetails = parseJsonIfString(updatePayload.truckDetails, updatePayload.truckDetails);
+    }
+    if (updatePayload.route) {
+      const parsedR = parseJsonIfString(updatePayload.route, updatePayload.route);
+      updatePayload.route = {
+        ...(existingVehicleObj.route ? existingVehicleObj.route.toObject() : {}),
+        ...parsedR
+      };
+    }
+    if (updatePayload.busDetails) {
+      const parsedB = parseJsonIfString(updatePayload.busDetails, updatePayload.busDetails);
+      updatePayload.busDetails = {
+        ...(existingVehicleObj.busDetails ? existingVehicleObj.busDetails.toObject() : {}),
+        ...parsedB
+      };
     }
 
     const vehicle = await Vehicle.findByIdAndUpdate(req.params.id, updatePayload, { new: true });
