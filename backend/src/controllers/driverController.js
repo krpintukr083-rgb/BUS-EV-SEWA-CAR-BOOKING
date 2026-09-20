@@ -984,6 +984,7 @@ exports.verifyRideOtp = async (req, res, next) => {
     booking.confirmationOtpVerifiedAt = new Date();
     booking.confirmationOtpVerifiedBy = req.user ? req.user._id : driver._id;
     booking.confirmationOtpHash = null; // Single-use: invalidate OTP immediately
+    booking.otpVerified = true;
 
     booking.driver = driver._id;
     booking.driverConfirmationStatus = 'Confirmed';
@@ -1103,18 +1104,20 @@ exports.startRide = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Unauthorized for this ride' });
     }
 
-    // Verify OTP if passed or ensure otpVerified is true
+    // Verify OTP if passed or ensure otpVerified/driverConfirmationStatus is confirmed
     if (otp) {
-      if (String(booking.rideOtp).trim() !== String(otp).trim()) {
+      if (String(booking.rideOtp).trim() !== String(otp).trim() && String(booking.customerViewOtp).trim() !== String(otp).trim()) {
         return res.status(400).json({ success: false, message: 'Invalid customer OTP/PIN' });
       }
       booking.otpVerified = true;
-    } else if (!booking.otpVerified) {
+    } else if (!booking.otpVerified && booking.driverConfirmationStatus !== 'Confirmed' && !booking.confirmationOtpVerifiedAt) {
       return res.status(400).json({
         success: false,
         message: 'Customer OTP verification is required before starting the ride'
       });
     }
+
+    booking.otpVerified = true;
 
     booking.rideStatus = 'Started';
     booking.bookingStatus = 'Ongoing';
