@@ -1298,6 +1298,7 @@ exports.confirmBookingOtp = async (req, res, next) => {
     }
 
     const booking = await Booking.findOne(getBookingQuery(req.params.id))
+      .select('+confirmationOtpHash')
       .populate('vehicle')
       .populate('driver');
 
