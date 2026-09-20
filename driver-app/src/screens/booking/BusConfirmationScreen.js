@@ -121,7 +121,38 @@ export default function BusConfirmationScreen({ navigation }) {
     );
   };
 
-  // 3. Reject Bus Booking
+  // 3. Destination Reached / Complete Ride for Bus & EV-Sewa
+  const handleReachDestination = async (bookingId) => {
+    Alert.alert(
+      t('confirmDestinationReachedTitle') || 'Destination Reached',
+      t('confirmDestinationReachedMessage') || "Have you reached the customer's destination?",
+      [
+        { text: t('cancel') || 'Cancel', style: 'cancel' },
+        {
+          text: t('confirm') || 'Confirm',
+          style: 'default',
+          onPress: async () => {
+            setActionLoadingId(bookingId);
+            try {
+              const res = await driverService.reachDestination(bookingId);
+              if (res?.data?.success || res?.data?.status === 'success' || res?.success) {
+                Alert.alert(t('success'), 'Trip marked as Completed!');
+                fetchBusBookings();
+              } else {
+                Alert.alert(t('error'), res?.data?.message || res?.message || 'Failed to complete ride');
+              }
+            } catch (err) {
+              Alert.alert(t('error'), err.response?.data?.message || 'Failed to complete ride');
+            } finally {
+              setActionLoadingId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // 4. Reject Bus Booking
   const openRejectModal = (item) => {
     setSelectedBooking(item);
     setRejectReason('');
@@ -167,6 +198,7 @@ export default function BusConfirmationScreen({ navigation }) {
       item.driverConfirmation === 'PENDING' ||
       item.status === 'PENDING';
 
+    const isCompleted = item.bookingStatus === 'Completed' || item.rideStatus === 'Completed';
     const isPaid = /paid|successful|completed/i.test(item.paymentStatus || '') || Boolean(item.cashCollected);
     const isCash = /cash/i.test(item.paymentMethod || '') || item.paymentStatus === 'Pending Cash';
     const isLoading = actionLoadingId === item._id || actionLoadingId === item.bookingId;
@@ -276,26 +308,49 @@ export default function BusConfirmationScreen({ navigation }) {
               )}
             </TouchableOpacity>
           </View>
+        ) : isCompleted ? (
+          <View style={styles.completedBox}>
+            <MaterialCommunityIcons name="check-circle" size={18} color={COLORS.success} />
+            <Text style={styles.completedText}>{t('tripCompleted') || 'Trip Completed'}</Text>
+          </View>
         ) : (
-          // Confirmed Booking Actions (e.g. Cash collection if offline unpaid)
-          !isPaid && isCash && (
+          <View style={styles.actionRow}>
+            {!isPaid && isCash && (
+              <TouchableOpacity
+                style={[styles.cashBtn, isLoading && { opacity: 0.6 }]}
+                onPress={() => handleCollectCash(item._id, item.totalFare || 0)}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color={COLORS.white} size="small" />
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="cash-register" size={16} color={COLORS.bgDark} />
+                    <Text style={styles.cashBtnText}>
+                      {t('collectCash')} (₹{item.totalFare || 0})
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
-              style={[styles.cashBtn, isLoading && { opacity: 0.6 }]}
-              onPress={() => handleCollectCash(item._id, item.totalFare || 0)}
+              style={[styles.completeRideBtn, isLoading && { opacity: 0.6 }]}
+              onPress={() => handleReachDestination(item._id)}
               disabled={isLoading}
             >
               {isLoading ? (
                 <ActivityIndicator color={COLORS.white} size="small" />
               ) : (
                 <>
-                  <MaterialCommunityIcons name="cash-register" size={18} color={COLORS.white} />
-                  <Text style={styles.cashBtnText}>
-                    {t('collectCash')} (₹{item.totalFare || 0})
+                  <MaterialCommunityIcons name="flag-checkered" size={16} color={COLORS.white} />
+                  <Text style={styles.completeRideBtnText}>
+                    {t('destinationReached') || 'Destination Reached'}
                   </Text>
                 </>
               )}
             </TouchableOpacity>
-          )
+          </View>
         )}
       </View>
     );
@@ -637,18 +692,48 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   cashBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderRadius: RADIUS.m,
     backgroundColor: COLORS.warning,
-    gap: 6,
-    marginTop: SPACING.xs,
+    gap: 4,
   },
   cashBtnText: {
     color: COLORS.bgDark,
     fontWeight: '800',
+    fontSize: 12,
+  },
+  completeRideBtn: {
+    flex: 1.2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: RADIUS.m,
+    backgroundColor: COLORS.primary,
+    gap: 4,
+  },
+  completeRideBtnText: {
+    color: COLORS.white,
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  completedBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    backgroundColor: COLORS.success + '15',
+    borderRadius: RADIUS.m,
+    gap: 6,
+    marginTop: SPACING.xs,
+  },
+  completedText: {
+    color: COLORS.success,
+    fontWeight: '700',
     fontSize: 13,
   },
   centerContainer: {
