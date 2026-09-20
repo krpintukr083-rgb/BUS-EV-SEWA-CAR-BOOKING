@@ -167,9 +167,9 @@ export default function BusConfirmationScreen({ navigation }) {
       item.driverConfirmation === 'PENDING' ||
       item.status === 'PENDING';
 
-    const isPaid = item.paymentStatus === 'PAID' || item.paymentStatus === 'Completed';
-    const isCash = item.paymentMethod === 'CASH' || item.paymentMethod === 'Cash on Boarding';
-    const isLoading = actionLoadingId === item._id;
+    const isPaid = /paid|successful|completed/i.test(item.paymentStatus || '') || Boolean(item.cashCollected);
+    const isCash = /cash/i.test(item.paymentMethod || '') || item.paymentStatus === 'Pending Cash';
+    const isLoading = actionLoadingId === item._id || actionLoadingId === item.bookingId;
 
     return (
       <View style={styles.card}>

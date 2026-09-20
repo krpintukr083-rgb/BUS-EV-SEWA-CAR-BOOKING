@@ -10,6 +10,12 @@ const Incentive = require('../models/Incentive');
 const Withdrawal = require('../models/Withdrawal');
 const { dashboardCache } = require('../utils/cache');
 
+const getBookingQuery = (idOrCode) => {
+  return mongoose.isValidObjectId(idOrCode)
+    ? { $or: [{ bookingId: idOrCode }, { _id: idOrCode }] }
+    : { bookingId: idOrCode };
+};
+
 // Helper to safely get user ObjectId for Notification recipientId
 const getValidRecipientId = async (booking) => {
   if (!booking) return null;
@@ -769,7 +775,7 @@ exports.acceptBookingRequest = async (req, res, next) => {
     const driver = req.driver;
     const { id } = req.params;
 
-    const booking = await Booking.findById(id);
+    const booking = await Booking.findOne(getBookingQuery(id));
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking request not found' });
     }
@@ -858,7 +864,7 @@ exports.rejectBookingRequest = async (req, res, next) => {
     const { id } = req.params;
     const { reason } = req.body;
 
-    const booking = await Booking.findById(id);
+    const booking = await Booking.findOne(getBookingQuery(id));
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking request not found' });
     }
@@ -910,7 +916,7 @@ exports.arriveAtPickup = async (req, res, next) => {
     const driver = req.driver;
     const { id } = req.params;
 
-    const booking = await Booking.findById(id);
+    const booking = await Booking.findOne(getBookingQuery(id));
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Ride not found' });
     }
@@ -961,7 +967,7 @@ exports.verifyRideOtp = async (req, res, next) => {
     const { id } = req.params;
     const { otp } = req.body;
 
-    const booking = await Booking.findById(id);
+    const booking = await Booking.findOne(getBookingQuery(id));
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Ride not found' });
     }
@@ -1003,7 +1009,7 @@ exports.startRide = async (req, res, next) => {
     const { id } = req.params;
     const { otp } = req.body;
 
-    const booking = await Booking.findById(id);
+    const booking = await Booking.findOne(getBookingQuery(id));
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Ride not found' });
     }
@@ -1052,7 +1058,7 @@ exports.endRide = async (req, res, next) => {
     const driver = await Driver.findById(req.driver._id);
     const { id } = req.params;
 
-    const booking = await Booking.findById(id);
+    const booking = await Booking.findOne(getBookingQuery(id));
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Ride not found' });
     }
@@ -1180,7 +1186,7 @@ exports.cancelRide = async (req, res, next) => {
       });
     }
 
-    const booking = await Booking.findById(id);
+    const booking = await Booking.findOne(getBookingQuery(id));
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Ride not found' });
     }
