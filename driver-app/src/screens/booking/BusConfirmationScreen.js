@@ -79,6 +79,7 @@ export default function BusConfirmationScreen({ navigation }) {
       const res = await driverService.confirmBusBooking(bookingId);
       if (res?.data?.success) {
         Alert.alert(t('success'), 'Passenger booking confirmed successfully.');
+        setActiveTab('CONFIRMED');
         fetchBusBookings();
       } else {
         Alert.alert(t('error'), res?.data?.message || 'Failed to confirm booking');
@@ -186,6 +187,7 @@ export default function BusConfirmationScreen({ navigation }) {
     const isPending =
       b.bookingStatus === 'Pending Driver Confirmation' ||
       b.driverConfirmation === 'PENDING' ||
+      b.driverConfirmationStatus === 'PENDING' ||
       b.status === 'PENDING';
     if (activeTab === 'PENDING') return isPending;
     if (activeTab === 'CONFIRMED') return !isPending && b.bookingStatus !== 'Cancelled';
@@ -196,11 +198,13 @@ export default function BusConfirmationScreen({ navigation }) {
     const isPendingConfirmation =
       item.bookingStatus === 'Pending Driver Confirmation' ||
       item.driverConfirmation === 'PENDING' ||
+      item.driverConfirmationStatus === 'PENDING' ||
       item.status === 'PENDING';
 
     const isCompleted = item.bookingStatus === 'Completed' || item.rideStatus === 'Completed';
-    const isPaid = /paid|successful|completed/i.test(item.paymentStatus || '') || Boolean(item.cashCollected);
-    const isCash = /cash/i.test(item.paymentMethod || '') || item.paymentStatus === 'Pending Cash';
+    const isPaid = Boolean(item.cashCollected) || /^paid$/i.test(item.paymentStatus || '') || /^successful$/i.test(item.paymentStatus || '');
+    const isOnlinePayment = Boolean(item.paymentMethod && /esewa|khalti|razorpay|card|netbanking|online/i.test(item.paymentMethod));
+    const showCollectCashBtn = !isPaid && !isOnlinePayment && !isCompleted;
     const isLoading = actionLoadingId === item._id || actionLoadingId === item.bookingId;
 
     return (
@@ -315,7 +319,7 @@ export default function BusConfirmationScreen({ navigation }) {
           </View>
         ) : (
           <View style={styles.actionRow}>
-            {!isPaid && isCash && (
+            {showCollectCashBtn && (
               <TouchableOpacity
                 style={[styles.cashBtn, isLoading && { opacity: 0.6 }]}
                 onPress={() => handleCollectCash(item._id, item.totalFare || 0)}
