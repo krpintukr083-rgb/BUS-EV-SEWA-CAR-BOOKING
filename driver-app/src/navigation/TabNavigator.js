@@ -6,6 +6,7 @@ import { useLanguage } from '../state/LanguageContext';
 
 import DashboardScreen from '../screens/dashboard/DashboardScreen';
 import BookingRequestsScreen from '../screens/booking/BookingRequestsScreen';
+import BusConfirmationScreen from '../screens/booking/BusConfirmationScreen';
 import WalletScreen from '../screens/wallet/WalletScreen';
 import DriverProfileScreen from '../screens/profile/DriverProfileScreen';
 
@@ -29,7 +30,7 @@ export default function TabNavigator() {
         tabBarActiveTintColor: COLORS.primary,
         tabBarInactiveTintColor: COLORS.textMuted,
         tabBarLabelStyle: {
-          fontSize: 11,
+          fontSize: 10,
           fontWeight: '700',
         },
       }}
@@ -40,7 +41,7 @@ export default function TabNavigator() {
         options={{
           tabBarLabel: t('dashboard'),
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="view-dashboard-outline" size={size || 24} color={color} />
+            <MaterialCommunityIcons name="view-dashboard-outline" size={size || 22} color={color} />
           ),
         }}
       />
@@ -49,9 +50,20 @@ export default function TabNavigator() {
         name="Requests"
         component={BookingRequestsScreen}
         options={{
-          tabBarLabel: t('bookingRequests'),
+          tabBarLabel: 'Requests',
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="clipboard-list-outline" size={size || 24} color={color} />
+            <MaterialCommunityIcons name="clipboard-list-outline" size={size || 22} color={color} />
+          ),
+        }}
+      />
+
+      <Tab.Screen
+        name="BusConfirmation"
+        component={BusConfirmationScreen}
+        options={{
+          tabBarLabel: 'OTP Confirm',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="ticket-confirmation-outline" size={size || 22} color={color} />
           ),
         }}
       />
@@ -62,7 +74,7 @@ export default function TabNavigator() {
         options={{
           tabBarLabel: t('driverWallet'),
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="wallet-outline" size={size || 24} color={color} />
+            <MaterialCommunityIcons name="wallet-outline" size={size || 22} color={color} />
           ),
         }}
       />
@@ -73,7 +85,7 @@ export default function TabNavigator() {
         options={{
           tabBarLabel: t('profile'),
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="account-circle-outline" size={size || 24} color={color} />
+            <MaterialCommunityIcons name="account-circle-outline" size={size || 22} color={color} />
           ),
         }}
       />

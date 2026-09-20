@@ -200,17 +200,12 @@ export default function BusConfirmationScreen({ navigation }) {
   };
 
   const isBookingPendingOtp = (b) => {
-    if (b.driverConfirmed || b.confirmationOtpVerifiedAt) return false;
-    if (['Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus)) return false;
-    return (
-      b.driverConfirmationStatus !== 'Confirmed' ||
-      !b.driverConfirmed ||
-      b.bookingStatus === 'Pending Admin Confirmation' ||
-      b.bookingStatus === 'PENDING_ADMIN_CONFIRMATION' ||
-      b.bookingStatus === 'Pending Driver Confirmation' ||
-      b.bookingStatus === 'Pending' ||
-      b.bookingStatus === 'Awaiting Cash Collection'
-    );
+    if (!b) return false;
+    // If OTP is already verified or booking is finished/cancelled, not pending OTP
+    if (b.confirmationOtpVerifiedAt || b.otpVerified) return false;
+    if (['Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus) || ['Completed', 'Cancelled'].includes(b.rideStatus)) return false;
+    // Any assigned or accepted booking awaiting OTP verification is PENDING
+    return true;
   };
 
   const filteredBookings = bookings.filter((b) => {

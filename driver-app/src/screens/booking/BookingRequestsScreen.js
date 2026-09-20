@@ -57,8 +57,14 @@ const BookingRequestsScreen = ({ navigation }) => {
     setRefreshing(false);
   };
 
-  const handleAccept = (bookingId) => {
-    navigation.navigate('BusConfirmation', { bookingId });
+  const handleAccept = async (bookingId) => {
+    try {
+      await driverService.acceptRide(bookingId);
+    } catch (e) {
+      console.warn('Accept ride API call note:', e?.response?.data?.message || e.message);
+    } finally {
+      navigation.navigate('BusConfirmation', { bookingId });
+    }
   };
 
   const promptReject = (bookingId) => {
