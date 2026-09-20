@@ -36,15 +36,22 @@ const verifyDriverVehicleAccess = async (driver, booking) => {
   const driverIdStr = driver._id.toString();
   const userIdStr = driver.user ? (driver.user._id || driver.user).toString() : null;
 
-  // Direct driver reference
-  if (booking.driver && (booking.driver.toString() === driverIdStr || (userIdStr && booking.driver.toString() === userIdStr))) {
-    return true;
-  }
-  if (booking.driverAssigned && (booking.driverAssigned.toString() === driverIdStr || (userIdStr && booking.driverAssigned.toString() === userIdStr))) {
-    return true;
+  // Direct driver reference check
+  if (booking.driver) {
+    const bookingDriverStr = (booking.driver._id || booking.driver).toString();
+    if (bookingDriverStr === driverIdStr || (userIdStr && bookingDriverStr === userIdStr)) {
+      return true;
+    }
   }
 
-  // Assigned vehicle match
+  if (booking.driverAssigned) {
+    const bookingAssignedStr = (booking.driverAssigned._id || booking.driverAssigned).toString();
+    if (bookingAssignedStr === driverIdStr || (userIdStr && bookingAssignedStr === userIdStr)) {
+      return true;
+    }
+  }
+
+  // Assigned vehicle match check
   if (driver.assignedVehicle) {
     const assignedVehicleId = (driver.assignedVehicle._id || driver.assignedVehicle).toString();
     const bookingVehicleId = (booking.vehicle?._id || booking.vehicle)?.toString();
@@ -53,15 +60,18 @@ const verifyDriverVehicleAccess = async (driver, booking) => {
     }
   }
 
-  // Check if booking's vehicle has this driver assigned
+  // Vehicle lookup check
   if (booking.vehicle) {
     const bookingVehicleId = booking.vehicle._id || booking.vehicle;
-    const vehicle = await Vehicle.findById(bookingVehicleId).lean();
-    if (vehicle && vehicle.assignedDriver) {
-      const vDriverStr = (vehicle.assignedDriver._id || vehicle.assignedDriver).toString();
+    const vehicleDoc = await Vehicle.findById(bookingVehicleId).lean();
+    if (vehicleDoc && vehicleDoc.assignedDriver) {
+      const vDriverStr = (vehicleDoc.assignedDriver._id || vehicleDoc.assignedDriver).toString();
       if (vDriverStr === driverIdStr || (userIdStr && vDriverStr === userIdStr)) {
         return true;
       }
+    }
+  }
+
   // Check if booking has no assigned driver yet (allow online driver to accept/verify)
   if (!booking.driver && !booking.driverAssigned) {
     return true;
