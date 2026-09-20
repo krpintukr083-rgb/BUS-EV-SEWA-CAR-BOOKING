@@ -31,6 +31,8 @@ router.get('/cars', getCars);
 router.get('/cars/:id', getCarDetails);
 router.get('/support', getSupportInfo);
 router.get('/policies', getPolicies);
+const { getBusOffer } = require('../controllers/settingsController');
+router.get('/bus-offer', getBusOffer);
 
 // Protected customer endpoints
 router.use(verifyToken);

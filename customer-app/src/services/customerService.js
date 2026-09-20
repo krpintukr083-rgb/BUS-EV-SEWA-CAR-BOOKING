@@ -52,6 +52,12 @@ export const customerService = {
     return res.data;
   },
 
+  // Bus Promotional Offer Configuration (Dynamic Discount Banner)
+  getBusOffer: async () => {
+    const res = await api.get('/settings/bus-offer');
+    return res.data;
+  },
+
   // getBusDetails accepts optional travelDate — backend filters booked seats for that date only
   getBusDetails: async (id, travelDate) => {
     const params = travelDate ? { travelDate } : {};

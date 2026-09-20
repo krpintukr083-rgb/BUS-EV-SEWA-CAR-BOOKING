@@ -276,6 +276,17 @@ export const adminService = {
   updateServiceControl: async data => {
     const res = await api.put('/admin/service-control', data);
     return res.data;
+  },
+
+  // 18. Bus Discount & Promotional Offer Configuration
+  getBusOffer: async () => {
+    const res = await api.get('/settings/bus-offer');
+    return res.data;
+  },
+
+  updateBusOffer: async data => {
+    const res = await api.put('/settings/bus-offer', data);
+    return res.data;
   }
 };
 

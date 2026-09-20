@@ -141,4 +141,11 @@ router.get('/reports', getBasicReports);
 router.get('/service-control', getServiceControl);
 router.put('/service-control', updateServiceControl);
 
+// 18. Bus Offer / Discount Settings
+const { getBusOffer, updateBusOffer } = require('../controllers/settingsController');
+router.get('/bus-offer', getBusOffer);
+router.put('/bus-offer', updateBusOffer);
+router.get('/settings/bus-offer', getBusOffer);
+router.put('/settings/bus-offer', updateBusOffer);
+
 module.exports = router;

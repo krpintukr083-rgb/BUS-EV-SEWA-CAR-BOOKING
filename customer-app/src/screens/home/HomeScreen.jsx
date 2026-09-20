@@ -23,6 +23,7 @@ const HomeScreen = ({ navigation }) => {
   const [popularBuses, setPopularBuses] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [recentBooking, setRecentBooking] = useState(null);
+  const [busOffer, setBusOffer] = useState(null);
 
   const fetchHomeData = async () => {
     try {
@@ -53,6 +54,19 @@ const HomeScreen = ({ navigation }) => {
         }
       } catch (err) {
         console.log('Error fetching my bookings on Home:', err);
+      }
+
+      // 4. Fetch Bus Offer Configuration (Dynamic Admin-Controlled Discount)
+      try {
+        const oRes = await customerService.getBusOffer();
+        if (oRes && oRes.success && oRes.data) {
+          setBusOffer(oRes.data);
+        } else {
+          setBusOffer(null);
+        }
+      } catch (err) {
+        console.log('Error fetching bus offer on Home:', err);
+        setBusOffer(null);
       }
     } finally {
       setRefreshing(false);
@@ -143,33 +157,39 @@ const HomeScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchHomeData(); }} />}
       >
-        {/* Special Bus Booking Promo Banner */}
-        <TouchableOpacity
-          style={styles.heroBannerCard}
-          onPress={() => handleSelectService('Bus')}
-          activeOpacity={0.9}
-        >
-          <View style={styles.heroBannerContent}>
-            <View style={styles.heroBannerBadge}>
-              <Ionicons name="sparkles" size={13} color="#f59e0b" />
-              <Text style={styles.heroBannerBadgeText}>EXCLUSIVE BUS OFFER</Text>
-            </View>
-            <Text style={styles.heroBannerTitle}>Intercity Luxury Bus Travel</Text>
-            <Text style={styles.heroBannerSubtitle}>
-              AC Sleeper & Seater coaches with live tracking and instant seat selection.
-            </Text>
-            <View style={styles.heroBannerCtaRow}>
-              <View style={styles.heroBannerCtaBtn}>
-                <Text style={styles.heroBannerCtaText}>Book Bus Tickets</Text>
-                <Ionicons name="arrow-forward" size={14} color="#ffffff" />
+        {/* Special Bus Booking Promo Banner — Dynamically Controlled by Super Admin */}
+        {busOffer && busOffer.offerStatus === 'active' && busOffer.discountPercentage !== undefined && busOffer.discountPercentage !== null && (
+          <TouchableOpacity
+            style={styles.heroBannerCard}
+            onPress={() => handleSelectService('Bus')}
+            activeOpacity={0.9}
+          >
+            <View style={styles.heroBannerContent}>
+              <View style={styles.heroBannerBadge}>
+                <Ionicons name="sparkles" size={13} color="#f59e0b" />
+                <Text style={styles.heroBannerBadgeText}>EXCLUSIVE BUS OFFER</Text>
               </View>
-              <Text style={styles.heroBannerOfferText}>Flat 15% OFF</Text>
+              <Text style={styles.heroBannerTitle}>
+                {busOffer.offerTitle || 'Intercity Luxury Bus Travel'}
+              </Text>
+              <Text style={styles.heroBannerSubtitle}>
+                {busOffer.offerSubtitle || 'AC Sleeper & Seater coaches with live tracking and instant seat selection.'}
+              </Text>
+              <View style={styles.heroBannerCtaRow}>
+                <View style={styles.heroBannerCtaBtn}>
+                  <Text style={styles.heroBannerCtaText}>Book Bus Tickets</Text>
+                  <Ionicons name="arrow-forward" size={14} color="#ffffff" />
+                </View>
+                <Text style={styles.heroBannerOfferText}>
+                  Flat {busOffer.discountPercentage}% OFF
+                </Text>
+              </View>
             </View>
-          </View>
-          <View style={styles.heroBannerIconCircle}>
-            <Ionicons name="bus" size={38} color="#ffffff" />
-          </View>
-        </TouchableOpacity>
+            <View style={styles.heroBannerIconCircle}>
+              <Ionicons name="bus" size={38} color="#ffffff" />
+            </View>
+          </TouchableOpacity>
+        )}
 
         {/* Book Your Journey Section */}
         <View style={styles.sectionHeader}>
