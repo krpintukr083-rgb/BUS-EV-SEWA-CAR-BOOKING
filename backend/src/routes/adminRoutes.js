@@ -22,6 +22,8 @@ const {
   assignDriverToVehicle,
   getDocumentRecords,
   getBookings,
+  confirmBookingOtp,
+  resendBookingOtp,
   updateBookingStatus,
   getPayments,
   getCancellations,
@@ -100,6 +102,9 @@ router.get('/records/:recordType', getDocumentRecords);
 
 // 8. Booking Management
 router.get('/bookings', getBookings);
+router.post('/bookings/:id/confirm-otp', confirmBookingOtp);
+router.post('/bookings/:id/confirm', confirmBookingOtp);
+router.post('/bookings/:id/resend-otp', resendBookingOtp);
 router.put('/bookings/:id/status', updateBookingStatus);
 
 // 9. Payment Management

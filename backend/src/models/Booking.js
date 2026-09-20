@@ -103,6 +103,10 @@ const bookingSchema = new mongoose.Schema(
     bookingStatus: {
       type: String,
       enum: [
+        'Pending Admin Confirmation',
+        'PENDING_ADMIN_CONFIRMATION',
+        'Admin Confirmed',
+        'ADMIN_CONFIRMED',
         'Pending',
         'Pending Driver Confirmation',
         'Awaiting Cash Collection',
@@ -112,7 +116,29 @@ const bookingSchema = new mongoose.Schema(
         'Cancelled',
         'Rejected'
       ],
-      default: 'Pending'
+      default: 'Pending Admin Confirmation'
+    },
+    confirmationOtpHash: {
+      type: String,
+      default: null,
+      select: false
+    },
+    confirmationOtpExpiresAt: {
+      type: Date,
+      default: null
+    },
+    confirmationOtpVerifiedAt: {
+      type: Date,
+      default: null
+    },
+    confirmationOtpVerifiedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null
+    },
+    customerViewOtp: {
+      type: String,
+      default: null
     },
     driverConfirmationStatus: {
       type: String,

@@ -23,26 +23,37 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
     navigation.navigate('Main', { screen: 'Home' });
   };
 
+  const isPendingAdmin =
+    booking?.bookingStatus === 'Pending Admin Confirmation' ||
+    booking?.bookingStatus === 'PENDING_ADMIN_CONFIRMATION';
   const isPendingDriver = booking?.bookingStatus === 'Pending Driver Confirmation';
 
   return (
     <View style={styles.container}>
       <Header
-        title={isPendingDriver ? 'Booking Request Submitted' : 'Booking Confirmation'}
+        title={
+          isPendingAdmin
+            ? 'Booking Onboarding'
+            : isPendingDriver
+            ? 'Booking Request Submitted'
+            : 'Booking Confirmation'
+        }
         onBack={handleGoHome}
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Banner Card */}
         <View style={styles.heroCard}>
-          <View style={[styles.successIcon, isPendingDriver && { backgroundColor: '#f59e0b' }]}>
-            <Ionicons name={isPendingDriver ? 'time' : 'checkmark'} size={36} color="#ffffff" />
+          <View style={[styles.successIcon, (isPendingDriver || isPendingAdmin) && { backgroundColor: '#3b82f6' }]}>
+            <Ionicons name={isPendingAdmin ? 'shield-checkmark' : isPendingDriver ? 'time' : 'checkmark'} size={36} color="#ffffff" />
           </View>
           <Text style={styles.heroTitle}>
-            {isPendingDriver ? 'Booking Request Sent' : 'Booking Confirmed!'}
+            {isPendingAdmin ? 'Waiting for Admin Confirmation' : isPendingDriver ? 'Booking Request Sent' : 'Booking Confirmed!'}
           </Text>
           <Text style={styles.heroSub}>
-            {isPendingDriver
+            {isPendingAdmin
+              ? 'Your booking request is created and awaiting admin operator approval.'
+              : isPendingDriver
               ? 'Waiting for assigned driver/conductor confirmation.'
               : 'Your travel reservation has been confirmed and driver has been notified.'}
           </Text>
@@ -51,6 +62,19 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
             <Text style={styles.bookingIdLabel}>Booking ID:</Text>
             <Text style={styles.bookingIdVal}>{booking?.bookingId || 'BK-CONFIRMED'}</Text>
           </View>
+
+          {/* OTP Box */}
+          {(isPendingAdmin || booking?.confirmationOtp) && (
+            <View style={{ marginTop: 16, alignItems: 'center', width: '100%', backgroundColor: '#eff6ff', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#bfdbfe' }}>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Confirmation OTP</Text>
+              <Text style={{ fontSize: 26, fontWeight: '900', color: '#1d4ed8', letterSpacing: 5, marginVertical: 4 }}>
+                {booking?.confirmationOtp || '------'}
+              </Text>
+              <Text style={{ fontSize: 11, color: '#1e3a8a', textAlign: 'center', lineHeight: 16 }}>
+                Please provide this OTP to the authorized booking/admin operator for booking confirmation.
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Details Card */}

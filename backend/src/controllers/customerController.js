@@ -229,6 +229,11 @@ exports.createBooking = async (req, res, next) => {
     const bookingId = `BK-${Date.now().toString().slice(-4)}${Math.floor(100 + Math.random() * 900)}`;
     const isOfflineCash = req.body.paymentMethod === 'Offline Cash' || req.body.paymentMethod === 'Cash';
 
+    const crypto = require('crypto');
+    const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const confirmationOtpHash = crypto.createHash('sha256').update(rawOtp).digest('hex');
+    const confirmationOtpExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+
     const booking = await Booking.create({
       bookingId,
       user: req.user?._id,
@@ -247,7 +252,10 @@ exports.createBooking = async (req, res, next) => {
       driverPaymentAmount: Math.round(Number(fare) * 0.8),
       paymentMethod: isOfflineCash ? 'Offline Cash' : (req.body.paymentMethod || 'Online Razorpay'),
       paymentStatus: isOfflineCash ? 'Pending Cash' : 'Pending',
-      bookingStatus: isOfflineCash ? 'Pending Driver Confirmation' : 'Pending',
+      bookingStatus: 'Pending Admin Confirmation',
+      confirmationOtpHash,
+      confirmationOtpExpiresAt,
+      customerViewOtp: rawOtp,
       driverConfirmationStatus: 'Pending',
       driverConfirmed: false,
       travelDate: travelDate ? new Date(travelDate) : new Date(),
@@ -256,22 +264,22 @@ exports.createBooking = async (req, res, next) => {
 
     // Create notification
     await Notification.create({
-      title: isOfflineCash ? 'Booking Request Sent' : 'Booking Created',
-      message: isOfflineCash
-        ? 'Your bus booking request has been sent to the assigned driver.'
-        : 'Your booking has been created. Please complete payment.',
+      title: 'Booking Created - Admin Confirmation Pending',
+      message: `Your booking ${booking.bookingId} has been created. Please share OTP ${rawOtp} with the admin/operator for confirmation.`,
       recipient: `Customer: ${booking.customer.name}`,
       recipientRole: 'customer',
       recipientId: req.user._id,
       status: 'Unread'
     });
 
+    const bookingObj = booking.toObject();
+    bookingObj.confirmationOtp = rawOtp;
+    delete bookingObj.confirmationOtpHash;
+
     res.status(201).json({
       success: true,
-      message: isOfflineCash
-        ? 'Booking request sent. Awaiting driver confirmation.'
-        : 'Booking created. Proceed to payment.',
-      data: booking
+      message: 'Booking created. Please provide the OTP to operator/admin for booking confirmation.',
+      data: bookingObj
     });
   } catch (error) {
     next(error);
@@ -308,19 +316,6 @@ exports.processPayment = async (req, res, next) => {
     // Update Booking Status
     const isBus = booking.serviceType === 'Bus';
     booking.paymentStatus = 'Paid';
-    if (isBus) {
-      if (booking.driverConfirmationStatus === 'Confirmed') {
-        booking.bookingStatus = 'Confirmed';
-        booking.driverConfirmed = true;
-      } else {
-        booking.bookingStatus = 'Pending Driver Confirmation';
-        booking.driverConfirmed = false;
-      }
-    } else {
-      booking.bookingStatus = 'Confirmed';
-      booking.driverConfirmationStatus = 'Confirmed';
-      booking.driverConfirmed = true;
-    }
     await booking.save();
 
     // Create Insurance record for passenger
@@ -341,10 +336,8 @@ exports.processPayment = async (req, res, next) => {
 
     // Create notification
     await Notification.create({
-      title: isBus ? 'Booking Request Sent' : 'Booking Confirmed!',
-      message: isBus
-        ? 'Your bus booking request has been sent to the assigned driver.'
-        : 'Your booking has been confirmed.',
+      title: 'Payment Received',
+      message: 'Your payment was successful.',
       recipient: `Customer: ${booking.customer.name}`,
       recipientRole: 'customer',
       recipientId: req.user._id,
@@ -353,9 +346,7 @@ exports.processPayment = async (req, res, next) => {
 
     res.json({
       success: true,
-      message: isBus
-        ? 'Payment Successful! Waiting for assigned driver/conductor confirmation.'
-        : 'Payment Successful! Booking confirmed.',
+      message: 'Payment Successful!',
       data: {
         booking,
         payment,
@@ -380,13 +371,21 @@ exports.getMyBookings = async (req, res, next) => {
       .populate('driver')
       .sort({ createdAt: -1 });
 
-    const upcoming = bookings.filter(b => ['Pending', 'Pending Driver Confirmation', 'Awaiting Cash Collection', 'Confirmed', 'Ongoing'].includes(b.bookingStatus));
-    const completed = bookings.filter(b => ['Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus));
+    const formattedBookings = bookings.map(b => {
+      const obj = b.toObject();
+      obj.confirmationOtp = obj.customerViewOtp;
+      delete obj.confirmationOtpHash;
+      delete obj.customerViewOtp;
+      return obj;
+    });
+
+    const upcoming = formattedBookings.filter(b => ['Pending Admin Confirmation', 'PENDING_ADMIN_CONFIRMATION', 'Admin Confirmed', 'ADMIN_CONFIRMED', 'Pending', 'Pending Driver Confirmation', 'Awaiting Cash Collection', 'Confirmed', 'Ongoing'].includes(b.bookingStatus));
+    const completed = formattedBookings.filter(b => ['Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus));
 
     res.json({
       success: true,
       data: {
-        all: bookings,
+        all: formattedBookings,
         upcoming,
         completed
       }
@@ -409,10 +408,15 @@ exports.getBookingDetails = async (req, res, next) => {
 
     const payment = await Payment.findOne({ booking: booking._id });
 
+    const obj = booking.toObject();
+    obj.confirmationOtp = obj.customerViewOtp;
+    delete obj.confirmationOtpHash;
+    delete obj.customerViewOtp;
+
     res.json({
       success: true,
       data: {
-        ...booking.toObject(),
+        ...obj,
         transactionReference: payment ? payment.transactionReference : 'Pending Payment'
       }
     });

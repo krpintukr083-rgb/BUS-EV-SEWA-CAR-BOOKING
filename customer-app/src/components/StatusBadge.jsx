@@ -9,7 +9,17 @@ const StatusBadge = ({ status, text }) => {
   let bg = COLORS.successLight;
   let textCol = COLORS.success;
 
-  if (['pending', 'pending cash', 'requested', 'in progress', 'inactive'].includes(s)) {
+  let displayText = text || status;
+
+  if (s === 'pending admin confirmation' || s === 'pending_admin_confirmation') {
+    bg = '#fef3c7';
+    textCol = '#b45309';
+    displayText = text || 'Waiting for Admin Confirmation';
+  } else if (s === 'admin confirmed' || s === 'admin_confirmed') {
+    bg = '#dcfce7';
+    textCol = '#15803d';
+    displayText = text || '✓ Booking Confirmed';
+  } else if (['pending', 'pending cash', 'pending driver confirmation', 'requested', 'in progress', 'inactive'].includes(s)) {
     bg = COLORS.warningLight;
     textCol = COLORS.warning;
   } else if (['cancelled', 'rejected', 'failed', 'blocked'].includes(s)) {
@@ -19,7 +29,7 @@ const StatusBadge = ({ status, text }) => {
 
   return (
     <View style={[styles.badge, { backgroundColor: bg }]}>
-      <Text style={[styles.badgeText, { color: textCol }]}>{text || status}</Text>
+      <Text style={[styles.badgeText, { color: textCol }]}>{displayText}</Text>
     </View>
   );
 };

@@ -174,6 +174,16 @@ export const adminService = {
     return res.data;
   },
 
+  confirmBookingOtp: async (id, otp) => {
+    const res = await api.post(`/admin/bookings/${id}/confirm-otp`, { otp });
+    return res.data;
+  },
+
+  resendBookingOtp: async id => {
+    const res = await api.post(`/admin/bookings/${id}/resend-otp`);
+    return res.data;
+  },
+
   updateBookingStatus: async (id, bookingStatus, paymentStatus) => {
     const res = await api.put(`/admin/bookings/${id}/status`, { bookingStatus, paymentStatus });
     return res.data;

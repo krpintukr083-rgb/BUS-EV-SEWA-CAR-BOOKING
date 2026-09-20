@@ -35,6 +35,12 @@ const BookingDetailsScreen = ({ route, navigation }) => {
 
   useEffect(() => {
     fetchDetails();
+
+    const interval = setInterval(() => {
+      fetchDetails();
+    }, 3000);
+
+    return () => clearInterval(interval);
   }, [bookingId]);
 
   if (loading) {
@@ -56,11 +62,16 @@ const BookingDetailsScreen = ({ route, navigation }) => {
     );
   }
 
+  const isPendingAdmin =
+    booking.bookingStatus === 'Pending Admin Confirmation' ||
+    booking.bookingStatus === 'PENDING_ADMIN_CONFIRMATION';
   const isPendingDriver = booking.bookingStatus === 'Pending Driver Confirmation';
   const isAwaitingCash = booking.bookingStatus === 'Awaiting Cash Collection';
   const isCancellable =
     booking.bookingStatus === 'Confirmed' ||
     booking.bookingStatus === 'Pending' ||
+    booking.bookingStatus === 'Pending Admin Confirmation' ||
+    booking.bookingStatus === 'PENDING_ADMIN_CONFIRMATION' ||
     booking.bookingStatus === 'Pending Driver Confirmation' ||
     booking.bookingStatus === 'Awaiting Cash Collection';
 
@@ -82,6 +93,26 @@ const BookingDetailsScreen = ({ route, navigation }) => {
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Pending Admin OTP Card */}
+        {isPendingAdmin && (
+          <View style={styles.otpCard}>
+            <View style={styles.otpCardHeader}>
+              <Ionicons name="shield-checkmark" size={24} color="#1d4ed8" />
+              <Text style={styles.otpCardTitle}>BOOKING ONBOARDING</Text>
+            </View>
+            <Text style={styles.otpCardSubtitle}>Waiting for Admin Confirmation</Text>
+
+            <View style={styles.otpBox}>
+              <Text style={styles.otpLabel}>Confirmation OTP</Text>
+              <Text style={styles.otpValue}>{booking.confirmationOtp || '------'}</Text>
+            </View>
+
+            <Text style={styles.otpMessage}>
+              Please provide this OTP to the authorized booking/admin operator for booking confirmation.
+            </Text>
+          </View>
+        )}
+
         {/* Pending Driver Alert */}
         {isPendingDriver && (
           <View style={styles.pendingStatusBanner}>
@@ -511,6 +542,69 @@ const styles = StyleSheet.create({
     color: '#b45309',
     marginTop: 2,
     lineHeight: 16
+  },
+  otpCard: {
+    backgroundColor: '#eff6ff',
+    borderRadius: 14,
+    padding: 18,
+    borderWidth: 1.5,
+    borderColor: '#bfdbfe',
+    marginBottom: 16,
+    alignItems: 'center'
+  },
+  otpCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4
+  },
+  otpCardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1e40af',
+    letterSpacing: 0.5
+  },
+  otpCardSubtitle: {
+    fontSize: 12,
+    color: '#3b82f6',
+    fontWeight: '600',
+    marginBottom: 14
+  },
+  otpBox: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#93c5fd',
+    marginBottom: 12,
+    shadowColor: '#1d4ed8',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2
+  },
+  otpLabel: {
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
+  },
+  otpValue: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#1d4ed8',
+    letterSpacing: 6,
+    marginTop: 2
+  },
+  otpMessage: {
+    fontSize: 12,
+    color: '#1e3a8a',
+    textAlign: 'center',
+    lineHeight: 18,
+    fontWeight: '500'
   }
 });
 

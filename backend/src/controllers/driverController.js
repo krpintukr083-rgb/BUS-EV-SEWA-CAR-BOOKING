@@ -97,7 +97,7 @@ exports.getDriverDashboard = async (req, res, next) => {
               { driver: driver._id },
               ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
             ],
-            bookingStatus: { $in: ['Pending Driver Confirmation', 'Pending'] },
+            bookingStatus: { $in: ['Admin Confirmed', 'ADMIN_CONFIRMED', 'Pending Driver Confirmation', 'Pending'] },
             cashCollected: { $ne: true },
             paymentStatus: { $nin: ['Paid', 'Successful'] },
             driverConfirmationStatus: { $ne: 'Confirmed' }
@@ -718,7 +718,7 @@ exports.getBookingRequests = async (req, res, next) => {
         { driver: driver._id },
         ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
       ],
-      bookingStatus: { $nin: ['Completed', 'Cancelled', 'Rejected'] }
+      bookingStatus: { $nin: ['Pending Admin Confirmation', 'PENDING_ADMIN_CONFIRMATION', 'Completed', 'Cancelled', 'Rejected'] }
     };
 
     const requests = await Booking.find(query)

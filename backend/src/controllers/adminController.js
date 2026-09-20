@@ -1265,12 +1265,166 @@ exports.getBookings = async (req, res, next) => {
     if (status) filter.bookingStatus = status;
 
     const bookings = await Booking.find(filter)
+      .select('-confirmationOtpHash -customerViewOtp')
       .populate('vehicle')
       .populate('driver')
       .populate('driverConfirmedBy', 'name phone email')
       .sort({ createdAt: -1 });
 
     res.json({ success: true, count: bookings.length, data: bookings });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Admin OTP Verification to Confirm Booking
+// @route   POST /api/admin/bookings/:id/confirm-otp, POST /api/admin/bookings/:id/confirm, POST /api/bookings/:id/confirm
+// @access  Private (Admin / Super Admin Only)
+exports.confirmBookingOtp = async (req, res, next) => {
+  try {
+    const { otp, confirmationOtp } = req.body;
+    const suppliedOtp = (otp || confirmationOtp || '').toString().trim();
+
+    if (!suppliedOtp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid booking confirmation OTP'
+      });
+    }
+
+    const booking = await Booking.findOne(getBookingQuery(req.params.id))
+      .populate('vehicle')
+      .populate('driver');
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    // Check existing booking status
+    if (['Cancelled', 'Rejected'].includes(booking.bookingStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot confirm a cancelled or rejected booking'
+      });
+    }
+
+    if (['Completed'].includes(booking.bookingStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot confirm an already completed booking'
+      });
+    }
+
+    if (['Admin Confirmed', 'ADMIN_CONFIRMED'].includes(booking.bookingStatus)) {
+      return res.json({
+        success: true,
+        message: 'Booking is already confirmed',
+        data: {
+          bookingId: booking.bookingId,
+          bookingStatus: 'ADMIN_CONFIRMED'
+        }
+      });
+    }
+
+    // Expiry check
+    if (booking.confirmationOtpExpiresAt && new Date(booking.confirmationOtpExpiresAt) < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Booking confirmation OTP expired'
+      });
+    }
+
+    // OTP Hash verification
+    if (!booking.confirmationOtpHash) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid booking confirmation OTP'
+      });
+    }
+
+    const crypto = require('crypto');
+    const suppliedHash = crypto.createHash('sha256').update(suppliedOtp).digest('hex');
+
+    if (suppliedHash !== booking.confirmationOtpHash) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid booking confirmation OTP'
+      });
+    }
+
+    // SUCCESS - Verify and transition status to ADMIN_CONFIRMED
+    booking.bookingStatus = 'ADMIN_CONFIRMED';
+    booking.confirmationOtpVerifiedAt = new Date();
+    booking.confirmationOtpVerifiedBy = req.user ? req.user._id : null;
+    booking.confirmationOtpHash = null; // Invalidate OTP immediately so it cannot be reused
+    booking.customerViewOtp = null;
+    await booking.save();
+
+    // Create Notification for Customer
+    await Notification.create({
+      title: 'Booking Confirmed!',
+      message: `Your booking ${booking.bookingId} has been confirmed by Admin. Drivers can now accept your trip.`,
+      recipient: `Customer: ${booking.customer.name}`,
+      recipientRole: 'customer',
+      recipientId: booking.user || null,
+      status: 'Unread'
+    });
+
+    res.json({
+      success: true,
+      message: 'Booking confirmed successfully',
+      data: {
+        bookingId: booking.bookingId,
+        bookingStatus: 'ADMIN_CONFIRMED'
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Admin / Controlled Resend OTP for Booking Confirmation
+// @route   POST /api/admin/bookings/:id/resend-otp, POST /api/bookings/:id/resend-otp
+// @access  Private (Admin or Owner Customer)
+exports.resendBookingOtp = async (req, res, next) => {
+  try {
+    const booking = await Booking.findOne(getBookingQuery(req.params.id));
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Booking not found'
+      });
+    }
+
+    if (!['Pending Admin Confirmation', 'PENDING_ADMIN_CONFIRMATION', 'Pending'].includes(booking.bookingStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: `Booking status is '${booking.bookingStatus}'. Resend OTP is only allowed for pending admin confirmation.`
+      });
+    }
+
+    const crypto = require('crypto');
+    const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const confirmationOtpHash = crypto.createHash('sha256').update(rawOtp).digest('hex');
+    const confirmationOtpExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+
+    booking.confirmationOtpHash = confirmationOtpHash;
+    booking.confirmationOtpExpiresAt = confirmationOtpExpiresAt;
+    booking.customerViewOtp = rawOtp;
+    booking.bookingStatus = 'Pending Admin Confirmation';
+    await booking.save();
+
+    res.json({
+      success: true,
+      message: 'New booking confirmation OTP generated successfully',
+      data: {
+        bookingId: booking.bookingId,
+        ...(req.user.role === 'customer' ? { confirmationOtp: rawOtp } : {})
+      }
+    });
   } catch (error) {
     next(error);
   }

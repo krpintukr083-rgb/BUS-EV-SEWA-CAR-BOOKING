@@ -12,6 +12,10 @@ const BookingManagement = () => {
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [message, setMessage] = useState('');
+  const [otpBooking, setOtpBooking] = useState(null);
+  const [otpInput, setOtpInput] = useState('');
+  const [otpError, setOtpError] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
 
   const fetchBookings = async () => {
     try {
@@ -43,6 +47,28 @@ const BookingManagement = () => {
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleConfirmOtpSubmit = async (e) => {
+    e.preventDefault();
+    if (!otpBooking || !otpInput.trim()) return;
+    setOtpError('');
+    setOtpLoading(true);
+    try {
+      const res = await adminService.confirmBookingOtp(otpBooking._id, otpInput.trim());
+      if (res.success) {
+        setMessage(`Booking ${otpBooking.bookingId} confirmed successfully via OTP!`);
+        setOtpBooking(null);
+        setOtpInput('');
+        await fetchBookings();
+      } else {
+        setOtpError(res.message || 'Invalid booking confirmation OTP');
+      }
+    } catch (err) {
+      setOtpError(err.response?.data?.message || err.message || 'Invalid booking confirmation OTP');
+    } finally {
+      setOtpLoading(false);
     }
   };
 
@@ -147,6 +173,8 @@ const BookingManagement = () => {
               onChange={e => setFilterStatus(e.target.value)}
             >
               <option value="All">All Statuses</option>
+              <option value="Pending Admin Confirmation">Pending Admin Confirmation</option>
+              <option value="Admin Confirmed">Admin Confirmed</option>
               <option value="Pending Driver Confirmation">Pending Driver Confirmation</option>
               <option value="Awaiting Cash Collection">Awaiting Cash Collection</option>
               <option value="Pending">Pending</option>
@@ -182,6 +210,7 @@ const BookingManagement = () => {
               {filteredBookings.length > 0 ? (
                 filteredBookings.map(b => {
                   const isThirdParty = b.vehicleSource === 'THIRD_PARTY' || b.vehicle?.vehicleSource === 'THIRD_PARTY';
+                  const isPendingAdmin = b.bookingStatus === 'Pending Admin Confirmation' || b.bookingStatus === 'PENDING_ADMIN_CONFIRMATION';
 
                   return (
                     <tr key={b._id}>
@@ -265,7 +294,20 @@ const BookingManagement = () => {
                         <StatusBadge status={b.bookingStatus} />
                       </td>
                       <td>
-                        <div style={{ display: 'flex', gap: '6px' }}>
+                        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                          {isPendingAdmin && (
+                            <button
+                              className="btn btn-primary btn-sm"
+                              style={{ backgroundColor: '#2563eb', borderColor: '#1d4ed8', fontWeight: '700', whiteSpace: 'nowrap' }}
+                              onClick={() => {
+                                setOtpBooking(b);
+                                setOtpInput('');
+                                setOtpError('');
+                              }}
+                            >
+                              Confirm Booking
+                            </button>
+                          )}
                           <button
                             className="btn btn-outline btn-sm"
                             onClick={() => setSelectedBooking(b)}
@@ -288,6 +330,62 @@ const BookingManagement = () => {
           </table>
         </div>
       </div>
+
+      {/* Admin OTP Confirmation Modal */}
+      {otpBooking && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '440px', padding: '24px' }}>
+            <div className="card-header-flex">
+              <h3 className="card-title" style={{ fontSize: '1.1rem', color: '#0f172a' }}>Confirm Booking</h3>
+              <button className="btn btn-outline btn-sm" onClick={() => setOtpBooking(null)}>✕</button>
+            </div>
+
+            <div style={{ marginTop: '14px', fontSize: '0.875rem', color: '#475569', backgroundColor: '#f8fafc', padding: '12px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+              <div><strong>Booking ID:</strong> <span style={{ color: '#1d4ed8', fontWeight: '700' }}>{otpBooking.bookingId}</span></div>
+              <div style={{ marginTop: '4px' }}><strong>Customer:</strong> {otpBooking.customer?.name} ({otpBooking.customer?.phone})</div>
+              <div style={{ marginTop: '4px' }}><strong>Route:</strong> {otpBooking.pickupLocation} → {otpBooking.dropLocation}</div>
+              <div style={{ marginTop: '4px' }}><strong>Fare:</strong> ₹{otpBooking.fare}</div>
+            </div>
+
+            <form onSubmit={handleConfirmOtpSubmit} style={{ marginTop: '18px' }}>
+              <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', color: '#0f172a', marginBottom: '6px' }}>
+                Enter Customer OTP:
+              </label>
+              <input
+                type="text"
+                maxLength={6}
+                placeholder="Enter 6-digit OTP"
+                className="form-control"
+                style={{
+                  fontSize: '1.25rem',
+                  letterSpacing: '4px',
+                  textAlign: 'center',
+                  fontWeight: '800',
+                  borderColor: otpError ? '#ef4444' : '#cbd5e1'
+                }}
+                value={otpInput}
+                onChange={e => setOtpInput(e.target.value)}
+                autoFocus
+              />
+
+              {otpError && (
+                <div style={{ color: '#dc2626', fontSize: '0.82rem', fontWeight: '600', marginTop: '8px', backgroundColor: '#fef2f2', padding: '6px 10px', borderRadius: '4px', border: '1px solid #fecaca' }}>
+                  {otpError}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '20px' }}>
+                <button type="button" className="btn btn-outline" onClick={() => setOtpBooking(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary" disabled={otpLoading || !otpInput.trim()}>
+                  {otpLoading ? 'Verifying...' : 'Verify & Confirm'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Booking Details Modal */}
       {selectedBooking && (
@@ -402,7 +500,7 @@ const BookingManagement = () => {
                 Update Booking Status:
               </div>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {['Pending', 'Confirmed', 'Ongoing', 'Completed', 'Cancelled'].map(st => (
+                {['Pending Admin Confirmation', 'ADMIN_CONFIRMED', 'Pending Driver Confirmation', 'Confirmed', 'Ongoing', 'Completed', 'Cancelled'].map(st => (
                   <button
                     key={st}
                     onClick={() => {
