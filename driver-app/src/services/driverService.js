@@ -39,6 +39,7 @@ export const driverService = {
   rejectBusBooking: (id, reason) => apiClient.post(`/driver/booking-requests/${id}/reject`, { reason }),
   arriveAtPickup: (id) => apiClient.post(`/driver/rides/${id}/arrived`),
   verifyOtp: (id, otp) => apiClient.post(`/driver/rides/${id}/verify-otp`, { otp }),
+  verifyBookingOtp: (id, otp) => apiClient.post(`/driver/bookings/${id}/verify-otp`, { otp }),
   startRide: (id) => apiClient.post(`/driver/rides/${id}/start`),
   endRide: (id, tripDetails) => apiClient.post(`/driver/rides/${id}/end`, tripDetails),
   completeRide: (id, tripDetails) => apiClient.post(`/driver/rides/${id}/complete`, tripDetails),

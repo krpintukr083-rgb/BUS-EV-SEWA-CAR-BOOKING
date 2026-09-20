@@ -78,7 +78,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'online',
-    version: '1.0.5-driver-online-toggle-auth-fix',
+    version: '1.0.6-driver-otp-confirmation-flow',
     platform: 'Bus Booking + EV-Sewa + Car Booking MERN Platform',
     timestamp: new Date().toISOString()
   });

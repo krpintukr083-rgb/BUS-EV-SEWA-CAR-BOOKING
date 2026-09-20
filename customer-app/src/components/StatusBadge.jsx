@@ -11,10 +11,10 @@ const StatusBadge = ({ status, text }) => {
 
   let displayText = text || status;
 
-  if (s === 'pending admin confirmation' || s === 'pending_admin_confirmation') {
+  if (s === 'pending admin confirmation' || s === 'pending_admin_confirmation' || s === 'pending driver confirmation') {
     bg = '#fef3c7';
     textCol = '#b45309';
-    displayText = text || 'Waiting for Admin Confirmation';
+    displayText = text || 'Waiting for Driver Confirmation';
   } else if (s === 'admin confirmed' || s === 'admin_confirmed') {
     bg = '#dcfce7';
     textCol = '#15803d';

@@ -93,22 +93,22 @@ const BookingDetailsScreen = ({ route, navigation }) => {
       />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Pending Admin OTP Card */}
-        {isPendingAdmin && (
+        {/* Pending Driver OTP Card */}
+        {(isPendingAdmin || isPendingDriver || booking.confirmationOtp) && (
           <View style={styles.otpCard}>
             <View style={styles.otpCardHeader}>
               <Ionicons name="shield-checkmark" size={24} color="#1d4ed8" />
               <Text style={styles.otpCardTitle}>BOOKING ONBOARDING</Text>
             </View>
-            <Text style={styles.otpCardSubtitle}>Waiting for Admin Confirmation</Text>
+            <Text style={styles.otpCardSubtitle}>Waiting for Driver Confirmation</Text>
 
             <View style={styles.otpBox}>
-              <Text style={styles.otpLabel}>Confirmation OTP</Text>
+              <Text style={styles.otpLabel}>Customer OTP</Text>
               <Text style={styles.otpValue}>{booking.confirmationOtp || '------'}</Text>
             </View>
 
             <Text style={styles.otpMessage}>
-              Please provide this OTP to the authorized booking/admin operator for booking confirmation.
+              Give this OTP to your assigned driver for confirmation.
             </Text>
           </View>
         )}

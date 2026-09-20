@@ -28,6 +28,7 @@ export default function BusConfirmationScreen({ navigation }) {
 
   // Action states
   const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [otpInputs, setOtpInputs] = useState({});
 
   // Reject Modal
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
@@ -72,7 +73,31 @@ export default function BusConfirmationScreen({ navigation }) {
     fetchBusBookings();
   };
 
-  // 1. Confirm Bus Booking (Driver acceptance)
+  // 1. Confirm Bus Booking with Customer OTP
+  const handleVerifyOtp = async (bookingId) => {
+    const otpVal = (otpInputs[bookingId] || '').trim();
+    if (!otpVal || otpVal.length < 4) {
+      Alert.alert(t('error') || 'Error', 'Please enter the 6-digit Customer OTP.');
+      return;
+    }
+
+    setActionLoadingId(bookingId);
+    try {
+      const res = await driverService.verifyBookingOtp(bookingId, otpVal);
+      if (res?.data?.success || res?.data?.status === 'success' || res?.success) {
+        Alert.alert(t('success') || 'Success', 'Customer OTP verified successfully. Booking confirmed!');
+        setActiveTab('CONFIRMED');
+        fetchBusBookings();
+      } else {
+        Alert.alert(t('error') || 'Verification Failed', res?.data?.message || 'Invalid OTP');
+      }
+    } catch (err) {
+      Alert.alert(t('error') || 'Verification Failed', err.response?.data?.message || 'Invalid OTP');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   const handleConfirmBooking = async (bookingId) => {
     setActionLoadingId(bookingId);
     try {
@@ -287,30 +312,79 @@ export default function BusConfirmationScreen({ navigation }) {
 
         {/* Action Buttons */}
         {isPendingConfirmation ? (
-          <View style={styles.actionRow}>
-            <TouchableOpacity
-              style={styles.rejectBtn}
-              onPress={() => openRejectModal(item)}
-              disabled={isLoading}
-            >
-              <MaterialCommunityIcons name="close" size={18} color={COLORS.danger} />
-              <Text style={styles.rejectBtnText}>{t('reject')}</Text>
-            </TouchableOpacity>
+          <View>
+            {/* Customer OTP Input Box */}
+            <View style={{ marginBottom: 12, backgroundColor: '#f8fafc', padding: 10, borderRadius: 8, borderWidth: 1, borderColor: '#e2e8f0' }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 4 }}>
+                ENTER CUSTOMER OTP:
+              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <TextInput
+                  style={{
+                    flex: 1,
+                    backgroundColor: COLORS.white,
+                    borderWidth: 1,
+                    borderColor: '#cbd5e1',
+                    borderRadius: 6,
+                    paddingHorizontal: 10,
+                    paddingVertical: 6,
+                    fontSize: 16,
+                    fontWeight: '700',
+                    color: COLORS.primary,
+                    letterSpacing: 3
+                  }}
+                  placeholder="583214"
+                  keyboardType="numeric"
+                  maxLength={6}
+                  value={otpInputs[item._id] || ''}
+                  onChangeText={(val) => setOtpInputs(prev => ({ ...prev, [item._id]: val }))}
+                />
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: COLORS.primary,
+                    paddingHorizontal: 12,
+                    paddingVertical: 8,
+                    borderRadius: 6,
+                    marginLeft: 8,
+                    opacity: isLoading ? 0.6 : 1
+                  }}
+                  onPress={() => handleVerifyOtp(item._id)}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <ActivityIndicator color={COLORS.white} size="small" />
+                  ) : (
+                    <Text style={{ color: COLORS.white, fontWeight: '700', fontSize: 12 }}>Verify & Confirm</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
 
-            <TouchableOpacity
-              style={[styles.confirmBtn, isLoading && { opacity: 0.6 }]}
-              onPress={() => handleConfirmBooking(item._id)}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color={COLORS.white} size="small" />
-              ) : (
-                <>
-                  <MaterialCommunityIcons name="check" size={18} color={COLORS.white} />
-                  <Text style={styles.confirmBtnText}>{t('confirmSeat')}</Text>
-                </>
-              )}
-            </TouchableOpacity>
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                style={styles.rejectBtn}
+                onPress={() => openRejectModal(item)}
+                disabled={isLoading}
+              >
+                <MaterialCommunityIcons name="close" size={18} color={COLORS.danger} />
+                <Text style={styles.rejectBtnText}>{t('reject')}</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.confirmBtn, isLoading && { opacity: 0.6 }]}
+                onPress={() => handleConfirmBooking(item._id)}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color={COLORS.white} size="small" />
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="check" size={18} color={COLORS.white} />
+                    <Text style={styles.confirmBtnText}>{t('confirmSeat')}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         ) : isCompleted ? (
           <View style={styles.completedBox}>

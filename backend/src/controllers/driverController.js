@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
 const Driver = require('../models/Driver');
 const Vehicle = require('../models/Vehicle');
 const Booking = require('../models/Booking');
@@ -901,6 +902,117 @@ exports.rejectBookingRequest = async (req, res, next) => {
     res.json({
       success: true,
       message: 'Booking request rejected',
+      data: booking
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Verify Customer Booking OTP by Assigned Driver
+// @route   POST /api/driver/bookings/:id/verify-otp, POST /api/driver/verify-otp
+// @access  Private (Driver Only)
+exports.verifyRideOtp = async (req, res, next) => {
+  try {
+    const driver = req.driver;
+    const { id } = req.params;
+    const targetBookingId = id || req.body.bookingId || req.body.id;
+    const { otp, confirmationOtp } = req.body;
+    const suppliedOtp = (otp || confirmationOtp || '').toString().trim();
+
+    if (!suppliedOtp) {
+      return res.status(400).json({ success: false, message: 'Customer 6-digit OTP is required' });
+    }
+
+    if (!targetBookingId) {
+      return res.status(400).json({ success: false, message: 'Booking ID is required for OTP verification' });
+    }
+
+    // Retrieve booking with confirmationOtpHash explicitly selected
+    const booking = await Booking.findOne(getBookingQuery(targetBookingId)).select('+confirmationOtpHash');
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking request not found' });
+    }
+
+    // 1. Verify Driver assignment (Strict authorization check)
+    const isAuthorized = await verifyDriverVehicleAccess(driver, booking);
+    if (!isAuthorized) {
+      return res.status(403).json({
+        success: false,
+        message: 'Unauthorized: Only the assigned driver can verify this customer OTP'
+      });
+    }
+
+    // 2. Check if OTP was already used / verified
+    if (!booking.confirmationOtpHash) {
+      return res.status(400).json({
+        success: false,
+        message: 'OTP has already been verified or used'
+      });
+    }
+
+    // 3. Check if OTP has expired
+    if (booking.confirmationOtpExpiresAt && new Date(booking.confirmationOtpExpiresAt) < new Date()) {
+      return res.status(400).json({
+        success: false,
+        message: 'OTP has expired. Please ask customer to resend or request new OTP'
+      });
+    }
+
+    // 4. Verify OTP Hash
+    const suppliedHash = crypto.createHash('sha256').update(suppliedOtp).digest('hex');
+    if (suppliedHash !== booking.confirmationOtpHash) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid OTP. Please check the 6-digit code with the customer.'
+      });
+    }
+
+    // 5. Successful OTP Verification - Update Booking State
+    booking.confirmationOtpVerifiedAt = new Date();
+    booking.confirmationOtpVerifiedBy = req.user ? req.user._id : driver._id;
+    booking.confirmationOtpHash = null; // Single-use: invalidate OTP immediately
+
+    booking.driver = driver._id;
+    booking.driverConfirmationStatus = 'Confirmed';
+    booking.driverConfirmed = true;
+    booking.driverConfirmedAt = new Date();
+    booking.driverConfirmedBy = driver._id;
+
+    const isBus = booking.serviceType === 'Bus';
+    const isOfflineCash = booking.paymentMethod === 'Offline Cash' || booking.paymentMethod === 'Cash';
+    const isPaid = booking.paymentStatus === 'Paid' || booking.paymentStatus === 'Successful';
+
+    if (isBus) {
+      if (isPaid) {
+        booking.bookingStatus = 'Confirmed';
+      } else if (isOfflineCash) {
+        booking.bookingStatus = 'Awaiting Cash Collection';
+      } else {
+        booking.bookingStatus = 'Confirmed';
+      }
+    } else {
+      booking.bookingStatus = 'Confirmed';
+      booking.rideStatus = 'Accepted';
+    }
+
+    await booking.save();
+
+    // Send customer notification
+    const recipientId = await getValidRecipientId(booking);
+    if (recipientId) {
+      await Notification.create({
+        recipientId,
+        title: 'Booking Confirmed by Driver',
+        message: `Your booking #${booking.bookingId} has been confirmed by your assigned driver.`,
+        recipientRole: 'customer',
+        status: 'Unread'
+      }).catch(err => console.error('Notification error:', err));
+    }
+
+    res.json({
+      success: true,
+      message: 'Customer OTP verified successfully. Booking confirmed!',
       data: booking
     });
   } catch (error) {
