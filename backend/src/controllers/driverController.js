@@ -780,6 +780,37 @@ exports.getBookingRequests = async (req, res, next) => {
   }
 };
 
+// @desc    Get Active Bookings for Driver (Accepted but OTP not yet verified, and ongoing)
+// @route   GET /api/driver/active-bookings
+// @access  Private (Driver Only)
+exports.getActiveBookingsForDriver = async (req, res, next) => {
+  try {
+    const driver = req.driver;
+    const assignedVehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
+
+    const query = {
+      $or: [
+        { driver: driver._id },
+        ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
+      ],
+      bookingStatus: { $nin: ['Cancelled', 'Rejected'] }
+    };
+
+    const bookings = await Booking.find(query)
+      .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory fuelType fareRate seatingCapacity')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    res.json({
+      success: true,
+      count: bookings.length,
+      data: bookings
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Accept Booking Request / Ride
 // @route   POST /api/driver/booking-requests/:id/accept, POST /api/driver/requests/:id/accept
 // @access  Private (Driver Only)

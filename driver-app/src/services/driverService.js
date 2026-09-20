@@ -30,8 +30,10 @@ export const driverService = {
 
   // Booking Requests & Ride Lifecycle
   getBookingRequests: () => apiClient.get(ENDPOINTS.BOOKING_REQUESTS),
-  // Alias used by BusConfirmationScreen
-  getAssignedBookings: () => apiClient.get(ENDPOINTS.BOOKING_REQUESTS),
+  // Active bookings for driver: accepted/OTP-pending/ongoing (used by BusConfirmationScreen)
+  getActiveBookings: () => apiClient.get('/driver/active-bookings'),
+  // Legacy alias — kept for backwards compat but now points to active-bookings
+  getAssignedBookings: () => apiClient.get('/driver/active-bookings'),
   acceptRide: (id) => apiClient.post(`/driver/booking-requests/${id}/accept`),
   rejectRide: (id, reason) => apiClient.post(`/driver/booking-requests/${id}/reject`, { reason }),
   // Bus-specific aliases used by BusConfirmationScreen

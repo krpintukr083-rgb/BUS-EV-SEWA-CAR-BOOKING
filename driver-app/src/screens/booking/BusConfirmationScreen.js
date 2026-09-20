@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,14 +12,19 @@ import {
   TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useLanguage } from '../../state/LanguageContext';
 import CustomerOtpVerificationCard from '../../components/CustomerOtpVerificationCard';
+import { driverService } from '../../services/driverService';
 
-export default function BusConfirmationScreen({ navigation }) {
+export default function BusConfirmationScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { t } = useLanguage();
+  // bookingId passed from BookingRequestsScreen after accepting a ride
+  const highlightBookingId = route?.params?.bookingId || null;
+
 
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,6 +45,13 @@ export default function BusConfirmationScreen({ navigation }) {
     const interval = setInterval(fetchBusBookings, 8000);
     return () => clearInterval(interval);
   }, []);
+
+  // Also refresh when this tab gains focus (e.g. after accepting a booking)
+  useFocusEffect(
+    useCallback(() => {
+      fetchBusBookings();
+    }, [])
+  );
 
   const fetchBusBookings = async () => {
     try {
@@ -379,7 +391,7 @@ export default function BusConfirmationScreen({ navigation }) {
           onPress={() => setActiveTab('PENDING')}
         >
           <Text style={[styles.tabText, activeTab === 'PENDING' && styles.tabTextActive]}>
-            {t('pending')} ({bookings.filter((b) => b.bookingStatus === 'Pending Driver Confirmation' || b.driverConfirmation === 'PENDING').length})
+            {t('pending')} ({bookings.filter(isBookingPendingOtp).length})
           </Text>
         </TouchableOpacity>
 
@@ -388,7 +400,7 @@ export default function BusConfirmationScreen({ navigation }) {
           onPress={() => setActiveTab('CONFIRMED')}
         >
           <Text style={[styles.tabText, activeTab === 'CONFIRMED' && styles.tabTextActive]}>
-            {t('confirmed')} ({bookings.filter((b) => b.bookingStatus !== 'Pending Driver Confirmation' && b.driverConfirmation !== 'PENDING' && b.bookingStatus !== 'Cancelled').length})
+            {t('confirmed')} ({bookings.filter((b) => !isBookingPendingOtp(b) && b.bookingStatus !== 'Cancelled').length})
           </Text>
         </TouchableOpacity>
 

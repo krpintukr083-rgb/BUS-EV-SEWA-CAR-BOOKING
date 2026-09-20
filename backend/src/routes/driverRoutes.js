@@ -11,6 +11,7 @@ const {
   updateDriverStatus,
   updateLanguage,
   getBookingRequests,
+  getActiveBookingsForDriver,
   acceptBookingRequest,
   rejectBookingRequest,
   arriveAtPickup,
@@ -60,6 +61,8 @@ router.patch('/language', updateLanguage);
 // 5. Booking Requests (Bus, EV-Sewa, Car)
 router.get('/booking-requests', getBookingRequests);
 router.get('/requests', getBookingRequests);
+// Active bookings for driver (accepted, OTP pending, ongoing) — used by BusConfirmationScreen
+router.get('/active-bookings', getActiveBookingsForDriver);
 router.post('/booking-requests/:id/accept', acceptBookingRequest);
 router.post('/requests/:id/accept', acceptBookingRequest);
 router.post('/accept-ride/:id', acceptBookingRequest);
