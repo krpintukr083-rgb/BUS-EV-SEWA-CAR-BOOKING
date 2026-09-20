@@ -376,17 +376,20 @@ exports.addDriver = async (req, res, next) => {
     // Check if user already exists
     let user = await User.findOne({ $or: [{ email }, { phone: mobileNumber }] });
     if (user) {
-      return res.status(400).json({ success: false, message: 'Driver with this email or mobile number already exists' });
+      user.role = 'driver';
+      user.status = 'Active';
+      if (password) user.password = password;
+      await user.save();
+    } else {
+      user = await User.create({
+        name,
+        email,
+        phone: mobileNumber,
+        password: password || 'Driver@123',
+        role: 'driver',
+        status: 'Active'
+      });
     }
-
-    user = await User.create({
-      name,
-      email,
-      phone: mobileNumber,
-      password: password || 'Driver@123',
-      role: 'driver',
-      status: 'Active'
-    });
 
     const photoToSave =
       (req.file ? `/uploads/${req.file.filename}` : null) ||
