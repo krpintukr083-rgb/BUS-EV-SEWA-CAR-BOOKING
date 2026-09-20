@@ -1082,47 +1082,7 @@ exports.arriveAtPickup = async (req, res, next) => {
   }
 };
 
-// @desc    Verify Customer OTP/PIN
-// @route   POST /api/driver/rides/:id/verify-otp
-// @access  Private (Driver Only)
-exports.verifyRideOtp = async (req, res, next) => {
-  try {
-    const driver = req.driver;
-    const { id } = req.params;
-    const { otp } = req.body;
-
-    const booking = await Booking.findOne(getBookingQuery(id));
-    if (!booking) {
-      return res.status(404).json({ success: false, message: 'Ride not found' });
-    }
-
-    const isAuthorized = await verifyDriverVehicleAccess(driver, booking);
-    if (!isAuthorized) {
-      return res.status(403).json({ success: false, message: 'Unauthorized for this ride' });
-    }
-
-    if (!otp || String(booking.rideOtp).trim() !== String(otp).trim()) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid OTP / PIN. Please check with the passenger.'
-      });
-    }
-
-    booking.otpVerified = true;
-    await booking.save();
-
-    res.json({
-      success: true,
-      message: 'Customer OTP verified successfully. You can now start the ride.',
-      data: {
-        bookingId: booking.bookingId,
-        otpVerified: true
-      }
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+// Duplicate exports.verifyRideOtp removed - canonical implementation defined above
 
 // @desc    Start Active Ride
 // @route   POST /api/driver/rides/:id/start
