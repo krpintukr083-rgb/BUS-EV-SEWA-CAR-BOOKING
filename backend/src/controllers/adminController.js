@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const Driver = require('../models/Driver');
 const Vehicle = require('../models/Vehicle');
@@ -12,6 +13,10 @@ const Policy = require('../models/Policy');
 const ServiceControl = require('../models/ServiceControl');
 const Expense = require('../models/Expense');
 const { dashboardCache } = require('../utils/cache');
+
+const getBookingQuery = (id) => {
+  return mongoose.Types.ObjectId.isValid(id) ? { _id: id } : { bookingId: id };
+};
 
 // ==========================================
 // 1. ADMIN DASHBOARD
