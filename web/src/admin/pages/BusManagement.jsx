@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { adminService } from '../services/adminService';
-import StatusBadge from '../components/StatusBadge';
+import { adminService } from '../../services/adminService';
+import StatusBadge from '../../components/StatusBadge';
 import { Bus, MapPin, Users, Check, Clock, Edit2, X } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
