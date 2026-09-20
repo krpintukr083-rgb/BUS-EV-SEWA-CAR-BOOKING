@@ -10,7 +10,8 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Modal
+  Modal,
+  Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING } from '../../constants/theme';
@@ -138,10 +139,12 @@ const LoginScreen = ({ navigation }) => {
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         {/* Brand Banner */}
         <View style={styles.brandSection}>
-          <View style={styles.logoCircle}>
-            <Ionicons name="car-sport" size={40} color="#FFF" />
-          </View>
-          <Text style={styles.brandTitle}>TravelEase Driver</Text>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
+          <Text style={styles.brandTitle}>TravelSewa Driver</Text>
           <Text style={styles.brandSub}>Official Driver & Conductor Platform</Text>
         </View>
 
@@ -344,19 +347,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SPACING.xxl
   },
-  logoCircle: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: COLORS.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: SPACING.md,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.5,
-    shadowRadius: 10,
-    elevation: 8
+  logoImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 20,
+    marginBottom: SPACING.md
   },
   brandTitle: {
     fontSize: 24,

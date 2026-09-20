@@ -121,10 +121,12 @@ const LoginScreen = ({ navigation }) => {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Top Logo & Branding */}
         <View style={styles.brandContainer}>
-          <View style={styles.logoBadge}>
-            <Ionicons name="bus" size={38} color={COLORS.primary} />
-          </View>
-          <Text style={styles.brandTitle}>TravelEase</Text>
+          <Image
+            source={require('../../assets/logo.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
+          <Text style={styles.brandTitle}>TravelSewa</Text>
           <Text style={styles.brandSubtitle}>Bus • EV-Sewa • Car Booking Platform</Text>
         </View>
 
@@ -331,16 +333,11 @@ const styles = StyleSheet.create({
     marginBottom: 28,
     marginTop: 20
   },
-  logoBadge: {
-    width: 72,
-    height: 72,
+  logoImage: {
+    width: 100,
+    height: 100,
     borderRadius: 20,
-    backgroundColor: '#eff6ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#bfdbfe'
+    marginBottom: 12
   },
   brandTitle: {
     fontSize: 26,
