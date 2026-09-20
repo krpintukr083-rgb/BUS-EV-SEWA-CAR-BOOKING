@@ -47,17 +47,8 @@ export default function BusConfirmationScreen({ navigation }) {
       // axios wraps response: actual JSON is at res.data
       if (res?.data?.success && res.data.data) {
         const allBookings = res.data.data;
-        // Filter for Bus & EV-Sewa trips (backend uses 'Bus' and 'EV-Sewa' casing)
-        const busTrips = allBookings.filter(
-          (b) =>
-            b.serviceType === 'BUS' ||
-            b.serviceType === 'Bus' ||
-            b.serviceType === 'EV_SEWA' ||
-            b.serviceType === 'EV-Sewa' ||
-            b.bookingType === 'BUS' ||
-            !!b.seats?.length ||
-            !!b.busSeatNumbers?.length
-        );
+        // Include all assigned bookings requiring confirmation (Bus, EV-Sewa, Car, Outstation)
+        const busTrips = allBookings;
         setBookings(busTrips);
       }
     } catch (err) {
