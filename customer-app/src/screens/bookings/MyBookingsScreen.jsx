@@ -143,13 +143,15 @@ const MyBookingsScreen = ({ navigation }) => {
               >
                 {/* Header row */}
                 <View style={styles.cardTop}>
-                  <View>
+                  <View style={styles.cardTopLeft}>
                     <Text style={styles.bookingCode}>{item.bookingId}</Text>
                     <Text style={styles.serviceType}>
                       {item.serviceType} Service • {dateStr}
                     </Text>
                   </View>
-                  <StatusBadge status={item.bookingStatus} />
+                  <View style={styles.cardTopRight}>
+                    <StatusBadge status={item.bookingStatus} />
+                  </View>
                 </View>
 
                 {/* Vehicle & Route */}
@@ -260,7 +262,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 10
+    marginBottom: 10,
+    gap: 8
+  },
+  cardTopLeft: {
+    flex: 1,
+    marginRight: 6
+  },
+  cardTopRight: {
+    flexShrink: 0,
+    alignItems: 'flex-end',
+    maxWidth: '52%'
   },
   bookingCode: {
     fontSize: 15,

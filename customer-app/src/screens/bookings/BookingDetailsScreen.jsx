@@ -142,7 +142,7 @@ const BookingDetailsScreen = ({ route, navigation }) => {
         {/* Top Header Card */}
         <View style={styles.topCard}>
           <View style={styles.rowBetween}>
-            <View>
+            <View style={{ flex: 1, marginRight: 8 }}>
               <Text style={styles.bookingIdText}>{booking.bookingId}</Text>
               <Text style={styles.serviceSubtitle}>{booking.serviceType} Service</Text>
             </View>

@@ -88,13 +88,15 @@ const BookingHistoryScreen = ({ navigation }) => {
                 onPress={() => navigation.navigate('BookingDetails', { bookingId: item._id })}
               >
                 <View style={styles.cardTop}>
-                  <View>
+                  <View style={styles.cardTopLeft}>
                     <Text style={styles.bookingId}>{item.bookingId}</Text>
                     <Text style={styles.serviceMeta}>
                       {item.serviceType} Service • {dateStr}
                     </Text>
                   </View>
-                  <StatusBadge status={item.bookingStatus} />
+                  <View style={styles.cardTopRight}>
+                    <StatusBadge status={item.bookingStatus} />
+                  </View>
                 </View>
 
                 <View style={styles.vehicleRow}>
@@ -165,7 +167,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8
+    marginBottom: 8,
+    gap: 8
+  },
+  cardTopLeft: {
+    flex: 1,
+    marginRight: 6
+  },
+  cardTopRight: {
+    flexShrink: 0,
+    alignItems: 'flex-end',
+    maxWidth: '52%'
   },
   bookingId: {
     fontSize: 14,
