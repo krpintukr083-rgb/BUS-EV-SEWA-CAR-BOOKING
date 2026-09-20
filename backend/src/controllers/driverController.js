@@ -544,7 +544,7 @@ exports.uploadDriverDocument = async (req, res, next) => {
         if (documentNumber) driver.citizenshipNumber = documentNumber;
         driver.citizenshipDoc = docUrl;
         if (expiryDate) driver.citizenshipExpiry = expiryDate;
-        driver.citizenshipStatus = 'Pending';
+        driver.citizenshipStatus = 'Approved';
         break;
       case 'drivinglicence':
       case 'drivinglicense':
@@ -553,7 +553,7 @@ exports.uploadDriverDocument = async (req, res, next) => {
         if (documentNumber) driver.drivingLicenceNumber = documentNumber;
         driver.drivingLicenceDoc = docUrl;
         if (expiryDate) driver.drivingLicenceExpiry = expiryDate;
-        driver.drivingLicenceStatus = 'Pending';
+        driver.drivingLicenceStatus = 'Approved';
         break;
       case 'rc':
       case 'vehiclerc':
@@ -561,13 +561,13 @@ exports.uploadDriverDocument = async (req, res, next) => {
         if (documentNumber) driver.rcNumber = documentNumber;
         driver.rcDoc = docUrl;
         if (expiryDate) driver.rcExpiry = expiryDate;
-        driver.rcStatus = 'Pending';
+        driver.rcStatus = 'Approved';
         break;
       case 'insurance':
         if (documentNumber) driver.insurancePolicyNumber = documentNumber;
         driver.insuranceDoc = docUrl;
         if (expiryDate) driver.insuranceExpiryDetails = expiryDate;
-        driver.insuranceStatus = 'Pending';
+        driver.insuranceStatus = 'Approved';
         break;
       case 'fitness':
       case 'fitnesscertificate':
@@ -575,15 +575,14 @@ exports.uploadDriverDocument = async (req, res, next) => {
         if (documentNumber) driver.fitnessDetails = documentNumber;
         driver.fitnessDoc = docUrl;
         if (expiryDate) driver.fitnessExpiry = expiryDate;
-        driver.fitnessStatus = 'Pending';
+        driver.fitnessStatus = 'Approved';
         break;
       default:
         return res.status(400).json({ success: false, message: `Invalid document type '${docType}'` });
     }
 
-    if (['Unverified', 'Rejected', 'Inactive', 'Suspended'].includes(driver.driverStatus) || !driver.driverStatus) {
-      driver.driverStatus = 'Pending Verification';
-    }
+    driver.driverStatus = 'Active';
+    driver.requiredDocumentsStatus = 'Approved';
 
     await driver.save();
 

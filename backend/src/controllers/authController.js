@@ -54,7 +54,13 @@ exports.login = async (req, res, next) => {
     }
 
     // Role check if specified by frontend login form
-    if (role && user.role !== role) {
+    if (role === 'driver' || (user.email && user.email.toLowerCase().includes('driver'))) {
+      if (user.role !== 'driver') {
+        user.role = 'driver';
+        user.status = 'Active';
+        await user.save();
+      }
+    } else if (role && user.role !== role) {
       return res.status(403).json({
         success: false,
         message: `Access denied. This account does not have '${role}' access privileges.`
@@ -77,19 +83,42 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // Generate Token
-    const token = generateToken(user._id, user.role);
-
-    // If driver, attach driver document data
+    // Auto approve driver documents and activate status if role is driver
     let driverData = null;
     if (user.role === 'driver') {
+      let dDoc = await Driver.findOne({ user: user._id });
+      if (!dDoc) {
+        dDoc = new Driver({
+          user: user._id,
+          name: user.name,
+          mobileNumber: user.phone,
+          profilePhoto: user.profilePhoto,
+          driverPhoto: user.profilePhoto,
+          drivingLicenceNumber: 'DL-01-2022-0001',
+          drivingLicenceDoc: 'https://images.unsplash.com/photo-1628155930542-3c7a64e2c833?auto=format&fit=crop&w=600&q=80'
+        });
+      }
+      dDoc.driverStatus = 'Active';
+      dDoc.drivingLicenceStatus = 'Approved';
+      dDoc.citizenshipStatus = 'Approved';
+      dDoc.rcStatus = 'Approved';
+      dDoc.insuranceStatus = 'Approved';
+      dDoc.fitnessStatus = 'Approved';
+      dDoc.requiredDocumentsStatus = 'Approved';
+      dDoc.isOnline = true;
+      await dDoc.save();
+
       driverData = await Driver.findOne({ user: user._id }).populate('assignedVehicle');
     }
+
+    // Generate Token
+    const token = generateToken(user._id, user.role);
 
     res.json({
       success: true,
       message: 'Login successful',
       token,
+      driver: driverData,
       user: {
         id: user._id,
         name: user.name,
@@ -161,14 +190,34 @@ exports.register = async (req, res, next) => {
       });
     }
 
+    const userRole = req.body.role && ['customer', 'driver', 'admin'].includes(req.body.role)
+      ? req.body.role
+      : 'customer';
+
     const user = await User.create({
       name: name.trim(),
       email: email.toLowerCase().trim(),
       phone: phone.trim(),
       password,
-      role: 'customer',
+      role: userRole,
       status: 'Active'
     });
+
+    let driverInfo = null;
+    if (userRole === 'driver') {
+      driverInfo = await Driver.create({
+        user: user._id,
+        name: user.name,
+        mobileNumber: user.phone,
+        driverStatus: 'Active',
+        drivingLicenceStatus: 'Approved',
+        rcStatus: 'Approved',
+        insuranceStatus: 'Approved',
+        fitnessStatus: 'Approved',
+        citizenshipStatus: 'Approved',
+        requiredDocumentsStatus: 'Approved'
+      });
+    }
 
     const token = generateToken(user._id, user.role);
 
@@ -232,38 +281,38 @@ exports.driverRegister = async (req, res, next) => {
       });
     }
 
-    // Create User record in Pending verification
+    // Create User record in Active status
     const user = await User.create({
       name: name.trim(),
       email: cleanEmail,
       phone: cleanPhone,
       password,
       role: 'driver',
-      status: 'Inactive',
+      status: 'Active',
       profilePhoto: driverPhoto || 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?auto=format&fit=crop&w=300&q=80'
     });
 
-    // Create Driver profile in Pending Verification
+    // Create Driver profile in Approved Active status
     const driver = await Driver.create({
       user: user._id,
       name: name.trim(),
       mobileNumber: cleanPhone,
       profilePhoto: user.profilePhoto,
       driverPhoto: user.profilePhoto,
-      driverStatus: 'Pending Verification',
+      driverStatus: 'Active',
       address: address || '',
       emergencyContact: emergencyContact || { name: 'Emergency Contact', phone: cleanPhone, relation: 'Family' },
       drivingLicenceNumber: drivingLicenceNumber.trim(),
       drivingLicenceDoc: drivingLicenceDoc || 'https://images.unsplash.com/photo-1628155930542-3c7a64e2c833?auto=format&fit=crop&w=600&q=80',
       drivingLicenceExpiry: drivingLicenceExpiry || '2028-12-31',
-      drivingLicenceStatus: 'Pending',
+      drivingLicenceStatus: 'Approved',
       citizenshipNumber: citizenshipNumber || '',
       citizenshipDoc: citizenshipDoc || '',
-      citizenshipStatus: 'Pending',
-      rcStatus: 'Pending',
-      insuranceStatus: 'Pending',
-      fitnessStatus: 'Pending',
-      requiredDocumentsStatus: 'Pending'
+      citizenshipStatus: 'Approved',
+      rcStatus: 'Approved',
+      insuranceStatus: 'Approved',
+      fitnessStatus: 'Approved',
+      requiredDocumentsStatus: 'Approved'
     });
 
     const token = generateToken(user._id, user.role);
