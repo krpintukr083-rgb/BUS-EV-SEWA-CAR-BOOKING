@@ -544,7 +544,7 @@ exports.uploadDriverDocument = async (req, res, next) => {
         if (documentNumber) driver.citizenshipNumber = documentNumber;
         driver.citizenshipDoc = docUrl;
         if (expiryDate) driver.citizenshipExpiry = expiryDate;
-        driver.citizenshipStatus = 'Approved';
+        driver.citizenshipStatus = 'Pending Verification';
         break;
       case 'drivinglicence':
       case 'drivinglicense':
@@ -553,7 +553,7 @@ exports.uploadDriverDocument = async (req, res, next) => {
         if (documentNumber) driver.drivingLicenceNumber = documentNumber;
         driver.drivingLicenceDoc = docUrl;
         if (expiryDate) driver.drivingLicenceExpiry = expiryDate;
-        driver.drivingLicenceStatus = 'Approved';
+        driver.drivingLicenceStatus = 'Pending Verification';
         break;
       case 'rc':
       case 'vehiclerc':
@@ -561,13 +561,13 @@ exports.uploadDriverDocument = async (req, res, next) => {
         if (documentNumber) driver.rcNumber = documentNumber;
         driver.rcDoc = docUrl;
         if (expiryDate) driver.rcExpiry = expiryDate;
-        driver.rcStatus = 'Approved';
+        driver.rcStatus = 'Pending Verification';
         break;
       case 'insurance':
         if (documentNumber) driver.insurancePolicyNumber = documentNumber;
         driver.insuranceDoc = docUrl;
         if (expiryDate) driver.insuranceExpiryDetails = expiryDate;
-        driver.insuranceStatus = 'Approved';
+        driver.insuranceStatus = 'Pending Verification';
         break;
       case 'fitness':
       case 'fitnesscertificate':
@@ -575,14 +575,14 @@ exports.uploadDriverDocument = async (req, res, next) => {
         if (documentNumber) driver.fitnessDetails = documentNumber;
         driver.fitnessDoc = docUrl;
         if (expiryDate) driver.fitnessExpiry = expiryDate;
-        driver.fitnessStatus = 'Approved';
+        driver.fitnessStatus = 'Pending Verification';
         break;
       default:
         return res.status(400).json({ success: false, message: `Invalid document type '${docType}'` });
     }
 
-    driver.driverStatus = 'Active';
-    driver.requiredDocumentsStatus = 'Approved';
+    driver.driverStatus = 'Pending Verification';
+    driver.requiredDocumentsStatus = 'Pending Verification';
 
     await driver.save();
 

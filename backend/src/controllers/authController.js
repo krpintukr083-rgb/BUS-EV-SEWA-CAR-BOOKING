@@ -83,7 +83,7 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // Auto approve driver documents and activate status if role is driver
+    // Driver data lookup
     let driverData = null;
     if (user.role === 'driver') {
       let dDoc = await Driver.findOne({ user: user._id });
@@ -94,20 +94,19 @@ exports.login = async (req, res, next) => {
           mobileNumber: user.phone,
           profilePhoto: user.profilePhoto,
           driverPhoto: user.profilePhoto,
+          driverStatus: 'Pending Verification',
           drivingLicenceNumber: 'DL-01-2022-0001',
-          drivingLicenceDoc: 'https://images.unsplash.com/photo-1628155930542-3c7a64e2c833?auto=format&fit=crop&w=600&q=80'
+          drivingLicenceDoc: 'https://images.unsplash.com/photo-1628155930542-3c7a64e2c833?auto=format&fit=crop&w=600&q=80',
+          drivingLicenceStatus: 'Pending Verification',
+          citizenshipStatus: 'Pending Verification',
+          rcStatus: 'Pending Verification',
+          insuranceStatus: 'Pending Verification',
+          fitnessStatus: 'Pending Verification',
+          requiredDocumentsStatus: 'Pending Verification',
+          isOnline: false
         });
+        await dDoc.save();
       }
-      dDoc.driverStatus = 'Active';
-      dDoc.drivingLicenceStatus = 'Approved';
-      dDoc.citizenshipStatus = 'Approved';
-      dDoc.rcStatus = 'Approved';
-      dDoc.insuranceStatus = 'Approved';
-      dDoc.fitnessStatus = 'Approved';
-      dDoc.requiredDocumentsStatus = 'Approved';
-      dDoc.isOnline = true;
-      await dDoc.save();
-
       driverData = await Driver.findOne({ user: user._id }).populate('assignedVehicle');
     }
 
@@ -209,13 +208,14 @@ exports.register = async (req, res, next) => {
         user: user._id,
         name: user.name,
         mobileNumber: user.phone,
-        driverStatus: 'Active',
-        drivingLicenceStatus: 'Approved',
-        rcStatus: 'Approved',
-        insuranceStatus: 'Approved',
-        fitnessStatus: 'Approved',
-        citizenshipStatus: 'Approved',
-        requiredDocumentsStatus: 'Approved'
+        driverStatus: 'Pending Verification',
+        drivingLicenceStatus: 'Pending Verification',
+        rcStatus: 'Pending Verification',
+        insuranceStatus: 'Pending Verification',
+        fitnessStatus: 'Pending Verification',
+        citizenshipStatus: 'Pending Verification',
+        requiredDocumentsStatus: 'Pending Verification',
+        isOnline: false
       });
     }
 
@@ -281,38 +281,39 @@ exports.driverRegister = async (req, res, next) => {
       });
     }
 
-    // Create User record in Active status
+    // Create User record in Pending Verification status
     const user = await User.create({
       name: name.trim(),
       email: cleanEmail,
       phone: cleanPhone,
       password,
       role: 'driver',
-      status: 'Active',
+      status: 'Pending Verification',
       profilePhoto: driverPhoto || 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?auto=format&fit=crop&w=300&q=80'
     });
 
-    // Create Driver profile in Approved Active status
+    // Create Driver profile in Pending Verification status
     const driver = await Driver.create({
       user: user._id,
       name: name.trim(),
       mobileNumber: cleanPhone,
       profilePhoto: user.profilePhoto,
       driverPhoto: user.profilePhoto,
-      driverStatus: 'Active',
+      driverStatus: 'Pending Verification',
       address: address || '',
       emergencyContact: emergencyContact || { name: 'Emergency Contact', phone: cleanPhone, relation: 'Family' },
       drivingLicenceNumber: drivingLicenceNumber.trim(),
       drivingLicenceDoc: drivingLicenceDoc || 'https://images.unsplash.com/photo-1628155930542-3c7a64e2c833?auto=format&fit=crop&w=600&q=80',
       drivingLicenceExpiry: drivingLicenceExpiry || '2028-12-31',
-      drivingLicenceStatus: 'Approved',
+      drivingLicenceStatus: 'Pending Verification',
       citizenshipNumber: citizenshipNumber || '',
       citizenshipDoc: citizenshipDoc || '',
-      citizenshipStatus: 'Approved',
-      rcStatus: 'Approved',
-      insuranceStatus: 'Approved',
-      fitnessStatus: 'Approved',
-      requiredDocumentsStatus: 'Approved'
+      citizenshipStatus: citizenshipDoc ? 'Pending Verification' : 'Pending Verification',
+      rcStatus: 'Pending Verification',
+      insuranceStatus: 'Pending Verification',
+      fitnessStatus: 'Pending Verification',
+      requiredDocumentsStatus: 'Pending Verification',
+      isOnline: false
     });
 
     const token = generateToken(user._id, user.role);
