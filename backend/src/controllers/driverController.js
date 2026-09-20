@@ -639,17 +639,21 @@ exports.updateDriverStatus = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Driver not found' });
     }
 
-    // Suspended or Blocked drivers cannot go online
-    if (['Blocked', 'Suspended', 'Rejected'].includes(driver.driverStatus)) {
-      return res.status(403).json({
-        success: false,
-        message: `Account is ${driver.driverStatus}. You cannot accept ride requests.`
-      });
+    // Suspended, Blocked, Rejected, or Pending Verification drivers cannot go online
+    if (['Blocked', 'Suspended', 'Rejected', 'Pending Verification', 'Pending'].includes(driver.driverStatus)) {
+      if (req.body.isOnline) {
+        return res.status(403).json({
+          success: false,
+          message: `Your driver account is currently '${driver.driverStatus}'. You cannot go online or accept ride requests until Admin approves your documents.`
+        });
+      }
     }
 
     if (req.body.isOnline !== undefined) {
       driver.isOnline = Boolean(req.body.isOnline);
-      driver.driverStatus = driver.isOnline ? 'Active' : 'Inactive';
+      if (['Active', 'Inactive'].includes(driver.driverStatus)) {
+        driver.driverStatus = driver.isOnline ? 'Active' : 'Inactive';
+      }
     } else if (req.body.status) {
       driver.driverStatus = req.body.status;
       driver.isOnline = req.body.status === 'Active';
