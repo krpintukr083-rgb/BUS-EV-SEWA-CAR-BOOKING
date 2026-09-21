@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { driverService } from '../services/driverService';
+import { clearDriverNotificationCache } from '../services/notificationService';
 
 const AuthContext = createContext();
 
@@ -111,6 +112,9 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
+      if (user?._id || driver?._id) {
+        await clearDriverNotificationCache(user?._id || driver?._id);
+      }
       await AsyncStorage.removeItem('@driver_jwt_token');
       await AsyncStorage.removeItem('@driver_user_data');
       await AsyncStorage.removeItem('@driver_profile_data');

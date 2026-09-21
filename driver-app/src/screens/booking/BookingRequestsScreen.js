@@ -7,6 +7,7 @@ import { COLORS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../state/AuthContext';
 import { useLanguage } from '../../state/LanguageContext';
 import { driverService } from '../../services/driverService';
+import { checkAndNotifyBookingRequests } from '../../services/notificationService';
 import DriverHeader from '../../components/DriverHeader';
 import RideRequestCard from '../../components/RideRequestCard';
 
@@ -20,7 +21,7 @@ const REJECTION_REASONS = [
 
 const BookingRequestsScreen = ({ navigation }) => {
 
-  const { isOnline, toggleOnlineStatus } = useAuth();
+  const { driver, user, isOnline, toggleOnlineStatus } = useAuth();
   const { t } = useLanguage();
 
   const [requests, setRequests] = useState([]);
@@ -35,6 +36,7 @@ const BookingRequestsScreen = ({ navigation }) => {
       const res = await driverService.getBookingRequests();
       if (res.data?.success && Array.isArray(res.data.data)) {
         setRequests(res.data.data);
+        checkAndNotifyBookingRequests(res.data.data, user?._id || driver?._id);
       } else {
         setRequests([]);
       }

@@ -6,10 +6,11 @@ import { COLORS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../state/AuthContext';
 import { useLanguage } from '../../state/LanguageContext';
 import { driverService } from '../../services/driverService';
+import { checkAndNotifyBookingRequests } from '../../services/notificationService';
 import DriverHeader from '../../components/DriverHeader';
 
 const DashboardScreen = ({ navigation }) => {
-  const { driver, isOnline, toggleOnlineStatus } = useAuth();
+  const { user, driver, isOnline, toggleOnlineStatus } = useAuth();
   const { t } = useLanguage();
 
   const [dashboardData, setDashboardData] = useState(null);
@@ -45,6 +46,7 @@ const DashboardScreen = ({ navigation }) => {
       }
       if (reqRes.data?.data) {
         setIncomingRequests(reqRes.data.data);
+        checkAndNotifyBookingRequests(reqRes.data.data, user?._id || driver?._id);
       }
     } catch (e) {
       console.warn('Dashboard load error', e);
