@@ -208,6 +208,7 @@ exports.register = async (req, res, next) => {
         user: user._id,
         name: user.name,
         mobileNumber: user.phone,
+        drivingLicenceNumber: 'PENDING',
         driverStatus: 'Pending Verification',
         drivingLicenceStatus: 'Pending Verification',
         rcStatus: 'Pending Verification',

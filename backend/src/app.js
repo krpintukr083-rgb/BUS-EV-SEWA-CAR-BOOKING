@@ -88,6 +88,7 @@ app.get('/api/health', (req, res) => {
 // REST API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/customer', customerRoutes);
+app.use('/api/user', customerRoutes);
 app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/payments', paymentRoutes);

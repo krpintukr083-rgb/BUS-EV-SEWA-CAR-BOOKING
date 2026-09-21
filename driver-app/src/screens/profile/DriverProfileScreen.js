@@ -8,6 +8,8 @@ import {
   Alert,
   Image,
   ActivityIndicator,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -24,6 +26,129 @@ export default function DriverProfileScreen({ navigation }) {
   const { t, currentLanguage } = useLanguage();
   const [langModalVisible, setLangModalVisible] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
+
+  // Profile Edit State
+  const [editProfileModalVisible, setEditProfileModalVisible] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editEmergencyContact, setEditEmergencyContact] = useState('');
+  const [updatingProfile, setUpdatingProfile] = useState(false);
+
+  // Change Login ID State
+  const [loginIdModalVisible, setLoginIdModalVisible] = useState(false);
+  const [newLoginId, setNewLoginId] = useState('');
+  const [loginType, setLoginType] = useState('phone');
+  const [updatingLoginId, setUpdatingLoginId] = useState(false);
+
+  // Change Password State
+  const [passwordModalVisible, setPasswordModalVisible] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+
+  const handleOpenEditProfile = () => {
+    setEditName(driver?.name || '');
+    setEditPhone(driver?.phone || driver?.mobileNumber || '');
+    setEditEmail(driver?.email || driver?.user?.email || '');
+    setEditAddress(driver?.address || '');
+    setEditEmergencyContact(driver?.emergencyContact || driver?.emergencyPhone || '');
+    setEditProfileModalVisible(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editName.trim()) {
+      Alert.alert('Validation Error', 'Name is required.');
+      return;
+    }
+    setUpdatingProfile(true);
+    try {
+      const res = await driverService.updateProfile({
+        name: editName.trim(),
+        phone: editPhone.trim(),
+        email: editEmail.trim(),
+        address: editAddress.trim(),
+        emergencyContact: editEmergencyContact.trim(),
+      });
+      if (res.data?.success) {
+        Alert.alert('Success', 'Profile updated successfully!');
+        setEditProfileModalVisible(false);
+        if (fetchFreshProfile) fetchFreshProfile();
+      } else {
+        Alert.alert('Error', res.data?.message || 'Failed to update profile.');
+      }
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.message || err.message || 'Failed to update profile.');
+    } finally {
+      setUpdatingProfile(false);
+    }
+  };
+
+  const handleOpenChangeLoginId = () => {
+    setNewLoginId(driver?.phone || driver?.email || '');
+    setLoginType(driver?.email && !driver?.phone ? 'email' : 'phone');
+    setLoginIdModalVisible(true);
+  };
+
+  const handleSaveLoginId = async () => {
+    if (!newLoginId.trim()) {
+      Alert.alert('Validation Error', 'Please enter a valid Login ID.');
+      return;
+    }
+    setUpdatingLoginId(true);
+    try {
+      const res = await driverService.changeLoginId(newLoginId.trim(), loginType);
+      if (res.data?.success) {
+        Alert.alert('Success', res.data?.message || 'Login ID changed successfully!');
+        setLoginIdModalVisible(false);
+        if (fetchFreshProfile) fetchFreshProfile();
+      } else {
+        Alert.alert('Error', res.data?.message || 'Failed to change Login ID.');
+      }
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.message || err.message || 'Failed to change Login ID.');
+    } finally {
+      setUpdatingLoginId(false);
+    }
+  };
+
+  const handleOpenChangePassword = () => {
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordModalVisible(true);
+  };
+
+  const handleSavePassword = async () => {
+    if (!currentPassword) {
+      Alert.alert('Validation Error', 'Current Password is required.');
+      return;
+    }
+    if (!newPassword) {
+      Alert.alert('Validation Error', 'New Password is required.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Validation Error', 'Confirm Password must match New Password.');
+      return;
+    }
+    setUpdatingPassword(true);
+    try {
+      const res = await driverService.changePassword(currentPassword, newPassword, confirmPassword);
+      if (res.data?.success) {
+        Alert.alert('Success', res.data?.message || 'Password changed successfully!');
+        setPasswordModalVisible(false);
+      } else {
+        Alert.alert('Error', res.data?.message || 'Failed to change password.');
+      }
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.message || err.message || 'Failed to change password.');
+    } finally {
+      setUpdatingPassword(false);
+    }
+  };
 
   const handleUpdatePhoto = async () => {
     try {
@@ -124,6 +249,29 @@ export default function DriverProfileScreen({ navigation }) {
   const photoUrl = driver?.profilePhoto || driver?.driverPhoto || driver?.user?.profilePhoto;
 
   const menuSections = [
+    {
+      title: 'Account & Security',
+      items: [
+        {
+          icon: 'account-edit-outline',
+          title: 'Edit Profile',
+          sub: 'Update name, phone, email, address, emergency contact',
+          onPress: handleOpenEditProfile,
+        },
+        {
+          icon: 'card-account-details-outline',
+          title: 'Change Login ID',
+          sub: 'Update registered phone number or email',
+          onPress: handleOpenChangeLoginId,
+        },
+        {
+          icon: 'lock-reset',
+          title: 'Change Password',
+          sub: 'Update account password safely',
+          onPress: handleOpenChangePassword,
+        },
+      ],
+    },
     {
       title: 'Vehicle & Documents',
       items: [
@@ -307,9 +455,273 @@ export default function DriverProfileScreen({ navigation }) {
         visible={langModalVisible}
         onClose={() => setLangModalVisible(false)}
       />
+
+      {/* Edit Profile Modal */}
+      <Modal visible={editProfileModalVisible} animationType="slide" transparent>
+        <View style={modalStyles.modalOverlay}>
+          <View style={modalStyles.modalContainer}>
+            <Text style={modalStyles.modalTitle}>Edit Driver Profile</Text>
+            <ScrollView style={{ maxHeight: 350 }}>
+              <Text style={modalStyles.fieldLabel}>Name</Text>
+              <TextInput
+                style={modalStyles.input}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="Full Name"
+                placeholderTextColor="#999"
+              />
+              <Text style={modalStyles.fieldLabel}>Phone Number</Text>
+              <TextInput
+                style={modalStyles.input}
+                value={editPhone}
+                onChangeText={setEditPhone}
+                placeholder="Phone Number"
+                placeholderTextColor="#999"
+                keyboardType="phone-pad"
+              />
+              <Text style={modalStyles.fieldLabel}>Email Address</Text>
+              <TextInput
+                style={modalStyles.input}
+                value={editEmail}
+                onChangeText={setEditEmail}
+                placeholder="Email Address"
+                placeholderTextColor="#999"
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              <Text style={modalStyles.fieldLabel}>Address</Text>
+              <TextInput
+                style={modalStyles.input}
+                value={editAddress}
+                onChangeText={setEditAddress}
+                placeholder="Address"
+                placeholderTextColor="#999"
+              />
+              <Text style={modalStyles.fieldLabel}>Emergency Contact</Text>
+              <TextInput
+                style={modalStyles.input}
+                value={editEmergencyContact}
+                onChangeText={setEditEmergencyContact}
+                placeholder="Emergency Contact Phone"
+                placeholderTextColor="#999"
+                keyboardType="phone-pad"
+              />
+            </ScrollView>
+            <View style={modalStyles.btnRow}>
+              <TouchableOpacity style={modalStyles.cancelBtn} onPress={() => setEditProfileModalVisible(false)}>
+                <Text style={modalStyles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={modalStyles.saveBtn} onPress={handleSaveProfile} disabled={updatingProfile}>
+                {updatingProfile ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <Text style={modalStyles.saveBtnText}>Save</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Change Login ID Modal */}
+      <Modal visible={loginIdModalVisible} animationType="slide" transparent>
+        <View style={modalStyles.modalOverlay}>
+          <View style={modalStyles.modalContainer}>
+            <Text style={modalStyles.modalTitle}>Change Login ID</Text>
+            <Text style={modalStyles.modalSub}>
+              Update your primary login identifier. Your existing driver account, earnings, and KYC data will remain safe.
+            </Text>
+            <View style={modalStyles.typeRow}>
+              <TouchableOpacity
+                style={[modalStyles.typeBtn, loginType === 'phone' && modalStyles.typeBtnActive]}
+                onPress={() => setLoginType('phone')}
+              >
+                <Text style={[modalStyles.typeBtnText, loginType === 'phone' && modalStyles.typeBtnTextActive]}>Phone</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[modalStyles.typeBtn, loginType === 'email' && modalStyles.typeBtnActive]}
+                onPress={() => setLoginType('email')}
+              >
+                <Text style={[modalStyles.typeBtnText, loginType === 'email' && modalStyles.typeBtnTextActive]}>Email</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={modalStyles.fieldLabel}>New Login ID ({loginType === 'email' ? 'Email' : 'Phone'})</Text>
+            <TextInput
+              style={modalStyles.input}
+              value={newLoginId}
+              onChangeText={setNewLoginId}
+              placeholder={loginType === 'email' ? 'driver@example.com' : '98XXXXXXXX'}
+              placeholderTextColor="#999"
+              keyboardType={loginType === 'email' ? 'email-address' : 'phone-pad'}
+              autoCapitalize="none"
+            />
+            <View style={modalStyles.btnRow}>
+              <TouchableOpacity style={modalStyles.cancelBtn} onPress={() => setLoginIdModalVisible(false)}>
+                <Text style={modalStyles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={modalStyles.saveBtn} onPress={handleSaveLoginId} disabled={updatingLoginId}>
+                {updatingLoginId ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <Text style={modalStyles.saveBtnText}>Update ID</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Change Password Modal */}
+      <Modal visible={passwordModalVisible} animationType="slide" transparent>
+        <View style={modalStyles.modalOverlay}>
+          <View style={modalStyles.modalContainer}>
+            <Text style={modalStyles.modalTitle}>Change Password</Text>
+            <Text style={modalStyles.fieldLabel}>Current Password *</Text>
+            <TextInput
+              style={modalStyles.input}
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+              placeholder="Current Password"
+              placeholderTextColor="#999"
+              secureTextEntry
+            />
+            <Text style={modalStyles.fieldLabel}>New Password *</Text>
+            <TextInput
+              style={modalStyles.input}
+              value={newPassword}
+              onChangeText={setNewPassword}
+              placeholder="New Password"
+              placeholderTextColor="#999"
+              secureTextEntry
+            />
+            <Text style={modalStyles.fieldLabel}>Confirm New Password *</Text>
+            <TextInput
+              style={modalStyles.input}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholder="Confirm New Password"
+              placeholderTextColor="#999"
+              secureTextEntry
+            />
+            <View style={modalStyles.btnRow}>
+              <TouchableOpacity style={modalStyles.cancelBtn} onPress={() => setPasswordModalVisible(false)}>
+                <Text style={modalStyles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={modalStyles.saveBtn} onPress={handleSavePassword} disabled={updatingPassword}>
+                {updatingPassword ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <Text style={modalStyles.saveBtnText}>Change Password</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
+
+const modalStyles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.m,
+  },
+  modalContainer: {
+    width: '100%',
+    backgroundColor: COLORS.bgCard || '#1E1E1E',
+    borderRadius: RADIUS.l,
+    padding: SPACING.l,
+    borderWidth: 1,
+    borderColor: COLORS.border || '#333',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.textPrimary || '#FFF',
+    marginBottom: SPACING.xs,
+  },
+  modalSub: {
+    fontSize: 12,
+    color: COLORS.textSecondary || '#AAA',
+    marginBottom: SPACING.m,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.textSecondary || '#AAA',
+    marginTop: SPACING.s,
+    marginBottom: 4,
+  },
+  input: {
+    backgroundColor: COLORS.bgDark || '#121212',
+    color: COLORS.textPrimary || '#FFF',
+    borderRadius: RADIUS.m,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border || '#333',
+  },
+  typeRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: SPACING.s,
+  },
+  typeBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: RADIUS.m,
+    backgroundColor: COLORS.bgDark || '#121212',
+    borderWidth: 1,
+    borderColor: COLORS.border || '#333',
+  },
+  typeBtnActive: {
+    backgroundColor: COLORS.primary || '#007AFF',
+    borderColor: COLORS.primary || '#007AFF',
+  },
+  typeBtnText: {
+    color: COLORS.textSecondary || '#AAA',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  typeBtnTextActive: {
+    color: '#FFF',
+  },
+  btnRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 10,
+    marginTop: SPACING.l,
+  },
+  cancelBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: RADIUS.m,
+    backgroundColor: 'transparent',
+  },
+  cancelBtnText: {
+    color: COLORS.textMuted || '#888',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  saveBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: RADIUS.m,
+    backgroundColor: COLORS.primary || '#007AFF',
+  },
+  saveBtnText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+});
+
 
 const styles = StyleSheet.create({
   container: {

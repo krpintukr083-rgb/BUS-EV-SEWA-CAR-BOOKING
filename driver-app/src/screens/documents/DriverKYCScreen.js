@@ -28,6 +28,7 @@ export default function DriverKYCScreen({ navigation }) {
     vehicleRc: { status: 'PENDING', documentNumber: '', expiryDate: '' },
     insurance: { status: 'PENDING', documentNumber: '', expiryDate: '' },
     fitnessCertificate: { status: 'PENDING', documentNumber: '', expiryDate: '' },
+    routePermit: { status: 'Not Submitted', description: '', documentNumber: '', docUrl: '' },
   });
 
   const [selectedDocKey, setSelectedDocKey] = useState(null);
@@ -43,16 +44,18 @@ export default function DriverKYCScreen({ navigation }) {
   const normalizeDoc = (doc, fallback) => {
     if (!doc && !fallback) return { status: 'MISSING', documentNumber: '', expiryDate: '', number: '', expiry: '' };
     const src = doc || fallback || {};
-    const documentNumber = src.documentNumber || src.number || src.docNumber || fallback?.documentNumber || fallback?.number || '';
+    const description = src.description || src.routePermitDescription || fallback?.description || '';
+    const documentNumber = src.documentNumber || src.number || src.docNumber || description || fallback?.documentNumber || fallback?.number || '';
     const expiryDate = src.expiryDate || src.expiry || src.expiryDetails || fallback?.expiryDate || fallback?.expiry || '';
     const citizenshipIssueDate = src.citizenshipIssueDate || src.issueDate || src.issue || fallback?.citizenshipIssueDate || fallback?.issueDate || '';
-    const docUrl = src.docUrl || src.url || src.citizenshipDoc || src.drivingLicenceDoc || src.rcDoc || src.insuranceDoc || src.fitnessDoc || fallback?.docUrl || fallback?.url || '';
+    const docUrl = src.docUrl || src.url || src.document || src.citizenshipDoc || src.drivingLicenceDoc || src.rcDoc || src.insuranceDoc || src.fitnessDoc || src.routePermitDoc || fallback?.docUrl || fallback?.url || '';
     const docFront = src.docFront || src.citizenshipDocFront || src.url || fallback?.docFront || '';
     const docBack = src.docBack || src.citizenshipDocBack || fallback?.docBack || '';
-    const status = src.status || fallback?.status || 'PENDING';
+    const status = src.status || fallback?.status || 'Not Submitted';
     const reason = src.rejectionReason || fallback?.rejectionReason || '';
     return {
       ...src,
+      description,
       documentNumber,
       number: documentNumber,
       expiryDate,
@@ -83,6 +86,7 @@ export default function DriverKYCScreen({ navigation }) {
           vehicleRc: normalizeDoc(docsMap.vehicleRc || docsMap.rc, prev.vehicleRc),
           insurance: normalizeDoc(docsMap.insurance, prev.insurance),
           fitnessCertificate: normalizeDoc(docsMap.fitnessCertificate || docsMap.fitness, prev.fitnessCertificate),
+          routePermit: normalizeDoc(docsMap.routePermit || docsMap.route_permit, prev.routePermit),
         }));
       }
     } catch (err) {
@@ -140,6 +144,12 @@ export default function DriverKYCScreen({ navigation }) {
       icon: 'car-wrench',
       desc: 'Authorized transport department fitness certificate',
     },
+    {
+      key: 'routePermit',
+      title: 'Route Permit',
+      icon: 'file-certificate-outline',
+      desc: 'Route permit for operating on specific routes',
+    },
   ];
 
   // Check for expired or expiring soon documents
@@ -155,6 +165,7 @@ export default function DriverKYCScreen({ navigation }) {
         return COLORS.danger;
       case 'UNDER_REVIEW':
       case 'PENDING':
+      case 'PENDING VERIFICATION':
         return COLORS.warning;
       default:
         return COLORS.textMuted;
@@ -164,10 +175,10 @@ export default function DriverKYCScreen({ navigation }) {
   const isDocSubmitted = (docData) => {
     if (!docData) return false;
     const s = docData.status?.toUpperCase();
-    if (s === 'VERIFIED' || s === 'APPROVED' || s === 'PENDING' || s === 'UNDER_REVIEW' || s === 'EXPIRED') {
+    if (s === 'VERIFIED' || s === 'APPROVED' || s === 'PENDING' || s === 'PENDING VERIFICATION' || s === 'UNDER_REVIEW' || s === 'EXPIRED') {
       return true;
     }
-    return !!(docData.documentNumber || docData.number);
+    return !!(docData.documentNumber || docData.number || docData.description || docData.docUrl);
   };
 
   return (
@@ -208,7 +219,7 @@ export default function DriverKYCScreen({ navigation }) {
           <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 40 }} />
         ) : (
           docConfigs.map((doc) => {
-            const docData = documents[doc.key] || { status: 'MISSING' };
+            const docData = documents[doc.key] || { status: 'Not Submitted' };
             const statusColor = getStatusColor(docData.status);
             const submitted = isDocSubmitted(docData);
             const isRejected = docData.status?.toUpperCase() === 'REJECTED';
@@ -226,32 +237,41 @@ export default function DriverKYCScreen({ navigation }) {
                   </View>
                   <View style={[styles.statusBadge, { backgroundColor: statusColor + '20', borderColor: statusColor }]}>
                     <Text style={[styles.statusBadgeText, { color: statusColor }]}>
-                      {docData.status || 'MISSING'}
+                      {docData.status || 'Not Submitted'}
                     </Text>
                   </View>
                 </View>
 
                 {/* Metadata Row */}
                 <View style={styles.docMetaRow}>
-                  <View style={styles.metaCol}>
-                    <Text style={styles.metaLabel}>
-                      {doc.key === 'citizenship' ? 'Citizenship No:' : 'Doc / License No:'}
-                    </Text>
-                    <Text style={styles.metaVal}>{docData.documentNumber || docData.number || 'Not submitted'}</Text>
-                  </View>
-                  <View style={styles.metaCol}>
-                    <Text style={styles.metaLabel}>
-                      {doc.key === 'citizenship' ? 'Issue Date:' : `${t('expiryDate')}:`}
-                    </Text>
-                    <Text style={[
-                      styles.metaVal,
-                      doc.key !== 'citizenship' && docData.status?.toUpperCase() === 'EXPIRED' && { color: COLORS.danger, fontWeight: '700' }
-                    ]}>
-                      {doc.key === 'citizenship'
-                        ? (docData.citizenshipIssueDate || docData.issueDate || docData.issue || 'N/A')
-                        : (docData.expiryDate || docData.expiry || 'N/A')}
-                    </Text>
-                  </View>
+                  {doc.key === 'routePermit' ? (
+                    <View style={styles.metaCol}>
+                      <Text style={styles.metaLabel}>Description:</Text>
+                      <Text style={styles.metaVal}>{docData.description || docData.documentNumber || 'Not submitted'}</Text>
+                    </View>
+                  ) : (
+                    <>
+                      <View style={styles.metaCol}>
+                        <Text style={styles.metaLabel}>
+                          {doc.key === 'citizenship' ? 'Citizenship No:' : 'Doc / License No:'}
+                        </Text>
+                        <Text style={styles.metaVal}>{docData.documentNumber || docData.number || 'Not submitted'}</Text>
+                      </View>
+                      <View style={styles.metaCol}>
+                        <Text style={styles.metaLabel}>
+                          {doc.key === 'citizenship' ? 'Issue Date:' : `${t('expiryDate')}:`}
+                        </Text>
+                        <Text style={[
+                          styles.metaVal,
+                          doc.key !== 'citizenship' && docData.status?.toUpperCase() === 'EXPIRED' && { color: COLORS.danger, fontWeight: '700' }
+                        ]}>
+                          {doc.key === 'citizenship'
+                            ? (docData.citizenshipIssueDate || docData.issueDate || docData.issue || 'N/A')
+                            : (docData.expiryDate || docData.expiry || 'N/A')}
+                        </Text>
+                      </View>
+                    </>
+                  )}
                 </View>
 
                 {/* Rejection Note if Rejected */}

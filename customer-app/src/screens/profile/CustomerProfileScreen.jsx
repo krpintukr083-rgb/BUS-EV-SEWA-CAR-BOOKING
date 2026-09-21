@@ -6,17 +6,40 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Alert
+  Alert,
+  Modal,
+  TextInput,
+  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCustomerAuth } from '../../context/CustomerAuthContext';
+import { customerService } from '../../services/customerService';
 import Header from '../../components/Header';
 import ServerSettingsModal from '../../components/ServerSettingsModal';
 import { COLORS } from '../../constants/colors';
 
 const CustomerProfileScreen = ({ navigation }) => {
-  const { customer, logout } = useCustomerAuth();
+  const { customer, logout, refreshUser } = useCustomerAuth();
   const [showServerModal, setShowServerModal] = useState(false);
+
+  // Modals state
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [showLoginIdModal, setShowLoginIdModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Edit Profile state
+  const [editName, setEditName] = useState(customer?.name || '');
+  const [editEmail, setEditEmail] = useState(customer?.email || '');
+  const [editPhone, setEditPhone] = useState(customer?.phone || '');
+
+  // Change Login ID state
+  const [newLoginId, setNewLoginId] = useState('');
+
+  // Change Password state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const handleLogout = () => {
     Alert.alert(
@@ -35,7 +58,121 @@ const CustomerProfileScreen = ({ navigation }) => {
     );
   };
 
+  const handleOpenEditProfile = () => {
+    setEditName(customer?.name || '');
+    setEditEmail(customer?.email || '');
+    setEditPhone(customer?.phone || '');
+    setShowEditProfileModal(true);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editName.trim()) {
+      Alert.alert('Validation Error', 'Please enter your full name.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await customerService.updateProfile({
+        name: editName.trim(),
+        email: editEmail.trim(),
+        phone: editPhone.trim()
+      });
+      if (res.success) {
+        Alert.alert('Success', 'Profile updated successfully.');
+        await refreshUser();
+        setShowEditProfileModal(false);
+      } else {
+        Alert.alert('Update Failed', res.message || 'Could not update profile');
+      }
+    } catch (err) {
+      Alert.alert('Update Failed', err.response?.data?.message || err.message || 'Failed to update profile');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveLoginId = async () => {
+    if (!newLoginId.trim()) {
+      Alert.alert('Validation Error', 'Please enter new email or mobile number.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await customerService.changeLoginId(newLoginId.trim());
+      if (res.success) {
+        Alert.alert('Success', `Login ID changed successfully to ${newLoginId.trim()}.`);
+        await refreshUser();
+        setShowLoginIdModal(false);
+        setNewLoginId('');
+      } else {
+        Alert.alert('Change Failed', res.message || 'Could not change Login ID');
+      }
+    } catch (err) {
+      Alert.alert('Change Failed', err.response?.data?.message || err.message || 'Failed to change Login ID');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSavePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      Alert.alert('Validation Error', 'All password fields are required.');
+      return;
+    }
+    if (newPassword.length < 6) {
+      Alert.alert('Validation Error', 'New password must be at least 6 characters long.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Validation Error', 'New password and confirm password do not match.');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await customerService.changePassword(currentPassword, newPassword, confirmPassword);
+      if (res.success) {
+        Alert.alert('Success', 'Password changed successfully');
+        setShowPasswordModal(false);
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        Alert.alert('Change Failed', res.message || 'Could not change password');
+      }
+    } catch (err) {
+      Alert.alert('Change Failed', err.response?.data?.message || err.message || 'Failed to change password');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const menuSections = [
+    {
+      title: 'Account & Security',
+      items: [
+        {
+          id: 'edit-profile',
+          title: 'Edit Profile',
+          subtitle: 'Update name, email & mobile number',
+          icon: 'person-outline',
+          action: handleOpenEditProfile
+        },
+        {
+          id: 'change-login-id',
+          title: 'Change Login ID',
+          subtitle: 'Update account email or phone identifier',
+          icon: 'mail-unread-outline',
+          action: () => setShowLoginIdModal(true)
+        },
+        {
+          id: 'change-password',
+          title: 'Change Password',
+          subtitle: 'Update account security password',
+          icon: 'key-outline',
+          action: () => setShowPasswordModal(true)
+        }
+      ]
+    },
     {
       title: 'Trips & Bookings',
       items: [
@@ -109,13 +246,6 @@ const CustomerProfileScreen = ({ navigation }) => {
           subtitle: 'Data usage & confidentiality',
           icon: 'lock-closed-outline',
           action: () => navigation.navigate('Privacy')
-        },
-        {
-          id: 'refund-policy',
-          title: 'Refund & Cancellation Policy',
-          subtitle: 'Deduction terms & refund timelines',
-          icon: 'refresh-circle-outline',
-          action: () => navigation.navigate('RefundPolicy')
         }
       ]
     }
@@ -131,7 +261,7 @@ const CustomerProfileScreen = ({ navigation }) => {
           <View style={styles.avatarContainer}>
             <Image
               source={{
-                uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80'
+                uri: customer?.profilePhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80'
               }}
               style={styles.avatar}
             />
@@ -146,12 +276,12 @@ const CustomerProfileScreen = ({ navigation }) => {
           <View style={styles.contactContainer}>
             <View style={styles.contactItem}>
               <Ionicons name="call-outline" size={14} color={COLORS.primary} />
-              <Text style={styles.contactText}>+91 {customer?.phone || '9876543210'}</Text>
+              <Text style={styles.contactText}>{customer?.phone || 'Not set'}</Text>
             </View>
             <View style={styles.contactDot} />
             <View style={styles.contactItem}>
               <Ionicons name="mail-outline" size={14} color={COLORS.primary} />
-              <Text style={styles.contactText}>{customer?.email || 'customer@example.com'}</Text>
+              <Text style={styles.contactText}>{customer?.email || 'Not set'}</Text>
             </View>
           </View>
         </View>
@@ -194,6 +324,126 @@ const CustomerProfileScreen = ({ navigation }) => {
         {/* Version info */}
         <Text style={styles.versionText}>TravelEase Customer App v1.0.0 (Production Build)</Text>
       </ScrollView>
+
+      {/* Edit Profile Modal */}
+      <Modal visible={showEditProfileModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Profile</Text>
+              <TouchableOpacity onPress={() => setShowEditProfileModal(false)}>
+                <Ionicons name="close" size={22} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.inputLabel}>Full Name</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={editName}
+              onChangeText={setEditName}
+              placeholder="e.g. John Doe"
+            />
+
+            <Text style={styles.inputLabel}>Mobile Phone</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={editPhone}
+              onChangeText={setEditPhone}
+              placeholder="e.g. +919876543210"
+              keyboardType="phone-pad"
+            />
+
+            <Text style={styles.inputLabel}>Email Address</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={editEmail}
+              onChangeText={setEditEmail}
+              placeholder="e.g. customer@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+
+            <TouchableOpacity style={styles.modalBtn} onPress={handleSaveProfile} disabled={saving}>
+              {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.modalBtnText}>Save Profile</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Change Login ID Modal */}
+      <Modal visible={showLoginIdModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Change Login ID</Text>
+              <TouchableOpacity onPress={() => setShowLoginIdModal(false)}>
+                <Ionicons name="close" size={22} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalDesc}>
+              Current Login ID: {customer?.email || customer?.phone}
+            </Text>
+
+            <Text style={styles.inputLabel}>New Email / Phone Number *</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={newLoginId}
+              onChangeText={setNewLoginId}
+              placeholder="e.g. new_email@example.com or +919876543210"
+              autoCapitalize="none"
+            />
+
+            <TouchableOpacity style={styles.modalBtn} onPress={handleSaveLoginId} disabled={saving}>
+              {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.modalBtnText}>Update Login ID</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Change Password Modal */}
+      <Modal visible={showPasswordModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Change Password</Text>
+              <TouchableOpacity onPress={() => setShowPasswordModal(false)}>
+                <Ionicons name="close" size={22} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.inputLabel}>Current Password *</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={currentPassword}
+              onChangeText={setCurrentPassword}
+              secureTextEntry
+              placeholder="Enter current password"
+            />
+
+            <Text style={styles.inputLabel}>New Password *</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={newPassword}
+              onChangeText={setNewPassword}
+              secureTextEntry
+              placeholder="Enter new password (min 6 chars)"
+            />
+
+            <Text style={styles.inputLabel}>Confirm New Password *</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry
+              placeholder="Confirm new password"
+            />
+
+            <TouchableOpacity style={styles.modalBtn} onPress={handleSavePassword} disabled={saving}>
+              {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.modalBtnText}>Change Password</Text>}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Server Settings Modal */}
       <ServerSettingsModal
@@ -252,47 +502,49 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontSize: 18,
-    fontWeight: '800',
-    color: COLORS.darkNavy
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    marginBottom: 2
   },
   userRole: {
     fontSize: 12,
-    color: COLORS.primary,
     fontWeight: '600',
-    marginTop: 2
+    color: COLORS.success,
+    marginBottom: 12,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10
   },
   contactContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
-    backgroundColor: '#f8fafc',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20
+    justifyContent: 'center',
+    flexWrap: 'wrap'
   },
   contactItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4
   },
+  contactText: {
+    fontSize: 12,
+    color: COLORS.textSecondary
+  },
   contactDot: {
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#cbd5e1',
+    backgroundColor: COLORS.border,
     marginHorizontal: 8
   },
-  contactText: {
-    fontSize: 11,
-    color: COLORS.textSecondary
-  },
   sectionWrap: {
-    marginBottom: 16
+    marginBottom: 20
   },
   sectionTitle: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '700',
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginBottom: 8,
@@ -300,7 +552,7 @@ const styles = StyleSheet.create({
   },
   cardMenu: {
     backgroundColor: '#ffffff',
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: COLORS.border,
     overflow: 'hidden'
@@ -312,13 +564,13 @@ const styles = StyleSheet.create({
   },
   menuBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9'
+    borderBottomColor: COLORS.border
   },
   menuIconBox: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.primaryLight,
+    borderRadius: 10,
+    backgroundColor: 'rgba(14, 165, 233, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12
@@ -328,36 +580,94 @@ const styles = StyleSheet.create({
   },
   menuTitle: {
     fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.darkNavy
+    fontWeight: '600',
+    color: COLORS.textPrimary
   },
   menuSub: {
     fontSize: 11,
-    color: COLORS.textSecondary,
+    color: COLORS.textMuted,
     marginTop: 1
   },
   logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#ffffff',
-    paddingVertical: 14,
-    borderRadius: 12,
+    backgroundColor: '#fff1f2',
     borderWidth: 1,
-    borderColor: '#fca5a5',
-    marginTop: 8,
+    borderColor: '#fecdd3',
+    borderRadius: 12,
+    paddingVertical: 14,
+    gap: 8,
     marginBottom: 16
   },
   logoutText: {
+    color: COLORS.danger,
     fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.danger
+    fontWeight: '700'
   },
   versionText: {
     textAlign: 'center',
     fontSize: 11,
-    color: COLORS.textSecondary
+    color: COLORS.textMuted
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    maxWidth: 400
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0f172a'
+  },
+  modalDesc: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 12
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#475569',
+    marginTop: 8,
+    marginBottom: 4
+  },
+  modalInput: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#0f172a'
+  },
+  modalBtn: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 18
+  },
+  modalBtnText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '700'
   }
 });
 

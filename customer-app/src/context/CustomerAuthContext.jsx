@@ -82,6 +82,18 @@ export const CustomerAuthProvider = ({ children }) => {
     }
   };
 
+  const refreshUser = async () => {
+    try {
+      const res = await customerService.getMe();
+      if (res.success && res.user) {
+        await AsyncStorage.setItem('customer_user', JSON.stringify(res.user));
+        setUser(res.user);
+      }
+    } catch (e) {
+      console.log('Error refreshing customer user:', e);
+    }
+  };
+
   const logout = async () => {
     try {
       await AsyncStorage.removeItem('customer_token');
@@ -102,7 +114,8 @@ export const CustomerAuthProvider = ({ children }) => {
         error,
         login,
         register,
-        logout
+        logout,
+        refreshUser
       }}
     >
       {children}

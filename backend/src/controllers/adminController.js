@@ -347,6 +347,15 @@ exports.getDrivers = async (req, res, next) => {
           fileUrl: obj.fitnessDoc || '',
           expiryDate: obj.fitnessExpiry || '',
           status: obj.fitnessStatus || 'Pending'
+        },
+        routePermit: {
+          description: obj.routePermit?.description || obj.routePermitDescription || '',
+          documentNumber: obj.routePermit?.description || obj.routePermitDescription || '',
+          url: obj.routePermit?.document || obj.routePermitDoc || '',
+          fileUrl: obj.routePermit?.document || obj.routePermitDoc || '',
+          document: obj.routePermit?.document || obj.routePermitDoc || '',
+          status: obj.routePermit?.status || obj.routePermitStatus || 'Not Submitted',
+          rejectionReason: (obj.routePermit?.status === 'Rejected' || obj.routePermitStatus === 'Rejected') ? (obj.routePermit?.rejectionReason || obj.rejectionReason || '') : ''
         }
       };
 
@@ -355,6 +364,9 @@ exports.getDrivers = async (req, res, next) => {
         drivingLicenseDoc: obj.drivingLicenceDoc,
         vehicleRcDoc: obj.rcDoc,
         fitnessCertificateDoc: obj.fitnessDoc,
+        routePermitDoc: obj.routePermit?.document || obj.routePermitDoc || '',
+        routePermitDescription: obj.routePermit?.description || obj.routePermitDescription || '',
+        routePermitStatus: obj.routePermit?.status || obj.routePermitStatus || 'Not Submitted',
         documents: docsObj
       };
     });
@@ -492,6 +504,7 @@ exports.verifyDriverDocuments = async (req, res, next) => {
       rcStatus,
       insuranceStatus,
       fitnessStatus,
+      routePermitStatus,
       rejectionReason
     } = req.body;
 
@@ -499,12 +512,15 @@ exports.verifyDriverDocuments = async (req, res, next) => {
     if (!driver) return res.status(404).json({ success: false, message: 'Driver not found' });
 
     const targetDocType = req.body.docType || req.params.docType;
-    const targetStatus = req.body.status || req.params.status;
+    const targetStatus = req.body.status || req.body.action || req.params.status;
 
     // Single document action handler
     if (targetDocType && targetStatus) {
       const cleanType = targetDocType.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const normalizeStatus = targetStatus.charAt(0).toUpperCase() + targetStatus.slice(1).toLowerCase(); // 'Approved', 'Rejected', 'Pending'
+      let normalizeStatus = targetStatus.charAt(0).toUpperCase() + targetStatus.slice(1).toLowerCase(); // 'Approved', 'Rejected', 'Pending'
+      if (normalizeStatus === 'Approve') normalizeStatus = 'Approved';
+      if (normalizeStatus === 'Reject') normalizeStatus = 'Rejected';
+      if (normalizeStatus === 'Pending') normalizeStatus = 'Pending Verification';
       console.log(`[DEBUG VERIFY] cleanType=${cleanType}, normalizeStatus=${normalizeStatus}`);
 
       if (normalizeStatus === 'Rejected' && (!rejectionReason || !rejectionReason.trim())) {
@@ -532,6 +548,16 @@ exports.verifyDriverDocuments = async (req, res, next) => {
         case 'fitnesscertificate':
           driver.fitnessStatus = normalizeStatus;
           break;
+        case 'routepermit':
+        case 'route_permit':
+        case 'routepermitdoc':
+          if (!driver.routePermit) driver.routePermit = {};
+          driver.routePermit.status = normalizeStatus;
+          driver.routePermitStatus = normalizeStatus;
+          if (normalizeStatus === 'Rejected' && rejectionReason) {
+            driver.routePermit.rejectionReason = rejectionReason.trim();
+          }
+          break;
         default:
           return res.status(400).json({ success: false, message: `Invalid document type '${targetDocType}'` });
       }
@@ -546,6 +572,11 @@ exports.verifyDriverDocuments = async (req, res, next) => {
       if (rcStatus) driver.rcStatus = rcStatus;
       if (insuranceStatus) driver.insuranceStatus = insuranceStatus;
       if (fitnessStatus) driver.fitnessStatus = fitnessStatus;
+      if (routePermitStatus) {
+        if (!driver.routePermit) driver.routePermit = {};
+        driver.routePermit.status = routePermitStatus;
+        driver.routePermitStatus = routePermitStatus;
+      }
       if (rejectionReason !== undefined) driver.rejectionReason = rejectionReason;
     }
 
@@ -555,8 +586,9 @@ exports.verifyDriverDocuments = async (req, res, next) => {
       driver.drivingLicenceStatus,
       driver.rcStatus,
       driver.insuranceStatus,
-      driver.fitnessStatus
-    ].map(s => (s || '').toLowerCase());
+      driver.fitnessStatus,
+      driver.routePermit?.status || driver.routePermitStatus
+    ].filter(Boolean).map(s => (s || '').toLowerCase());
 
     if (allStatuses.some(s => s === 'rejected')) {
       driver.driverStatus = 'Rejected';

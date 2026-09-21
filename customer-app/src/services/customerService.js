@@ -28,6 +28,16 @@ export const customerService = {
     return res.data;
   },
 
+  changeLoginId: async (newLoginId, loginType) => {
+    const res = await api.put('/customer/account/login-id', { newLoginId, loginType });
+    return res.data;
+  },
+
+  changePassword: async (currentPassword, newPassword, confirmNewPassword) => {
+    const res = await api.put('/customer/account/password', { currentPassword, newPassword, confirmNewPassword });
+    return res.data;
+  },
+
   // Service Control Availability
   getServicesStatus: async () => {
     const res = await api.get('/customer/services');

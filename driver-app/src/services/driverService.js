@@ -10,6 +10,8 @@ export const driverService = {
   getDashboard: () => apiClient.get(ENDPOINTS.DASHBOARD),
   getProfile: () => apiClient.get(ENDPOINTS.PROFILE),
   updateProfile: (data) => apiClient.put(ENDPOINTS.PROFILE, data),
+  changeLoginId: (newLoginId, loginType) => apiClient.put('/driver/account/login-id', { newLoginId, loginType }),
+  changePassword: (currentPassword, newPassword, confirmNewPassword) => apiClient.put('/driver/account/password', { currentPassword, newPassword, confirmNewPassword }),
   getStatus: () => apiClient.get(ENDPOINTS.STATUS),
   toggleStatus: (isOnline) => apiClient.put(ENDPOINTS.STATUS, { isOnline }),
 

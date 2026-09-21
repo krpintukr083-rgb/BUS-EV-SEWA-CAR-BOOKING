@@ -159,6 +159,30 @@ const driverSchema = new mongoose.Schema(
       enum: ['Pending', 'Pending Verification', 'Approved', 'Rejected'],
       default: 'Approved'
     },
+    // Route Permit Details
+    routePermit: {
+      description: { type: String, default: '' },
+      document: { type: String, default: '' },
+      status: {
+        type: String,
+        enum: ['Not Submitted', 'Pending', 'Pending Verification', 'Approved', 'Rejected'],
+        default: 'Not Submitted'
+      },
+      rejectionReason: { type: String, default: '' }
+    },
+    routePermitDescription: {
+      type: String,
+      default: ''
+    },
+    routePermitDoc: {
+      type: String,
+      default: ''
+    },
+    routePermitStatus: {
+      type: String,
+      enum: ['Not Submitted', 'Pending', 'Pending Verification', 'Approved', 'Rejected'],
+      default: 'Not Submitted'
+    },
     // Required Driver Documents (General / Background Verification)
     requiredDocumentsStatus: {
       type: String,

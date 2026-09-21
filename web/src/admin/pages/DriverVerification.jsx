@@ -248,6 +248,14 @@ const DriverVerification = () => {
       expiry: selectedDriver.fitnessExpiry || selectedDriver.documents?.fitness?.expiryDate || selectedDriver.documents?.fitnessCertificate?.expiryDate || '2027-03-31',
       url: selectedDriver.fitnessDoc || selectedDriver.fitnessCertificateDoc || selectedDriver.documents?.fitness?.url || selectedDriver.documents?.fitness?.fileUrl || selectedDriver.documents?.fitnessCertificate?.url || selectedDriver.documents?.fitnessCertificate?.fileUrl,
       status: selectedDriver.fitnessStatus || selectedDriver.documents?.fitness?.status || selectedDriver.documents?.fitnessCertificate?.status || 'Pending'
+    },
+    {
+      key: 'routePermit',
+      title: '6. Route Permit',
+      description: selectedDriver.routePermitDescription || selectedDriver.routePermit?.description || selectedDriver.documents?.routePermit?.description || selectedDriver.documents?.routePermit?.documentNumber || 'Not submitted',
+      docNum: selectedDriver.routePermitDescription || selectedDriver.routePermit?.description || selectedDriver.documents?.routePermit?.description || selectedDriver.documents?.routePermit?.documentNumber || 'Not submitted',
+      url: selectedDriver.routePermitDoc || selectedDriver.routePermit?.document || selectedDriver.documents?.routePermit?.url || selectedDriver.documents?.routePermit?.fileUrl,
+      status: selectedDriver.routePermitStatus || selectedDriver.routePermit?.status || selectedDriver.documents?.routePermit?.status || 'Not Submitted'
     }
   ] : [];
 
@@ -336,14 +344,16 @@ const DriverVerification = () => {
                   d.drivingLicenceStatus === 'Pending' ||
                   d.rcStatus === 'Pending' ||
                   d.insuranceStatus === 'Pending' ||
-                  d.fitnessStatus === 'Pending';
+                  d.fitnessStatus === 'Pending' ||
+                  d.routePermitStatus === 'Pending' || d.routePermitStatus === 'Pending Verification';
 
                 const hasRejected =
                   d.citizenshipStatus === 'Rejected' ||
                   d.drivingLicenceStatus === 'Rejected' ||
                   d.rcStatus === 'Rejected' ||
                   d.insuranceStatus === 'Rejected' ||
-                  d.fitnessStatus === 'Rejected';
+                  d.fitnessStatus === 'Rejected' ||
+                  d.routePermitStatus === 'Rejected';
 
                 return (
                   <div
@@ -466,7 +476,7 @@ const DriverVerification = () => {
             <div className="content-card" style={{ padding: '20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                 <h4 style={{ fontSize: '1.05rem', fontWeight: '800', color: '#0f172a', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <FileCheck size={18} color="#0A66C2" /> Uploaded KYC Credentials & Documents (5)
+                  <FileCheck size={18} color="#0A66C2" /> Uploaded KYC Credentials & Documents ({documentConfigs.length})
                 </h4>
               </div>
 
@@ -499,24 +509,37 @@ const DriverVerification = () => {
                           </div>
 
                           <div style={{ display: 'flex', gap: '16px', marginTop: '8px', fontSize: '0.82rem', color: '#475569' }}>
-                            <div>
-                              <span style={{ color: '#94a3b8' }}>
-                                {doc.key === 'citizenship' ? 'Citizenship Number: ' : 'Doc No: '}
-                              </span>
-                              <code style={{ backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontWeight: '700', color: '#0f172a' }}>
-                                {doc.docNum}
-                              </code>
-                            </div>
-                            {doc.key === 'citizenship' ? (
+                            {doc.key === 'routePermit' ? (
                               <div>
-                                <span style={{ color: '#94a3b8' }}>Issue Date: </span>
-                                <span style={{ fontWeight: '600', color: '#0f172a' }}>{doc.issueDate}</span>
+                                <span style={{ color: '#94a3b8' }}>Description: </span>
+                                <span style={{ fontWeight: '600', color: '#0f172a' }}>{doc.description || doc.docNum}</span>
                               </div>
+                            ) : doc.key === 'citizenship' ? (
+                              <>
+                                <div>
+                                  <span style={{ color: '#94a3b8' }}>Citizenship Number: </span>
+                                  <code style={{ backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontWeight: '700', color: '#0f172a' }}>
+                                    {doc.docNum}
+                                  </code>
+                                </div>
+                                <div>
+                                  <span style={{ color: '#94a3b8' }}>Issue Date: </span>
+                                  <span style={{ fontWeight: '600', color: '#0f172a' }}>{doc.issueDate}</span>
+                                </div>
+                              </>
                             ) : (
-                              <div>
-                                <span style={{ color: '#94a3b8' }}>Expiry Date: </span>
-                                <span style={{ fontWeight: '600', color: '#0f172a' }}>{doc.expiry}</span>
-                              </div>
+                              <>
+                                <div>
+                                  <span style={{ color: '#94a3b8' }}>Doc No: </span>
+                                  <code style={{ backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontWeight: '700', color: '#0f172a' }}>
+                                    {doc.docNum}
+                                  </code>
+                                </div>
+                                <div>
+                                  <span style={{ color: '#94a3b8' }}>Expiry Date: </span>
+                                  <span style={{ fontWeight: '600', color: '#0f172a' }}>{doc.expiry}</span>
+                                </div>
+                              </>
                             )}
                           </div>
 

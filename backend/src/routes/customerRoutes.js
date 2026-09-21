@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getCustomerProfile, updateCustomerProfile } = require('../controllers/userController');
+const { getCustomerProfile, updateCustomerProfile, changeUserLoginId, changeUserPassword } = require('../controllers/userController');
 const {
   getServicesStatus,
   getBuses,
@@ -38,6 +38,8 @@ router.get('/bus-offer', getBusOffer);
 router.use(verifyToken);
 router.get('/profile', getCustomerProfile);
 router.put('/profile', updateCustomerProfile);
+router.put('/account/login-id', changeUserLoginId);
+router.put('/account/password', changeUserPassword);
 router.post('/bookings', createBooking);
 router.post('/payments/process', processPayment);
 router.get('/my-bookings', getMyBookings);

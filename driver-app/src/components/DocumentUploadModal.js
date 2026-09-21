@@ -10,18 +10,21 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
   const [docNumber, setDocNumber] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [issueDate, setIssueDate] = useState('');
+  const [description, setDescription] = useState('');
   const [selectedAsset, setSelectedAsset] = useState(null);
   const [frontAsset, setFrontAsset] = useState(null);
   const [backAsset, setBackAsset] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const isCitizenship = docType === 'citizenship';
+  const isRoutePermit = docType === 'routePermit' || docType === 'route_permit';
 
   useEffect(() => {
     if (visible) {
       setDocNumber('');
       setExpiryDate('');
       setIssueDate('');
+      setDescription('');
       setSelectedAsset(null);
       setFrontAsset(null);
       setBackAsset(null);
@@ -118,17 +121,33 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
   };
 
   const handleUpload = async () => {
-    if (!docNumber || docNumber.trim() === '') {
-      Alert.alert('Validation Error', 'Please enter the document number.');
-      return;
-    }
-
-    if (isCitizenship) {
+    if (isRoutePermit) {
+      if (!description || !description.trim()) {
+        Alert.alert('Validation Error', 'Please enter route permit description.');
+        return;
+      }
+      if (description.trim().length > 200) {
+        Alert.alert('Validation Error', 'Description must be at most 200 characters.');
+        return;
+      }
+      if (!selectedAsset) {
+        Alert.alert('Validation Error', 'Please select or capture a route permit document file/photo.');
+        return;
+      }
+    } else if (isCitizenship) {
+      if (!docNumber || docNumber.trim() === '') {
+        Alert.alert('Validation Error', 'Please enter the Citizenship Number.');
+        return;
+      }
       if (!frontAsset) {
         Alert.alert('Validation Error', 'Please select or capture the Front Side of your Citizenship / National ID.');
         return;
       }
     } else {
+      if (!docNumber || docNumber.trim() === '') {
+        Alert.alert('Validation Error', 'Please enter the document number.');
+        return;
+      }
       if (!selectedAsset) {
         Alert.alert('Validation Error', 'Please select or capture a document file/photo.');
         return;
@@ -139,9 +158,17 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
     try {
       const formData = new FormData();
       formData.append('docType', docType);
-      formData.append('documentNumber', docNumber.trim());
 
-      if (isCitizenship) {
+      if (isRoutePermit) {
+        formData.append('description', description.trim());
+        formData.append('documentNumber', description.trim());
+        formData.append('document', {
+          uri: selectedAsset.uri,
+          name: selectedAsset.name || `route_permit_${Date.now()}.jpg`,
+          type: selectedAsset.mimeType || 'image/jpeg',
+        });
+      } else if (isCitizenship) {
+        formData.append('documentNumber', docNumber.trim());
         if (issueDate.trim()) {
           formData.append('citizenshipIssueDate', issueDate.trim());
           formData.append('issueDate', issueDate.trim());
@@ -159,6 +186,7 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
           });
         }
       } else {
+        formData.append('documentNumber', docNumber.trim());
         formData.append('expiryDate', expiryDate.trim() || '2029-12-31');
         formData.append('document', {
           uri: selectedAsset.uri,
@@ -219,21 +247,33 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
     }
 
     return (
-      <View style={styles.pickerButtonGroup}>
-        <TouchableOpacity style={styles.pickerBtn} onPress={() => handlePickFromCamera(target)} activeOpacity={0.8}>
-          <Ionicons name="camera" size={20} color={COLORS.primary} />
-          <Text style={styles.pickerBtnText}>Camera</Text>
+      <View>
+        <TouchableOpacity
+          style={styles.uploadAreaContainer}
+          onPress={() => handlePickFromGallery(target)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="cloud-upload-outline" size={28} color={COLORS.primary || '#0A66C2'} />
+          <Text style={styles.uploadAreaText}>Tap to upload document</Text>
+          <Text style={styles.uploadAreaSubText}>Supported: JPG, PNG, PDF</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.pickerBtn} onPress={() => handlePickFromGallery(target)} activeOpacity={0.8}>
-          <Ionicons name="images" size={20} color={COLORS.primary} />
-          <Text style={styles.pickerBtnText}>Gallery</Text>
-        </TouchableOpacity>
+        <View style={styles.pickerButtonGroup}>
+          <TouchableOpacity style={styles.pickerBtn} onPress={() => handlePickFromCamera(target)} activeOpacity={0.8}>
+            <Ionicons name="camera" size={18} color={COLORS.primary} />
+            <Text style={styles.pickerBtnText}>Camera</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity style={styles.pickerBtn} onPress={() => handlePickDocument(target)} activeOpacity={0.8}>
-          <Ionicons name="folder-open" size={20} color={COLORS.primary} />
-          <Text style={styles.pickerBtnText}>PDF / File</Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.pickerBtn} onPress={() => handlePickFromGallery(target)} activeOpacity={0.8}>
+            <Ionicons name="images" size={18} color={COLORS.primary} />
+            <Text style={styles.pickerBtnText}>Gallery</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.pickerBtn} onPress={() => handlePickDocument(target)} activeOpacity={0.8}>
+            <Ionicons name="folder-open" size={18} color={COLORS.primary} />
+            <Text style={styles.pickerBtnText}>PDF / File</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
   };
@@ -243,25 +283,43 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
       <View style={styles.overlay}>
         <View style={styles.modalCard}>
           <View style={styles.header}>
-            <Text style={styles.title}>Upload {docTitle || 'Document'}</Text>
+            <Text style={styles.title}>
+              {isRoutePermit ? 'Upload Route Permit' : `Upload ${docTitle || 'Document'}`}
+            </Text>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <Ionicons name="close" size={22} color={COLORS.textMuted} />
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.label}>
-            {isCitizenship ? 'Citizenship Number *' : 'Document / License Number *'}
-          </Text>
-          <TextInput
-            style={styles.input}
-            placeholder={isCitizenship ? 'e.g. CIT-98765-NP' : 'e.g. DL-01-2024-9982'}
-            placeholderTextColor={COLORS.textMuted}
-            value={docNumber}
-            onChangeText={setDocNumber}
-          />
-
-          {isCitizenship ? (
+          {isRoutePermit ? (
             <>
+              <Text style={styles.label}>Description *</Text>
+              <TextInput
+                style={[styles.input, styles.multilineInput]}
+                placeholder="e.g. Route name, permit details, valid for, etc."
+                placeholderTextColor={COLORS.textMuted}
+                value={description}
+                onChangeText={setDescription}
+                maxLength={200}
+                multiline={true}
+                numberOfLines={3}
+              />
+              <Text style={styles.charCounter}>{description.length}/200</Text>
+
+              <Text style={styles.label}>Upload Document / Photo *</Text>
+              {renderPickerControls('single')}
+            </>
+          ) : isCitizenship ? (
+            <>
+              <Text style={styles.label}>Citizenship Number *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. CIT-98765-NP"
+                placeholderTextColor={COLORS.textMuted}
+                value={docNumber}
+                onChangeText={setDocNumber}
+              />
+
               <Text style={styles.label}>Issue Date (YYYY-MM-DD)</Text>
               <TextInput
                 style={styles.input}
@@ -279,6 +337,15 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
             </>
           ) : (
             <>
+              <Text style={styles.label}>Document / License Number *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. DL-01-2024-9982"
+                placeholderTextColor={COLORS.textMuted}
+                value={docNumber}
+                onChangeText={setDocNumber}
+              />
+
               <Text style={styles.label}>Expiry Date (YYYY-MM-DD)</Text>
               <TextInput
                 style={styles.input}
@@ -357,6 +424,39 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border || '#334155',
     marginBottom: SPACING.xs || 6,
+  },
+  multilineInput: {
+    minHeight: 70,
+    textAlignVertical: 'top',
+  },
+  charCounter: {
+    fontSize: 11,
+    color: COLORS.textMuted || '#94A3B8',
+    textAlign: 'right',
+    marginTop: -4,
+    marginBottom: 6,
+  },
+  uploadAreaContainer: {
+    backgroundColor: 'rgba(10, 102, 194, 0.08)',
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: COLORS.primary || '#0A66C2',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 6,
+  },
+  uploadAreaText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.primary || '#0A66C2',
+    marginTop: 6,
+  },
+  uploadAreaSubText: {
+    fontSize: 11,
+    color: COLORS.textMuted || '#94A3B8',
+    marginTop: 2,
   },
   pickerButtonGroup: {
     flexDirection: 'row',

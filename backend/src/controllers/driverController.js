@@ -327,17 +327,125 @@ exports.updateDriverProfile = async (req, res, next) => {
 
     // Also update linked User profile
     if (driver.user) {
-      await User.findByIdAndUpdate(driver.user, {
+      const userUpdates = {
         name: driver.name,
         phone: driver.mobileNumber,
         ...(profilePhoto ? { profilePhoto } : {})
-      });
+      };
+      if (req.body.email) userUpdates.email = req.body.email.toLowerCase().trim();
+      await User.findByIdAndUpdate(driver.user, userUpdates);
     }
 
     res.json({
       success: true,
       message: 'Driver profile updated successfully',
       data: driver
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Change Driver Login ID (Email or Mobile Phone Number)
+// @route   PUT /api/driver/account/login-id
+// @access  Private (Driver Only)
+exports.changeDriverLoginId = async (req, res, next) => {
+  try {
+    const { newLoginId, loginType } = req.body;
+    if (!newLoginId || !newLoginId.trim()) {
+      return res.status(400).json({ success: false, message: 'Please provide new email or mobile phone number' });
+    }
+
+    const cleanId = newLoginId.trim();
+    const isEmail = loginType === 'email' || cleanId.includes('@');
+
+    const driver = await Driver.findById(req.driver._id);
+    if (!driver) {
+      return res.status(404).json({ success: false, message: 'Driver profile not found' });
+    }
+
+    const userId = driver.user || req.user?._id;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Driver user account not found' });
+    }
+
+    if (isEmail) {
+      const emailLower = cleanId.toLowerCase();
+      const existing = await User.findOne({ email: emailLower, _id: { $ne: user._id } });
+      if (existing) {
+        return res.status(400).json({ success: false, message: 'This email is already registered with another account' });
+      }
+      user.email = emailLower;
+    } else {
+      const existingUser = await User.findOne({ phone: cleanId, _id: { $ne: user._id } });
+      if (existingUser) {
+        return res.status(400).json({ success: false, message: 'This mobile number is already registered with another account' });
+      }
+      user.phone = cleanId;
+      driver.mobileNumber = cleanId;
+    }
+
+    await user.save();
+    await driver.save();
+
+    res.json({
+      success: true,
+      message: `Driver login ID changed successfully to ${cleanId}`,
+      data: {
+        driverId: driver._id,
+        userId: user._id,
+        email: user.email,
+        phone: user.phone,
+        mobileNumber: driver.mobileNumber
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Change Driver Password
+// @route   PUT /api/driver/account/password
+// @access  Private (Driver Only)
+exports.changeDriverPassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword, confirmNewPassword } = req.body;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current password and new password are required' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'New password must be at least 6 characters long' });
+    }
+
+    if (confirmNewPassword && newPassword !== confirmNewPassword) {
+      return res.status(400).json({ success: false, message: 'New password and confirm password do not match' });
+    }
+
+    const driver = await Driver.findById(req.driver._id);
+    if (!driver) {
+      return res.status(404).json({ success: false, message: 'Driver profile not found' });
+    }
+
+    const userId = driver.user || req.user?._id;
+    const user = await User.findById(userId).select('+password');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User account not found' });
+    }
+
+    const isMatch = await user.matchPassword(currentPassword);
+    if (!isMatch) {
+      return res.status(400).json({ success: false, message: 'Current password is incorrect. Please try again.' });
+    }
+
+    user.password = newPassword;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Password changed successfully'
     });
   } catch (error) {
     next(error);
@@ -454,6 +562,15 @@ exports.getDriverDocuments = async (req, res, next) => {
         expiryDate: driver.fitnessExpiry || '2027-03-31',
         status: driver.fitnessStatus || 'Pending',
         expiryInfo: checkExpiry(driver.fitnessExpiry || '2027-03-31')
+      },
+      {
+        type: 'Route Permit',
+        key: 'routePermit',
+        description: driver.routePermit?.description || driver.routePermitDescription || 'N/A',
+        documentNumber: driver.routePermit?.description || driver.routePermitDescription || 'N/A',
+        docUrl: driver.routePermit?.document || driver.routePermitDoc || '',
+        status: driver.routePermit?.status || driver.routePermitStatus || 'Not Submitted',
+        rejectionReason: (driver.routePermit?.status === 'Rejected' || driver.routePermitStatus === 'Rejected') ? (driver.routePermit?.rejectionReason || driver.rejectionReason || '') : ''
       }
     ];
 
@@ -510,6 +627,14 @@ exports.getDriverDocuments = async (req, res, next) => {
         url: driver.fitnessDoc || '',
         expiry: driver.fitnessExpiry || '',
         status: driver.fitnessStatus || 'Pending'
+      },
+      routePermit: {
+        description: driver.routePermit?.description || driver.routePermitDescription || '',
+        documentNumber: driver.routePermit?.description || driver.routePermitDescription || '',
+        url: driver.routePermit?.document || driver.routePermitDoc || '',
+        document: driver.routePermit?.document || driver.routePermitDoc || '',
+        status: driver.routePermit?.status || driver.routePermitStatus || 'Not Submitted',
+        rejectionReason: (driver.routePermit?.status === 'Rejected' || driver.routePermitStatus === 'Rejected') ? (driver.routePermit?.rejectionReason || driver.rejectionReason || '') : ''
       }
     };
 
@@ -529,7 +654,8 @@ exports.getDriverDocuments = async (req, res, next) => {
         vehicleRc: docsDictionary.vehicleRc,
         insurance: docsDictionary.insurance,
         fitness: docsDictionary.fitness,
-        fitnessCertificate: docsDictionary.fitnessCertificate
+        fitnessCertificate: docsDictionary.fitnessCertificate,
+        routePermit: docsDictionary.routePermit
       }
     });
   } catch (error) {
@@ -626,6 +752,31 @@ exports.uploadDriverDocument = async (req, res, next) => {
         if (expiryDate) driver.fitnessExpiry = expiryDate;
         driver.fitnessStatus = 'Pending Verification';
         break;
+      case 'routepermit':
+      case 'route_permit':
+      case 'routepermitdoc': {
+        const description = req.body.description || req.body.routePermitDescription || req.body.details || req.body.documentNumber || documentNumber || '';
+        if (!description || !description.trim()) {
+          return res.status(400).json({ success: false, message: 'Please enter route permit description.' });
+        }
+        if (description.trim().length > 200) {
+          return res.status(400).json({ success: false, message: 'Description must be at most 200 characters.' });
+        }
+        if (!docUrl) {
+          return res.status(400).json({ success: false, message: 'Route permit document is required' });
+        }
+
+        driver.routePermit = {
+          description: description.trim(),
+          document: docUrl,
+          status: 'Pending Verification',
+          rejectionReason: ''
+        };
+        driver.routePermitDescription = description.trim();
+        driver.routePermitDoc = docUrl;
+        driver.routePermitStatus = 'Pending Verification';
+        break;
+      }
       default:
         return res.status(400).json({ success: false, message: `Invalid document type '${docType}'` });
     }
@@ -649,7 +800,8 @@ exports.uploadDriverDocument = async (req, res, next) => {
         drivingLicenceStatus: driver.drivingLicenceStatus?.toLowerCase(),
         rcStatus: driver.rcStatus?.toLowerCase(),
         insuranceStatus: driver.insuranceStatus?.toLowerCase(),
-        fitnessStatus: driver.fitnessStatus?.toLowerCase()
+        fitnessStatus: driver.fitnessStatus?.toLowerCase(),
+        routePermitStatus: (driver.routePermit?.status || driver.routePermitStatus)?.toLowerCase()
       }
     });
   } catch (error) {

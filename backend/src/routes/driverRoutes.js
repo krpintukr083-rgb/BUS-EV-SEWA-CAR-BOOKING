@@ -4,6 +4,8 @@ const {
   getDriverDashboard,
   getDriverProfile,
   updateDriverProfile,
+  changeDriverLoginId,
+  changeDriverPassword,
   getAssignedVehicle,
   getDriverDocuments,
   uploadDriverDocument,
@@ -42,6 +44,8 @@ router.use(verifyToken, driverAuth);
 router.get('/dashboard', getDriverDashboard);
 router.get('/profile', getDriverProfile);
 router.put('/profile', updateDriverProfile);
+router.put('/account/login-id', changeDriverLoginId);
+router.put('/account/password', changeDriverPassword);
 router.get('/vehicle', getAssignedVehicle);
 
 // 2. Documents & KYC
