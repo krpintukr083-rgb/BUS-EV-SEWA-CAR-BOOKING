@@ -35,31 +35,35 @@ const PaymentScreen = ({ route, navigation }) => {
       subtitle: 'Pay the fare in cash directly to the assigned driver / conductor',
       icon: 'cash-outline',
       color: '#059669',
-      isOffline: true
+      isOffline: true,
+      isUpcoming: false
     },
     {
       id: 'Razorpay_UPI',
-      title: 'UPI / QR Payment (Razorpay TEST)',
+      title: 'UPI / QR Payment',
       subtitle: 'Google Pay, PhonePe, Paytm, BHIM UPI',
       icon: 'phone-portrait-outline',
-      color: '#10b981',
-      isOffline: false
+      color: '#64748b',
+      isOffline: false,
+      isUpcoming: true
     },
     {
       id: 'Razorpay_Card',
-      title: 'Credit / Debit Card (Razorpay TEST)',
+      title: 'Credit / Debit Card',
       subtitle: 'Visa, MasterCard, RuPay, Maestro',
       icon: 'card-outline',
-      color: '#1d4ed8',
-      isOffline: false
+      color: '#64748b',
+      isOffline: false,
+      isUpcoming: true
     },
     {
       id: 'Razorpay_NetBanking',
-      title: 'Net Banking (Razorpay TEST)',
+      title: 'Net Banking',
       subtitle: 'SBI, HDFC, ICICI, Axis & 50+ Banks',
       icon: 'business-outline',
-      color: '#6366f1',
-      isOffline: false
+      color: '#64748b',
+      isOffline: false,
+      isUpcoming: true
     }
   ];
 
@@ -747,93 +751,83 @@ const PaymentScreen = ({ route, navigation }) => {
             key={option.id}
             style={[
               styles.methodCard,
-              selectedMethod === option.id && styles.selectedMethodCard
+              selectedMethod === option.id && styles.selectedMethodCard,
+              option.isUpcoming && styles.upcomingMethodCard
             ]}
-            onPress={() => setSelectedMethod(option.id)}
-            activeOpacity={0.8}
+            onPress={() => {
+              if (option.isUpcoming) {
+                Alert.alert(
+                  'Online Payment Coming Soon',
+                  'Online payment options (UPI, Card, Net Banking) are currently upcoming. Please proceed with "Offline Cash (Pay on Boarding)" to confirm your journey.',
+                  [{ text: 'OK' }]
+                );
+                return;
+              }
+              setSelectedMethod(option.id);
+            }}
+            activeOpacity={option.isUpcoming ? 0.7 : 0.8}
           >
-            <View style={[styles.methodIconBox, { backgroundColor: option.color + '15' }]}>
-              <Ionicons name={option.icon} size={22} color={option.color} />
+            <View style={[styles.methodIconBox, { backgroundColor: option.isUpcoming ? '#f1f5f9' : option.color + '15' }]}>
+              <Ionicons name={option.icon} size={22} color={option.isUpcoming ? '#64748b' : option.color} />
             </View>
             <View style={styles.methodInfo}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={styles.methodTitle}>{option.title}</Text>
-                {option.isOffline && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <Text style={[styles.methodTitle, option.isUpcoming && styles.upcomingMethodTitle]}>{option.title}</Text>
+                {option.isOffline ? (
                   <View style={styles.cashBadge}>
-                    <Text style={styles.cashBadgeText}>POPULAR</Text>
+                    <Text style={styles.cashBadgeText}>POPULAR • ACTIVE</Text>
+                  </View>
+                ) : (
+                  <View style={styles.upcomingBadge}>
+                    <Ionicons name="time-outline" size={10} color="#b45309" />
+                    <Text style={styles.upcomingBadgeText}>UPCOMING</Text>
                   </View>
                 )}
               </View>
-              <Text style={styles.methodSub}>{option.subtitle}</Text>
+              <Text style={[styles.methodSub, option.isUpcoming && styles.upcomingMethodSub]}>{option.subtitle}</Text>
             </View>
-            <View style={styles.radioOuter}>
-              {selectedMethod === option.id && <View style={styles.radioInner} />}
+            <View style={[styles.radioOuter, option.isUpcoming && styles.upcomingRadioOuter]}>
+              {option.isUpcoming ? (
+                <Ionicons name="lock-closed" size={11} color="#94a3b8" />
+              ) : selectedMethod === option.id ? (
+                <View style={styles.radioInner} />
+              ) : null}
             </View>
           </TouchableOpacity>
         ))}
 
         {/* Instructions / Guarantee Box */}
-        {isOfflineSelected ? (
-          <View style={styles.offlineGuideBox}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <Ionicons name="cash" size={20} color="#059669" />
-              <Text style={styles.offlineGuideTitle}>Offline Cash Instructions</Text>
-            </View>
-            <Text style={styles.offlineGuideText}>
-              • No immediate online payment is required.
-            </Text>
-            <Text style={styles.offlineGuideText}>
-              • Booking request will be sent to the assigned driver/conductor for confirmation.
-            </Text>
-            <Text style={styles.offlineGuideText}>
-              • Pay the exact fare of <Text style={{ fontWeight: '800' }}>₹{finalPayable}</Text> in cash to the conductor or driver when boarding.
-            </Text>
+        <View style={styles.offlineGuideBox}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <Ionicons name="cash" size={20} color="#059669" />
+            <Text style={styles.offlineGuideTitle}>Offline Cash Instructions</Text>
           </View>
-        ) : (
-          <View style={styles.guaranteeBox}>
-            <Ionicons name="shield-checkmark" size={18} color="#059669" />
-            <Text style={styles.guaranteeText}>
-              Razorpay Test Mode — 256-bit encrypted test gateway with HMAC SHA-256 server verification.
-            </Text>
-          </View>
-        )}
+          <Text style={styles.offlineGuideText}>
+            • No advance online payment is required.
+          </Text>
+          <Text style={styles.offlineGuideText}>
+            • Your booking request is directly sent to the assigned driver/conductor for instant reservation.
+          </Text>
+          <Text style={styles.offlineGuideText}>
+            • Pay the exact fare of <Text style={{ fontWeight: '800' }}>₹{finalPayable}</Text> in cash to the conductor or driver when boarding.
+          </Text>
+        </View>
+
+        <View style={styles.upcomingNoticeBox}>
+          <Ionicons name="information-circle-outline" size={18} color="#b45309" />
+          <Text style={styles.upcomingNoticeText}>
+            Online digital payments (UPI QR, Cards, NetBanking) are currently upcoming. Cash on boarding is the primary verified payment method.
+          </Text>
+        </View>
       </ScrollView>
 
       {/* Sticky Action Footer */}
       <View style={styles.footer}>
-        {isOfflineSelected ? (
-          <Button
-            title={`Confirm Booking (Offline Cash - ₹${finalPayable})`}
-            onPress={handleConfirmOfflineCash}
-            style={{ backgroundColor: '#059669' }}
-          />
-        ) : (
-          <>
-            <Button
-              title={`Pay ₹${finalPayable} (Razorpay Checkout)`}
-              onPress={handleInitiateRazorpay}
-              style={{ backgroundColor: '#059669', marginBottom: 10 }}
-            />
-
-            <View style={styles.simButtonsRow}>
-              <TouchableOpacity
-                style={styles.simSuccessBtn}
-                onPress={() => handleSimulatePayment(false)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.simSuccessText}>⚡ Instant Test Success</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.simFailBtn}
-                onPress={() => handleSimulatePayment(true)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.simFailText}>❌ Test Failure</Text>
-              </TouchableOpacity>
-            </View>
-          </>
-        )}
+        <Button
+          title={`Confirm Booking (Offline Cash - ₹${finalPayable})`}
+          onPress={handleConfirmOfflineCash}
+          style={{ backgroundColor: '#059669' }}
+        />
       </View>
 
       {/* Razorpay WebView Checkout Modal */}
@@ -1049,6 +1043,55 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '800',
     color: '#15803d'
+  },
+  upcomingMethodCard: {
+    backgroundColor: '#f8fafc',
+    borderColor: '#e2e8f0',
+    opacity: 0.88
+  },
+  upcomingMethodTitle: {
+    color: '#64748b'
+  },
+  upcomingMethodSub: {
+    color: '#94a3b8'
+  },
+  upcomingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: '#fde68a'
+  },
+  upcomingBadgeText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#b45309',
+    letterSpacing: 0.5
+  },
+  upcomingRadioOuter: {
+    borderColor: '#cbd5e1',
+    backgroundColor: '#f1f5f9'
+  },
+  upcomingNoticeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#fffbeb',
+    borderWidth: 1,
+    borderColor: '#fde68a',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 10
+  },
+  upcomingNoticeText: {
+    fontSize: 11,
+    color: '#92400e',
+    flex: 1,
+    lineHeight: 16
   },
   offlineGuideBox: {
     backgroundColor: '#ecfdf5',
