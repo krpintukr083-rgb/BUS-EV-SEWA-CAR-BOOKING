@@ -184,15 +184,6 @@ const AdminSidebar = ({ isCollapsed, isMobileOpen, onCloseMobile, onOpenLogout }
           <span>Cancellation Records</span>
         </NavLink>
         <NavLink
-          to="/admin/compensation"
-          onClick={handleNavClick}
-          title="3% Glitch Compensation"
-          className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-        >
-          <Percent size={17} />
-          <span>3% Glitch Compensation</span>
-        </NavLink>
-        <NavLink
           to="/admin/insurance"
           onClick={handleNavClick}
           title="Accident Insurance"

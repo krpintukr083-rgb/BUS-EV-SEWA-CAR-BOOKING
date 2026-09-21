@@ -206,15 +206,13 @@ export const adminService = {
     return res.data;
   },
 
-  // 11. 3% Compensation Management
+  // 11. 3% Compensation Management (Feature Removed)
   getCompensations: async () => {
-    const res = await api.get('/admin/compensation');
-    return res.data;
+    return { success: true, count: 0, data: [] };
   },
 
-  updateCompensationStatus: async (id, data) => {
-    const res = await api.put(`/admin/compensation/${id}`, data);
-    return res.data;
+  updateCompensationStatus: async () => {
+    return { success: true, message: 'Feature disabled' };
   },
 
   // 12. Accident Insurance Records

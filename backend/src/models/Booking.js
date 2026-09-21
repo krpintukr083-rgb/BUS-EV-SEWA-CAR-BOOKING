@@ -74,6 +74,22 @@ const bookingSchema = new mongoose.Schema(
       type: Number,
       required: true
     },
+    originalFare: {
+      type: Number,
+      default: 0
+    },
+    discountPercentage: {
+      type: Number,
+      default: 0
+    },
+    discountAmount: {
+      type: Number,
+      default: 0
+    },
+    finalFare: {
+      type: Number,
+      default: 0
+    },
     driverPaymentAmount: {
       type: Number,
       default: 0

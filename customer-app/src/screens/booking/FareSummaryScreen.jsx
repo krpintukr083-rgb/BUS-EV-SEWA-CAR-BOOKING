@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,23 @@ import { COLORS } from '../../constants/colors';
 const FareSummaryScreen = ({ navigation }) => {
   const { bookingDraft, updateDraft } = useBooking();
   const [loading, setLoading] = useState(false);
+  const [busOffer, setBusOffer] = useState(null);
+
+  useEffect(() => {
+    const fetchOffer = async () => {
+      if (bookingDraft.serviceType === 'Bus') {
+        try {
+          const res = await customerService.getBusOffer();
+          if (res && res.success && res.data) {
+            setBusOffer(res.data);
+          }
+        } catch (err) {
+          console.log('Error fetching bus offer on FareSummary:', err);
+        }
+      }
+    };
+    fetchOffer();
+  }, [bookingDraft.serviceType]);
 
   const getServiceColor = () => {
     if (bookingDraft.serviceType === 'EV-Sewa') return COLORS.evBadge;
@@ -26,6 +43,27 @@ const FareSummaryScreen = ({ navigation }) => {
   };
 
   const serviceColor = getServiceColor();
+
+  const seatCount = (bookingDraft.serviceType === 'Bus' && bookingDraft.selectedSeats && bookingDraft.selectedSeats.length > 0)
+    ? bookingDraft.selectedSeats.length
+    : 1;
+  const baseSeatRate = bookingDraft.vehicle?.fareRate || bookingDraft.vehicle?.fare || bookingDraft.baseFare || 0;
+  const originalFare = baseSeatRate * seatCount;
+
+  let discountPct = 0;
+  let discountAmt = 0;
+  let totalPayable = originalFare;
+
+  if (
+    bookingDraft.serviceType === 'Bus' &&
+    busOffer &&
+    busOffer.offerStatus === 'active' &&
+    Number(busOffer.discountPercentage) > 0
+  ) {
+    discountPct = Number(busOffer.discountPercentage);
+    discountAmt = Math.round(((originalFare * discountPct) / 100) * 100) / 100;
+    totalPayable = Math.max(0, originalFare - discountAmt);
+  }
 
   const handleProceedToPayment = async () => {
     try {
@@ -38,7 +76,7 @@ const FareSummaryScreen = ({ navigation }) => {
         dropLocation: bookingDraft.dropLocation,
         passengerDetails: bookingDraft.passengerDetails,
         selectedSeats: bookingDraft.selectedSeats,
-        fare: bookingDraft.totalFare,
+        fare: totalPayable,
         travelDate: bookingDraft.travelDate
       };
 
@@ -49,7 +87,7 @@ const FareSummaryScreen = ({ navigation }) => {
         navigation.navigate('Payment', {
           bookingId: res.data._id,
           bookingCode: res.data.bookingId,
-          amount: res.data.fare
+          amount: res.data.fare || res.data.finalFare || totalPayable
         });
       } else {
         Alert.alert('Booking Error', res.message || 'Unable to create booking');
@@ -88,7 +126,7 @@ const FareSummaryScreen = ({ navigation }) => {
               </Text>
             </View>
             <Text style={[styles.serviceFare, { color: serviceColor }]}>
-              ₹{bookingDraft.totalFare}
+              ₹{totalPayable}
             </Text>
           </View>
 
@@ -161,16 +199,27 @@ const FareSummaryScreen = ({ navigation }) => {
           <Text style={styles.cardHeading}>Fare Breakdown</Text>
 
           <View style={styles.billRow}>
-            <Text style={styles.billLabel}>Base Fare</Text>
-            <Text style={styles.billVal}>₹{bookingDraft.baseFare}</Text>
+            <Text style={styles.billLabel}>Original Fare</Text>
+            <Text style={styles.billVal}>₹{originalFare}</Text>
           </View>
 
-          {bookingDraft.serviceType === 'Bus' && bookingDraft.selectedSeats?.length > 1 && (
+          {discountAmt > 0 && (
+            <View style={styles.billRow}>
+              <Text style={[styles.billLabel, { color: COLORS.success, fontWeight: '700' }]}>
+                Discount ({discountPct}%)
+              </Text>
+              <Text style={[styles.billVal, { color: COLORS.success, fontWeight: '700' }]}>
+                -₹{discountAmt}
+              </Text>
+            </View>
+          )}
+
+          {bookingDraft.serviceType === 'Bus' && seatCount > 1 && (
             <View style={styles.billRow}>
               <Text style={styles.billLabel}>
-                Seat Multiplier ({bookingDraft.selectedSeats.length} seats × ₹{bookingDraft.vehicle?.fare})
+                Seat Multiplier ({seatCount} seats × ₹{baseSeatRate})
               </Text>
-              <Text style={styles.billVal}>₹{bookingDraft.totalFare}</Text>
+              <Text style={styles.billVal}>₹{originalFare}</Text>
             </View>
           )}
 
@@ -189,7 +238,7 @@ const FareSummaryScreen = ({ navigation }) => {
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total Payable Amount</Text>
             <Text style={[styles.totalAmount, { color: serviceColor }]}>
-              ₹{bookingDraft.totalFare}
+              ₹{totalPayable}
             </Text>
           </View>
         </View>

@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Booking = require('../models/Booking');
 const Vehicle = require('../models/Vehicle');
 const ServiceControl = require('../models/ServiceControl');
+const BusOffer = require('../models/BusOffer');
 const Payment = require('../models/Payment');
 const Cancellation = require('../models/Cancellation');
 const Notification = require('../models/Notification');
@@ -107,10 +108,22 @@ exports.createBooking = async (req, res, next) => {
       }
     }
 
-    // 4. Calculate Server-Side Fare
+    // 4. Calculate Server-Side Fare with Dynamic Admin Bus Offer Discount
     const seatCount = (serviceType === 'Bus' && selectedSeats && selectedSeats.length > 0) ? selectedSeats.length : 1;
-    const computedFare = vehicle.fareRate * seatCount;
-    const finalFare = fare ? Number(fare) : computedFare;
+    const computedBaseFare = (vehicle.fareRate || vehicle.fare || 0) * seatCount;
+    let originalFare = computedBaseFare;
+    let discountPercentage = 0;
+    let discountAmount = 0;
+    let finalPayableFare = computedBaseFare;
+
+    if (serviceType === 'Bus') {
+      const busOffer = await BusOffer.findOne({ service: 'bus' });
+      if (busOffer && busOffer.offerStatus === 'active' && busOffer.discountPercentage > 0) {
+        discountPercentage = Number(busOffer.discountPercentage);
+        discountAmount = Math.round(((originalFare * discountPercentage) / 100) * 100) / 100;
+        finalPayableFare = Math.max(0, originalFare - discountAmount);
+      }
+    }
 
     const crypto = require('crypto');
     const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -156,8 +169,12 @@ exports.createBooking = async (req, res, next) => {
       passengerDetails: (passengerDetails && passengerDetails.length > 0)
         ? passengerDetails
         : [{ name: req.user.name, age: 28, gender: 'Male' }],
-      fare: finalFare,
-      driverPaymentAmount: Math.round(finalFare * 0.8),
+      fare: finalPayableFare,
+      originalFare,
+      discountPercentage,
+      discountAmount,
+      finalFare: finalPayableFare,
+      driverPaymentAmount: Math.round(finalPayableFare * 0.8),
       paymentMethod: initialPaymentMethod,
       paymentStatus: initialPaymentStatus,
       cashCollected: false,

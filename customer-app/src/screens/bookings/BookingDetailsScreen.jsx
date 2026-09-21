@@ -161,10 +161,21 @@ const BookingDetailsScreen = ({ route, navigation }) => {
               <Text style={[styles.metaVal, { color: COLORS.success }]}>{booking.paymentStatus}</Text>
             </View>
             <View style={styles.metaCol}>
-              <Text style={styles.metaLabel}>Total Paid</Text>
+              <Text style={styles.metaLabel}>{booking.discountAmount > 0 ? 'Final Payable' : 'Total Paid'}</Text>
               <Text style={styles.metaAmount}>₹{booking.fare}</Text>
             </View>
           </View>
+
+          {booking.discountAmount > 0 && (
+            <View style={{ marginTop: 10, paddingTop: 8, borderTopWidth: 1, borderTopColor: '#f1f5f9', flexDirection: 'row', justifyContent: 'space-between' }}>
+              <Text style={{ fontSize: 11, color: COLORS.textSecondary }}>
+                Original Fare: ₹{booking.originalFare || (booking.fare + booking.discountAmount)}
+              </Text>
+              <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.success }}>
+                Discount ({booking.discountPercentage}%): -₹{booking.discountAmount}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Vehicle & Operator */}

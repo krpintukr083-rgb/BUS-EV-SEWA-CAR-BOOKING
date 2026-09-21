@@ -98,10 +98,6 @@ const AdminSidebar = ({ onOpenLogout }) => {
           <XOctagon size={17} />
           <span>Cancellation Records</span>
         </NavLink>
-        <NavLink to="/compensation" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Percent size={17} />
-          <span>3% Glitch Compensation</span>
-        </NavLink>
         <NavLink to="/insurance" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <ShieldAlert size={17} />
           <span>Accident Insurance</span>

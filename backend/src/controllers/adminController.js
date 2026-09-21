@@ -1550,13 +1550,11 @@ exports.processCancellationRefund = async (req, res, next) => {
 };
 
 // ==========================================
-// 11. 3% CUSTOMER SERVICE COMPENSATION MANAGEMENT
-// (Verified Platform/Service-side Technical Glitch)
+// 11. 3% CUSTOMER SERVICE COMPENSATION MANAGEMENT (Disabled)
 // ==========================================
 exports.getCompensations = async (req, res, next) => {
   try {
-    const compensations = await Compensation.find().populate('booking').sort({ createdAt: -1 });
-    res.json({ success: true, count: compensations.length, data: compensations });
+    res.json({ success: true, count: 0, data: [] });
   } catch (error) {
     next(error);
   }
@@ -1564,16 +1562,7 @@ exports.getCompensations = async (req, res, next) => {
 
 exports.updateCompensationStatus = async (req, res, next) => {
   try {
-    const { approvalStatus, refundStatus, paymentReference } = req.body;
-    const compensation = await Compensation.findById(req.params.id);
-    if (!compensation) return res.status(404).json({ success: false, message: 'Compensation record not found' });
-
-    if (approvalStatus) compensation.approvalStatus = approvalStatus;
-    if (refundStatus) compensation.refundStatus = refundStatus;
-    if (paymentReference) compensation.paymentReference = paymentReference;
-
-    await compensation.save();
-    res.json({ success: true, message: '3% Technical Glitch Compensation updated', data: compensation });
+    res.json({ success: true, message: '3% Glitch Compensation feature disabled' });
   } catch (error) {
     next(error);
   }

@@ -46,7 +46,6 @@ const DocumentRecords = lazy(() => import('../admin/pages/DocumentRecords'));
 const BookingManagement = lazy(() => import('../admin/pages/BookingManagement'));
 const PaymentManagement = lazy(() => import('../admin/pages/PaymentManagement'));
 const CancellationManagement = lazy(() => import('../admin/pages/CancellationManagement'));
-const CompensationManagement = lazy(() => import('../admin/pages/CompensationManagement'));
 const AccidentInsurance = lazy(() => import('../admin/pages/AccidentInsurance'));
 const Notifications = lazy(() => import('../admin/pages/Notifications'));
 const CustomerSupport = lazy(() => import('../admin/pages/CustomerSupport'));
@@ -144,7 +143,7 @@ export default function AppRoutes() {
           <Route path="bookings" element={<BookingManagement />} />
           <Route path="payments" element={<PaymentManagement />} />
           <Route path="cancellations" element={<CancellationManagement />} />
-          <Route path="compensation" element={<CompensationManagement />} />
+          <Route path="compensation" element={<Navigate to="/admin/dashboard" replace />} />
           <Route path="insurance" element={<AccidentInsurance />} />
           <Route path="service-control" element={<ServiceControl />} />
           <Route path="notifications" element={<Notifications />} />

@@ -30,17 +30,66 @@ const getValidRecipientId = async (booking) => {
   return null;
 };
 
-// Helper to check Driver data isolation / vehicle authorization
+const normalizeLoc = (loc) => {
+  if (!loc) return '';
+  return String(loc).toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+};
+
+const isLocationMatch = (loc1, loc2) => {
+  const n1 = normalizeLoc(loc1);
+  const n2 = normalizeLoc(loc2);
+  if (!n1 || !n2) return false;
+  return n1 === n2 || n1.includes(n2) || n2.includes(n1);
+};
+
+const vehicleMatchesBookingRoute = (vehicle, booking) => {
+  if (!vehicle || !booking) return false;
+
+  // Direct vehicle ID match if booking explicitly bound to this vehicle
+  if (booking.vehicle) {
+    const bVehId = (booking.vehicle._id || booking.vehicle).toString();
+    const vehId = (vehicle._id || vehicle).toString();
+    if (bVehId === vehId) return true;
+  }
+
+  // Extract vehicle origin & destination
+  const vOrigin = vehicle.route?.origin || vehicle.pickupDropDetails?.pickupLocation || vehicle.hireDetails?.pickup || '';
+  const vDest = vehicle.route?.destination || vehicle.pickupDropDetails?.dropLocation || vehicle.hireDetails?.destination || '';
+
+  const bOrigin = booking.pickupLocation || '';
+  const bDest = booking.dropLocation || '';
+
+  if (vOrigin && vDest && bOrigin && bDest) {
+    const originMatches = isLocationMatch(vOrigin, bOrigin);
+    const destMatches = isLocationMatch(vDest, bDest);
+    if (originMatches && destMatches) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
+// Helper to check Driver data isolation / vehicle authorization & route eligibility
 const verifyDriverVehicleAccess = async (driver, booking) => {
-  if (!booking) return false;
+  if (!booking || !driver) return false;
+
+  // Driver eligibility: must be Active
+  if (driver.driverStatus && driver.driverStatus !== 'Active') {
+    return false;
+  }
+
   const driverIdStr = driver._id.toString();
   const userIdStr = driver.user ? (driver.user._id || driver.user).toString() : null;
 
-  // Direct driver reference check
+  // Direct driver reference check (if already confirmed/assigned to this driver)
   if (booking.driver) {
     const bookingDriverStr = (booking.driver._id || booking.driver).toString();
     if (bookingDriverStr === driverIdStr || (userIdStr && bookingDriverStr === userIdStr)) {
       return true;
+    } else {
+      // Assigned to another driver -> forbidden
+      return false;
     }
   }
 
@@ -48,36 +97,41 @@ const verifyDriverVehicleAccess = async (driver, booking) => {
     const bookingAssignedStr = (booking.driverAssigned._id || booking.driverAssigned).toString();
     if (bookingAssignedStr === driverIdStr || (userIdStr && bookingAssignedStr === userIdStr)) {
       return true;
+    } else {
+      // Assigned to another driver -> forbidden
+      return false;
     }
   }
 
-  // Assigned vehicle match check
+  // If booking is already confirmed by another driver -> forbidden
+  if (booking.driverConfirmationStatus === 'Confirmed' || booking.driverConfirmed) {
+    return false;
+  }
+
+  // Unassigned booking -> Check Driver's Assigned Vehicle & Route Match
+  let assignedVehicle = null;
   if (driver.assignedVehicle) {
-    const assignedVehicleId = (driver.assignedVehicle._id || driver.assignedVehicle).toString();
-    const bookingVehicleId = (booking.vehicle?._id || booking.vehicle)?.toString();
-    if (bookingVehicleId && bookingVehicleId === assignedVehicleId) {
-      return true;
+    if (typeof driver.assignedVehicle === 'object' && (driver.assignedVehicle.route || driver.assignedVehicle.vehicleStatus)) {
+      assignedVehicle = driver.assignedVehicle;
+    } else {
+      assignedVehicle = await Vehicle.findById(driver.assignedVehicle._id || driver.assignedVehicle).lean();
     }
+  } else {
+    assignedVehicle = await Vehicle.findOne({ assignedDriver: driver._id }).lean();
   }
 
-  // Vehicle lookup check
-  if (booking.vehicle) {
-    const bookingVehicleId = booking.vehicle._id || booking.vehicle;
-    const vehicleDoc = await Vehicle.findById(bookingVehicleId).lean();
-    if (vehicleDoc && vehicleDoc.assignedDriver) {
-      const vDriverStr = (vehicleDoc.assignedDriver._id || vehicleDoc.assignedDriver).toString();
-      if (vDriverStr === driverIdStr || (userIdStr && vDriverStr === userIdStr)) {
-        return true;
-      }
-    }
+  if (!assignedVehicle) {
+    // Driver has no assigned vehicle -> not authorized
+    return false;
   }
 
-  // Check if booking has no assigned driver yet (allow online driver to accept/verify)
-  if (!booking.driver && !booking.driverAssigned) {
-    return true;
+  if (assignedVehicle.vehicleStatus && assignedVehicle.vehicleStatus !== 'Active') {
+    // Assigned vehicle is not active -> not authorized
+    return false;
   }
 
-  return false;
+  // Check route match between driver's assigned vehicle and booking
+  return vehicleMatchesBookingRoute(assignedVehicle, booking);
 };
 
 // @desc    Get Driver Dashboard Summary
@@ -907,29 +961,63 @@ exports.getBookingRequests = async (req, res, next) => {
   try {
     const driver = req.driver;
 
-    // If driver is offline, return empty list
+    // Driver eligibility check: must be Active and Online
+    if (!driver || driver.driverStatus !== 'Active') {
+      return res.json({ success: true, count: 0, data: [] });
+    }
+
     if (!driver.isOnline) {
       return res.json({
         success: true,
+        count: 0,
         data: [],
         message: 'Driver is currently OFFLINE. Switch to ONLINE to receive ride requests.'
       });
     }
 
-    const assignedVehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
+    // Load driver's assigned vehicle
+    let assignedVehicle = null;
+    if (driver.assignedVehicle) {
+      if (typeof driver.assignedVehicle === 'object' && driver.assignedVehicle.vehicleNumber) {
+        assignedVehicle = driver.assignedVehicle;
+      } else {
+        assignedVehicle = await Vehicle.findById(driver.assignedVehicle._id || driver.assignedVehicle).lean();
+      }
+    } else {
+      assignedVehicle = await Vehicle.findOne({ assignedDriver: driver._id }).lean();
+    }
 
-    const query = {
+    if (!assignedVehicle || (assignedVehicle.vehicleStatus && assignedVehicle.vehicleStatus !== 'Active')) {
+      return res.json({ success: true, count: 0, data: [] });
+    }
+
+    // Fetch candidate pending bookings
+    const candidateBookings = await Booking.find({
       $or: [
         { driver: driver._id },
-        ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [{ driver: null }])
+        { driver: null }
       ],
-      bookingStatus: { $nin: ['Completed', 'Cancelled', 'Rejected'] }
-    };
-
-    const requests = await Booking.find(query)
-      .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory fuelType fareRate')
+      driverConfirmationStatus: { $ne: 'Confirmed' },
+      bookingStatus: {
+        $nin: ['Completed', 'Cancelled', 'Rejected']
+      }
+    })
+      .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory fuelType fareRate route pickupDropDetails hireDetails')
       .sort({ createdAt: -1 })
       .lean();
+
+    // Filter candidate bookings by route match & eligibility
+    const requests = candidateBookings.filter(reqItem => {
+      // If directly assigned to this driver
+      if (reqItem.driver && (reqItem.driver._id || reqItem.driver).toString() === driver._id.toString()) {
+        return true;
+      }
+      // If unassigned, check route match
+      if (!reqItem.driver && reqItem.driverConfirmationStatus !== 'Confirmed') {
+        return vehicleMatchesBookingRoute(assignedVehicle, reqItem);
+      }
+      return false;
+    });
 
     // Map requests with external navigation links and countdown metadata
     const enrichedRequests = requests.map(reqItem => {
@@ -1146,6 +1234,10 @@ exports.rejectBookingRequest = async (req, res, next) => {
 exports.verifyRideOtp = async (req, res, next) => {
   try {
     const driver = req.driver;
+    if (!driver || driver.driverStatus !== 'Active') {
+      return res.status(403).json({ success: false, message: 'Forbidden: Only active/approved drivers can verify customer OTP' });
+    }
+
     const { id } = req.params;
     const targetBookingId = id || req.body.bookingId || req.body.id;
     const { otp, confirmationOtp } = req.body;
@@ -1165,20 +1257,20 @@ exports.verifyRideOtp = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Booking request not found' });
     }
 
-    // 1. Verify Driver assignment (Strict authorization check)
+    // 1. Check if OTP was already used / verified or booking already confirmed
+    if (booking.driverConfirmationStatus === 'Confirmed' || booking.driverConfirmed || !booking.confirmationOtpHash) {
+      return res.status(400).json({
+        success: false,
+        message: 'Booking already confirmed.'
+      });
+    }
+
+    // 2. Strict authorization & route matching check
     const isAuthorized = await verifyDriverVehicleAccess(driver, booking);
     if (!isAuthorized) {
       return res.status(403).json({
         success: false,
-        message: 'Unauthorized: Only the assigned driver can verify this customer OTP'
-      });
-    }
-
-    // 2. Check if OTP was already used / verified
-    if (!booking.confirmationOtpHash) {
-      return res.status(400).json({
-        success: false,
-        message: 'OTP has already been verified or used'
+        message: 'Forbidden: Your assigned vehicle route does not match this booking.'
       });
     }
 
@@ -1190,22 +1282,35 @@ exports.verifyRideOtp = async (req, res, next) => {
       });
     }
 
-    // 4. Verify OTP Hash
+    // 4. Verify OTP Hash or raw match
     const suppliedHash = crypto.createHash('sha256').update(suppliedOtp).digest('hex');
-    if (suppliedHash !== booking.confirmationOtpHash) {
+    const isMatch = (suppliedHash === booking.confirmationOtpHash) ||
+                    (booking.customerViewOtp && suppliedOtp === String(booking.customerViewOtp).trim()) ||
+                    (booking.confirmationOtp && suppliedOtp === String(booking.confirmationOtp).trim());
+
+    if (!isMatch) {
       return res.status(400).json({
         success: false,
         message: 'Invalid OTP. Please check the 6-digit code with the customer.'
       });
     }
 
-    // 5. Successful OTP Verification - Update Booking State
+    // 5. Successful OTP Verification - Update Booking State & Invalidate OTP immediately
     booking.confirmationOtpVerifiedAt = new Date();
-    booking.confirmationOtpVerifiedBy = req.user ? req.user._id : driver._id;
-    booking.confirmationOtpHash = null; // Single-use: invalidate OTP immediately
+    booking.confirmationOtpVerifiedBy = driver._id;
+    booking.confirmationOtpHash = null; // Single-use: invalidate OTP immediately!
+    booking.customerViewOtp = null; // Single-use: clear raw OTP
     booking.otpVerified = true;
 
     booking.driver = driver._id;
+    booking.assignedDriverId = driver._id;
+
+    if (driver.assignedVehicle) {
+      const vId = driver.assignedVehicle._id || driver.assignedVehicle;
+      booking.vehicle = vId;
+      booking.assignedVehicleId = vId;
+    }
+
     booking.driverConfirmationStatus = 'Confirmed';
     booking.driverConfirmed = true;
     booking.driverConfirmedAt = new Date();

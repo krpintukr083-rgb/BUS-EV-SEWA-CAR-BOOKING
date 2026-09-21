@@ -74,7 +74,6 @@ const PoliciesManagement = () => {
     { type: 'driver_terms', name: 'Driver Code of Conduct & Vehicle Standards' },
     { type: 'cancellation_policy', name: 'Booking Cancellation Policy' },
     { type: 'refund_policy', name: 'Payment Refund Policy' },
-    { type: 'compensation_policy', name: '3% Platform Glitch Compensation Policy' },
     { type: 'accident_insurance_terms', name: 'Accident Insurance Terms' },
     { type: 'insurance_disclaimer', name: 'Insurance Disclaimer Notice' }
   ];

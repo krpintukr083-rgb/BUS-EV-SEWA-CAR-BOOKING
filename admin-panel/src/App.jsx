@@ -19,7 +19,6 @@ import DocumentRecords from './pages/DocumentRecords';
 import BookingManagement from './pages/BookingManagement';
 import PaymentManagement from './pages/PaymentManagement';
 import CancellationManagement from './pages/CancellationManagement';
-import CompensationManagement from './pages/CompensationManagement';
 import AccidentInsurance from './pages/AccidentInsurance';
 import Notifications from './pages/Notifications';
 import CustomerSupport from './pages/CustomerSupport';
@@ -67,7 +66,7 @@ function AppRoutes() {
         <Route path="bookings" element={<BookingManagement />} />
         <Route path="payments" element={<PaymentManagement />} />
         <Route path="cancellations" element={<CancellationManagement />} />
-        <Route path="compensation" element={<CompensationManagement />} />
+        <Route path="compensation" element={<Navigate to="/dashboard" replace />} />
         <Route path="insurance" element={<AccidentInsurance />} />
         <Route path="notifications" element={<Notifications />} />
         <Route path="support-tickets" element={<CustomerSupport />} />

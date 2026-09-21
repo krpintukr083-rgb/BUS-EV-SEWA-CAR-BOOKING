@@ -113,16 +113,10 @@ const BasicReports = () => {
           <XOctagon size={16} /> 4. Cancellations ({cancellations?.length || 0})
         </button>
         <button
-          onClick={() => setActiveReportTab('compensations')}
-          className={`btn ${activeReportTab === 'compensations' ? 'btn-primary' : 'btn-outline'}`}
-        >
-          <Percent size={16} /> 5. 3% Compensations ({compensations?.length || 0})
-        </button>
-        <button
           onClick={() => setActiveReportTab('insurance')}
           className={`btn ${activeReportTab === 'insurance' ? 'btn-primary' : 'btn-outline'}`}
         >
-          <ShieldAlert size={16} /> 6. Insurances ({insurances?.length || 0})
+          <ShieldAlert size={16} /> 5. Insurances ({insurances?.length || 0})
         </button>
       </div>
 
@@ -325,35 +319,7 @@ const BasicReports = () => {
             </table>
           )}
 
-          {/* TAB 5: 3% COMPENSATIONS */}
-          {activeReportTab === 'compensations' && (
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Booking ID</th>
-                  <th>Customer</th>
-                  <th>Glitch Reason</th>
-                  <th>3% Compensation</th>
-                  <th>Approval Status</th>
-                  <th>Refund Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {compensations?.map(comp => (
-                  <tr key={comp._id}>
-                    <td style={{ fontWeight: '700', color: '#1d4ed8' }}>{comp.bookingId}</td>
-                    <td>{comp.customer?.name} ({comp.customer?.phone})</td>
-                    <td>{comp.glitchReason}</td>
-                    <td style={{ fontWeight: '700', color: '#10b981' }}>₹{comp.compensationAmount}</td>
-                    <td><StatusBadge status={comp.approvalStatus} /></td>
-                    <td><StatusBadge status={comp.refundStatus} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-
-          {/* TAB 6: ACCIDENT INSURANCE */}
+          {/* TAB 5: ACCIDENT INSURANCE */}
           {activeReportTab === 'insurance' && (
             <table className="data-table">
               <thead>

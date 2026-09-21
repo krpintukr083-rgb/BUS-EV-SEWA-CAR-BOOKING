@@ -242,7 +242,7 @@ exports.createBooking = async (req, res, next) => {
         phone: req.user.phone,
         email: req.user.email
       },
-      driver: req.body.driver || req.body.driverId || vehicle.assignedDriver || null,
+      driver: req.body.driver || req.body.driverId || null,
       vehicle: vehicle._id,
       serviceType,
       pickupLocation,
@@ -252,7 +252,7 @@ exports.createBooking = async (req, res, next) => {
       driverPaymentAmount: Math.round(Number(fare) * 0.8),
       paymentMethod: isOfflineCash ? 'Offline Cash' : (req.body.paymentMethod || 'Online Razorpay'),
       paymentStatus: isOfflineCash ? 'Pending Cash' : 'Pending',
-      bookingStatus: 'Pending Admin Confirmation',
+      bookingStatus: 'Pending Driver Confirmation',
       confirmationOtpHash,
       confirmationOtpExpiresAt,
       customerViewOtp: rawOtp,

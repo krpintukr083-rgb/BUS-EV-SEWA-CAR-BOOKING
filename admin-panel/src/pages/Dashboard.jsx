@@ -115,7 +115,6 @@ const Dashboard = () => {
           color="#d97706"
         />
         <StatCard title="Cancellation Records" value={counts?.cancellationRecords ?? 0} icon={XOctagon} color="#ef4444" />
-        <StatCard title="3% Glitch Compensations" value={counts?.compensationRecords ?? 0} icon={Percent} color="#8b5cf6" />
         <StatCard
           title="Accident Insurance Policies"
           value={counts?.accidentInsuranceRecords ?? 0}

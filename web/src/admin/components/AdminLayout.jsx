@@ -20,12 +20,11 @@ const titlesMap = {
   '/admin/bookings': 'Unified Booking Management (Bus, EV, Car)',
   '/admin/payments': 'Financial Records & Payment Transactions',
   '/admin/cancellations': 'Cancellation Records & Refund Operations',
-  '/admin/compensation': '3% Platform Glitch Customer Compensation Management',
   '/admin/insurance': 'Transit Accident Insurance Records (Max ₹5,00,000 Disclaimer)',
   '/admin/service-control': 'Global Service Control Toggles (Bus, EV-Sewa, Car)',
   '/admin/notifications': 'Platform Broadcast & Notifications',
   '/admin/support-tickets': 'Customer & Driver Support Center',
-  '/admin/policies': 'Terms, Privacy & Compensation Policies',
+  '/admin/policies': 'Terms & Privacy Policies',
   '/admin/reports': 'Basic Operational & Financial Reports'
 };
 

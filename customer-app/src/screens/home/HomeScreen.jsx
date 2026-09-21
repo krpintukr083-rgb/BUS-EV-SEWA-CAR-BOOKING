@@ -158,7 +158,7 @@ const HomeScreen = ({ navigation }) => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchHomeData(); }} />}
       >
         {/* Special Bus Booking Promo Banner — Dynamically Controlled by Super Admin */}
-        {busOffer && busOffer.offerStatus === 'active' && busOffer.discountPercentage !== undefined && busOffer.discountPercentage !== null && (
+        {busOffer && busOffer.offerStatus === 'active' && Number(busOffer.discountPercentage) > 0 && (
           <TouchableOpacity
             style={styles.heroBannerCard}
             onPress={() => handleSelectService('Bus')}
