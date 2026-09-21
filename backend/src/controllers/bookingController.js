@@ -6,6 +6,7 @@ const BusOffer = require('../models/BusOffer');
 const Payment = require('../models/Payment');
 const Cancellation = require('../models/Cancellation');
 const Notification = require('../models/Notification');
+const { notifyEligibleDriversForBusBooking } = require('../utils/notification');
 
 const getBookingQuery = (idOrCode) => {
   return mongoose.isValidObjectId(idOrCode)
@@ -222,6 +223,11 @@ exports.createBooking = async (req, res, next) => {
       recipientId: req.user._id,
       status: 'Unread'
     });
+
+    // Notify ALL eligible drivers on the same route if Bus booking
+    if (isBus) {
+      await notifyEligibleDriversForBusBooking(booking);
+    }
 
     const bookingObj = booking.toObject();
     bookingObj.confirmationOtp = rawOtp;
@@ -520,6 +526,10 @@ exports.confirmOfflineCashBooking = async (req, res, next) => {
       recipientId: req.user._id,
       status: 'Unread'
     });
+
+    if (booking.serviceType === 'Bus') {
+      await notifyEligibleDriversForBusBooking(booking);
+    }
 
     res.json({
       success: true,

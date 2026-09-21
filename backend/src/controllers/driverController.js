@@ -159,21 +159,28 @@ exports.getDriverDashboard = async (req, res, next) => {
       assignedVehicleId ? Vehicle.findById(assignedVehicleId).lean() : Promise.resolve(null),
       // Booking requests (eligible when driver is online)
       driver.isOnline
-        ? Booking.find({
-            $or: [
-              { driver: driver._id },
-              ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
-            ],
-            bookingStatus: { $in: ['Admin Confirmed', 'ADMIN_CONFIRMED', 'Pending Driver Confirmation', 'Pending'] },
-            cashCollected: { $ne: true },
-            paymentStatus: { $nin: ['Paid', 'Successful'] },
-            driverConfirmationStatus: { $ne: 'Confirmed' }
-          })
-            .select('bookingId customer serviceType pickupLocation dropLocation fare driverPaymentAmount paymentStatus bookingStatus rideStatus travelDate passengerDetails busSeatNumbers vehicle driver createdAt')
-            .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory vehicleStatus seatingCapacity fuelType')
-            .sort({ createdAt: -1 })
-            .limit(10)
-            .lean()
+        ? (async () => {
+            const candidates = await Booking.find({
+              bookingStatus: { $in: ['Admin Confirmed', 'ADMIN_CONFIRMED', 'Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation'] },
+              cashCollected: { $ne: true },
+              paymentStatus: { $nin: ['Paid', 'Successful'] },
+              driverConfirmationStatus: { $ne: 'Confirmed' }
+            })
+              .select('bookingId customer serviceType pickupLocation dropLocation fare driverPaymentAmount paymentStatus bookingStatus rideStatus travelDate passengerDetails busSeatNumbers vehicle driver createdAt')
+              .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory vehicleStatus seatingCapacity fuelType route pickupDropDetails hireDetails')
+              .sort({ createdAt: -1 })
+              .limit(20)
+              .lean();
+
+            const driverVeh = assignedVehicleId ? await Vehicle.findById(assignedVehicleId).lean() : null;
+
+            return candidates.filter(b => {
+              if (b.driverConfirmationStatus === 'Confirmed' || b.driverConfirmed) return false;
+              if (b.driver && (b.driver._id || b.driver).toString() === driver._id.toString()) return true;
+              if (driverVeh) return vehicleMatchesBookingRoute(driverVeh, b);
+              return false;
+            }).slice(0, 10);
+          })()
         : Promise.resolve([]),
       // Active ongoing ride
       Booking.findOne({
@@ -1011,10 +1018,6 @@ exports.getBookingRequests = async (req, res, next) => {
 
     // Fetch candidate pending bookings
     const candidateBookings = await Booking.find({
-      $or: [
-        { driver: driver._id },
-        { driver: null }
-      ],
       driverConfirmationStatus: { $ne: 'Confirmed' },
       bookingStatus: {
         $nin: ['Completed', 'Cancelled', 'Rejected']
@@ -1026,12 +1029,16 @@ exports.getBookingRequests = async (req, res, next) => {
 
     // Filter candidate bookings by route match & eligibility
     const requests = candidateBookings.filter(reqItem => {
+      // If directly confirmed/assigned to another driver, skip
+      if (reqItem.driverConfirmationStatus === 'Confirmed' || reqItem.driverConfirmed) {
+        return false;
+      }
       // If directly assigned to this driver
       if (reqItem.driver && (reqItem.driver._id || reqItem.driver).toString() === driver._id.toString()) {
         return true;
       }
-      // If unassigned, check route match
-      if (!reqItem.driver && reqItem.driverConfirmationStatus !== 'Confirmed') {
+      // If pending/unconfirmed request, check route match between driver's assigned vehicle and booking
+      if (assignedVehicle) {
         return vehicleMatchesBookingRoute(assignedVehicle, reqItem);
       }
       return false;
@@ -2166,10 +2173,17 @@ exports.updateEVBattery = async (req, res, next) => {
 exports.getDriverNotifications = async (req, res, next) => {
   try {
     const driver = req.driver;
+    const driverUserId = driver.user ? (driver.user._id || driver.user) : null;
+    const reqUserId = req.user ? (req.user._id || req.user) : null;
+
+    const recipientIds = [driverUserId, driver._id, reqUserId].filter(Boolean);
+
     const notifications = await Notification.find({
       $or: [
         { recipientRole: 'all' },
-        { recipientRole: 'driver' },
+        { recipient: 'All Drivers' },
+        { recipientRole: 'driver', recipientId: { $in: recipientIds } },
+        { recipientRole: 'driver', recipient: `Driver: ${driver.name}` },
         { recipient: `Driver: ${driver.name}` }
       ]
     })
