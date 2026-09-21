@@ -32,7 +32,7 @@ const getValidRecipientId = async (booking) => {
 
 const normalizeLoc = (loc) => {
   if (!loc) return '';
-  return String(loc).toLowerCase().replace(/[^a-z0-9]/g, '').trim();
+  return String(loc).split('(')[0].toLowerCase().replace(/[^a-z0-9]/g, '').trim();
 };
 
 const isLocationMatch = (loc1, loc2) => {
@@ -93,12 +93,12 @@ const verifyDriverVehicleAccess = async (driver, booking) => {
     }
   }
 
-  if (booking.driverAssigned) {
+  if (booking.driverAssigned && (booking.driverConfirmationStatus === 'Confirmed' || booking.driverConfirmed)) {
     const bookingAssignedStr = (booking.driverAssigned._id || booking.driverAssigned).toString();
     if (bookingAssignedStr === driverIdStr || (userIdStr && bookingAssignedStr === userIdStr)) {
       return true;
     } else {
-      // Assigned to another driver -> forbidden
+      // Assigned and confirmed to another driver -> forbidden
       return false;
     }
   }
