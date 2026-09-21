@@ -15,6 +15,7 @@ import {
   CalendarCheck,
   CreditCard,
   XOctagon,
+  Image as ImageIcon,
   Percent,
   ShieldAlert,
   Bell,

@@ -25,6 +25,7 @@ import CustomerSupport from './pages/CustomerSupport';
 import PoliciesManagement from './pages/PoliciesManagement';
 import BasicReports from './pages/BasicReports';
 import ServiceControl from './pages/ServiceControl';
+import BannerManagement from './pages/BannerManagement';
 
 // Admin Protected Route
 const AdminProtectedRoute = ({ children }) => {
@@ -66,7 +67,8 @@ function AppRoutes() {
         <Route path="bookings" element={<BookingManagement />} />
         <Route path="payments" element={<PaymentManagement />} />
         <Route path="cancellations" element={<CancellationManagement />} />
-        <Route path="compensation" element={<Navigate to="/dashboard" replace />} />
+        <Route path="banner-management" element={<BannerManagement />} />
+        <Route path="compensation" element={<BannerManagement />} />
         <Route path="insurance" element={<AccidentInsurance />} />
         <Route path="notifications" element={<Notifications />} />
         <Route path="support-tickets" element={<CustomerSupport />} />
