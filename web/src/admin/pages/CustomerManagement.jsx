@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { adminService } from '../../services/adminService';
 import StatusBadge from '../../components/StatusBadge';
-import { Users, Search, Check, AlertCircle, Tag, Percent, Save, Sparkles } from 'lucide-react';
+import { Users, Search, Check, AlertCircle, Tag, Percent, Save, Sparkles, Upload, Image as ImageIcon } from 'lucide-react';
 
 const CustomerManagement = () => {
   const [customers, setCustomers] = useState([]);
@@ -15,6 +15,8 @@ const CustomerManagement = () => {
   const [discountPercentage, setDiscountPercentage] = useState(15);
   const [offerTitle, setOfferTitle] = useState('Intercity Luxury Bus Travel');
   const [offerSubtitle, setOfferSubtitle] = useState('AC Sleeper & Seater coaches with live tracking and instant seat selection.');
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
   const [offerSaving, setOfferSaving] = useState(false);
   const [offerMsg, setOfferMsg] = useState({ type: '', text: '' });
 
@@ -35,10 +37,11 @@ const CustomerManagement = () => {
     try {
       const res = await adminService.getBusOffer();
       if (res && res.success && res.data) {
-        setOfferStatus(res.data.offerStatus || 'active');
+        setOfferStatus(res.data.offerStatus || res.data.discountStatus || 'active');
         setDiscountPercentage(res.data.discountPercentage !== undefined ? res.data.discountPercentage : 15);
         setOfferTitle(res.data.offerTitle || 'Intercity Luxury Bus Travel');
         setOfferSubtitle(res.data.offerSubtitle || 'AC Sleeper & Seater coaches with live tracking and instant seat selection.');
+        setImagePreview(res.data.bannerImage || res.data.imageUrl || '');
       }
     } catch (err) {
       console.error('Error loading bus offer settings:', err);
@@ -49,6 +52,14 @@ const CustomerManagement = () => {
     fetchCustomers();
     fetchBusOffer();
   }, []);
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
 
   const handleSaveBusOffer = async (e) => {
     e.preventDefault();
@@ -63,21 +74,25 @@ const CustomerManagement = () => {
     }
 
     try {
-      const res = await adminService.updateBusOffer({
-        offerStatus,
-        discountPercentage: numPct,
-        offerTitle,
-        offerSubtitle
-      });
+      const formData = new FormData();
+      formData.append('discountStatus', offerStatus);
+      formData.append('offerStatus', offerStatus);
+      formData.append('discountPercentage', numPct);
+      formData.append('offerTitle', offerTitle);
+      formData.append('offerSubtitle', offerSubtitle);
+
+      if (imageFile) {
+        formData.append('image', imageFile);
+      } else if (imagePreview) {
+        formData.append('imageUrl', imagePreview);
+      }
+
+      const res = await adminService.updateBusOffer(formData);
 
       if (res && res.success) {
-        setOfferMsg({ type: 'success', text: 'Bus Discount Offer updated successfully! Customer App will reflect changes immediately.' });
-        if (res.data) {
-          setOfferStatus(res.data.offerStatus);
-          setDiscountPercentage(res.data.discountPercentage);
-          setOfferTitle(res.data.offerTitle);
-          setOfferSubtitle(res.data.offerSubtitle);
-        }
+        setOfferMsg({ type: 'success', text: 'Bus Banner & Discount Offer updated successfully! Customer App will reflect changes immediately.' });
+        setImageFile(null);
+        fetchBusOffer();
       } else {
         setOfferMsg({ type: 'error', text: res?.message || 'Failed to update bus offer.' });
       }
@@ -194,6 +209,53 @@ const CustomerManagement = () => {
         )}
 
         <form onSubmit={handleSaveBusOffer}>
+          {/* Promotional Banner Image Upload & Preview */}
+          <div style={{ marginBottom: '16px', borderBottom: '1px solid #f1f5f9', paddingBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: '700', color: '#334155', marginBottom: '8px' }}>
+              Promotional Banner Image (Customer App Home Screen)
+            </label>
+            {imagePreview ? (
+              <div style={{ position: 'relative', height: '140px', borderRadius: '10px', overflow: 'hidden', border: '1px solid #cbd5e1', marginBottom: '8px', maxWidth: '480px' }}>
+                <img src={imagePreview} alt="Banner Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <button
+                  type="button"
+                  onClick={() => { setImageFile(null); setImagePreview(''); }}
+                  style={{
+                    position: 'absolute', top: '8px', right: '8px',
+                    backgroundColor: 'rgba(15, 23, 42, 0.85)', color: '#ffffff',
+                    border: 'none', borderRadius: '4px', padding: '4px 10px', fontSize: '11px', cursor: 'pointer', fontWeight: '600'
+                  }}
+                >
+                  Change Image
+                </button>
+              </div>
+            ) : (
+              <label style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '10px',
+                height: '80px',
+                border: '2px dashed #cbd5e1',
+                borderRadius: '10px',
+                backgroundColor: '#f8fafc',
+                cursor: 'pointer',
+                maxWidth: '480px'
+              }}>
+                <Upload size={20} color="#64748b" />
+                <span style={{ fontSize: '0.85rem', color: '#475569', fontWeight: '600' }}>
+                  Upload Promotional Banner Image (JPG, PNG, WebP)
+                </span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/jpg"
+                  onChange={handleImageChange}
+                  style={{ display: 'none' }}
+                />
+              </label>
+            )}
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '16px' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
