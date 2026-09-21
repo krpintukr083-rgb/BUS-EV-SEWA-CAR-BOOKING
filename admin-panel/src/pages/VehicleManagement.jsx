@@ -610,13 +610,21 @@ const VehicleManagement = () => {
                       </td>
 
                       <td>
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                           <button
                             onClick={() => handleOpenViewModal(v)}
                             className="btn btn-sm btn-outline"
                             title="View Details & Gallery"
                           >
                             <Eye size={13} /> View
+                          </button>
+                          <button
+                            onClick={() => setDeleteTarget(v)}
+                            className="btn btn-sm btn-outline"
+                            style={{ color: '#dc2626', borderColor: '#fca5a5', backgroundColor: '#fef2f2', fontWeight: '700' }}
+                            title="Delete Vehicle"
+                          >
+                            <Trash2 size={13} /> Delete
                           </button>
                           <button
                             onClick={() => handleOpenPhotoModal(v)}
@@ -669,14 +677,6 @@ const VehicleManagement = () => {
                               Block
                             </button>
                           )}
-                          <button
-                            onClick={() => setDeleteTarget(v)}
-                            className="btn btn-sm btn-outline"
-                            style={{ color: '#dc2626', borderColor: '#fca5a5', backgroundColor: '#fef2f2' }}
-                            title="Delete Vehicle"
-                          >
-                            <Trash2 size={13} /> Delete
-                          </button>
                         </div>
                       </td>
                     </tr>
