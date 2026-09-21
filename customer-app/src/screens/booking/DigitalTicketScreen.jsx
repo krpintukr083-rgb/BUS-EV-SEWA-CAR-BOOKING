@@ -98,7 +98,7 @@ const DigitalTicketScreen = ({ route, navigation }) => {
             <View style={styles.topRow}>
               <View style={styles.brandGroup}>
                 <Ionicons name="bus" size={20} color="#ffffff" />
-                <Text style={styles.brandTitle}>TravelEase Pass</Text>
+                <Text style={styles.brandTitle}>TravelSewa Pass</Text>
               </View>
               <View style={[styles.statusPill, booking.bookingStatus === 'Pending Driver Confirmation' && { backgroundColor: '#f59e0b' }, booking.bookingStatus === 'Rejected' && { backgroundColor: '#ef4444' }]}>
                 <Text style={styles.statusPillText}>{booking.bookingStatus || 'Confirmed'}</Text>

@@ -467,7 +467,7 @@ const PaymentScreen = ({ route, navigation }) => {
           <div class="merchant-info">
             <div class="avatar">⚡</div>
             <div>
-              <div class="brand-name">TravelEase Mobility</div>
+              <div class="brand-name">TravelSewa Mobility</div>
               <div class="brand-desc">Booking ${razorpayOrder.bookingId}</div>
             </div>
           </div>

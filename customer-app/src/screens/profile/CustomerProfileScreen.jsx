@@ -44,7 +44,7 @@ const CustomerProfileScreen = ({ navigation }) => {
   const handleLogout = () => {
     Alert.alert(
       'Log Out',
-      'Are you sure you want to log out of your TravelEase account?',
+      'Are you sure you want to log out of your TravelSewa account?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -322,7 +322,7 @@ const CustomerProfileScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         {/* Version info */}
-        <Text style={styles.versionText}>TravelEase Customer App v1.0.0 (Production Build)</Text>
+        <Text style={styles.versionText}>TravelSewa Customer App v1.0.0 (Production Build)</Text>
       </ScrollView>
 
       {/* Edit Profile Modal */}

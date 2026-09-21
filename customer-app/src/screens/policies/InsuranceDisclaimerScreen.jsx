@@ -22,7 +22,7 @@ const InsuranceDisclaimerScreen = ({ navigation }) => {
         <View style={styles.card}>
           <Text style={styles.heading}>1. Nature of Transit Cover</Text>
           <Text style={styles.paragraph}>
-            TravelEase partners with certified insurance underwriters to provide optional / complimentary passenger transit protection. The stated maximum coverage ceiling of ₹5,00,000 is a theoretical maximum policy limit and does not represent a fixed or guaranteed payout amount.
+            TravelSewa partners with certified insurance underwriters to provide optional / complimentary passenger transit protection. The stated maximum coverage ceiling of ₹5,00,000 is a theoretical maximum policy limit and does not represent a fixed or guaranteed payout amount.
           </Text>
 
           <Text style={styles.heading}>2. Claim Admissibility & Approval</Text>
@@ -37,7 +37,7 @@ const InsuranceDisclaimerScreen = ({ navigation }) => {
 
           <Text style={styles.heading}>4. Platform Role</Text>
           <Text style={styles.paragraph}>
-            TravelEase acts purely as a digital facilitator connecting travelers with transportation operators and insurance partners, and does not operate as an insurance underwriter or claim adjudicator.
+            TravelSewa acts purely as a digital facilitator connecting travelers with transportation operators and insurance partners, and does not operate as an insurance underwriter or claim adjudicator.
           </Text>
         </View>
       </ScrollView>

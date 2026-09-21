@@ -72,7 +72,7 @@ const apiClient = axios.create({
     'bypass-tunnel-reminder': 'true',
     'Bypass-Tunnel-Reminder': 'true',
     'ngrok-skip-browser-warning': 'true',
-    'User-Agent': 'TravelEaseDriverApp/1.0'
+    'User-Agent': 'TravelSewaDriverApp/1.0'
   }
 });
 

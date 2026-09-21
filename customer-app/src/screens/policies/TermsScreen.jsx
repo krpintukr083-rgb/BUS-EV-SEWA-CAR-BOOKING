@@ -12,7 +12,7 @@ const TermsScreen = ({ navigation }) => {
         <View style={styles.card}>
           <Text style={styles.heading}>1. User Agreement</Text>
           <Text style={styles.paragraph}>
-            By accessing or using the TravelEase Platform for booking Bus, EV-Sewa, or Car transportation services, you agree to comply with and be bound by these Terms and Conditions.
+            By accessing or using the TravelSewa Platform for booking Bus, EV-Sewa, or Car transportation services, you agree to comply with and be bound by these Terms and Conditions.
           </Text>
 
           <Text style={styles.heading}>2. Booking & Ticketing</Text>
@@ -32,7 +32,7 @@ const TermsScreen = ({ navigation }) => {
 
           <Text style={styles.heading}>5. Service Modifications</Text>
           <Text style={styles.paragraph}>
-            TravelEase reserves the right to adjust schedules, assign replacement vehicles of equivalent category, or modify operating routes in response to weather, regulatory advisories, or road conditions.
+            TravelSewa reserves the right to adjust schedules, assign replacement vehicles of equivalent category, or modify operating routes in response to weather, regulatory advisories, or road conditions.
           </Text>
 
           <Text style={styles.heading}>6. Governing Law</Text>

@@ -30,7 +30,7 @@ const RefundPolicyScreen = ({ navigation }) => {
 
           <Text style={styles.heading}>4. Dispute Resolution</Text>
           <Text style={styles.paragraph}>
-            For any discrepancies regarding refund calculations, please contact customer support with your Booking Reference ID at support@travelease.com.
+            For any discrepancies regarding refund calculations, please contact customer support with your Booking Reference ID at support@travelsewa.com.
           </Text>
         </View>
       </ScrollView>

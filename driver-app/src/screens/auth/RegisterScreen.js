@@ -118,7 +118,7 @@ const RegisterScreen = ({ navigation }) => {
       </TouchableOpacity>
 
       <Text style={styles.screenTitle}>{t('register')}</Text>
-      <Text style={styles.screenSub}>Join TravelEase as a verified multi-modal driver partner</Text>
+      <Text style={styles.screenSub}>Join TravelSewa as a verified multi-modal driver partner</Text>
 
       {/* Notice Pill */}
       <View style={styles.noticePill}>

@@ -47,7 +47,7 @@ const InsuranceScreen = ({ navigation }) => {
           </View>
           <Text style={styles.bannerTitle}>Complimentary Passenger Protection</Text>
           <Text style={styles.bannerSub}>
-            All confirmed journeys booked on TravelEase are covered under transit passenger accident protection policy.
+            All confirmed journeys booked on TravelSewa are covered under transit passenger accident protection policy.
           </Text>
         </View>
 

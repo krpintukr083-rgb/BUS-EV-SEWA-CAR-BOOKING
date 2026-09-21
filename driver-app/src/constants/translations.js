@@ -1,6 +1,6 @@
 export const TRANSLATIONS = {
   en: {
-    appName: 'TravelEase Driver',
+    appName: 'TravelSewa Driver',
     online: 'ONLINE',
     offline: 'OFFLINE',
     switchOnline: 'Go Online to receive rides',
@@ -80,7 +80,7 @@ export const TRANSLATIONS = {
     fitness: 'State Fitness Certificate / Vehicle Safety Permit'
   },
   ne: {
-    appName: 'ट्राभलईज चालक',
+    appName: 'ट्राभलसेवा चालक',
     online: 'अनलाइन',
     offline: 'अफलाइन',
     switchOnline: 'सवारी प्राप्त गर्न अनलाइन जानुहोस्',
@@ -161,7 +161,7 @@ export const TRANSLATIONS = {
     fitness: 'राज्य सवारी फिटनेस / सुरक्षा अनुमति पत्र'
   },
   hi: {
-    appName: 'ट्रैवलईज़ ड्राइवर',
+    appName: 'ट्रैवलसेवा ड्राइवर',
     online: 'ऑनलाइन',
     offline: 'ऑफलाइन',
     switchOnline: 'राइड प्राप्त करने के लिए ऑनलाइन हों',

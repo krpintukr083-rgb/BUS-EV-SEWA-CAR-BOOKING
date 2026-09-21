@@ -73,7 +73,7 @@ export default function SupportScreen({ navigation }) {
   };
 
   const openWhatsApp = () => {
-    Linking.openURL('https://wa.me/9779801234567?text=Hello%20TravelEase%20Driver%20Support').catch(() => {
+    Linking.openURL('https://wa.me/9779801234567?text=Hello%20TravelSewa%20Driver%20Support').catch(() => {
       Alert.alert(t('error'), 'Unable to open WhatsApp');
     });
   };

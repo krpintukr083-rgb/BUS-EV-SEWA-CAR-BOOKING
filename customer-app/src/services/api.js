@@ -114,7 +114,7 @@ const api = axios.create({
     'bypass-tunnel-reminder': 'true',
     'Bypass-Tunnel-Reminder': 'true',
     'ngrok-skip-browser-warning': 'true',
-    'User-Agent': 'TravelEaseCustomerApp/1.0'
+    'User-Agent': 'TravelSewaCustomerApp/1.0'
   },
   timeout: 18000
 });

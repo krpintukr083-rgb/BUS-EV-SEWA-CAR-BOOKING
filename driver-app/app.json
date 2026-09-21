@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "TravelEase Driver - Partner App",
+    "name": "TravelSewa",
     "slug": "travelease-driver-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -9,7 +9,7 @@
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#0F172A"
+      "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": true

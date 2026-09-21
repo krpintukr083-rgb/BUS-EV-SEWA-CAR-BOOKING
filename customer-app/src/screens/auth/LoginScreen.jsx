@@ -246,7 +246,7 @@ const LoginScreen = ({ navigation }) => {
             </View>
 
             <Text style={styles.modalSub}>
-              TravelEase uses high-speed cloud servers. You can also connect to a custom server IP.
+              TravelSewa uses high-speed cloud servers. You can also connect to a custom server IP.
             </Text>
 
             <Text style={styles.fieldLabel}>Active Server URL</Text>
