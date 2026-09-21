@@ -199,6 +199,7 @@ export default function DriverProfileScreen({ navigation }) {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
+        <Image source={require('../../assets/logo.png')} style={{ width: 30, height: 30, borderRadius: 8, marginRight: 8 }} resizeMode="contain" />
         <Text style={styles.headerTitle}>{t('profile')}</Text>
       </View>
 

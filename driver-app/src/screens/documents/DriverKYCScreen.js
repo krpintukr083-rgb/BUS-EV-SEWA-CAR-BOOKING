@@ -45,7 +45,10 @@ export default function DriverKYCScreen({ navigation }) {
     const src = doc || fallback || {};
     const documentNumber = src.documentNumber || src.number || src.docNumber || fallback?.documentNumber || fallback?.number || '';
     const expiryDate = src.expiryDate || src.expiry || src.expiryDetails || fallback?.expiryDate || fallback?.expiry || '';
+    const citizenshipIssueDate = src.citizenshipIssueDate || src.issueDate || src.issue || fallback?.citizenshipIssueDate || fallback?.issueDate || '';
     const docUrl = src.docUrl || src.url || src.citizenshipDoc || src.drivingLicenceDoc || src.rcDoc || src.insuranceDoc || src.fitnessDoc || fallback?.docUrl || fallback?.url || '';
+    const docFront = src.docFront || src.citizenshipDocFront || src.url || fallback?.docFront || '';
+    const docBack = src.docBack || src.citizenshipDocBack || fallback?.docBack || '';
     const status = src.status || fallback?.status || 'PENDING';
     const reason = src.rejectionReason || fallback?.rejectionReason || '';
     return {
@@ -54,8 +57,12 @@ export default function DriverKYCScreen({ navigation }) {
       number: documentNumber,
       expiryDate,
       expiry: expiryDate,
+      citizenshipIssueDate,
+      issueDate: citizenshipIssueDate,
       docUrl,
       url: docUrl,
+      docFront,
+      docBack,
       status,
       rejectionReason: reason,
     };
@@ -227,16 +234,22 @@ export default function DriverKYCScreen({ navigation }) {
                 {/* Metadata Row */}
                 <View style={styles.docMetaRow}>
                   <View style={styles.metaCol}>
-                    <Text style={styles.metaLabel}>Doc / License No:</Text>
+                    <Text style={styles.metaLabel}>
+                      {doc.key === 'citizenship' ? 'Citizenship No:' : 'Doc / License No:'}
+                    </Text>
                     <Text style={styles.metaVal}>{docData.documentNumber || docData.number || 'Not submitted'}</Text>
                   </View>
                   <View style={styles.metaCol}>
-                    <Text style={styles.metaLabel}>{t('expiryDate')}:</Text>
+                    <Text style={styles.metaLabel}>
+                      {doc.key === 'citizenship' ? 'Issue Date:' : `${t('expiryDate')}:`}
+                    </Text>
                     <Text style={[
                       styles.metaVal,
-                      docData.status?.toUpperCase() === 'EXPIRED' && { color: COLORS.danger, fontWeight: '700' }
+                      doc.key !== 'citizenship' && docData.status?.toUpperCase() === 'EXPIRED' && { color: COLORS.danger, fontWeight: '700' }
                     ]}>
-                      {docData.expiryDate || docData.expiry || 'N/A'}
+                      {doc.key === 'citizenship'
+                        ? (docData.citizenshipIssueDate || docData.issueDate || docData.issue || 'N/A')
+                        : (docData.expiryDate || docData.expiry || 'N/A')}
                     </Text>
                   </View>
                 </View>

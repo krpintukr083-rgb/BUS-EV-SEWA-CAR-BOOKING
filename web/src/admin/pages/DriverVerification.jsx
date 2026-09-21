@@ -211,8 +211,10 @@ const DriverVerification = () => {
       key: 'citizenship',
       title: '1. Citizenship Certificate / National ID',
       docNum: selectedDriver.citizenshipNumber || selectedDriver.documents?.citizenship?.documentNumber || 'Not submitted',
-      expiry: selectedDriver.citizenshipExpiry || selectedDriver.documents?.citizenship?.expiryDate || 'N/A',
-      url: selectedDriver.citizenshipDoc || selectedDriver.documents?.citizenship?.url || selectedDriver.documents?.citizenship?.fileUrl,
+      issueDate: selectedDriver.citizenshipIssueDate || selectedDriver.documents?.citizenship?.issueDate || selectedDriver.documents?.citizenship?.citizenshipIssueDate || 'Not specified',
+      url: selectedDriver.citizenshipDocFront || selectedDriver.citizenshipDoc || selectedDriver.documents?.citizenship?.url || selectedDriver.documents?.citizenship?.docFront,
+      docFront: selectedDriver.citizenshipDocFront || selectedDriver.citizenshipDoc || selectedDriver.documents?.citizenship?.docFront || selectedDriver.documents?.citizenship?.url,
+      docBack: selectedDriver.citizenshipDocBack || selectedDriver.documents?.citizenship?.docBack,
       status: selectedDriver.citizenshipStatus || selectedDriver.documents?.citizenship?.status || 'Pending'
     },
     {
@@ -498,15 +500,24 @@ const DriverVerification = () => {
 
                           <div style={{ display: 'flex', gap: '16px', marginTop: '8px', fontSize: '0.82rem', color: '#475569' }}>
                             <div>
-                              <span style={{ color: '#94a3b8' }}>Doc No: </span>
+                              <span style={{ color: '#94a3b8' }}>
+                                {doc.key === 'citizenship' ? 'Citizenship Number: ' : 'Doc No: '}
+                              </span>
                               <code style={{ backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontWeight: '700', color: '#0f172a' }}>
                                 {doc.docNum}
                               </code>
                             </div>
-                            <div>
-                              <span style={{ color: '#94a3b8' }}>Expiry Date: </span>
-                              <span style={{ fontWeight: '600', color: '#0f172a' }}>{doc.expiry}</span>
-                            </div>
+                            {doc.key === 'citizenship' ? (
+                              <div>
+                                <span style={{ color: '#94a3b8' }}>Issue Date: </span>
+                                <span style={{ fontWeight: '600', color: '#0f172a' }}>{doc.issueDate}</span>
+                              </div>
+                            ) : (
+                              <div>
+                                <span style={{ color: '#94a3b8' }}>Expiry Date: </span>
+                                <span style={{ fontWeight: '600', color: '#0f172a' }}>{doc.expiry}</span>
+                              </div>
+                            )}
                           </div>
 
                           {/* Rejection Note Display if rejected */}
@@ -520,45 +531,112 @@ const DriverVerification = () => {
 
                         {/* File Preview & Actions */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          {/* View Document / Document Not Uploaded Button */}
-                          {hasFile ? (
-                            <button
-                              type="button"
-                              onClick={() => handleViewDocument(doc)}
-                              className="btn btn-sm btn-outline"
-                              style={{
-                                fontSize: '0.78rem',
-                                fontWeight: '700',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                color: '#0A66C2',
-                                borderColor: '#0A66C2',
-                                backgroundColor: 'rgba(10, 102, 194, 0.05)',
-                                padding: '6px 12px',
-                                borderRadius: '6px',
-                                cursor: 'pointer'
-                              }}
-                            >
-                              <Eye size={14} /> View Document
-                            </button>
+                          {/* View Document / Document Not Uploaded Buttons */}
+                          {doc.key === 'citizenship' ? (
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              {doc.docFront ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleViewDocument({ ...doc, fullUrl: getImageUrl(doc.docFront), title: 'Citizenship Certificate - Front Side' })}
+                                  className="btn btn-sm btn-outline"
+                                  style={{
+                                    fontSize: '0.78rem',
+                                    fontWeight: '700',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    color: '#0A66C2',
+                                    borderColor: '#0A66C2',
+                                    backgroundColor: 'rgba(10, 102, 194, 0.05)',
+                                    padding: '6px 12px',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <Eye size={14} /> Front Side
+                                </button>
+                              ) : null}
+                              {doc.docBack ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleViewDocument({ ...doc, fullUrl: getImageUrl(doc.docBack), title: 'Citizenship Certificate - Back Side' })}
+                                  className="btn btn-sm btn-outline"
+                                  style={{
+                                    fontSize: '0.78rem',
+                                    fontWeight: '700',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    color: '#0A66C2',
+                                    borderColor: '#0A66C2',
+                                    backgroundColor: 'rgba(10, 102, 194, 0.05)',
+                                    padding: '6px 12px',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  <Eye size={14} /> Back Side
+                                </button>
+                              ) : null}
+                              {!doc.docFront && !doc.docBack && (
+                                <button
+                                  type="button"
+                                  disabled
+                                  style={{
+                                    fontSize: '0.75rem',
+                                    fontWeight: '600',
+                                    color: '#94a3b8',
+                                    backgroundColor: '#f1f5f9',
+                                    border: '1px solid #cbd5e1',
+                                    padding: '6px 12px',
+                                    borderRadius: '6px',
+                                    cursor: 'not-allowed'
+                                  }}
+                                >
+                                  Document Not Uploaded
+                                </button>
+                              )}
+                            </div>
                           ) : (
-                            <button
-                              type="button"
-                              disabled
-                              style={{
-                                fontSize: '0.75rem',
-                                fontWeight: '600',
-                                color: '#94a3b8',
-                                backgroundColor: '#f1f5f9',
-                                border: '1px solid #cbd5e1',
-                                padding: '6px 12px',
-                                borderRadius: '6px',
-                                cursor: 'not-allowed'
-                              }}
-                            >
-                              Document Not Uploaded
-                            </button>
+                            hasFile ? (
+                              <button
+                                type="button"
+                                onClick={() => handleViewDocument(doc)}
+                                className="btn btn-sm btn-outline"
+                                style={{
+                                  fontSize: '0.78rem',
+                                  fontWeight: '700',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  color: '#0A66C2',
+                                  borderColor: '#0A66C2',
+                                  backgroundColor: 'rgba(10, 102, 194, 0.05)',
+                                  padding: '6px 12px',
+                                  borderRadius: '6px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Eye size={14} /> View Document
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled
+                                style={{
+                                  fontSize: '0.75rem',
+                                  fontWeight: '600',
+                                  color: '#94a3b8',
+                                  backgroundColor: '#f1f5f9',
+                                  border: '1px solid #cbd5e1',
+                                  padding: '6px 12px',
+                                  borderRadius: '6px',
+                                  cursor: 'not-allowed'
+                                }}
+                              >
+                                Document Not Uploaded
+                              </button>
+                            )
                           )}
 
                           {/* Action Buttons */}

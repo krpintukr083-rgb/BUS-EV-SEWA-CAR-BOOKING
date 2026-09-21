@@ -9,19 +9,37 @@ import { driverService } from '../services/driverService';
 const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess }) => {
   const [docNumber, setDocNumber] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
+  const [issueDate, setIssueDate] = useState('');
   const [selectedAsset, setSelectedAsset] = useState(null);
+  const [frontAsset, setFrontAsset] = useState(null);
+  const [backAsset, setBackAsset] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  const isCitizenship = docType === 'citizenship';
 
   useEffect(() => {
     if (visible) {
       setDocNumber('');
       setExpiryDate('');
+      setIssueDate('');
       setSelectedAsset(null);
+      setFrontAsset(null);
+      setBackAsset(null);
       setLoading(false);
     }
-  }, [visible]);
+  }, [visible, docType]);
 
-  const handlePickFromGallery = async () => {
+  const setTargetAsset = (target, assetObj) => {
+    if (target === 'front') {
+      setFrontAsset(assetObj);
+    } else if (target === 'back') {
+      setBackAsset(assetObj);
+    } else {
+      setSelectedAsset(assetObj);
+    }
+  };
+
+  const handlePickFromGallery = async (target = 'single') => {
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
@@ -35,9 +53,9 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
       if (result.canceled) return;
       const asset = result.assets?.[0];
       if (asset) {
-        const rawName = asset.fileName || asset.uri.split('/').pop() || `${docType}_${Date.now()}.jpg`;
+        const rawName = asset.fileName || asset.uri.split('/').pop() || `${docType}_${target}_${Date.now()}.jpg`;
         const mimeType = asset.mimeType || (rawName.endsWith('.png') ? 'image/png' : 'image/jpeg');
-        setSelectedAsset({
+        setTargetAsset(target, {
           uri: asset.uri,
           name: rawName,
           mimeType: mimeType,
@@ -49,7 +67,7 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
     }
   };
 
-  const handlePickFromCamera = async () => {
+  const handlePickFromCamera = async (target = 'single') => {
     try {
       const permission = await ImagePicker.requestCameraPermissionsAsync();
       if (!permission.granted) {
@@ -62,9 +80,9 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
       if (result.canceled) return;
       const asset = result.assets?.[0];
       if (asset) {
-        const rawName = asset.fileName || asset.uri.split('/').pop() || `${docType}_${Date.now()}.jpg`;
+        const rawName = asset.fileName || asset.uri.split('/').pop() || `${docType}_${target}_${Date.now()}.jpg`;
         const mimeType = asset.mimeType || 'image/jpeg';
-        setSelectedAsset({
+        setTargetAsset(target, {
           uri: asset.uri,
           name: rawName,
           mimeType: mimeType,
@@ -76,7 +94,7 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
     }
   };
 
-  const handlePickDocument = async () => {
+  const handlePickDocument = async (target = 'single') => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: ['image/*', 'application/pdf'],
@@ -85,9 +103,9 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
       if (result.canceled) return;
       const asset = result.assets?.[0];
       if (asset) {
-        const rawName = asset.name || asset.uri.split('/').pop() || `${docType}_${Date.now()}.pdf`;
+        const rawName = asset.name || asset.uri.split('/').pop() || `${docType}_${target}_${Date.now()}.pdf`;
         const mimeType = asset.mimeType || (rawName.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
-        setSelectedAsset({
+        setTargetAsset(target, {
           uri: asset.uri,
           name: rawName,
           mimeType: mimeType,
@@ -105,22 +123,49 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
       return;
     }
 
-    if (!selectedAsset) {
-      Alert.alert('Validation Error', 'Please select or capture a document file/photo.');
-      return;
+    if (isCitizenship) {
+      if (!frontAsset) {
+        Alert.alert('Validation Error', 'Please select or capture the Front Side of your Citizenship / National ID.');
+        return;
+      }
+    } else {
+      if (!selectedAsset) {
+        Alert.alert('Validation Error', 'Please select or capture a document file/photo.');
+        return;
+      }
     }
 
     setLoading(true);
     try {
       const formData = new FormData();
-      formData.append('document', {
-        uri: selectedAsset.uri,
-        name: selectedAsset.name || `${docType}_${Date.now()}.jpg`,
-        type: selectedAsset.mimeType || 'image/jpeg',
-      });
       formData.append('docType', docType);
       formData.append('documentNumber', docNumber.trim());
-      formData.append('expiryDate', expiryDate.trim() || '2029-12-31');
+
+      if (isCitizenship) {
+        if (issueDate.trim()) {
+          formData.append('citizenshipIssueDate', issueDate.trim());
+          formData.append('issueDate', issueDate.trim());
+        }
+        formData.append('docFront', {
+          uri: frontAsset.uri,
+          name: frontAsset.name || `citizenship_front_${Date.now()}.jpg`,
+          type: frontAsset.mimeType || 'image/jpeg',
+        });
+        if (backAsset) {
+          formData.append('docBack', {
+            uri: backAsset.uri,
+            name: backAsset.name || `citizenship_back_${Date.now()}.jpg`,
+            type: backAsset.mimeType || 'image/jpeg',
+          });
+        }
+      } else {
+        formData.append('expiryDate', expiryDate.trim() || '2029-12-31');
+        formData.append('document', {
+          uri: selectedAsset.uri,
+          name: selectedAsset.name || `${docType}_${Date.now()}.jpg`,
+          type: selectedAsset.mimeType || 'image/jpeg',
+        });
+      }
 
       const res = await driverService.uploadDocument(formData);
 
@@ -139,6 +184,60 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
     }
   };
 
+  const renderPickerControls = (target) => {
+    let asset = null;
+    let removeHandler = null;
+
+    if (target === 'front') {
+      asset = frontAsset;
+      removeHandler = () => setFrontAsset(null);
+    } else if (target === 'back') {
+      asset = backAsset;
+      removeHandler = () => setBackAsset(null);
+    } else {
+      asset = selectedAsset;
+      removeHandler = () => setSelectedAsset(null);
+    }
+
+    if (asset) {
+      return (
+        <View style={styles.selectedBadge}>
+          {asset.isImage && asset.uri ? (
+            <Image source={{ uri: asset.uri }} style={styles.previewImage} />
+          ) : (
+            <Ionicons name="document-text" size={32} color={COLORS.primary} />
+          )}
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={styles.fileNameText} numberOfLines={1}>{asset.name}</Text>
+            <Text style={styles.fileSubText}>File selected & attached</Text>
+          </View>
+          <TouchableOpacity onPress={removeHandler}>
+            <Ionicons name="trash-outline" size={20} color={COLORS.danger || '#ef4444'} />
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    return (
+      <View style={styles.pickerButtonGroup}>
+        <TouchableOpacity style={styles.pickerBtn} onPress={() => handlePickFromCamera(target)} activeOpacity={0.8}>
+          <Ionicons name="camera" size={20} color={COLORS.primary} />
+          <Text style={styles.pickerBtnText}>Camera</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.pickerBtn} onPress={() => handlePickFromGallery(target)} activeOpacity={0.8}>
+          <Ionicons name="images" size={20} color={COLORS.primary} />
+          <Text style={styles.pickerBtnText}>Gallery</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.pickerBtn} onPress={() => handlePickDocument(target)} activeOpacity={0.8}>
+          <Ionicons name="folder-open" size={20} color={COLORS.primary} />
+          <Text style={styles.pickerBtnText}>PDF / File</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
@@ -150,58 +249,48 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.label}>Document / License Number *</Text>
+          <Text style={styles.label}>
+            {isCitizenship ? 'Citizenship Number *' : 'Document / License Number *'}
+          </Text>
           <TextInput
             style={styles.input}
-            placeholder="e.g. DL-01-2024-9982"
+            placeholder={isCitizenship ? 'e.g. CIT-98765-NP' : 'e.g. DL-01-2024-9982'}
             placeholderTextColor={COLORS.textMuted}
             value={docNumber}
             onChangeText={setDocNumber}
           />
 
-          <Text style={styles.label}>Expiry Date (YYYY-MM-DD)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. 2029-12-31"
-            placeholderTextColor={COLORS.textMuted}
-            value={expiryDate}
-            onChangeText={setExpiryDate}
-          />
+          {isCitizenship ? (
+            <>
+              <Text style={styles.label}>Issue Date (YYYY-MM-DD)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. 2025-01-15"
+                placeholderTextColor={COLORS.textMuted}
+                value={issueDate}
+                onChangeText={setIssueDate}
+              />
 
-          <Text style={styles.label}>Select Document File / Photo *</Text>
-          
-          {selectedAsset ? (
-            <View style={styles.selectedBadge}>
-              {selectedAsset.isImage && selectedAsset.uri ? (
-                <Image source={{ uri: selectedAsset.uri }} style={styles.previewImage} />
-              ) : (
-                <Ionicons name="document-text" size={32} color={COLORS.primary} />
-              )}
-              <View style={{ flex: 1, marginLeft: 10 }}>
-                <Text style={styles.fileNameText} numberOfLines={1}>{selectedAsset.name}</Text>
-                <Text style={styles.fileSubText}>File selected & attached</Text>
-              </View>
-              <TouchableOpacity onPress={() => setSelectedAsset(null)}>
-                <Ionicons name="trash-outline" size={20} color={COLORS.danger || '#ef4444'} />
-              </TouchableOpacity>
-            </View>
+              <Text style={styles.label}>Front Side *</Text>
+              {renderPickerControls('front')}
+
+              <Text style={styles.label}>Back Side *</Text>
+              {renderPickerControls('back')}
+            </>
           ) : (
-            <View style={styles.pickerButtonGroup}>
-              <TouchableOpacity style={styles.pickerBtn} onPress={handlePickFromCamera} activeOpacity={0.8}>
-                <Ionicons name="camera" size={22} color={COLORS.primary} />
-                <Text style={styles.pickerBtnText}>Camera</Text>
-              </TouchableOpacity>
+            <>
+              <Text style={styles.label}>Expiry Date (YYYY-MM-DD)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. 2029-12-31"
+                placeholderTextColor={COLORS.textMuted}
+                value={expiryDate}
+                onChangeText={setExpiryDate}
+              />
 
-              <TouchableOpacity style={styles.pickerBtn} onPress={handlePickFromGallery} activeOpacity={0.8}>
-                <Ionicons name="images" size={22} color={COLORS.primary} />
-                <Text style={styles.pickerBtnText}>Gallery</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity style={styles.pickerBtn} onPress={handlePickDocument} activeOpacity={0.8}>
-                <Ionicons name="folder-open" size={22} color={COLORS.primary} />
-                <Text style={styles.pickerBtnText}>PDF / File</Text>
-              </TouchableOpacity>
-            </View>
+              <Text style={styles.label}>Select Document File / Photo *</Text>
+              {renderPickerControls('single')}
+            </>
           )}
 
           <TouchableOpacity
@@ -272,7 +361,7 @@ const styles = StyleSheet.create({
   pickerButtonGroup: {
     flexDirection: 'row',
     gap: 10,
-    marginVertical: 10,
+    marginVertical: 6,
   },
   pickerBtn: {
     flex: 1,
@@ -280,7 +369,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: COLORS.primary || '#0A66C2',
-    paddingVertical: 14,
+    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
@@ -297,12 +386,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: COLORS.primary || '#0A66C2',
-    padding: 10,
-    marginVertical: 10,
+    padding: 8,
+    marginVertical: 6,
   },
   previewImage: {
-    width: 44,
-    height: 44,
+    width: 38,
+    height: 38,
     borderRadius: 6,
   },
   fileNameText: {

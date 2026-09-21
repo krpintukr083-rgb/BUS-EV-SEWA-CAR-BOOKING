@@ -291,9 +291,12 @@ exports.getDrivers = async (req, res, next) => {
       const docsObj = {
         citizenship: {
           documentNumber: obj.citizenshipNumber || '',
-          url: obj.citizenshipDoc || '',
-          fileUrl: obj.citizenshipDoc || '',
-          expiryDate: obj.citizenshipExpiry || '',
+          url: obj.citizenshipDocFront || obj.citizenshipDoc || '',
+          fileUrl: obj.citizenshipDocFront || obj.citizenshipDoc || '',
+          docFront: obj.citizenshipDocFront || obj.citizenshipDoc || '',
+          docBack: obj.citizenshipDocBack || '',
+          issueDate: obj.citizenshipIssueDate || '',
+          citizenshipIssueDate: obj.citizenshipIssueDate || '',
           status: obj.citizenshipStatus || 'Pending'
         },
         drivingLicence: {

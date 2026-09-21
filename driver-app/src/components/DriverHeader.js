@@ -29,10 +29,12 @@ const DriverHeader = ({ navigation, title, showBack = false }) => {
       {showBack ? (
         <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack()}>
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <Image source={require('../assets/logo.png')} style={styles.brandLogoSmall} resizeMode="contain" />
           {title && <Text style={styles.headerTitle}>{title}</Text>}
         </TouchableOpacity>
       ) : (
         <View style={styles.leftRow}>
+          <Image source={require('../assets/logo.png')} style={styles.brandLogo} resizeMode="contain" />
           <Image source={{ uri: profilePhoto }} style={styles.avatar} />
           <View style={styles.driverInfo}>
             <Text style={styles.driverName} numberOfLines={1}>{displayName}</Text>
@@ -101,6 +103,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1
+  },
+  brandLogo: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    marginRight: 8
+  },
+  brandLogoSmall: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    marginLeft: 6,
+    marginRight: 4
   },
   avatar: {
     width: 42,

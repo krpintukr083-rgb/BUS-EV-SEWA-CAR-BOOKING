@@ -411,10 +411,13 @@ exports.getDriverDocuments = async (req, res, next) => {
         type: 'Citizenship / National ID',
         key: 'citizenship',
         documentNumber: driver.citizenshipNumber || 'N/A',
-        docUrl: driver.citizenshipDoc || '',
-        expiryDate: driver.citizenshipExpiry || 'N/A',
-        status: driver.citizenshipStatus || 'Approved',
-        expiryInfo: checkExpiry(driver.citizenshipExpiry)
+        docUrl: driver.citizenshipDocFront || driver.citizenshipDoc || '',
+        docFront: driver.citizenshipDocFront || driver.citizenshipDoc || '',
+        docBack: driver.citizenshipDocBack || '',
+        issueDate: driver.citizenshipIssueDate || 'N/A',
+        citizenshipIssueDate: driver.citizenshipIssueDate || '',
+        status: driver.citizenshipStatus || 'Pending Verification',
+        rejectionReason: driver.citizenshipStatus === 'Rejected' ? (driver.rejectionReason || '') : ''
       },
       {
         type: 'Driving Licence',
@@ -457,9 +460,14 @@ exports.getDriverDocuments = async (req, res, next) => {
     const docsDictionary = {
       citizenship: {
         number: driver.citizenshipNumber || '',
-        url: driver.citizenshipDoc || '',
-        expiry: driver.citizenshipExpiry || '',
-        status: driver.citizenshipStatus || 'Pending'
+        documentNumber: driver.citizenshipNumber || '',
+        url: driver.citizenshipDocFront || driver.citizenshipDoc || '',
+        docFront: driver.citizenshipDocFront || driver.citizenshipDoc || '',
+        docBack: driver.citizenshipDocBack || '',
+        issueDate: driver.citizenshipIssueDate || '',
+        citizenshipIssueDate: driver.citizenshipIssueDate || '',
+        status: driver.citizenshipStatus || 'Pending Verification',
+        rejectionReason: driver.citizenshipStatus === 'Rejected' ? (driver.rejectionReason || '') : ''
       },
       drivingLicence: {
         number: driver.drivingLicenceNumber || '',
@@ -546,19 +554,47 @@ exports.uploadDriverDocument = async (req, res, next) => {
     }
     const documentNumber = req.body.documentNumber || req.body.docNumber || req.body.number;
     const expiryDate = req.body.expiryDate || req.body.expiry;
+    const issueDate = req.body.citizenshipIssueDate || req.body.issueDate || req.body.issue_date;
 
-    if (!docType || !docUrl) {
-      return res.status(400).json({ success: false, message: 'Document type and document file are required' });
+    if (!docType) {
+      return res.status(400).json({ success: false, message: 'Document type is required' });
     }
 
     switch (docType) {
       case 'citizenship':
-      case 'citizenshipdoc':
-        if (documentNumber) driver.citizenshipNumber = documentNumber;
-        driver.citizenshipDoc = docUrl;
-        if (expiryDate) driver.citizenshipExpiry = expiryDate;
+      case 'citizenshipdoc': {
+        const citizenshipNum = req.body.citizenshipNumber || documentNumber;
+        let frontUrl = req.body.citizenshipDocFront || req.body.docFront || req.body.documentFront || docUrl;
+        let backUrl = req.body.citizenshipDocBack || req.body.docBack || req.body.documentBack;
+
+        if (req.files && req.files.length > 0) {
+          const frontFile = req.files.find(f => ['docFront', 'documentFront', 'front', 'citizenshipDocFront', 'document', 'file'].includes(f.fieldname)) || req.files[0];
+          const backFile = req.files.find(f => ['docBack', 'documentBack', 'back', 'citizenshipDocBack'].includes(f.fieldname)) || (req.files.length > 1 ? req.files[1] : null);
+
+          if (frontFile) frontUrl = `/uploads/${frontFile.filename}`;
+          if (backFile) backUrl = `/uploads/${backFile.filename}`;
+        } else if (req.file && !frontUrl) {
+          frontUrl = `/uploads/${req.file.filename}`;
+        }
+
+        if (!frontUrl) {
+          return res.status(400).json({ success: false, message: 'Front side document is required' });
+        }
+
+        if (citizenshipNum) driver.citizenshipNumber = citizenshipNum;
+        if (frontUrl) {
+          driver.citizenshipDoc = frontUrl;
+          driver.citizenshipDocFront = frontUrl;
+        }
+        if (backUrl) {
+          driver.citizenshipDocBack = backUrl;
+        }
+        if (issueDate) {
+          driver.citizenshipIssueDate = issueDate;
+        }
         driver.citizenshipStatus = 'Pending Verification';
         break;
+      }
       case 'drivinglicence':
       case 'drivinglicense':
       case 'driving_licence':

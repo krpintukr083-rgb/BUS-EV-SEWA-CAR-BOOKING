@@ -58,14 +58,26 @@ const driverSchema = new mongoose.Schema(
       type: String,
       default: ''
     },
+    citizenshipDocFront: {
+      type: String,
+      default: ''
+    },
+    citizenshipDocBack: {
+      type: String,
+      default: ''
+    },
+    citizenshipIssueDate: {
+      type: String,
+      default: ''
+    },
     citizenshipExpiry: {
       type: String,
-      default: '2030-01-01'
+      default: ''
     },
     citizenshipStatus: {
       type: String,
       enum: ['Pending', 'Pending Verification', 'Approved', 'Rejected'],
-      default: 'Approved'
+      default: 'Pending Verification'
     },
     // Driving Licence Details
     drivingLicenceNumber: {
