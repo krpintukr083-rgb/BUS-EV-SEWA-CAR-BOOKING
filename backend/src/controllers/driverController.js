@@ -594,6 +594,8 @@ exports.getDriverDocuments = async (req, res, next) => {
         type: 'Vehicle Registration / Blue Book (RC)',
         key: 'rc',
         documentNumber: driver.rcNumber || 'N/A',
+        rcNumber: driver.rcNumber || 'N/A',
+        vehicleNumber: driver.vehicleNumber || '',
         docUrl: driver.rcDoc || '',
         expiryDate: driver.rcExpiry || '2029-06-30',
         status: driver.rcStatus || 'Pending',
@@ -654,14 +656,22 @@ exports.getDriverDocuments = async (req, res, next) => {
       },
       rc: {
         number: driver.rcNumber || '',
+        documentNumber: driver.rcNumber || '',
+        rcNumber: driver.rcNumber || '',
+        vehicleNumber: driver.vehicleNumber || '',
         url: driver.rcDoc || '',
         expiry: driver.rcExpiry || '',
+        expiryDate: driver.rcExpiry || '',
         status: driver.rcStatus || 'Pending'
       },
       vehicleRc: {
         number: driver.rcNumber || '',
+        documentNumber: driver.rcNumber || '',
+        rcNumber: driver.rcNumber || '',
+        vehicleNumber: driver.vehicleNumber || '',
         url: driver.rcDoc || '',
         expiry: driver.rcExpiry || '',
+        expiryDate: driver.rcExpiry || '',
         status: driver.rcStatus || 'Pending'
       },
       insurance: {
@@ -787,11 +797,19 @@ exports.uploadDriverDocument = async (req, res, next) => {
       case 'rc':
       case 'vehiclerc':
       case 'bluebook':
-        if (documentNumber) driver.rcNumber = documentNumber;
+      case 'vehicleregistration':
+      case 'vehicleregistrationcertificate': {
+        const vNum = (req.body.vehicleNumber || '').trim();
+        if (!vNum) {
+          return res.status(400).json({ success: false, message: 'Vehicle Number is required' });
+        }
+        if (documentNumber) driver.rcNumber = documentNumber.trim();
+        driver.vehicleNumber = vNum;
         driver.rcDoc = docUrl;
-        if (expiryDate) driver.rcExpiry = expiryDate;
+        if (expiryDate) driver.rcExpiry = expiryDate.trim();
         driver.rcStatus = 'Pending Verification';
         break;
+      }
       case 'insurance':
         if (documentNumber) driver.insurancePolicyNumber = documentNumber;
         driver.insuranceDoc = docUrl;

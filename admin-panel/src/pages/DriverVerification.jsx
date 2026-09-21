@@ -227,6 +227,7 @@ const DriverVerification = () => {
       key: 'rc',
       title: '3. Vehicle Registration Certificate (Blue Book / RC)',
       docNum: selectedDriver.rcNumber || selectedDriver.documents?.rc?.documentNumber || selectedDriver.documents?.vehicleRc?.documentNumber || 'Not submitted',
+      vehicleNumber: selectedDriver.vehicleNumber || selectedDriver.documents?.rc?.vehicleNumber || selectedDriver.documents?.vehicleRc?.vehicleNumber || 'Not submitted',
       expiry: selectedDriver.rcExpiry || selectedDriver.documents?.rc?.expiryDate || selectedDriver.documents?.vehicleRc?.expiryDate || '2029-06-30',
       url: selectedDriver.rcDoc || selectedDriver.vehicleRcDoc || selectedDriver.documents?.rc?.url || selectedDriver.documents?.rc?.fileUrl || selectedDriver.documents?.vehicleRc?.url || selectedDriver.documents?.vehicleRc?.fileUrl,
       status: selectedDriver.rcStatus || selectedDriver.documents?.rc?.status || selectedDriver.documents?.vehicleRc?.status || 'Pending'
@@ -508,12 +509,31 @@ const DriverVerification = () => {
                             </span>
                           </div>
 
-                          <div style={{ display: 'flex', gap: '16px', marginTop: '8px', fontSize: '0.82rem', color: '#475569' }}>
+                          <div style={{ display: 'flex', gap: '16px', marginTop: '8px', fontSize: '0.82rem', color: '#475569', flexWrap: 'wrap' }}>
                             {doc.key === 'routePermit' ? (
                               <div>
                                 <span style={{ color: '#94a3b8' }}>Description: </span>
                                 <span style={{ fontWeight: '600', color: '#0f172a' }}>{doc.description || doc.docNum}</span>
                               </div>
+                            ) : doc.key === 'rc' ? (
+                              <>
+                                <div>
+                                  <span style={{ color: '#94a3b8' }}>Document / License No: </span>
+                                  <code style={{ backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontWeight: '700', color: '#0f172a' }}>
+                                    {doc.docNum}
+                                  </code>
+                                </div>
+                                <div>
+                                  <span style={{ color: '#94a3b8' }}>Vehicle Number: </span>
+                                  <code style={{ backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px', fontWeight: '700', color: '#0f172a' }}>
+                                    {doc.vehicleNumber}
+                                  </code>
+                                </div>
+                                <div>
+                                  <span style={{ color: '#94a3b8' }}>Expiry Date: </span>
+                                  <span style={{ fontWeight: '600', color: '#0f172a' }}>{doc.expiry}</span>
+                                </div>
+                              </>
                             ) : (
                               <>
                                 <div>

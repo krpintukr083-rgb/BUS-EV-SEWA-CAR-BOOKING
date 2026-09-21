@@ -315,6 +315,11 @@ exports.getDrivers = async (req, res, next) => {
         },
         rc: {
           documentNumber: obj.rcNumber || '',
+          rcNumber: obj.rcNumber || '',
+          vehicleNumber: obj.vehicleNumber || '',
+          rcExpiry: obj.rcExpiry || '',
+          rcDoc: obj.rcDoc || '',
+          rcStatus: obj.rcStatus || 'Pending Verification',
           url: obj.rcDoc || '',
           fileUrl: obj.rcDoc || '',
           expiryDate: obj.rcExpiry || '',
@@ -322,6 +327,11 @@ exports.getDrivers = async (req, res, next) => {
         },
         vehicleRc: {
           documentNumber: obj.rcNumber || '',
+          rcNumber: obj.rcNumber || '',
+          vehicleNumber: obj.vehicleNumber || '',
+          rcExpiry: obj.rcExpiry || '',
+          rcDoc: obj.rcDoc || '',
+          rcStatus: obj.rcStatus || 'Pending Verification',
           url: obj.rcDoc || '',
           fileUrl: obj.rcDoc || '',
           expiryDate: obj.rcExpiry || '',
@@ -361,6 +371,11 @@ exports.getDrivers = async (req, res, next) => {
 
       return {
         ...obj,
+        rcNumber: obj.rcNumber || '',
+        vehicleNumber: obj.vehicleNumber || '',
+        rcExpiry: obj.rcExpiry || '',
+        rcDoc: obj.rcDoc || '',
+        rcStatus: obj.rcStatus || 'Pending Verification',
         drivingLicenseDoc: obj.drivingLicenceDoc,
         vehicleRcDoc: obj.rcDoc,
         fitnessCertificateDoc: obj.fitnessDoc,

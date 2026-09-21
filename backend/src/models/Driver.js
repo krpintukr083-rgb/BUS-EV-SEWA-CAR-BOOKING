@@ -102,6 +102,10 @@ const driverSchema = new mongoose.Schema(
       type: String,
       default: ''
     },
+    vehicleNumber: {
+      type: String,
+      default: ''
+    },
     rcDetails: {
       type: String,
       default: 'Valid Commercial Vehicle Registration'

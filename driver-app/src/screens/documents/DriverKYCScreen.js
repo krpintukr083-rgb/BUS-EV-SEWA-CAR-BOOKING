@@ -42,24 +42,28 @@ export default function DriverKYCScreen({ navigation }) {
   const [rejectionReason, setRejectionReason] = useState('');
 
   const normalizeDoc = (doc, fallback) => {
-    if (!doc && !fallback) return { status: 'MISSING', documentNumber: '', expiryDate: '', number: '', expiry: '' };
+    if (!doc && !fallback) return { status: 'MISSING', documentNumber: '', expiryDate: '', number: '', expiry: '', vehicleNumber: '' };
     const src = doc || fallback || {};
     const description = src.description || src.routePermitDescription || fallback?.description || '';
-    const documentNumber = src.documentNumber || src.number || src.docNumber || description || fallback?.documentNumber || fallback?.number || '';
-    const expiryDate = src.expiryDate || src.expiry || src.expiryDetails || fallback?.expiryDate || fallback?.expiry || '';
+    const documentNumber = src.documentNumber || src.number || src.docNumber || src.rcNumber || description || fallback?.documentNumber || fallback?.number || '';
+    const vehicleNumber = src.vehicleNumber || fallback?.vehicleNumber || '';
+    const expiryDate = src.expiryDate || src.expiry || src.expiryDetails || src.rcExpiry || fallback?.expiryDate || fallback?.expiry || '';
     const citizenshipIssueDate = src.citizenshipIssueDate || src.issueDate || src.issue || fallback?.citizenshipIssueDate || fallback?.issueDate || '';
     const docUrl = src.docUrl || src.url || src.document || src.citizenshipDoc || src.drivingLicenceDoc || src.rcDoc || src.insuranceDoc || src.fitnessDoc || src.routePermitDoc || fallback?.docUrl || fallback?.url || '';
     const docFront = src.docFront || src.citizenshipDocFront || src.url || fallback?.docFront || '';
     const docBack = src.docBack || src.citizenshipDocBack || fallback?.docBack || '';
-    const status = src.status || fallback?.status || 'Not Submitted';
+    const status = src.status || src.rcStatus || fallback?.status || 'Not Submitted';
     const reason = src.rejectionReason || fallback?.rejectionReason || '';
     return {
       ...src,
       description,
       documentNumber,
       number: documentNumber,
+      rcNumber: documentNumber,
+      vehicleNumber,
       expiryDate,
       expiry: expiryDate,
+      rcExpiry: expiryDate,
       citizenshipIssueDate,
       issueDate: citizenshipIssueDate,
       docUrl,
@@ -249,6 +253,26 @@ export default function DriverKYCScreen({ navigation }) {
                       <Text style={styles.metaLabel}>Description:</Text>
                       <Text style={styles.metaVal}>{docData.description || docData.documentNumber || 'Not submitted'}</Text>
                     </View>
+                  ) : doc.key === 'vehicleRc' || doc.key === 'rc' ? (
+                    <>
+                      <View style={styles.metaCol}>
+                        <Text style={styles.metaLabel}>Doc / License No:</Text>
+                        <Text style={styles.metaVal}>{docData.documentNumber || docData.number || docData.rcNumber || 'Not submitted'}</Text>
+                      </View>
+                      <View style={styles.metaCol}>
+                        <Text style={styles.metaLabel}>Vehicle Number:</Text>
+                        <Text style={styles.metaVal}>{docData.vehicleNumber || 'Not submitted'}</Text>
+                      </View>
+                      <View style={styles.metaCol}>
+                        <Text style={styles.metaLabel}>{t('expiryDate')}:</Text>
+                        <Text style={[
+                          styles.metaVal,
+                          docData.status?.toUpperCase() === 'EXPIRED' && { color: COLORS.danger, fontWeight: '700' }
+                        ]}>
+                          {docData.expiryDate || docData.expiry || docData.rcExpiry || 'N/A'}
+                        </Text>
+                      </View>
+                    </>
                   ) : (
                     <>
                       <View style={styles.metaCol}>
@@ -320,6 +344,7 @@ export default function DriverKYCScreen({ navigation }) {
         onClose={() => setUploadModalVisible(false)}
         docType={selectedDocKey}
         docTitle={selectedDocTitle}
+        initialData={documents[selectedDocKey]}
         onSuccess={handleDocumentSubmitted}
       />
     </View>

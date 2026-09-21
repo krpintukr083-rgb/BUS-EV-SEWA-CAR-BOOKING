@@ -6,8 +6,9 @@ import * as DocumentPicker from 'expo-document-picker';
 import { COLORS, SPACING } from '../constants/theme';
 import { driverService } from '../services/driverService';
 
-const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess }) => {
+const DocumentUploadModal = ({ visible, docType, docTitle, initialData, onClose, onSuccess }) => {
   const [docNumber, setDocNumber] = useState('');
+  const [vehicleNumber, setVehicleNumber] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [issueDate, setIssueDate] = useState('');
   const [description, setDescription] = useState('');
@@ -18,19 +19,21 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
 
   const isCitizenship = docType === 'citizenship';
   const isRoutePermit = docType === 'routePermit' || docType === 'route_permit';
+  const isVehicleRc = docType === 'vehicleRc' || docType === 'rc' || docType === 'vehicleRegistration' || docType === 'bluebook';
 
   useEffect(() => {
     if (visible) {
-      setDocNumber('');
-      setExpiryDate('');
-      setIssueDate('');
-      setDescription('');
+      setDocNumber(initialData?.documentNumber || initialData?.number || initialData?.rcNumber || '');
+      setVehicleNumber(initialData?.vehicleNumber || '');
+      setExpiryDate(initialData?.expiryDate || initialData?.expiry || initialData?.rcExpiry || '');
+      setIssueDate(initialData?.citizenshipIssueDate || initialData?.issueDate || '');
+      setDescription(initialData?.description || '');
       setSelectedAsset(null);
       setFrontAsset(null);
       setBackAsset(null);
       setLoading(false);
     }
-  }, [visible, docType]);
+  }, [visible, docType, initialData]);
 
   const setTargetAsset = (target, assetObj) => {
     if (target === 'front') {
@@ -121,7 +124,20 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
   };
 
   const handleUpload = async () => {
-    if (isRoutePermit) {
+    if (isVehicleRc) {
+      if (!docNumber || !docNumber.trim()) {
+        Alert.alert('Validation Error', 'Please enter the Document / License Number.');
+        return;
+      }
+      if (!vehicleNumber || !vehicleNumber.trim()) {
+        Alert.alert('Validation Error', 'Vehicle Number is required');
+        return;
+      }
+      if (!selectedAsset) {
+        Alert.alert('Validation Error', 'Please select or capture a document file/photo.');
+        return;
+      }
+    } else if (isRoutePermit) {
       if (!description || !description.trim()) {
         Alert.alert('Validation Error', 'Please enter route permit description.');
         return;
@@ -135,7 +151,7 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
         return;
       }
     } else if (isCitizenship) {
-      if (!docNumber || docNumber.trim() === '') {
+      if (!docNumber || !docNumber.trim()) {
         Alert.alert('Validation Error', 'Please enter the Citizenship Number.');
         return;
       }
@@ -144,7 +160,7 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
         return;
       }
     } else {
-      if (!docNumber || docNumber.trim() === '') {
+      if (!docNumber || !docNumber.trim()) {
         Alert.alert('Validation Error', 'Please enter the document number.');
         return;
       }
@@ -157,9 +173,19 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
     setLoading(true);
     try {
       const formData = new FormData();
-      formData.append('docType', docType);
 
-      if (isRoutePermit) {
+      if (isVehicleRc) {
+        formData.append('docType', 'vehicleRegistration');
+        formData.append('documentNumber', docNumber.trim());
+        formData.append('vehicleNumber', vehicleNumber.trim());
+        formData.append('expiryDate', expiryDate.trim() || '2029-06-30');
+        formData.append('document', {
+          uri: selectedAsset.uri,
+          name: selectedAsset.name || `vehicle_rc_${Date.now()}.jpg`,
+          type: selectedAsset.mimeType || 'image/jpeg',
+        });
+      } else if (isRoutePermit) {
+        formData.append('docType', docType);
         formData.append('description', description.trim());
         formData.append('documentNumber', description.trim());
         formData.append('document', {
@@ -168,6 +194,7 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
           type: selectedAsset.mimeType || 'image/jpeg',
         });
       } else if (isCitizenship) {
+        formData.append('docType', docType);
         formData.append('documentNumber', docNumber.trim());
         if (issueDate.trim()) {
           formData.append('citizenshipIssueDate', issueDate.trim());
@@ -186,6 +213,7 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
           });
         }
       } else {
+        formData.append('docType', docType);
         formData.append('documentNumber', docNumber.trim());
         formData.append('expiryDate', expiryDate.trim() || '2029-12-31');
         formData.append('document', {
@@ -291,7 +319,39 @@ const DocumentUploadModal = ({ visible, docType, docTitle, onClose, onSuccess })
             </TouchableOpacity>
           </View>
 
-          {isRoutePermit ? (
+          {isVehicleRc ? (
+            <>
+              <Text style={styles.label}>Document / License Number *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. RC-2026-987654"
+                placeholderTextColor={COLORS.textMuted}
+                value={docNumber}
+                onChangeText={setDocNumber}
+              />
+
+              <Text style={styles.label}>Vehicle Number *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. DL 04 EV 9820"
+                placeholderTextColor={COLORS.textMuted}
+                value={vehicleNumber}
+                onChangeText={setVehicleNumber}
+              />
+
+              <Text style={styles.label}>Expiry Date (YYYY-MM-DD)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. 2029-06-30"
+                placeholderTextColor={COLORS.textMuted}
+                value={expiryDate}
+                onChangeText={setExpiryDate}
+              />
+
+              <Text style={styles.label}>Select Document File / Photo *</Text>
+              {renderPickerControls('single')}
+            </>
+          ) : isRoutePermit ? (
             <>
               <Text style={styles.label}>Description *</Text>
               <TextInput
