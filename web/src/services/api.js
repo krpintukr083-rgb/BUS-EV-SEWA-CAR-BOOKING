@@ -22,10 +22,18 @@ const api = axios.create({
 // Interceptor to dynamically attach JWT token
 api.interceptors.request.use(
   config => {
-    const token =
-      localStorage.getItem('auth_token') ||
-      localStorage.getItem('admin_token') ||
-      localStorage.getItem('driver_token');
+    let token;
+    const url = config.url || '';
+    if (url.includes('/admin')) {
+      token = localStorage.getItem('admin_token') || localStorage.getItem('auth_token');
+    } else if (url.includes('/driver')) {
+      token = localStorage.getItem('driver_token') || localStorage.getItem('auth_token');
+    } else {
+      token =
+        localStorage.getItem('auth_token') ||
+        localStorage.getItem('admin_token') ||
+        localStorage.getItem('driver_token');
+    }
 
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;

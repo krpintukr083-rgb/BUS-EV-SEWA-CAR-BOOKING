@@ -68,6 +68,11 @@ const DriverVerification = () => {
       }
     } catch (err) {
       console.error('Error loading drivers for verification:', err);
+      if (err.response?.status === 403) {
+        setError('Access restricted (HTTP 403): Super Admin privileges required. Please sign in with an official admin account.');
+      } else {
+        setError('Failed to load drivers for verification. Please check network connection.');
+      }
     } finally {
       setLoading(false);
     }

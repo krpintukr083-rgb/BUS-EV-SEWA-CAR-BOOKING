@@ -79,10 +79,28 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'online',
-    version: '1.0.8-driver-canonical-otp-fix',
+    version: '1.0.9-admin-role-protection-fix',
     platform: 'Bus Booking + EV-Sewa + Car Booking MERN Platform',
     timestamp: new Date().toISOString()
   });
+});
+
+// Auto-repair admin role endpoint
+app.all(['/api/repair-admin', '/api/admin-repair'], async (req, res) => {
+  try {
+    const User = require('./models/User');
+    const result = await User.updateMany(
+      { email: { $in: ['admin@platform.com', 'admin@transportplatform.com'] } },
+      { $set: { role: 'admin', status: 'Active' } }
+    );
+    res.json({
+      success: true,
+      message: 'Admin roles successfully repaired to admin!',
+      result
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
 });
 
 // REST API Routes

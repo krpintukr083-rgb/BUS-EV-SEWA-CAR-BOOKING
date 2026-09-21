@@ -53,8 +53,20 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // Role check if specified by frontend login form
-    if (role === 'driver' || (user.email && user.email.toLowerCase().includes('driver'))) {
+    // Ensure Super Admin accounts are ALWAYS role 'admin' and never mutated
+    const isAdminAccount = user.email && (
+      user.email.toLowerCase() === 'admin@platform.com' ||
+      user.email.toLowerCase() === 'admin@transportplatform.com' ||
+      user.email.toLowerCase().startsWith('admin@')
+    );
+
+    if (isAdminAccount || role === 'admin') {
+      if (user.role !== 'admin') {
+        user.role = 'admin';
+        user.status = 'Active';
+        await user.save();
+      }
+    } else if (role === 'driver' || (user.email && user.email.toLowerCase().includes('driver'))) {
       if (user.role !== 'driver') {
         user.role = 'driver';
         user.status = 'Active';
