@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { adminService } from '../services/adminService';
 import StatusBadge from '../components/StatusBadge';
-import { Bus, MapPin, Users, Check, Clock, Edit2, X, Tag, Percent, Sparkles, Save, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { Bus, MapPin, Users, Check, Clock, Edit2, X, Tag, Percent, Sparkles, Save, AlertCircle, Eye, EyeOff, Trash2 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const SERVER_URL = API_BASE_URL.replace(/\/api\/?$/, '');
@@ -18,6 +18,32 @@ const BusManagement = () => {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+
+  // Delete Bus Modal State
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    try {
+      setDeleting(true);
+      setError('');
+      setMessage('');
+      const res = await adminService.deleteVehicle(deleteTarget._id);
+      if (res && res.success) {
+        setMessage('Vehicle deleted successfully.');
+        setDeleteTarget(null);
+        fetchBuses();
+        setTimeout(() => setMessage(''), 4000);
+      } else {
+        setError(res?.message || 'Unable to delete vehicle. Please try again.');
+      }
+    } catch (err) {
+      setError(err?.response?.data?.message || err.message || 'Unable to delete vehicle. Please try again.');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // Bus Offer / Discount Banner State
   const [offerStatus, setOfferStatus] = useState('active');
@@ -581,6 +607,25 @@ const BusManagement = () => {
                 >
                   {bus.vehicleStatus === 'Active' ? 'Set Inactive' : 'Set Active'}
                 </button>
+                <button
+                  onClick={() => setDeleteTarget(bus)}
+                  style={{
+                    backgroundColor: '#fef2f2',
+                    color: '#dc2626',
+                    border: '1px solid #fca5a5',
+                    borderRadius: '6px',
+                    padding: '6px 12px',
+                    fontSize: '0.85rem',
+                    fontWeight: '600',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '5px',
+                    cursor: 'pointer'
+                  }}
+                  title="Delete Bus"
+                >
+                  <Trash2 size={14} /> Delete
+                </button>
               </div>
             </div>
 
@@ -835,6 +880,84 @@ const BusManagement = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.65)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '16px'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '16px',
+            width: '100%',
+            maxWidth: '440px',
+            padding: '24px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <div style={{
+                width: '40px', height: '40px', borderRadius: '20px',
+                backgroundColor: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <AlertCircle size={24} color="#dc2626" />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a', margin: 0 }}>
+                  Delete Vehicle?
+                </h3>
+                <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>
+                  {deleteTarget.vehicleName} ({deleteTarget.vehicleNumber})
+                </p>
+              </div>
+            </div>
+
+            <p style={{ fontSize: '14px', color: '#334155', lineHeight: '1.5', marginBottom: '24px' }}>
+              Are you sure you want to delete this vehicle? This action cannot be undone.
+            </p>
+
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setDeleteTarget(null)}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: '8px',
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: '#ffffff',
+                  color: '#475569',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                disabled={deleting}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: '#dc2626',
+                  color: '#ffffff',
+                  fontWeight: '700',
+                  cursor: deleting ? 'not-allowed' : 'pointer',
+                  opacity: deleting ? 0.7 : 1
+                }}
+              >
+                {deleting ? 'Deleting...' : 'Delete Vehicle'}
+              </button>
+            </div>
           </div>
         </div>
       )}

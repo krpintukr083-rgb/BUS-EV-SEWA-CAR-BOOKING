@@ -932,6 +932,54 @@ exports.updateVehicle = async (req, res, next) => {
   }
 };
 
+// @desc    Delete vehicle (Admin)
+// @route   DELETE /api/admin/vehicles/:id
+// @access  Private/Admin
+exports.deleteVehicle = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const vehicle = await Vehicle.findById(id);
+    if (!vehicle) {
+      return res.status(404).json({
+        success: false,
+        message: 'Vehicle not found'
+      });
+    }
+
+    // 1. Safety Check: Active / Pending / Confirmed Bookings
+    const activeBooking = await Booking.findOne({
+      vehicle: id,
+      bookingStatus: { $in: ['Pending Admin Confirmation', 'Confirmed', 'In Transit', 'Active', 'Pending Cash'] }
+    });
+
+    if (activeBooking) {
+      return res.status(400).json({
+        success: false,
+        message: 'This vehicle has active bookings and cannot be deleted.'
+      });
+    }
+
+    // 2. Driver Unassignment Safety
+    const assignedDriver = await Driver.findOne({ assignedVehicle: id });
+    if (assignedDriver) {
+      assignedDriver.assignedVehicle = null;
+      await assignedDriver.save();
+    }
+
+    // 3. Delete Vehicle from Database
+    await Vehicle.findByIdAndDelete(id);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Vehicle deleted successfully.',
+      id
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Record/Update Payment to Third-Party Vehicle Owner/Vendor
 // @route   PUT /api/admin/vehicles/:id/hire-payment
 // @access  Private (Admin Only)
