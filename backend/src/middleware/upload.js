@@ -45,6 +45,33 @@ const upload = multer({
   fileFilter: fileFilter
 });
 
+const UploadedFile = require('../models/UploadedFile');
+
+// Asynchronously persist uploaded files to MongoDB Atlas for durability across restarts
+const persistFilesToMongo = (files) => {
+  if (!files || !Array.isArray(files) || files.length === 0) return;
+  files.forEach(async file => {
+    try {
+      if (file.path && fs.existsSync(file.path)) {
+        const data = fs.readFileSync(file.path);
+        await UploadedFile.findOneAndUpdate(
+          { filename: file.filename },
+          {
+            filename: file.filename,
+            originalName: file.originalname,
+            contentType: file.mimetype || 'image/jpeg',
+            data,
+            size: file.size
+          },
+          { upsert: true, new: true }
+        );
+      }
+    } catch (e) {
+      console.warn('MongoDB file persistence warning:', e.message);
+    }
+  });
+};
+
 // Error handling wrapper middleware for single upload
 const handleSingleUpload = () => {
   const uploadMiddleware = upload.any();
@@ -70,6 +97,9 @@ const handleSingleUpload = () => {
 
       if (req.files && req.files.length > 0) {
         req.file = req.files[0];
+        persistFilesToMongo(req.files);
+      } else if (req.file) {
+        persistFilesToMongo([req.file]);
       }
       next();
     });
@@ -104,6 +134,11 @@ const handleMultipleUpload = (maxCount = 5) => {
           success: false,
           message: `Maximum ${maxCount} images can be uploaded at a time.`
         });
+      }
+
+      if (req.files && req.files.length > 0) {
+        req.file = req.files[0];
+        persistFilesToMongo(req.files);
       }
       next();
     });

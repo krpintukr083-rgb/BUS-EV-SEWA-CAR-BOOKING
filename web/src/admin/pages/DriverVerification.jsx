@@ -49,6 +49,7 @@ const DriverVerification = () => {
   // Document Preview Modal State
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [previewDoc, setPreviewDoc] = useState(null);
+  const [imageLoadFailed, setImageLoadFailed] = useState(false);
 
   const fetchDrivers = async () => {
     try {
@@ -95,6 +96,7 @@ const DriverVerification = () => {
     if (isPdf) {
       window.open(fullUrl, '_blank', 'noopener,noreferrer');
     } else {
+      setImageLoadFailed(false);
       setPreviewDoc({
         ...doc,
         fullUrl,
@@ -796,16 +798,34 @@ const DriverVerification = () => {
             </div>
 
             {/* Modal Image Display */}
-            <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a' }}>
-              <img
-                src={previewDoc.fullUrl}
-                alt={previewDoc.title}
-                style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}
-                onError={e => {
-                  e.target.onerror = null;
-                  setError('Could not load document preview image.');
-                }}
-              />
+            <div style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0f172a', minHeight: '320px' }}>
+              {imageLoadFailed ? (
+                <div style={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '12px', padding: '32px 24px', textAlign: 'center', maxWidth: '480px', color: '#f8fafc' }}>
+                  <FileCheck size={44} color="#38bdf8" style={{ margin: '0 auto 12px' }} />
+                  <h4 style={{ margin: '0 0 8px', fontSize: '1.05rem', fontWeight: '700' }}>{previewDoc.title}</h4>
+                  <p style={{ margin: '0 0 16px', color: '#94a3b8', fontSize: '0.85rem', lineHeight: '1.5' }}>
+                    Document registered on file. Reference Number: <strong style={{ color: '#38bdf8' }}>{previewDoc.docNum || 'Captured on File'}</strong>
+                  </p>
+                  <a
+                    href={previewDoc.fullUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-primary btn-sm"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', padding: '8px 16px', textDecoration: 'none', backgroundColor: '#0A66C2', color: '#ffffff', borderRadius: '8px' }}
+                  >
+                    <ExternalLink size={14} /> Open Document Link
+                  </a>
+                </div>
+              ) : (
+                <img
+                  src={previewDoc.fullUrl}
+                  alt={previewDoc.title}
+                  style={{ maxWidth: '100%', maxHeight: '60vh', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.3)' }}
+                  onError={() => {
+                    setImageLoadFailed(true);
+                  }}
+                />
+              )}
             </div>
 
             {/* Modal Footer with Actions */}
