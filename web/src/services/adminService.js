@@ -125,6 +125,11 @@ export const adminService = {
     return res.data;
   },
 
+  deleteVehicle: async id => {
+    const res = await api.delete(`/admin/vehicles/${id}`);
+    return res.data;
+  },
+
   recordHirePayment: async (id, paymentData) => {
     const res = await api.put(`/admin/vehicles/${id}/hire-payment`, paymentData);
     return res.data;
