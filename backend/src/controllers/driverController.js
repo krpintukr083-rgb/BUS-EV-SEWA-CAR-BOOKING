@@ -82,13 +82,13 @@ const verifyDriverVehicleAccess = async (driver, booking) => {
   const driverIdStr = driver._id.toString();
   const userIdStr = driver.user ? (driver.user._id || driver.user).toString() : null;
 
-  // Direct driver reference check (if already confirmed/assigned to this driver)
-  if (booking.driver) {
+  // Direct driver reference check (if already confirmed/assigned to a specific driver)
+  if (booking.driver && (booking.driverConfirmationStatus === 'Confirmed' || booking.driverConfirmed)) {
     const bookingDriverStr = (booking.driver._id || booking.driver).toString();
     if (bookingDriverStr === driverIdStr || (userIdStr && bookingDriverStr === userIdStr)) {
       return true;
     } else {
-      // Assigned to another driver -> forbidden
+      // Assigned and confirmed to another driver -> forbidden
       return false;
     }
   }
