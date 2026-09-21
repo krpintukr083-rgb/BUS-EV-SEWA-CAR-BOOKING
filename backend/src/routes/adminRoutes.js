@@ -42,6 +42,7 @@ const {
   getBasicReports,
   getServiceControl,
   updateServiceControl,
+  resetDemoDatabase,
   uploadSingleImage,
   uploadMultipleImages
 } = require('../controllers/adminController');
@@ -149,5 +150,8 @@ router.get('/bus-offer', getBusOffer);
 router.put('/bus-offer', updateBusOffer);
 router.get('/settings/bus-offer', getBusOffer);
 router.put('/settings/bus-offer', updateBusOffer);
+
+// 19. Reset Database to Clean Demo State
+router.post('/reset-demo-db', resetDemoDatabase);
 
 module.exports = router;

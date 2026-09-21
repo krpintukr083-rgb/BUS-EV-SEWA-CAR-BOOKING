@@ -12,6 +12,8 @@ const Support = require('../models/Support');
 const Policy = require('../models/Policy');
 const ServiceControl = require('../models/ServiceControl');
 const Expense = require('../models/Expense');
+const Withdrawal = require('../models/Withdrawal');
+const Incentive = require('../models/Incentive');
 const { dashboardCache } = require('../utils/cache');
 
 const getBookingQuery = (id) => {
@@ -1864,3 +1866,185 @@ exports.updateServiceControl = async (req, res, next) => {
     next(error);
   }
 };
+
+// ==========================================
+// 19. RESET DATABASE TO CLEAN DEMO STATE
+// ==========================================
+exports.resetDemoDatabase = async (req, res, next) => {
+  try {
+    // Clear in-memory cache
+    if (dashboardCache && typeof dashboardCache.clear === 'function') {
+      dashboardCache.clear();
+    }
+
+    // 1. Wipe all transactional records & history
+    await Booking.deleteMany({});
+    await Payment.deleteMany({});
+    await Cancellation.deleteMany({});
+    await Compensation.deleteMany({});
+    if (Withdrawal) await Withdrawal.deleteMany({});
+    await Expense.deleteMany({});
+    if (Incentive) await Incentive.deleteMany({});
+    await Notification.deleteMany({});
+    await Support.deleteMany({});
+
+    // 2. Preserve Super Admin users & Default Customer Priya Nair
+    const adminUsers = await User.find({ role: 'admin' });
+    const adminUserIds = adminUsers.map(u => u._id);
+
+    let priyaUser = await User.findOne({
+      $or: [{ email: 'priya.nair@example.com' }, { phone: '+919844556677' }, { name: /Priya/i }]
+    });
+
+    if (!priyaUser) {
+      priyaUser = await User.create({
+        name: 'Priya Nair',
+        email: 'priya.nair@example.com',
+        phone: '+919844556677',
+        password: 'user123',
+        role: 'customer',
+        status: 'Active'
+      });
+    } else {
+      priyaUser.name = 'Priya Nair';
+      priyaUser.email = 'priya.nair@example.com';
+      priyaUser.phone = '+919844556677';
+      priyaUser.password = 'user123'; // Pre-save hook hashes password
+      priyaUser.role = 'customer';
+      priyaUser.status = 'Active';
+      await priyaUser.save();
+    }
+
+    const preserveUserIds = [priyaUser._id, ...adminUserIds];
+
+    // Delete all other Users, Drivers & Vehicles
+    await Driver.deleteMany({});
+    await User.deleteMany({ _id: { $nin: preserveUserIds } });
+    await Vehicle.deleteMany({});
+
+    // 3. Create the 3 Demo Drivers (Harsh, Ayush, Pintu)
+    const driverConfigs = [
+      {
+        name: 'Harsh',
+        email: 'harsh.driver@platform.com',
+        phone: '+919876500001',
+        password: 'driver123',
+        licence: 'DL-01-HARSH-2026',
+        busName: 'Royal Intercity Deluxe Express',
+        busNumber: 'DL 01 AB 4321'
+      },
+      {
+        name: 'Ayush',
+        email: 'ayush.driver@platform.com',
+        phone: '+919876500002',
+        password: 'driver123',
+        licence: 'DL-02-AYUSH-2026',
+        busName: 'Shivam Travels Premium',
+        busNumber: 'DL 02 CD 5678'
+      },
+      {
+        name: 'Pintu',
+        email: 'pintu.driver@platform.com',
+        phone: '+919876500003',
+        password: 'driver123',
+        licence: 'DL-03-PINTU-2026',
+        busName: 'Rajputana Express',
+        busNumber: 'DL 03 EF 9012'
+      }
+    ];
+
+    const createdDrivers = [];
+    const createdBuses = [];
+
+    for (const d of driverConfigs) {
+      const userDoc = await User.create({
+        name: d.name,
+        email: d.email,
+        phone: d.phone,
+        password: d.password,
+        role: 'driver',
+        status: 'Active'
+      });
+
+      const driverDoc = await Driver.create({
+        user: userDoc._id,
+        name: d.name,
+        mobileNumber: d.phone,
+        driverStatus: 'Active',
+        isOnline: true,
+        drivingLicenceNumber: d.licence,
+        drivingLicenceStatus: 'Approved',
+        citizenshipStatus: 'Approved',
+        rcStatus: 'Approved',
+        insuranceStatus: 'Approved',
+        fitnessStatus: 'Approved',
+        requiredDocumentsStatus: 'Approved',
+        walletBalance: 0,
+        totalEarnings: 0,
+        totalBonus: 0,
+        totalCommission: 0,
+        totalWithdrawn: 0,
+        rating: 4.9,
+        totalRatingsCount: 15
+      });
+
+      const busDoc = await Vehicle.create({
+        vehicleSource: 'OWN',
+        vehicleNumber: d.busNumber,
+        vehicleType: 'Bus',
+        vehicleCategory: 'AC Sleeper 2+1',
+        vehicleModel: 'Volvo 9600 Multi-Axle',
+        vehicleName: d.busName,
+        seatingCapacity: 36,
+        ownerName: `${d.name} Transport`,
+        ownerMobileNumber: d.phone,
+        assignedDriver: driverDoc._id,
+        vehicleStatus: 'Active',
+        fareRate: 500,
+        route: {
+          origin: 'Delhi',
+          destination: 'Jaipur',
+          departureTime: '06:00 AM',
+          arrivalTime: '11:30 AM',
+          duration: '5h 30m',
+          boardingPoints: ['ISBT Kashmiri Gate', 'Dhaula Kuan', 'Iffco Chowk Gurgaon'],
+          droppingPoints: ['Kotputli', 'Amer Fort Cut', 'Sindhi Camp Jaipur']
+        },
+        busDetails: {
+          busType: 'AC Sleeper',
+          seatLayout: '2+1 Luxury Sleeper',
+          availableSeats: 36
+        },
+        vehicleImages: [
+          'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80'
+        ]
+      });
+
+      driverDoc.assignedVehicle = busDoc._id;
+      await driverDoc.save();
+
+      createdDrivers.push(driverDoc);
+      createdBuses.push(busDoc);
+    }
+
+    const customerCount = await User.countDocuments({ role: 'customer' });
+    const driverCount = await Driver.countDocuments();
+    const vehicleCount = await Vehicle.countDocuments();
+    const bookingCount = await Booking.countDocuments();
+
+    res.json({
+      success: true,
+      message: 'Database successfully reset to clean demo state.',
+      summary: {
+        customers: customerCount,
+        drivers: driverCount,
+        buses: vehicleCount,
+        bookings: bookingCount,
+        route: 'Delhi -> Jaipur'
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
