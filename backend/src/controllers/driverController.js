@@ -1278,7 +1278,7 @@ exports.verifyRideOtp = async (req, res, next) => {
     if (booking.confirmationOtpExpiresAt && new Date(booking.confirmationOtpExpiresAt) < new Date()) {
       return res.status(400).json({
         success: false,
-        message: 'OTP has expired. Please ask customer to resend or request new OTP'
+        message: 'Customer OTP has expired. Please request a new OTP.'
       });
     }
 

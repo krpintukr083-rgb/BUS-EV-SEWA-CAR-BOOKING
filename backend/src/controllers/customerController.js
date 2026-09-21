@@ -232,7 +232,7 @@ exports.createBooking = async (req, res, next) => {
     const crypto = require('crypto');
     const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
     const confirmationOtpHash = crypto.createHash('sha256').update(rawOtp).digest('hex');
-    const confirmationOtpExpiresAt = new Date(Date.now() + 30 * 60 * 1000);
+    const confirmationOtpExpiresAt = new Date(Date.now() + 10 * 60 * 60 * 1000); // 10 Hours
 
     const booking = await Booking.create({
       bookingId,
