@@ -49,6 +49,31 @@ const VehicleManagement = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
+  // Delete Vehicle State
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    setDeleteError('');
+    try {
+      const res = await adminService.deleteVehicle(deleteTarget._id);
+      if (res.success) {
+        setMessage(res.message || 'Vehicle deleted successfully.');
+        setDeleteTarget(null);
+        await fetchVehiclesAndDrivers();
+      } else {
+        setDeleteError(res.message || 'Failed to delete vehicle.');
+      }
+    } catch (err) {
+      setDeleteError(err.response?.data?.message || err.message || 'Error deleting vehicle.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const fetchVehiclesAndDrivers = async () => {
     try {
       const [vRes, dRes] = await Promise.all([
@@ -582,13 +607,21 @@ const VehicleManagement = () => {
                       </td>
 
                       <td>
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
                           <button
                             onClick={() => handleOpenViewModal(v)}
                             className="btn btn-sm btn-outline"
                             title="View Details & Gallery"
                           >
                             <Eye size={13} /> View
+                          </button>
+                          <button
+                            onClick={() => setDeleteTarget(v)}
+                            className="btn btn-sm btn-outline"
+                            style={{ color: '#dc2626', borderColor: '#fca5a5', backgroundColor: '#fef2f2', fontWeight: '700' }}
+                            title="Delete Vehicle"
+                          >
+                            <Trash2 size={13} /> Delete
                           </button>
                           <button
                             onClick={() => handleOpenPhotoModal(v)}
@@ -1072,6 +1105,39 @@ const VehicleManagement = () => {
               </button>
               <button type="button" className="btn btn-primary" onClick={handleSavePhotos} disabled={photoSaving}>
                 {photoSaving ? 'Saving Changes...' : 'Save Photos'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Vehicle Confirmation Modal */}
+      {deleteTarget && (
+        <div className="modal-overlay" style={{ zIndex: 1100 }}>
+          <div className="modal-content" style={{ maxWidth: '440px' }}>
+            <div className="card-header-flex" style={{ marginBottom: '16px' }}>
+              <h3 className="card-title" style={{ color: '#dc2626', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Trash2 size={20} /> Delete Vehicle?
+              </h3>
+              <button className="btn btn-outline btn-sm" onClick={() => { setDeleteTarget(null); setDeleteError(''); }}>✕</button>
+            </div>
+
+            {deleteError && (
+              <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', padding: '10px 14px', borderRadius: '6px', marginBottom: '16px', fontSize: '0.85rem' }}>
+                {deleteError}
+              </div>
+            )}
+
+            <p style={{ fontSize: '0.9rem', color: '#334155', marginBottom: '20px', lineHeight: '1.5' }}>
+              Are you sure you want to delete vehicle <strong>{deleteTarget.vehicleName} ({deleteTarget.vehicleNumber})</strong>? This action cannot be undone.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => { setDeleteTarget(null); setDeleteError(''); }} disabled={isDeleting}>
+                Cancel
+              </button>
+              <button type="button" className="btn btn-sm" onClick={handleConfirmDelete} disabled={isDeleting} style={{ backgroundColor: '#dc2626', color: '#ffffff', border: 'none', fontWeight: '700' }}>
+                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
               </button>
             </div>
           </div>

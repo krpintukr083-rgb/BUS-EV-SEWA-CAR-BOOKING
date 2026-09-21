@@ -14,6 +14,7 @@ import {
   CalendarCheck,
   CreditCard,
   XOctagon,
+  Image as ImageIcon,
   Percent,
   ShieldAlert,
   Bell,
@@ -182,6 +183,15 @@ const AdminSidebar = ({ isCollapsed, isMobileOpen, onCloseMobile, onOpenLogout }
         >
           <XOctagon size={17} />
           <span>Cancellation Records</span>
+        </NavLink>
+        <NavLink
+          to="/admin/banner-management"
+          onClick={handleNavClick}
+          title="Banner & Bus Discount"
+          className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+        >
+          <ImageIcon size={17} />
+          <span>Banner & Bus Discount</span>
         </NavLink>
         <NavLink
           to="/admin/insurance"

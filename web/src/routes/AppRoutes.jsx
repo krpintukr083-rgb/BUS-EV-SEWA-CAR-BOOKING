@@ -52,6 +52,7 @@ const CustomerSupport = lazy(() => import('../admin/pages/CustomerSupport'));
 const PoliciesManagement = lazy(() => import('../admin/pages/PoliciesManagement'));
 const BasicReports = lazy(() => import('../admin/pages/BasicReports'));
 const ServiceControl = lazy(() => import('../admin/pages/ServiceControl'));
+const BannerManagement = lazy(() => import('../admin/pages/BannerManagement'));
 
 // Driver Layout & Pages (Lazy)
 const DriverLayout = lazy(() => import('../driver/components/DriverLayout'));
@@ -143,7 +144,8 @@ export default function AppRoutes() {
           <Route path="bookings" element={<BookingManagement />} />
           <Route path="payments" element={<PaymentManagement />} />
           <Route path="cancellations" element={<CancellationManagement />} />
-          <Route path="compensation" element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="banner-management" element={<BannerManagement />} />
+          <Route path="compensation" element={<BannerManagement />} />
           <Route path="insurance" element={<AccidentInsurance />} />
           <Route path="service-control" element={<ServiceControl />} />
           <Route path="notifications" element={<Notifications />} />
