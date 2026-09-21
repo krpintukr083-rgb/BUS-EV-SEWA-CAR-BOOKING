@@ -22,14 +22,19 @@ const busOfferSchema = new mongoose.Schema(
       max: [100, 'Discount percentage cannot exceed 100'],
       default: 15
     },
+    bannerImage: {
+      type: String,
+      default: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&q=80',
+      trim: true
+    },
     offerTitle: {
       type: String,
-      default: 'Intercity Luxury Bus Travel',
+      default: 'Travel Nepal With TravelSewa',
       trim: true
     },
     offerSubtitle: {
       type: String,
-      default: 'AC Sleeper & Seater coaches with live tracking and instant seat selection.',
+      default: 'Book your journey today with verified luxury fleet',
       trim: true
     },
     lastUpdatedBy: {

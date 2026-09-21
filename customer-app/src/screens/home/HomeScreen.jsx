@@ -157,37 +157,37 @@ const HomeScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchHomeData(); }} />}
       >
-        {/* Special Bus Booking Promo Banner — Dynamically Controlled by Super Admin */}
-        {busOffer && busOffer.offerStatus === 'active' && Number(busOffer.discountPercentage) > 0 && (
+        {/* Promotional Banner (Admin Controlled — Discount Percentage Hidden) */}
+        {busOffer && (busOffer.offerStatus === 'active' || busOffer.discountStatus === 'active') && (
           <TouchableOpacity
             style={styles.heroBannerCard}
             onPress={() => handleSelectService('Bus')}
             activeOpacity={0.9}
           >
-            <View style={styles.heroBannerContent}>
-              <View style={styles.heroBannerBadge}>
-                <Ionicons name="sparkles" size={13} color="#f59e0b" />
-                <Text style={styles.heroBannerBadgeText}>EXCLUSIVE BUS OFFER</Text>
-              </View>
-              <Text style={styles.heroBannerTitle}>
-                {busOffer.offerTitle || 'Intercity Luxury Bus Travel'}
-              </Text>
-              <Text style={styles.heroBannerSubtitle}>
-                {busOffer.offerSubtitle || 'AC Sleeper & Seater coaches with live tracking and instant seat selection.'}
-              </Text>
-              <View style={styles.heroBannerCtaRow}>
+            {busOffer.bannerImage || busOffer.imageUrl ? (
+              <Image
+                source={{ uri: getFullImageUrl(busOffer.bannerImage || busOffer.imageUrl) }}
+                style={styles.heroBannerFullImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.heroBannerContent}>
+                <View style={styles.heroBannerBadge}>
+                  <Ionicons name="sparkles" size={13} color="#f59e0b" />
+                  <Text style={styles.heroBannerBadgeText}>PROMOTIONAL OFFER</Text>
+                </View>
+                <Text style={styles.heroBannerTitle}>
+                  {busOffer.offerTitle || 'Travel Nepal With TravelSewa'}
+                </Text>
+                <Text style={styles.heroBannerSubtitle}>
+                  {busOffer.offerSubtitle || 'Book your journey today with verified luxury fleet'}
+                </Text>
                 <View style={styles.heroBannerCtaBtn}>
                   <Text style={styles.heroBannerCtaText}>Book Bus Tickets</Text>
                   <Ionicons name="arrow-forward" size={14} color="#ffffff" />
                 </View>
-                <Text style={styles.heroBannerOfferText}>
-                  Flat {busOffer.discountPercentage}% OFF
-                </Text>
               </View>
-            </View>
-            <View style={styles.heroBannerIconCircle}>
-              <Ionicons name="bus" size={38} color="#ffffff" />
-            </View>
+            )}
           </TouchableOpacity>
         )}
 
@@ -470,6 +470,11 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
     overflow: 'hidden'
+  },
+  heroBannerFullImage: {
+    width: '100%',
+    height: 140,
+    borderRadius: 16
   },
   heroBannerContent: {
     flex: 1,

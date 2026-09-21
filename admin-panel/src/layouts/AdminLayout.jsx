@@ -20,6 +20,7 @@ const titlesMap = {
   '/bookings': 'Unified Booking Management (Bus, EV, Car)',
   '/payments': 'Financial Records & Payment Transactions',
   '/cancellations': 'Cancellation Records & Refund Operations',
+  '/banner-management': 'Promotional Banner & Bus Discount Management',
   '/insurance': 'Transit Accident Insurance Records (Max ₹5,00,000 Disclaimer)',
   '/service-control': 'Global Service Control Toggles (Bus, EV-Sewa, Car)',
   '/notifications': 'Platform Broadcast & Notifications',

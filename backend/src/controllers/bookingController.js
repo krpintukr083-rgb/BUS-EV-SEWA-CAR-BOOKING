@@ -118,7 +118,8 @@ exports.createBooking = async (req, res, next) => {
 
     if (serviceType === 'Bus') {
       const busOffer = await BusOffer.findOne({ service: 'bus' });
-      if (busOffer && busOffer.offerStatus === 'active' && busOffer.discountPercentage > 0) {
+      const currentStatus = busOffer ? (busOffer.offerStatus || busOffer.discountStatus || 'active') : 'inactive';
+      if (busOffer && currentStatus === 'active' && Number(busOffer.discountPercentage) > 0) {
         discountPercentage = Number(busOffer.discountPercentage);
         discountAmount = Math.round(((originalFare * discountPercentage) / 100) * 100) / 100;
         finalPayableFare = Math.max(0, originalFare - discountAmount);
