@@ -1159,7 +1159,7 @@ exports.acceptBookingRequest = async (req, res, next) => {
     // Assign driver if unassigned (pending OTP verification)
     booking.driver = driver._id;
     booking.assignedDriverId = driver._id;
-    booking.driverConfirmationStatus = 'Pending OTP';
+    booking.driverConfirmationStatus = 'Pending';
     booking.driverConfirmed = false;
     booking.rideStatus = 'Accepted';
 
