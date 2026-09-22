@@ -1552,6 +1552,131 @@ exports.updateBookingStatus = async (req, res, next) => {
   }
 };
 
+// @desc    Delete single booking
+// @route   DELETE /api/admin/bookings/:id
+// @access  Private (Admin Only)
+exports.deleteBooking = async (req, res, next) => {
+  try {
+    const booking = await Booking.findOne(getBookingQuery(req.params.id));
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+    const bId = booking.bookingId;
+    await Booking.deleteOne({ _id: booking._id });
+    await Notification.deleteMany({
+      $or: [
+        { message: { $regex: bId, $options: 'i' } },
+        { title: { $regex: bId, $options: 'i' } }
+      ]
+    });
+    if (dashboardCache && typeof dashboardCache.clear === 'function') {
+      dashboardCache.clear();
+    }
+    res.json({ success: true, message: `Booking ${bId} deleted successfully` });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Clear booking requests or all test bookings and associated test artifacts
+// @route   DELETE /api/admin/bookings/clear, POST /api/admin/bookings/clear
+// @access  Private (Admin Only)
+exports.clearBookingRequests = async (req, res, next) => {
+  try {
+    const { deleteAll = true, preserveCompleted = false, statuses } = req.body || {};
+    
+    let query = {};
+    if (statuses && Array.isArray(statuses) && statuses.length > 0) {
+      query = { bookingStatus: { $in: statuses } };
+    } else if (preserveCompleted) {
+      query = { bookingStatus: { $ne: 'Completed' } };
+    } else if (deleteAll) {
+      query = {}; // Wipe all bookings
+    } else {
+      query = {
+        bookingStatus: {
+          $in: [
+            'Pending Driver Confirmation',
+            'Pending',
+            'Pending Admin Confirmation',
+            'Admin Confirmed',
+            'ADMIN_CONFIRMED',
+            'Awaiting Cash Collection',
+            'Cancelled',
+            'Rejected'
+          ]
+        }
+      };
+    }
+
+    const deleteResult = await Booking.deleteMany(query);
+
+    // Also clean up booking-related notifications
+    const notifResult = await Notification.deleteMany({
+      $or: [
+        { title: { $regex: /booking|ride|request/i } },
+        { message: { $regex: /booking|BK-|ride|request/i } }
+      ]
+    });
+
+    // Clean up temporary test drivers (SpeedDriver_*, Ramesh Driver, Wrong Driver)
+    // PRESERVE baseline drivers: Harsh, Ayush, Pintu
+    const testDrivers = await Driver.find({
+      $or: [
+        { name: { $regex: /^speeddriver/i } },
+        { name: 'Ramesh Driver' },
+        { name: 'Wrong Driver' }
+      ]
+    });
+    const testDriverIds = testDrivers.map(d => d._id);
+    let cleanedVehiclesCount = 0;
+    if (testDriverIds.length > 0) {
+      const vResult = await Vehicle.deleteMany({ assignedDriver: { $in: testDriverIds } });
+      cleanedVehiclesCount += (vResult.deletedCount || 0);
+      await Driver.deleteMany({ _id: { $in: testDriverIds } });
+      await User.deleteMany({
+        $or: [
+          { email: { $regex: /speed\.driver/i } },
+          { name: { $regex: /^speeddriver/i } },
+          { email: { $regex: /ramesh\.driver/i } },
+          { email: { $regex: /wrong\.driver/i } }
+        ]
+      });
+    }
+
+    // Clean up any extra temporary vehicles (e.g. DL 05 SP or DL 04 GH)
+    const extraVehicles = await Vehicle.deleteMany({
+      vehicleNumber: { $regex: /DL 05 SP|DL 04 GH/i }
+    });
+    cleanedVehiclesCount += (extraVehicles.deletedCount || 0);
+
+    // Clear dashboard cache
+    if (dashboardCache && typeof dashboardCache.clear === 'function') {
+      dashboardCache.clear();
+    }
+
+    const remainingBookings = await Booking.countDocuments();
+    const remainingDrivers = await Driver.countDocuments();
+    const remainingVehicles = await Vehicle.countDocuments();
+
+    res.json({
+      success: true,
+      message: `Database cleaned successfully. Removed ${deleteResult.deletedCount} bookings.`,
+      deletedBookingsCount: deleteResult.deletedCount,
+      deletedNotificationsCount: notifResult.deletedCount,
+      cleanedDriversCount: testDriverIds.length,
+      cleanedVehiclesCount,
+      remaining: {
+        bookings: remainingBookings,
+        drivers: remainingDrivers,
+        vehicles: remainingVehicles
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // ==========================================
 // 9. PAYMENT MANAGEMENT
 // ==========================================
