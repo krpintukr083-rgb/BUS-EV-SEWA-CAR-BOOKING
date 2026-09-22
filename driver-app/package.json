@@ -27,5 +27,8 @@
     "react-native-screens": "3.31.1",
     "react-native-svg": "15.2.0"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "eas-cli": "^24.7.0"
+  }
 }

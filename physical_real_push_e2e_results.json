@@ -1,0 +1,12 @@
+{
+  "realPushTokenInDb": "PASS",
+  "pushTokenValue": "ExponentPushToken[pLYShWPIwmXJp9FwqY-mMj]",
+  "foregroundNotification": "PASS",
+  "backgroundNotification": "PASS",
+  "notificationTapToRequests": "PASS",
+  "notAutoAssigned": "PASS",
+  "sameRouteBroadcast": "PASS",
+  "wrongRouteExclusion": "PASS",
+  "otpVerification": "PASS",
+  "otpReuseProtection": "PASS"
+}

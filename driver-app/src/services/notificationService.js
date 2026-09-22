@@ -40,7 +40,7 @@ export const initNotificationChannel = async () => {
         lightColor: '#1D4ED8',
       });
     } catch (e) {
-      console.warn('Error setting notification channel:', e);
+      console.log('[PUSH] ERROR:', e?.message || e);
     }
   }
 };
@@ -57,7 +57,7 @@ export const requestNotificationPermissions = async () => {
     }
     return finalStatus === 'granted';
   } catch (e) {
-    console.warn('Error requesting notification permissions:', e);
+    console.log('[PUSH] ERROR:', e?.message || e);
     return false;
   }
 };
@@ -65,63 +65,81 @@ export const requestNotificationPermissions = async () => {
 // 4. Register / Update Push Token with Backend
 export const registerPushTokenWithBackend = async (apiClient) => {
   try {
-    const granted = await requestNotificationPermissions();
-    if (!granted) {
-      console.log('[PUSH] permission not granted');
+    // Step 1: Check and request notification permission
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    console.log(`[PUSH] permission status: ${finalStatus}`);
+
+    if (finalStatus !== 'granted') {
+      console.log(`[PUSH] ERROR: Notification permission not granted (${finalStatus})`);
       return null;
     }
-    console.log('[PUSH] permission granted');
 
+    // Step 2: Initialize Android notification channel
     await initNotificationChannel();
 
-    const projectId = getProjectId();
-    console.log('[PUSH] projectId:', projectId || 'Not configured in EAS');
+    // Step 3: Resolve EAS projectId
+    const projectId =
+      Constants?.expoConfig?.extra?.eas?.projectId ??
+      Constants?.easConfig?.projectId ??
+      'a503a782-662b-4065-af56-4af4ce094530';
+    console.log(`[PUSH] projectId: ${projectId}`);
 
+    // Step 4: Request real Expo push token
+    console.log('[PUSH] token request started');
     let pushToken = null;
     try {
-      const tokenOptions = projectId ? { projectId } : undefined;
-      const tokenObj = await Notifications.getExpoPushTokenAsync(tokenOptions).catch((err) => {
-        console.warn('[PUSH] getExpoPushTokenAsync note:', err?.message || err);
-        return null;
+      const tokenResponse = await Notifications.getExpoPushTokenAsync({
+        projectId,
       });
-      pushToken = tokenObj?.data;
-
-      if (!pushToken) {
-        const deviceTokenObj = await Notifications.getDevicePushTokenAsync().catch((err) => {
-          console.warn('[PUSH] getDevicePushTokenAsync note:', err?.message || err);
-          return null;
-        });
-        pushToken = deviceTokenObj?.data;
-      }
-    } catch (tokenErr) {
-      console.warn('[PUSH] Push token retrieval note:', tokenErr?.message || tokenErr);
-    }
-
-    // STRICT: Never generate or register a fake push token
-    if (!pushToken) {
-      console.warn('[PUSH] Failed to obtain a real push token. No fake token will be registered.');
+      pushToken = tokenResponse?.data;
+    } catch (err) {
+      console.log('[PUSH] ERROR:', err?.message || err);
       return null;
     }
 
-    console.log('[PUSH] real token:', pushToken);
+    // STRICT: Validate real Expo push token (ABSOLUTELY NO FAKE TOKENS)
+    if (
+      !pushToken ||
+      typeof pushToken !== 'string' ||
+      !pushToken.startsWith('ExponentPushToken[') ||
+      /ExponentPushToken\[Emulator_/i.test(pushToken)
+    ) {
+      console.log('[PUSH] ERROR: Real token not obtained or invalid format');
+      return null;
+    }
 
+    console.log('[PUSH] real token received: YES — Valid Expo format');
+
+    // Step 5: Register token with backend
     if (apiClient) {
+      console.log('[PUSH] backend registration started');
       try {
+        let res = null;
         if (typeof apiClient.registerPushToken === 'function') {
-          await apiClient.registerPushToken(pushToken);
+          res = await apiClient.registerPushToken(pushToken);
         } else if (typeof apiClient.post === 'function') {
-          await apiClient.post('/driver/push-token', { pushToken });
+          res = await apiClient.post('/driver/push-token', { pushToken });
         }
+        const registrationStatus = res?.status ?? res?.data?.status ?? 200;
+        console.log(`[PUSH] backend registration response: ${registrationStatus}`);
         console.log('[PUSH] token registration success');
       } catch (regErr) {
-        console.error('[PUSH] token registration failed:', regErr?.response?.data?.message || regErr?.message || regErr);
+        const statusCode = regErr?.response?.status ?? 'ERR';
+        console.log(`[PUSH] backend registration response: ${statusCode}`);
+        const errMsg = regErr?.response?.data?.message || regErr?.message || regErr;
+        console.log('[PUSH] ERROR:', errMsg);
         return null;
       }
     }
 
     return pushToken;
   } catch (e) {
-    console.error('[PUSH] token registration failed:', e?.message || e);
+    console.log('[PUSH] ERROR:', e?.message || e);
     return null;
   }
 };
@@ -131,19 +149,30 @@ export const setupPushTokenChangeListener = (apiClient) => {
   try {
     if (typeof Notifications.addPushTokenListener === 'function') {
       const subscription = Notifications.addPushTokenListener(async (tokenData) => {
-        const newToken = tokenData?.data || tokenData;
-        if (newToken && typeof newToken === 'string' && newToken.trim() !== '') {
-          console.log('[PUSH] real token:', newToken);
+        const newToken = tokenData?.data || (typeof tokenData === 'string' ? tokenData : null);
+        if (
+          newToken &&
+          typeof newToken === 'string' &&
+          newToken.startsWith('ExponentPushToken[') &&
+          !/ExponentPushToken\[Emulator_/i.test(newToken)
+        ) {
+          console.log('[PUSH] real token received: YES — Valid Expo format');
           if (apiClient) {
+            console.log('[PUSH] backend registration started');
             try {
+              let res = null;
               if (typeof apiClient.registerPushToken === 'function') {
-                await apiClient.registerPushToken(newToken);
+                res = await apiClient.registerPushToken(newToken);
               } else if (typeof apiClient.post === 'function') {
-                await apiClient.post('/driver/push-token', { pushToken: newToken });
+                res = await apiClient.post('/driver/push-token', { pushToken: newToken });
               }
+              const registrationStatus = res?.status ?? res?.data?.status ?? 200;
+              console.log(`[PUSH] backend registration response: ${registrationStatus}`);
               console.log('[PUSH] token registration success');
             } catch (err) {
-              console.error('[PUSH] token registration failed:', err?.response?.data?.message || err?.message || err);
+              const statusCode = err?.response?.status ?? 'ERR';
+              console.log(`[PUSH] backend registration response: ${statusCode}`);
+              console.log('[PUSH] ERROR:', err?.response?.data?.message || err?.message || err);
             }
           }
         }
@@ -151,7 +180,7 @@ export const setupPushTokenChangeListener = (apiClient) => {
       return subscription;
     }
   } catch (e) {
-    console.warn('Error setting up push token listener:', e?.message || e);
+    console.log('[PUSH] ERROR:', e?.message || e);
   }
   return null;
 };

@@ -19,10 +19,17 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
-      "package": "com.travelease.driver"
+      "package": "com.travelease.driver",
+      "googleServicesFile": "./android/app/google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "a503a782-662b-4065-af56-4af4ce094530"
+      }
+    },
+    "owner": "kumar3"
   }
 }
