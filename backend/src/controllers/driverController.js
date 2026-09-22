@@ -1149,19 +1149,18 @@ exports.acceptBookingRequest = async (req, res, next) => {
     }
 
     // Prevent accepting already accepted/confirmed bookings
-    if (['Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(booking.bookingStatus) && booking.driverConfirmationStatus === 'Confirmed') {
+    if (['Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(booking.bookingStatus) || booking.driverConfirmed || booking.confirmationOtpVerifiedAt) {
       return res.status(400).json({
         success: false,
         message: `Booking is already in '${booking.bookingStatus}' status and cannot be accepted again.`
       });
     }
 
-    // Assign driver if unassigned
+    // Assign driver if unassigned (pending OTP verification)
     booking.driver = driver._id;
-    booking.driverConfirmationStatus = 'Confirmed';
-    booking.driverConfirmed = true;
-    booking.driverConfirmedAt = new Date();
-    booking.driverConfirmedBy = driver._id;
+    booking.assignedDriverId = driver._id;
+    booking.driverConfirmationStatus = 'Pending OTP';
+    booking.driverConfirmed = false;
     booking.rideStatus = 'Accepted';
 
     const isBus = booking.serviceType === 'Bus';
@@ -1171,18 +1170,12 @@ exports.acceptBookingRequest = async (req, res, next) => {
     if (isBus) {
       if (isPaid) {
         booking.bookingStatus = 'Confirmed';
-      } else if (isOfflineCash) {
-        booking.bookingStatus = 'Awaiting Cash Collection';
       } else {
-        booking.bookingStatus = 'Pending';
+        booking.bookingStatus = 'Pending Driver Confirmation';
       }
     } else {
       // Car / EV-Sewa ride flow
-      if (isPaid || isOfflineCash) {
-        booking.bookingStatus = 'Ongoing';
-      } else {
-        booking.bookingStatus = 'Ongoing';
-      }
+      booking.bookingStatus = 'Ongoing';
     }
 
     await booking.save();
@@ -1296,11 +1289,18 @@ exports.verifyRideOtp = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Booking request not found' });
     }
 
-    // 1. Check if OTP was already used / verified or booking already confirmed
-    if (booking.driverConfirmationStatus === 'Confirmed' || booking.driverConfirmed || !booking.confirmationOtpHash) {
+    // 1. Check if OTP was already used / verified or booking already confirmed by another driver
+    if (booking.confirmationOtpVerifiedAt || booking.otpVerified) {
       return res.status(400).json({
         success: false,
-        message: 'Booking already confirmed.'
+        message: 'Booking OTP already verified.'
+      });
+    }
+
+    if (booking.driverConfirmed && (booking.driver && (booking.driver._id || booking.driver).toString() !== driver._id.toString())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Booking already confirmed by another driver.'
       });
     }
 
