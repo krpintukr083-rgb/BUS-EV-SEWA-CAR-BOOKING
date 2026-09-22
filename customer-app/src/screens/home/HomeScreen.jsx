@@ -15,6 +15,7 @@ import { useBooking } from '../../context/BookingContext';
 import { customerService } from '../../services/customerService';
 import StatusBadge from '../../components/StatusBadge';
 import { COLORS } from '../../constants/colors';
+import { getFullImageUrl } from '../../utils/imageUrl';
 
 const HomeScreen = ({ navigation }) => {
   const { user } = useCustomerAuth();
