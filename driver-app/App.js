@@ -11,10 +11,13 @@ import driverService from './src/services/driverService';
 
 export const navigationRef = createNavigationContainerRef();
 
+// Initialize High Importance Android Notification Channel immediately at module load
+// so it is available before the app receives any background pushes.
+initNotificationChannel();
+
 export default function App() {
   useEffect(() => {
-    // Initialize High Importance Android Notification Channel and Request Permissions
-    initNotificationChannel();
+    // Request Permissions
     requestNotificationPermissions();
 
     // Setup push token refresh / change listener

@@ -30,6 +30,16 @@
         "projectId": "a503a782-662b-4065-af56-4af4ce094530"
       }
     },
-    "owner": "kumar3"
+    "owner": "kumar3",
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#1D4ED8",
+          "defaultChannel": "driver-booking-requests"
+        }
+      ]
+    ]
   }
 }
