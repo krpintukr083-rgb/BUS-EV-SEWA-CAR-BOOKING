@@ -56,10 +56,10 @@ exports.updateBusOffer = async (req, res, next) => {
     // 1. Handle Banner Image Upload or URL
     if (req.file) {
       updateFields.bannerImage = `/uploads/${req.file.filename}`;
-    } else if (imageUrl && String(imageUrl).trim() !== '') {
-      updateFields.bannerImage = String(imageUrl).trim();
-    } else if (bannerImage && String(bannerImage).trim() !== '') {
-      updateFields.bannerImage = String(bannerImage).trim();
+    } else if (typeof imageUrl === 'string' && imageUrl.trim() !== '' && imageUrl !== '{}' && imageUrl !== '[object Object]') {
+      updateFields.bannerImage = imageUrl.trim();
+    } else if (typeof bannerImage === 'string' && bannerImage.trim() !== '' && bannerImage !== '{}' && bannerImage !== '[object Object]') {
+      updateFields.bannerImage = bannerImage.trim();
     }
 
     // 2. Validate & Update Discount Percentage if provided

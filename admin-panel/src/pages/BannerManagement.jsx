@@ -143,8 +143,8 @@ const BannerManagement = () => {
 
       if (bannerImageFile) {
         formData.append('bannerImage', bannerImageFile);
-      } else if (bannerImagePreview) {
-        formData.append('imageUrl', bannerImagePreview);
+      } else if (typeof bannerImagePreview === 'string' && bannerImagePreview.trim() !== '' && !bannerImagePreview.startsWith('blob:')) {
+        formData.append('imageUrl', bannerImagePreview.trim());
       }
 
       let res;
@@ -214,8 +214,8 @@ const BannerManagement = () => {
 
       if (discountImageFile) {
         formData.append('image', discountImageFile);
-      } else if (discountImagePreview) {
-        formData.append('imageUrl', discountImagePreview);
+      } else if (typeof discountImagePreview === 'string' && discountImagePreview.trim() !== '' && !discountImagePreview.startsWith('blob:')) {
+        formData.append('imageUrl', discountImagePreview.trim());
       }
 
       const res = await adminService.updateBusOffer(formData);
