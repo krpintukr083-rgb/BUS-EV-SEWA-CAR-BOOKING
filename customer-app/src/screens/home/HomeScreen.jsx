@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   Image,
   RefreshControl,
-  Alert
+  Alert,
+  Dimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCustomerAuth } from '../../context/CustomerAuthContext';
@@ -27,6 +28,7 @@ const HomeScreen = ({ navigation }) => {
   const [busOffer, setBusOffer] = useState(null);
   const [banners, setBanners] = useState([]);
   const [activeBannerIndex, setActiveBannerIndex] = useState(0);
+  const [bannerWidth, setBannerWidth] = useState(Dimensions.get('window').width - 40);
   const bannerScrollViewRef = useRef(null);
 
   // Automatic Banner Carousel Timer (Auto-Scroll every 3.5s)
@@ -36,13 +38,13 @@ const HomeScreen = ({ navigation }) => {
     const timer = setInterval(() => {
       setActiveBannerIndex(prevIndex => {
         const nextIndex = (prevIndex + 1) % banners.length;
-        bannerScrollViewRef.current?.scrollTo({ x: nextIndex * 335, animated: true });
+        bannerScrollViewRef.current?.scrollTo({ x: nextIndex * bannerWidth, animated: true });
         return nextIndex;
       });
     }, 3500);
 
     return () => clearInterval(timer);
-  }, [banners]);
+  }, [banners, bannerWidth]);
 
   const fetchHomeData = async () => {
     try {
@@ -201,7 +203,15 @@ const HomeScreen = ({ navigation }) => {
       >
         {/* Promotional Multi-Banner Carousel (Admin Controlled) */}
         {banners.length > 0 && (
-          <View style={styles.heroBannerCard}>
+          <View
+            style={styles.heroBannerCard}
+            onLayout={(e) => {
+              const w = e.nativeEvent.layout.width;
+              if (w > 0 && w !== bannerWidth) {
+                setBannerWidth(w);
+              }
+            }}
+          >
             <ScrollView
               ref={bannerScrollViewRef}
               horizontal
@@ -209,7 +219,7 @@ const HomeScreen = ({ navigation }) => {
               showsHorizontalScrollIndicator={false}
               onMomentumScrollEnd={(e) => {
                 const contentOffset = e.nativeEvent.contentOffset.x;
-                const layoutWidth = e.nativeEvent.layoutMeasurement.width || 335;
+                const layoutWidth = bannerWidth || e.nativeEvent.layoutMeasurement.width;
                 if (layoutWidth > 0) {
                   const currentIndex = Math.round(contentOffset / layoutWidth);
                   setActiveBannerIndex(currentIndex);
@@ -222,7 +232,7 @@ const HomeScreen = ({ navigation }) => {
                 return (
                   <TouchableOpacity
                     key={item._id || idx}
-                    style={{ width: 335, height: 160, position: 'relative' }}
+                    style={{ width: bannerWidth, height: 160, position: 'relative' }}
                     onPress={() => handleSelectService('Bus')}
                     activeOpacity={0.9}
                   >
