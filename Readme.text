@@ -1,0 +1,7 @@
+cd "E:\Bus-booking project\BUS-EV-SEWA-CAR-BOOKING\driver-app"
+
+cd android
+
+.\gradlew clean
+
+.\gradlew assembleRelease --no-daemon

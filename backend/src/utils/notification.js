@@ -3,13 +3,19 @@ const Notification = require('../models/Notification');
 const Vehicle = require('../models/Vehicle');
 const Driver = require('../models/Driver');
 
+/**
+ * Normalizes location strings for accurate route matching.
+ * e.g., "Delhi (Kashmere Gate ISBT)" -> "delhi"
+ */
 const normalizeLoc = (loc) => {
   if (!loc) return '';
-  // Extract main city name before brackets if any, e.g. "Delhi (ISBT)" -> "delhi"
   const clean = String(loc).split('(')[0].toLowerCase().replace(/[^a-z0-9]/g, '').trim();
   return clean;
 };
 
+/**
+ * Checks direction-sensitive location match between vehicle route & booking route.
+ */
 const isLocationMatch = (loc1, loc2) => {
   const n1 = normalizeLoc(loc1);
   const n2 = normalizeLoc(loc2);
@@ -18,8 +24,38 @@ const isLocationMatch = (loc1, loc2) => {
 };
 
 /**
- * Notifies ALL eligible drivers whose assigned bus operates on the exact same route.
- * @param {Object} booking - The created bus booking document.
+ * Determines if a vehicle operates on the exact origin -> destination route of a booking.
+ */
+const vehicleMatchesBookingRoute = (vehicle, booking) => {
+  if (!vehicle || !booking) return false;
+
+  // Direct vehicle match if booking explicitly bound to this vehicle
+  if (booking.vehicle) {
+    const bVehId = (booking.vehicle._id || booking.vehicle).toString();
+    const vehId = (vehicle._id || vehicle).toString();
+    if (bVehId === vehId) return true;
+  }
+
+  const vOrigin = vehicle.route?.origin || vehicle.pickupDropDetails?.pickupLocation || vehicle.hireDetails?.pickup || '';
+  const vDest = vehicle.route?.destination || vehicle.pickupDropDetails?.dropLocation || vehicle.hireDetails?.destination || '';
+
+  const bOrigin = booking.pickupLocation || booking.route?.origin || '';
+  const bDest = booking.dropLocation || booking.route?.destination || '';
+
+  if (vOrigin && vDest && bOrigin && bDest) {
+    const originMatches = isLocationMatch(vOrigin, bOrigin);
+    const destMatches = isLocationMatch(vDest, bDest);
+    return originMatches && destMatches;
+  }
+
+  return false;
+};
+
+/**
+ * DYNAMIC NOTIFICATION BROADCAST ENGINE FOR BUS BOOKINGS
+ * Discovers ALL Active + Approved drivers assigned to buses operating on the exact same route.
+ * Dispatches notifications in parallel without arbitrary limits or sequential blocking.
+ * Inspects Expo push tickets & clears stale tokens if DeviceNotRegistered.
  */
 const notifyEligibleDriversForBusBooking = async (booking) => {
   try {
@@ -32,117 +68,179 @@ const notifyEligibleDriversForBusBooking = async (booking) => {
 
     const bookingOrigin = booking.pickupLocation || booking.route?.origin || '';
     const bookingDest = booking.dropLocation || booking.route?.destination || '';
-    const bookingId = booking.bookingId || (booking._id ? booking._id.toString() : '');
+    const bookingIdStr = booking.bookingId || (booking._id ? booking._id.toString() : '');
 
-    if (!bookingOrigin || !bookingDest || !bookingId) {
+    if (!bookingOrigin || !bookingDest || !bookingIdStr) {
       return;
     }
 
-    // 1. Find all active vehicles of type 'Bus'
-    const activeBuses = await Vehicle.find({
-      vehicleType: { $regex: /^bus$/i },
-      vehicleStatus: 'Active'
-    }).lean();
+    const routeText = `${bookingOrigin.split('(')[0].trim()} → ${bookingDest.split('(')[0].trim()}`;
+    const notifTitle = 'New Bus Booking Request';
+    const notifBody = `${routeText} booking request. Tap to view.`;
 
-    // 2. Filter buses operating on the EXACT SAME ROUTE (Direction-sensitive)
-    const matchingVehicles = activeBuses.filter((veh) => {
-      const vOrigin = veh.route?.origin || veh.pickupDropDetails?.pickupLocation || veh.hireDetails?.pickup || '';
-      const vDest = veh.route?.destination || veh.pickupDropDetails?.dropLocation || veh.hireDetails?.destination || '';
+    // 1. Fetch ALL Active & Approved Drivers in MongoDB (DYNAMIC UNLIMITED QUERY)
+    const allActiveDrivers = await Driver.find({
+      driverStatus: { $in: ['Active', 'Approved'] }
+    }).populate('assignedVehicle').lean();
 
-      const originMatches = isLocationMatch(vOrigin, bookingOrigin);
-      const destMatches = isLocationMatch(vDest, bookingDest);
-
-      return originMatches && destMatches;
-    });
-
-    if (matchingVehicles.length === 0) {
+    if (!allActiveDrivers || allActiveDrivers.length === 0) {
+      console.log(`[Notification Engine] No active/approved drivers found in DB for booking ${bookingIdStr}`);
       return;
     }
 
-    const matchingVehicleIds = matchingVehicles.map((v) => v._id);
-    const vehicleAssignedDriverIds = matchingVehicles
-      .map((v) => v.assignedDriver)
-      .filter(Boolean);
+    // 2. Discover ALL drivers whose assigned bus matches the booking route
+    const eligibleDrivers = [];
 
-    // 3. Find all Active / Approved drivers assigned to these buses
-    const driversByVehicle = await Driver.find({
-      assignedVehicle: { $in: matchingVehicleIds },
-      driverStatus: { $in: ['Active', 'Approved'] }
-    }).populate('user').lean();
+    for (const driver of allActiveDrivers) {
+      let vehicle = driver.assignedVehicle;
 
-    const driversByRef = await Driver.find({
-      _id: { $in: vehicleAssignedDriverIds },
-      driverStatus: { $in: ['Active', 'Approved'] }
-    }).populate('user').lean();
+      // Fallback: If assignedVehicle was not populated or stored as ObjectId reference
+      if (!vehicle && driver.assignedVehicle) {
+        vehicle = await Vehicle.findById(driver.assignedVehicle).lean();
+      }
+      if (!vehicle) {
+        vehicle = await Vehicle.findOne({ assignedDriver: driver._id, vehicleStatus: 'Active' }).lean();
+      }
 
-    // Combine and deduplicate drivers
-    const driverMap = new Map();
-    [...driversByVehicle, ...driversByRef].forEach((d) => {
-      driverMap.set(d._id.toString(), d);
-    });
+      // Ensure vehicle is Active and matches the exact origin -> destination route
+      if (vehicle && vehicle.vehicleStatus === 'Active' && vehicleMatchesBookingRoute(vehicle, booking)) {
+        eligibleDrivers.push({
+          driver,
+          vehicle
+        });
+      }
+    }
 
-    const eligibleDrivers = Array.from(driverMap.values());
+    console.log('\n================================================================');
+    console.log(`🔔 BUS BOOKING NOTIFICATION BROADCAST DISPATCH`);
+    console.log(`Booking ID: ${bookingIdStr}`);
+    console.log(`Route: ${routeText}`);
+    console.log(`Eligible Drivers Found: ${eligibleDrivers.length}`);
 
-    // 4. Create Notification for EVERY matching driver with Deduplication Protection
-    for (const driver of eligibleDrivers) {
+    if (eligibleDrivers.length === 0) {
+      console.log(`[Notification Engine] 0 eligible drivers matching route ${routeText}`);
+      console.log('================================================================\n');
+      return;
+    }
+
+    // 3. Parallel Dispatch to ALL Eligible Drivers with Promise.allSettled()
+    let successCount = 0;
+    let failureCount = 0;
+
+    const dispatchPromises = eligibleDrivers.map(async ({ driver, vehicle }, index) => {
+      const driverIdStr = driver._id.toString();
+      const driverName = driver.name || 'Driver';
+      const maskedName = driverName.length > 2 ? `${driverName.substring(0, 2)}***` : driverName;
       const recipientUser = driver.user?._id || driver.user || driver._id;
+      const busName = vehicle.vehicleName || vehicle.vehicleNumber || 'Assigned Bus';
 
-      // Check if notification for this booking already exists for this driver recipient
+      // Deduplication Check: bookingId + recipientId (per-driver deduplication, NO global lock)
       const existingNotif = await Notification.findOne({
+        recipientId: recipientUser,
         $or: [
-          { recipientId: recipientUser },
-          { recipient: `Driver: ${driver.name}` }
-        ],
-        message: { $regex: bookingId }
+          { message: { $regex: bookingIdStr } },
+          { message: { $regex: routeText } }
+        ]
       });
 
       if (!existingNotif) {
-        const routeText = `${bookingOrigin.split('(')[0].trim()} → ${bookingDest.split('(')[0].trim()}`;
         await Notification.create({
-          title: 'New Bus Booking Request',
-          message: `${routeText} booking request. Tap to view.`,
-          recipient: `Driver: ${driver.name}`,
+          title: notifTitle,
+          message: `${notifTitle} ${bookingIdStr}: ${routeText}`,
+          recipient: `Driver: ${driverName}`,
           recipientRole: 'driver',
           recipientId: recipientUser,
           status: 'Unread'
-        });
+        }).catch((err) => console.warn(`DB Notification error for ${driverName}:`, err.message));
+      }
 
-        // Send Push Notification if token exists
-        const token = driver.pushToken || driver.fcmToken;
-        if (token && typeof token === 'string' && token.trim()) {
-          try {
-            await fetch('https://exp.host/--/api/v2/push/send', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
+      // Check Push Token for Driver
+      const token = (driver.pushToken || driver.fcmToken || '').trim();
+      const hasToken = !!token;
+      const maskedToken = hasToken ? `${token.substring(0, 18)}...` : 'NONE';
+
+      let dispatchStatus = 'SKIPPED (No Token)';
+      let ticketId = 'N/A';
+      let errorDetail = null;
+
+      if (hasToken) {
+        try {
+          const pushResponse = await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+              to: token,
+              title: notifTitle,
+              body: notifBody,
+              data: {
+                bookingId: bookingIdStr,
+                screen: 'Requests'
               },
-              body: JSON.stringify({
-                to: token.trim(),
-                title: 'New Bus Booking Request',
-                body: `${routeText} booking request. Tap to view.`,
-                data: {
-                  bookingId: bookingId,
-                  screen: 'Requests'
-                },
-                sound: 'default',
-                priority: 'high',
-                channelId: 'driver-booking-requests'
-              })
-            });
-          } catch (pushErr) {
-            console.warn(`Failed push notification to driver ${driver._id}:`, pushErr.message);
+              sound: 'default',
+              priority: 'high',
+              channelId: 'driver-booking-requests'
+            })
+          });
+
+          const pushResult = await pushResponse.json();
+
+          if (pushResponse.ok && pushResult.data && pushResult.data[0]) {
+            const ticket = pushResult.data[0];
+            if (ticket.status === 'ok') {
+              dispatchStatus = 'SENT (Success)';
+              ticketId = ticket.id || 'OK';
+              successCount++;
+            } else if (ticket.status === 'error') {
+              dispatchStatus = `FAILED (${ticket.message || ticket.details?.error || 'Expo Push Error'})`;
+              errorDetail = ticket.message || ticket.details?.error;
+              failureCount++;
+
+              // Handle Stale Token: If DeviceNotRegistered, clear invalid token without affecting other drivers
+              if (ticket.details?.error === 'DeviceNotRegistered' || ticket.message?.includes('DeviceNotRegistered')) {
+                await Driver.findByIdAndUpdate(driver._id, { pushToken: null, fcmToken: null }).catch(() => {});
+                console.log(`   ⚠️ Stale token cleared for ${driverName} (DeviceNotRegistered)`);
+              }
+            }
+          } else {
+            dispatchStatus = `FAILED (HTTP ${pushResponse.status})`;
+            errorDetail = pushResult.errors ? JSON.stringify(pushResult.errors) : 'HTTP Failure';
+            failureCount++;
           }
+        } catch (fetchErr) {
+          dispatchStatus = `FAILED (${fetchErr.message})`;
+          errorDetail = fetchErr.message;
+          failureCount++;
         }
       }
-    }
+
+      console.log(`\n${index + 1}. Driver: ${driverName} (${maskedName})`);
+      console.log(`   driverId: ${driverIdStr}`);
+      console.log(`   assignedBus: ${busName} (${vehicle.vehicleNumber || 'N/A'})`);
+      console.log(`   pushToken: ${maskedToken}`);
+      console.log(`   status: ${dispatchStatus}`);
+      if (ticketId !== 'N/A') console.log(`   ticketId: ${ticketId}`);
+      if (errorDetail) console.log(`   error: ${errorDetail}`);
+    });
+
+    await Promise.allSettled(dispatchPromises);
+
+    console.log('\n----------------------------------------------------------------');
+    console.log(`Broadcast Summary for Booking ${bookingIdStr}:`);
+    console.log(`Total Eligible Drivers: ${eligibleDrivers.length} | Attempted: ${eligibleDrivers.length}`);
+    console.log(`Push Dispatched OK: ${successCount} | Failed/No Token: ${failureCount}`);
+    console.log('================================================================\n');
+
   } catch (error) {
-    console.error('Error in notifyEligibleDriversForBusBooking:', error);
+    console.error('Error in notifyEligibleDriversForBusBooking:', error.message || error);
   }
 };
 
 module.exports = {
   normalizeLoc,
   isLocationMatch,
+  vehicleMatchesBookingRoute,
   notifyEligibleDriversForBusBooking
 };
