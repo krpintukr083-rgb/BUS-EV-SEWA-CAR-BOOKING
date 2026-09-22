@@ -49,7 +49,7 @@ export const AuthProvider = ({ children }) => {
         setIsOnline(Boolean(res.data.data.isOnline));
         await AsyncStorage.setItem('@driver_profile_data', JSON.stringify(res.data.data));
         registerPushTokenWithBackend({
-          post: (url, body) => driverService.registerPushToken(body.pushToken || body.fcmToken)
+          post: (url, body) => driverService.registerPushToken(body)
         }).catch(() => {});
       }
     } catch (e) {
@@ -74,7 +74,7 @@ export const AuthProvider = ({ children }) => {
         }
 
         registerPushTokenWithBackend({
-          post: (url, body) => driverService.registerPushToken(body.pushToken || body.fcmToken)
+          post: (url, body) => driverService.registerPushToken(body)
         }).catch(() => {});
 
         return { success: true };
