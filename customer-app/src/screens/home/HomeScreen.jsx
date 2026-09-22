@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -27,6 +27,22 @@ const HomeScreen = ({ navigation }) => {
   const [busOffer, setBusOffer] = useState(null);
   const [banners, setBanners] = useState([]);
   const [activeBannerIndex, setActiveBannerIndex] = useState(0);
+  const bannerScrollViewRef = useRef(null);
+
+  // Automatic Banner Carousel Timer (Auto-Scroll every 3.5s)
+  useEffect(() => {
+    if (banners.length <= 1) return;
+
+    const timer = setInterval(() => {
+      setActiveBannerIndex(prevIndex => {
+        const nextIndex = (prevIndex + 1) % banners.length;
+        bannerScrollViewRef.current?.scrollTo({ x: nextIndex * 335, animated: true });
+        return nextIndex;
+      });
+    }, 3500);
+
+    return () => clearInterval(timer);
+  }, [banners]);
 
   const fetchHomeData = async () => {
     try {
@@ -187,12 +203,13 @@ const HomeScreen = ({ navigation }) => {
         {banners.length > 0 && (
           <View style={styles.heroBannerCard}>
             <ScrollView
+              ref={bannerScrollViewRef}
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
-              onScroll={(e) => {
+              onMomentumScrollEnd={(e) => {
                 const contentOffset = e.nativeEvent.contentOffset.x;
-                const layoutWidth = e.nativeEvent.layoutMeasurement.width;
+                const layoutWidth = e.nativeEvent.layoutMeasurement.width || 335;
                 if (layoutWidth > 0) {
                   const currentIndex = Math.round(contentOffset / layoutWidth);
                   setActiveBannerIndex(currentIndex);
