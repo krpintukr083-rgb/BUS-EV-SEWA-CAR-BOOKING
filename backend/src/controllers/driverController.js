@@ -1019,6 +1019,7 @@ exports.getBookingRequests = async (req, res, next) => {
     }
 
     if (!assignedVehicle || (assignedVehicle.vehicleStatus && assignedVehicle.vehicleStatus !== 'Active')) {
+      console.log(`[getBookingRequests Debug] Driver ${driver.name} assignedVehicle missing or inactive. assignedVehicle:`, assignedVehicle);
       return res.json({ success: true, count: 0, data: [] });
     }
 
@@ -1038,6 +1039,8 @@ exports.getBookingRequests = async (req, res, next) => {
       .sort({ createdAt: -1 })
       .lean();
 
+    console.log(`[getBookingRequests Debug] Driver ${driver.name} candidateBookings count: ${candidateBookings.length}`);
+
     // Filter candidate bookings by route match & eligibility
     const requests = candidateBookings.filter(reqItem => {
       // Direct canonical exclusion check
@@ -1053,7 +1056,9 @@ exports.getBookingRequests = async (req, res, next) => {
       }
       // If pending/unconfirmed request, check route match between driver's assigned vehicle and booking
       if (assignedVehicle) {
-        return vehicleMatchesBookingRoute(assignedVehicle, reqItem);
+        const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem);
+        console.log(`[getBookingRequests Debug] Driver ${driver.name} vehicle ${assignedVehicle.vehicleNumber} (${assignedVehicle.route?.origin}->${assignedVehicle.route?.destination}) matches booking ${reqItem.bookingId} (${reqItem.pickupLocation}->${reqItem.dropLocation}): ${matches}`);
+        return matches;
       }
       return false;
     });
