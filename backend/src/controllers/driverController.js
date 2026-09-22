@@ -2347,7 +2347,7 @@ exports.registerPushToken = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: 'Push token registered successfully',
-      data: { pushToken: tokenToSave }
+      data: { expoPushToken: finalExpoToken, fcmToken: finalFcmToken }
     });
   } catch (error) {
     next(error);
