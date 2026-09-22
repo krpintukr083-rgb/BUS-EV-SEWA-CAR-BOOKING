@@ -1074,7 +1074,6 @@ exports.getBookingRequests = async (req, res, next) => {
         safeHiredDetails = { ...safeHiredDetails };
         delete safeHiredDetails.hireAmount;
         delete safeHiredDetails.additionalExpense;
-        delete safeHiredDetails.hirePaymentStatus;
       }
 
       return {
@@ -1086,7 +1085,9 @@ exports.getBookingRequests = async (req, res, next) => {
         customerRating: 4.9,
         estimatedDistance: '12.5 km',
         pickupNavigationUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(reqItem.pickupLocation)}`,
-        dropNavigationUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(reqItem.dropLocation)}`
+        dropNavigationUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(reqItem.dropLocation)}`,
+        acceptUrl: `/api/driver/bookings/${reqItem._id}/accept`,
+        otpVerifyUrl: `/api/driver/bookings/${reqItem._id}/verify-otp`
       };
     });
 
