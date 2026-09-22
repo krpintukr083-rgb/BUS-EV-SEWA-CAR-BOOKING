@@ -158,7 +158,7 @@ const HomeScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchHomeData(); }} />}
       >
-        {/* Promotional Banner (Admin Controlled — Discount Percentage Hidden) */}
+        {/* Promotional Banner (Admin Controlled Carousel / Banner) */}
         {busOffer && (busOffer.offerStatus === 'active' || busOffer.discountStatus === 'active') && (
           <TouchableOpacity
             style={styles.heroBannerCard}
@@ -166,13 +166,20 @@ const HomeScreen = ({ navigation }) => {
             activeOpacity={0.9}
           >
             {busOffer.bannerImage || busOffer.imageUrl ? (
-              <Image
-                source={{ uri: getFullImageUrl(busOffer.bannerImage || busOffer.imageUrl) }}
-                style={styles.heroBannerFullImage}
-                resizeMode="cover"
-              />
+              <View style={{ position: 'relative', width: '100%', height: 160 }}>
+                <Image
+                  source={{ uri: getFullImageUrl(busOffer.bannerImage || busOffer.imageUrl) }}
+                  style={styles.heroBannerFullImage}
+                  resizeMode="cover"
+                />
+                <View style={styles.carouselDotsContainer}>
+                  <View style={[styles.carouselDot, styles.carouselDotActive]} />
+                  <View style={styles.carouselDot} />
+                  <View style={styles.carouselDot} />
+                </View>
+              </View>
             ) : (
-              <View style={styles.heroBannerContent}>
+              <View style={[styles.heroBannerContent, { padding: 16 }]}>
                 <View style={styles.heroBannerBadge}>
                   <Ionicons name="sparkles" size={13} color="#f59e0b" />
                   <Text style={styles.heroBannerBadgeText}>PROMOTIONAL OFFER</Text>
@@ -458,24 +465,43 @@ const styles = StyleSheet.create({
     paddingBottom: 40
   },
   heroBannerCard: {
-    backgroundColor: '#1e3a8a',
+    backgroundColor: '#1e293b',
     borderRadius: 16,
-    padding: 16,
+    padding: 0,
     marginBottom: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#1e3a8a',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 4,
     overflow: 'hidden'
   },
   heroBannerFullImage: {
     width: '100%',
-    height: 140,
+    height: 160,
     borderRadius: 16
+  },
+  carouselDotsContainer: {
+    position: 'absolute',
+    bottom: 10,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6
+  },
+  carouselDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)'
+  },
+  carouselDotActive: {
+    width: 18,
+    height: 7,
+    borderRadius: 3.5,
+    backgroundColor: '#38bdf8'
   },
   heroBannerContent: {
     flex: 1,
