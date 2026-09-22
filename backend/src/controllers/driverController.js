@@ -1007,7 +1007,7 @@ exports.getBookingRequests = async (req, res, next) => {
       });
     }
 
-    // Load driver's assigned vehicle
+    // Load driver's assigned vehicle (robust bi-directional lookup)
     let assignedVehicle = null;
     if (driver.assignedVehicle) {
       if (typeof driver.assignedVehicle === 'object' && driver.assignedVehicle.vehicleNumber) {
@@ -1015,7 +1015,19 @@ exports.getBookingRequests = async (req, res, next) => {
       } else {
         assignedVehicle = await Vehicle.findById(driver.assignedVehicle._id || driver.assignedVehicle).lean();
       }
-    } else {
+    }
+    if (!assignedVehicle) {
+      assignedVehicle = await Vehicle.findOne({ assignedDriver: driver._id, vehicleStatus: 'Active' }).lean();
+    }
+    if (!assignedVehicle) {
+      const freshDriver = await Driver.findById(driver._id).populate('assignedVehicle').lean();
+      if (freshDriver && freshDriver.assignedVehicle) {
+        assignedVehicle = typeof freshDriver.assignedVehicle === 'object' && freshDriver.assignedVehicle.vehicleNumber
+          ? freshDriver.assignedVehicle
+          : await Vehicle.findById(freshDriver.assignedVehicle._id || freshDriver.assignedVehicle).lean();
+      }
+    }
+    if (!assignedVehicle) {
       assignedVehicle = await Vehicle.findOne({ assignedDriver: driver._id }).lean();
     }
 
