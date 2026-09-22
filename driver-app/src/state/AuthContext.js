@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { driverService } from '../services/driverService';
-import { clearDriverNotificationCache } from '../services/notificationService';
+import { clearDriverNotificationCache, registerPushTokenWithBackend } from '../services/notificationService';
 
 const AuthContext = createContext();
 
@@ -48,6 +48,9 @@ export const AuthProvider = ({ children }) => {
         setDriver(res.data.data);
         setIsOnline(Boolean(res.data.data.isOnline));
         await AsyncStorage.setItem('@driver_profile_data', JSON.stringify(res.data.data));
+        registerPushTokenWithBackend({
+          post: (url, body) => driverService.registerPushToken(body.pushToken || body.fcmToken)
+        }).catch(() => {});
       }
     } catch (e) {
       console.warn('Error fetching fresh driver profile', e);
@@ -69,6 +72,11 @@ export const AuthProvider = ({ children }) => {
         if (driverData) {
           await AsyncStorage.setItem('@driver_profile_data', JSON.stringify(driverData));
         }
+
+        registerPushTokenWithBackend({
+          post: (url, body) => driverService.registerPushToken(body.pushToken || body.fcmToken)
+        }).catch(() => {});
+
         return { success: true };
       }
       return { success: false, message: res.data?.message || 'Login failed' };

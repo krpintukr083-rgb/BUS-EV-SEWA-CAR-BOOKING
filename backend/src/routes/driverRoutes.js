@@ -32,7 +32,8 @@ const {
   updateEVBattery,
   getDriverNotifications,
   getDriverSupport,
-  createSupportTicket
+  createSupportTicket,
+  registerPushToken
 } = require('../controllers/driverController');
 const { verifyToken, driverAuth } = require('../middleware/auth');
 const { handleSingleUpload } = require('../middleware/upload');
@@ -120,6 +121,7 @@ router.patch('/battery-update', updateEVBattery);
 
 // 13. Notifications & Announcements
 router.get('/notifications', getDriverNotifications);
+router.post('/push-token', registerPushToken);
 
 // 14. Support & Tickets
 router.get('/support', getDriverSupport);

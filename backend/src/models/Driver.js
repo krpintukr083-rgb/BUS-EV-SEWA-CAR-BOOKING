@@ -253,6 +253,15 @@ const driverSchema = new mongoose.Schema(
     lastChargedAt: {
       type: Date,
       default: null
+    },
+    // Push Notification Token (FCM / Expo)
+    pushToken: {
+      type: String,
+      default: null
+    },
+    fcmToken: {
+      type: String,
+      default: null
     }
   },
   {

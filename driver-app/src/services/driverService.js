@@ -70,6 +70,7 @@ export const driverService = {
 
   // Notifications & Support
   getNotifications: () => apiClient.get(ENDPOINTS.NOTIFICATIONS),
+  registerPushToken: (pushToken) => apiClient.post('/driver/push-token', { pushToken }),
   getSupport: () => apiClient.get(ENDPOINTS.SUPPORT),
   createTicket: (ticket) => apiClient.post(ENDPOINTS.SUPPORT_TICKET, ticket),
   updateLanguage: (language) => apiClient.put(ENDPOINTS.LANGUAGE, { language })

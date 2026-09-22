@@ -9,6 +9,7 @@ const Support = require('../models/Support');
 const Policy = require('../models/Policy');
 const ServiceControl = require('../models/ServiceControl');
 const User = require('../models/User');
+const { notifyEligibleDriversForBusBooking } = require('../utils/notification');
 
 const getBookingQuery = (idOrCode) => {
   return mongoose.isValidObjectId(idOrCode)
@@ -271,6 +272,9 @@ exports.createBooking = async (req, res, next) => {
       recipientId: req.user._id,
       status: 'Unread'
     });
+
+    // Notify all eligible same-route drivers asynchronously
+    notifyEligibleDriversForBusBooking(booking).catch(() => {});
 
     const bookingObj = booking.toObject();
     bookingObj.confirmationOtp = rawOtp;

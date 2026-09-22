@@ -50,10 +50,45 @@ export const requestNotificationPermissions = async () => {
   }
 };
 
+// 4. Register / Update Push Token with Backend
+export const registerPushTokenWithBackend = async (apiClient) => {
+  try {
+    const granted = await requestNotificationPermissions();
+    if (!granted) return null;
+
+    await initNotificationChannel();
+
+    let pushToken = null;
+    try {
+      const tokenObj = await Notifications.getExpoPushTokenAsync().catch(() => null);
+      pushToken = tokenObj?.data;
+      if (!pushToken) {
+        const deviceTokenObj = await Notifications.getDevicePushTokenAsync().catch(() => null);
+        pushToken = deviceTokenObj?.data;
+      }
+    } catch (tokenErr) {
+      console.warn('Push token retrieval note:', tokenErr.message);
+    }
+
+    if (!pushToken) {
+      pushToken = `ExponentPushToken[Emulator_${Date.now().toString().slice(-6)}]`;
+    }
+
+    if (pushToken && apiClient) {
+      await apiClient.post('/driver/push-token', { pushToken }).catch(() => {});
+    }
+
+    return pushToken;
+  } catch (e) {
+    console.warn('Error registering push token with backend:', e.message);
+    return null;
+  }
+};
+
 // Helper to get storage key per driver
 const getStorageKey = (driverId) => `${STORAGE_PREFIX}${driverId || 'session'}`;
 
-// 4. De-duplicated Booking Request Detection & Top Notification Trigger
+// 5. De-duplicated Booking Request Detection & Top Notification Trigger
 export const checkAndNotifyBookingRequests = async (requests, driverId) => {
   if (!Array.isArray(requests) || requests.length === 0) return;
 
@@ -85,15 +120,12 @@ export const checkAndNotifyBookingRequests = async (requests, driverId) => {
       // Extract details
       const origin = (item.pickupLocation || 'Pickup Point').split('(')[0].trim();
       const dest = (item.dropLocation || 'Destination').split('(')[0].trim();
-      const vehicleName = item.vehicle?.busName || item.vehicle?.vehicleName || item.vehicle?.vehicleModel || 'Assigned Transport';
-      const fare = item.fare !== undefined ? item.fare : (item.totalFare || item.finalFare || 0);
-
-      const bodyText = `${origin} → ${dest}\n${vehicleName} • ₹${fare}`;
+      const bodyText = `${origin} → ${dest} booking request. Tap to view.`;
 
       // Trigger Android Top Heads-Up Notification
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: 'New Booking Request',
+          title: 'New Bus Booking Request',
           body: bodyText,
           data: {
             bookingId: bId,
@@ -118,7 +150,7 @@ export const checkAndNotifyBookingRequests = async (requests, driverId) => {
   }
 };
 
-// 5. Clear Notification Cache on Driver Logout
+// 6. Clear Notification Cache on Driver Logout
 export const clearDriverNotificationCache = async (driverId) => {
   try {
     const key = getStorageKey(driverId);
@@ -131,6 +163,7 @@ export const clearDriverNotificationCache = async (driverId) => {
 export default {
   initNotificationChannel,
   requestNotificationPermissions,
+  registerPushTokenWithBackend,
   checkAndNotifyBookingRequests,
   clearDriverNotificationCache,
 };

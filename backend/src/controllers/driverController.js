@@ -2287,3 +2287,31 @@ exports.createSupportTicket = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Register or Update Driver Push Token (FCM / Expo)
+// @route   POST /api/driver/push-token
+// @access  Private (Driver Only)
+exports.registerPushToken = async (req, res, next) => {
+  try {
+    const { pushToken, fcmToken, token } = req.body;
+    const tokenToSave = pushToken || fcmToken || token;
+
+    if (!tokenToSave) {
+      return res.status(400).json({ success: false, message: 'Push token is required' });
+    }
+
+    const driver = req.driver;
+    driver.pushToken = tokenToSave;
+    driver.fcmToken = tokenToSave;
+    await driver.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Push token registered successfully',
+      data: { pushToken: tokenToSave }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

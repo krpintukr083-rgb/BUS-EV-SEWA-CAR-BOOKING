@@ -100,12 +100,40 @@ const notifyEligibleDriversForBusBooking = async (booking) => {
         const routeText = `${bookingOrigin.split('(')[0].trim()} → ${bookingDest.split('(')[0].trim()}`;
         await Notification.create({
           title: 'New Bus Booking Request',
-          message: `New Bus Booking Request ${bookingId}: ${routeText}`,
+          message: `${routeText} booking request. Tap to view.`,
           recipient: `Driver: ${driver.name}`,
           recipientRole: 'driver',
           recipientId: recipientUser,
           status: 'Unread'
         });
+
+        // Send Push Notification if token exists
+        const token = driver.pushToken || driver.fcmToken;
+        if (token && typeof token === 'string' && token.trim()) {
+          try {
+            await fetch('https://exp.host/--/api/v2/push/send', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify({
+                to: token.trim(),
+                title: 'New Bus Booking Request',
+                body: `${routeText} booking request. Tap to view.`,
+                data: {
+                  bookingId: bookingId,
+                  screen: 'Requests'
+                },
+                sound: 'default',
+                priority: 'high',
+                channelId: 'driver-booking-requests'
+              })
+            });
+          } catch (pushErr) {
+            console.warn(`Failed push notification to driver ${driver._id}:`, pushErr.message);
+          }
+        }
       }
     }
   } catch (error) {
