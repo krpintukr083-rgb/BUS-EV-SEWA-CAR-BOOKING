@@ -5,6 +5,7 @@ export const driverService = {
   // Auth
   login: (credentials) => apiClient.post(ENDPOINTS.LOGIN, { ...credentials, role: 'driver' }),
   register: (data) => apiClient.post(ENDPOINTS.REGISTER, data),
+  registerPushToken: (data) => apiClient.post('/driver/push-token', data),
 
   // Dashboard & Status
   getDashboard: () => apiClient.get(ENDPOINTS.DASHBOARD),
