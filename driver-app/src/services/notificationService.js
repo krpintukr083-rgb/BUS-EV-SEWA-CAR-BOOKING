@@ -65,6 +65,9 @@ export const requestNotificationPermissions = async () => {
 // 4. Register / Update Push Token with Backend
 export const registerPushTokenWithBackend = async (apiClient) => {
   try {
+    console.warn('[PUSH] notification initialization started');
+    console.warn('[PUSH] Firebase/native push initialization started');
+    
     // Step 1: Check and request notification permission
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
@@ -72,10 +75,10 @@ export const registerPushTokenWithBackend = async (apiClient) => {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
-    console.log(`[PUSH] permission status: ${finalStatus}`);
+    console.warn(`[PUSH] notification permission status: ${finalStatus}`);
 
     if (finalStatus !== 'granted') {
-      console.log(`[PUSH] ERROR: Notification permission not granted (${finalStatus})`);
+      console.warn(`[PUSH] ERROR: Notification permission not granted (${finalStatus})`);
       return null;
     }
 
@@ -87,59 +90,83 @@ export const registerPushTokenWithBackend = async (apiClient) => {
       Constants?.expoConfig?.extra?.eas?.projectId ??
       Constants?.easConfig?.projectId ??
       'a503a782-662b-4065-af56-4af4ce094530';
-    console.log(`[PUSH] projectId: ${projectId}`);
 
-    // Step 4: Request real Expo push token
-    console.log('[PUSH] token request started');
-    let pushToken = null;
+    console.warn(`[PUSH] Android platform detected`);
+    console.warn('[PUSH] device push token request started');
+
+    let nativeFcmToken = null;
+    try {
+      // Get Native Android FCM Device Token
+      const deviceTokenResponse = await Notifications.getDevicePushTokenAsync();
+      nativeFcmToken = deviceTokenResponse?.data;
+      if (nativeFcmToken) {
+        console.warn('[PUSH] device push token received: YES');
+        console.warn('[PUSH] token type: FCM/native');
+        console.warn(`[PUSH] token prefix: ${String(nativeFcmToken).substring(0, 10)}...`);
+      } else {
+        console.warn('[PUSH] device push token received: NO');
+      }
+    } catch (err) {
+      console.warn('[PUSH] ERROR fetching device push token:', err?.message || err);
+    }
+
+    let expoPushToken = null;
     try {
       const tokenResponse = await Notifications.getExpoPushTokenAsync({
         projectId,
       });
-      pushToken = tokenResponse?.data;
+      expoPushToken = tokenResponse?.data;
+      if (expoPushToken) {
+        console.warn('[PUSH] token type: Expo');
+        console.warn(`[PUSH] token prefix: ${String(expoPushToken).substring(0, 20)}...`);
+      }
     } catch (err) {
-      console.log('[PUSH] ERROR:', err?.message || err);
-      return null;
+      console.warn('[PUSH] ERROR fetching expo push token:', err?.message || err);
     }
 
     // STRICT: Validate real Expo push token (ABSOLUTELY NO FAKE TOKENS)
     if (
-      !pushToken ||
-      typeof pushToken !== 'string' ||
-      !pushToken.startsWith('ExponentPushToken[') ||
-      /ExponentPushToken\[Emulator_/i.test(pushToken)
+      !expoPushToken ||
+      typeof expoPushToken !== 'string' ||
+      !expoPushToken.startsWith('ExponentPushToken[') ||
+      /ExponentPushToken\[Emulator_/i.test(expoPushToken)
     ) {
-      console.log('[PUSH] ERROR: Real token not obtained or invalid format');
+      console.warn('[PUSH] ERROR: Real token not obtained or invalid format');
       return null;
     }
 
-    console.log('[PUSH] real token received: YES — Valid Expo format');
-
     // Step 5: Register token with backend
     if (apiClient) {
-      console.log('[PUSH] backend registration started');
+      console.warn('[PUSH] backend registration started');
       try {
         let res = null;
-        if (typeof apiClient.registerPushToken === 'function') {
-          res = await apiClient.registerPushToken(pushToken);
-        } else if (typeof apiClient.post === 'function') {
-          res = await apiClient.post('/driver/push-token', { pushToken });
+        const payload = { 
+          expoPushToken: expoPushToken, 
+          fcmToken: nativeFcmToken 
+        };
+        
+        if (typeof apiClient.post === 'function') {
+          res = await apiClient.post('/driver/push-token', payload);
+        } else if (typeof apiClient.registerPushToken === 'function') {
+          // If the method signature doesn't take an object, we just pass the expo token for backward compat
+          res = await apiClient.registerPushToken(payload);
         }
+        
         const registrationStatus = res?.status ?? res?.data?.status ?? 200;
-        console.log(`[PUSH] backend registration response: ${registrationStatus}`);
-        console.log('[PUSH] token registration success');
+        console.warn(`[PUSH] backend registration response: ${registrationStatus}`);
+        console.warn('[PUSH] token registration success');
       } catch (regErr) {
         const statusCode = regErr?.response?.status ?? 'ERR';
-        console.log(`[PUSH] backend registration response: ${statusCode}`);
-        const errMsg = regErr?.response?.data?.message || regErr?.message || regErr;
-        console.log('[PUSH] ERROR:', errMsg);
+        console.warn(`[PUSH] backend registration response: ${statusCode}`);
+        const errMsg = regErr?.response?.data?.message || regErr?.message || String(regErr);
+        console.warn('[PUSH] token registration error: ' + errMsg);
         return null;
       }
     }
 
-    return pushToken;
+    return expoPushToken;
   } catch (e) {
-    console.log('[PUSH] ERROR:', e?.message || e);
+    console.warn('[PUSH] ERROR:', e?.message || e);
     return null;
   }
 };

@@ -2328,16 +2328,19 @@ exports.createSupportTicket = async (req, res, next) => {
 // @access  Private (Driver Only)
 exports.registerPushToken = async (req, res, next) => {
   try {
-    const { pushToken, fcmToken, token } = req.body;
-    const tokenToSave = pushToken || fcmToken || token;
+    const { pushToken, fcmToken, token, expoPushToken } = req.body;
+    
+    // Support separated tokens or legacy fallback
+    const finalExpoToken = expoPushToken || pushToken || token;
+    const finalFcmToken = fcmToken || pushToken || token;
 
-    if (!tokenToSave) {
+    if (!finalExpoToken && !finalFcmToken) {
       return res.status(400).json({ success: false, message: 'Push token is required' });
     }
 
     await Driver.findByIdAndUpdate(
       req.driver._id,
-      { $set: { pushToken: tokenToSave, fcmToken: tokenToSave } },
+      { $set: { pushToken: finalExpoToken, fcmToken: finalFcmToken } },
       { new: true }
     );
 
