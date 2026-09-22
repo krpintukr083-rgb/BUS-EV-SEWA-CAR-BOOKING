@@ -263,8 +263,10 @@ exports.createBooking = async (req, res, next) => {
       busSeatNumbers: selectedSeats || []
     });
 
-    // Create notification
-    await Notification.create({
+    console.log(`[NOTIFY] booking created: ${booking.bookingId} (${booking.pickupLocation} → ${booking.dropLocation}) at ${new Date().toISOString()}`);
+
+    // Create customer notification
+    Notification.create({
       title: 'Booking Created - Admin Confirmation Pending',
       message: `Your booking ${booking.bookingId} has been created. Please share OTP ${rawOtp} with the admin/operator for confirmation.`,
       recipient: `Customer: ${booking.customer.name}`,

@@ -167,6 +167,7 @@ const vehicleSchema = new mongoose.Schema(
 );
 
 // Performance Indexes
+vehicleSchema.index({ vehicleStatus: 1, vehicleType: 1 });
 vehicleSchema.index({ vehicleStatus: 1 });
 vehicleSchema.index({ vehicleSource: 1 });
 vehicleSchema.index({ assignedDriver: 1 });

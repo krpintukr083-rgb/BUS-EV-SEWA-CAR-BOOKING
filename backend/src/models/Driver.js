@@ -285,6 +285,7 @@ driverSchema.pre('save', function (next) {
 
 // Performance Indexes
 driverSchema.index({ driverStatus: 1, isOnline: 1 });
+driverSchema.index({ assignedVehicle: 1 });
 driverSchema.index({ drivingLicenceStatus: 1, rcStatus: 1, insuranceStatus: 1, fitnessStatus: 1 });
 
 module.exports = mongoose.model('Driver', driverSchema);
