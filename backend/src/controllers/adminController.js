@@ -1272,13 +1272,13 @@ exports.assignDriverToVehicle = async (req, res, next) => {
     const newDriver = await Driver.findById(driverId);
     if (!newDriver) return res.status(404).json({ success: false, message: 'Driver not found' });
 
-    // Remove new driver from previous vehicle if any
-    if (newDriver.assignedVehicle) {
+    // Remove new driver from previous vehicle if any (only if different vehicle)
+    if (newDriver.assignedVehicle && newDriver.assignedVehicle.toString() !== vehicle._id.toString()) {
       await Vehicle.findByIdAndUpdate(newDriver.assignedVehicle, { assignedDriver: null });
     }
 
-    // Remove old driver from this vehicle if any
-    if (vehicle.assignedDriver) {
+    // Remove old driver from this vehicle if any (only if different driver)
+    if (vehicle.assignedDriver && vehicle.assignedDriver.toString() !== newDriver._id.toString()) {
       await Driver.findByIdAndUpdate(vehicle.assignedDriver, { assignedVehicle: null });
     }
 
