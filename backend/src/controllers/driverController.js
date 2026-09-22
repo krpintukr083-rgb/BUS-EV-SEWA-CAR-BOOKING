@@ -182,6 +182,11 @@ exports.getDriverDashboard = async (req, res, next) => {
             return candidates.filter(b => {
               if (b.driverConfirmed || b.driverConfirmationStatus === 'Confirmed' || b.confirmationOtpVerifiedAt || b.otpVerified || b.cashCollected) return false;
               if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus)) return false;
+              // For Bus service: all eligible same-route drivers see the pending unconfirmed request
+              if (b.serviceType === 'Bus') {
+                if (driverVeh) return vehicleMatchesBookingRoute(driverVeh, b);
+                return false;
+              }
               if (b.driver && (b.driver._id || b.driver).toString() !== driver._id.toString()) return false;
               if (driverVeh) return vehicleMatchesBookingRoute(driverVeh, b);
               return false;
@@ -1065,7 +1070,16 @@ exports.getBookingRequests = async (req, res, next) => {
       if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(reqItem.bookingStatus)) {
         return false;
       }
-      // If directly assigned to another driver, skip
+      // For Bus service: all eligible drivers operating on the same route can see & accept pending requests
+      if (reqItem.serviceType === 'Bus') {
+        if (assignedVehicle) {
+          const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem);
+          console.log(`[getBookingRequests Debug] Driver ${driver.name} vehicle ${assignedVehicle.vehicleNumber} (${assignedVehicle.route?.origin}->${assignedVehicle.route?.destination}) matches booking ${reqItem.bookingId} (${reqItem.pickupLocation}->${reqItem.dropLocation}): ${matches}`);
+          return matches;
+        }
+        return false;
+      }
+      // If directly assigned to another driver (non-bus services), skip
       if (reqItem.driver && (reqItem.driver._id || reqItem.driver).toString() !== driver._id.toString()) {
         return false;
       }
