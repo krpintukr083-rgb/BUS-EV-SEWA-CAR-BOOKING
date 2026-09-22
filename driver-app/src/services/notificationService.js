@@ -132,13 +132,16 @@ export const registerPushTokenWithBackend = async (apiClient) => {
     }
 
     // STRICT: Validate real Expo push token (ABSOLUTELY NO FAKE TOKENS)
-    if (
-      !expoPushToken ||
-      typeof expoPushToken !== 'string' ||
-      !expoPushToken.startsWith('ExponentPushToken[') ||
-      /ExponentPushToken\[Emulator_/i.test(expoPushToken)
-    ) {
-      console.warn('[PUSH] ERROR: Real token not obtained or invalid format');
+    const isValidExpoToken =
+      typeof expoPushToken === 'string' &&
+      (
+        expoPushToken.startsWith('ExponentPushToken[') ||
+        expoPushToken.startsWith('ExpoPushToken[')
+      ) &&
+      !/Expo(nent)?PushToken\[Emulator_/i.test(expoPushToken);
+
+    if (!isValidExpoToken) {
+      console.warn('[PUSH] ERROR: Real Expo token not obtained or invalid format');
       return null;
     }
 
