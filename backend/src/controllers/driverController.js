@@ -935,24 +935,29 @@ exports.updateDriverStatus = async (req, res, next) => {
       }
     }
 
+    const updateFields = {};
     if (req.body.isOnline !== undefined) {
-      driver.isOnline = Boolean(req.body.isOnline);
+      updateFields.isOnline = Boolean(req.body.isOnline);
       if (['Active', 'Inactive'].includes(driver.driverStatus)) {
-        driver.driverStatus = driver.isOnline ? 'Active' : 'Inactive';
+        updateFields.driverStatus = updateFields.isOnline ? 'Active' : 'Inactive';
       }
     } else if (req.body.status) {
-      driver.driverStatus = req.body.status;
-      driver.isOnline = req.body.status === 'Active';
+      updateFields.driverStatus = req.body.status;
+      updateFields.isOnline = req.body.status === 'Active';
     }
 
-    await driver.save();
+    const updatedDriver = await Driver.findByIdAndUpdate(
+      driver._id,
+      { $set: updateFields },
+      { new: true }
+    );
 
     res.json({
       success: true,
-      message: `Driver status updated to ${driver.isOnline ? 'ONLINE' : 'OFFLINE'}`,
+      message: `Driver status updated to ${updatedDriver ? (updatedDriver.isOnline ? 'ONLINE' : 'OFFLINE') : 'OFFLINE'}`,
       data: {
-        driverStatus: driver.driverStatus,
-        isOnline: driver.isOnline
+        driverStatus: updatedDriver ? updatedDriver.driverStatus : driver.driverStatus,
+        isOnline: updatedDriver ? updatedDriver.isOnline : driver.isOnline
       }
     });
   } catch (error) {
@@ -2316,10 +2321,11 @@ exports.registerPushToken = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Push token is required' });
     }
 
-    const driver = req.driver;
-    driver.pushToken = tokenToSave;
-    driver.fcmToken = tokenToSave;
-    await driver.save();
+    await Driver.findByIdAndUpdate(
+      req.driver._id,
+      { $set: { pushToken: tokenToSave, fcmToken: tokenToSave } },
+      { new: true }
+    );
 
     return res.status(200).json({
       success: true,
