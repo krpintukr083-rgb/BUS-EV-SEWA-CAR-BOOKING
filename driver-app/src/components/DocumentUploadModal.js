@@ -339,7 +339,7 @@ const DocumentUploadModal = ({ visible, docType, docTitle, initialData, onClose,
                 onChangeText={setVehicleNumber}
               />
 
-              <Text style={styles.label}>Expiry Date (YYYY-MM-DD)</Text>
+              <Text style={styles.label}>Vehicle Tax Expiry Date (YYYY-MM-DD)</Text>
               <TextInput
                 style={styles.input}
                 placeholder="e.g. 2029-06-30"
