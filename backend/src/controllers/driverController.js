@@ -994,7 +994,7 @@ exports.getBookingRequests = async (req, res, next) => {
 
     // Driver eligibility check: must be Active and Online
     if (!driver || driver.driverStatus !== 'Active') {
-      return res.json({ success: true, count: 0, data: [] });
+      return res.json({ success: true, count: 0, data: [], reason: 'DRIVER_NOT_ACTIVE', driverStatus: driver ? driver.driverStatus : null });
     }
 
     if (!driver.isOnline) {
@@ -1002,6 +1002,7 @@ exports.getBookingRequests = async (req, res, next) => {
         success: true,
         count: 0,
         data: [],
+        reason: 'DRIVER_OFFLINE',
         message: 'Driver is currently OFFLINE. Switch to ONLINE to receive ride requests.'
       });
     }
@@ -1019,8 +1020,7 @@ exports.getBookingRequests = async (req, res, next) => {
     }
 
     if (!assignedVehicle || (assignedVehicle.vehicleStatus && assignedVehicle.vehicleStatus !== 'Active')) {
-      console.log(`[getBookingRequests Debug] Driver ${driver.name} assignedVehicle missing or inactive. assignedVehicle:`, assignedVehicle);
-      return res.json({ success: true, count: 0, data: [] });
+      return res.json({ success: true, count: 0, data: [], reason: 'NO_ACTIVE_ASSIGNED_VEHICLE', assignedVehicle });
     }
 
     // Fetch candidate pending bookings
