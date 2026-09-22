@@ -83,6 +83,9 @@ const notifyEligibleDriversForBusBooking = async (booking) => {
     const notifTitle = 'New Bus Booking Request';
     const notifBody = `${routeText} booking request. Tap to view.`;
 
+    console.log(`[NOTIFY] booking: ${bookingIdStr}`);
+    console.log(`[NOTIFY] route: ${routeText}`);
+
     // 1. Measure and Execute Fast 2-Step MongoDB Query
     console.log('[NOTIFY] eligible driver query start');
     const tQueryStart = Date.now();
@@ -185,6 +188,9 @@ const notifyEligibleDriversForBusBooking = async (booking) => {
     const ticketIdsToCheck = [];
     const staleTokenDriverIds = [];
 
+    const validTokensCount = messages.length;
+    console.log(`[NOTIFY] drivers with valid push tokens: ${validTokensCount}`);
+
     if (messages.length > 0) {
       const chunks = [];
       const driverChunks = [];
@@ -192,6 +198,9 @@ const notifyEligibleDriversForBusBooking = async (booking) => {
         chunks.push(messages.slice(i, i + CHUNK_SIZE));
         driverChunks.push(messageDriverMap.slice(i, i + CHUNK_SIZE));
       }
+
+      console.log(`[NOTIFY] batch count: ${chunks.length}`);
+      console.log(`[NOTIFY] messages attempted: ${messages.length}`);
 
       const chunkPromises = chunks.map(async (chunk, cIdx) => {
         const driversInChunk = driverChunks[cIdx];
@@ -249,10 +258,15 @@ const notifyEligibleDriversForBusBooking = async (booking) => {
       });
 
       await Promise.allSettled(chunkPromises);
+    } else {
+      console.log('[NOTIFY] batch count: 0');
+      console.log('[NOTIFY] messages attempted: 0');
     }
 
     const tDispatchEnd = Date.now();
     console.log(`[NOTIFY] push dispatch completed: ${tDispatchEnd - tDispatchStart} ms`);
+    const failedTokensCount = driverLogResults.filter(r => r && r.status && r.status.startsWith('FAILED')).length;
+    console.log(`[NOTIFY] failed tokens: ${failedTokensCount}`);
 
     // 3. Clear Stale Tokens Asynchronously (Non-blocking)
     if (staleTokenDriverIds.length > 0) {

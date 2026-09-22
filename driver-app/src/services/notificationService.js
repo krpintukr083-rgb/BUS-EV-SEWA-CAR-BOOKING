@@ -2,8 +2,20 @@ import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
+import Constants from 'expo-constants';
+
 const CHANNEL_ID = 'driver-booking-requests';
 const STORAGE_PREFIX = 'driver_notified_booking_requests_';
+
+const getProjectId = () => {
+  return (
+    Constants?.expoConfig?.extra?.eas?.projectId ||
+    Constants?.easConfig?.projectId ||
+    Constants?.manifest2?.extra?.eas?.projectId ||
+    Constants?.manifest?.extra?.eas?.projectId ||
+    null
+  );
+};
 
 // 1. Configure Foreground Notification Presentation Behavior
 Notifications.setNotificationHandler({
@@ -54,35 +66,94 @@ export const requestNotificationPermissions = async () => {
 export const registerPushTokenWithBackend = async (apiClient) => {
   try {
     const granted = await requestNotificationPermissions();
-    if (!granted) return null;
+    if (!granted) {
+      console.log('[PUSH] permission not granted');
+      return null;
+    }
+    console.log('[PUSH] permission granted');
 
     await initNotificationChannel();
 
+    const projectId = getProjectId();
+    console.log('[PUSH] projectId:', projectId || 'Not configured in EAS');
+
     let pushToken = null;
     try {
-      const tokenObj = await Notifications.getExpoPushTokenAsync().catch(() => null);
+      const tokenOptions = projectId ? { projectId } : undefined;
+      const tokenObj = await Notifications.getExpoPushTokenAsync(tokenOptions).catch((err) => {
+        console.warn('[PUSH] getExpoPushTokenAsync note:', err?.message || err);
+        return null;
+      });
       pushToken = tokenObj?.data;
+
       if (!pushToken) {
-        const deviceTokenObj = await Notifications.getDevicePushTokenAsync().catch(() => null);
+        const deviceTokenObj = await Notifications.getDevicePushTokenAsync().catch((err) => {
+          console.warn('[PUSH] getDevicePushTokenAsync note:', err?.message || err);
+          return null;
+        });
         pushToken = deviceTokenObj?.data;
       }
     } catch (tokenErr) {
-      console.warn('Push token retrieval note:', tokenErr.message);
+      console.warn('[PUSH] Push token retrieval note:', tokenErr?.message || tokenErr);
     }
 
+    // STRICT: Never generate or register a fake push token
     if (!pushToken) {
-      pushToken = `ExponentPushToken[Emulator_${Date.now().toString().slice(-6)}]`;
+      console.warn('[PUSH] Failed to obtain a real push token. No fake token will be registered.');
+      return null;
     }
 
-    if (pushToken && apiClient) {
-      await apiClient.post('/driver/push-token', { pushToken }).catch(() => {});
+    console.log('[PUSH] real token:', pushToken);
+
+    if (apiClient) {
+      try {
+        if (typeof apiClient.registerPushToken === 'function') {
+          await apiClient.registerPushToken(pushToken);
+        } else if (typeof apiClient.post === 'function') {
+          await apiClient.post('/driver/push-token', { pushToken });
+        }
+        console.log('[PUSH] token registration success');
+      } catch (regErr) {
+        console.error('[PUSH] token registration failed:', regErr?.response?.data?.message || regErr?.message || regErr);
+        return null;
+      }
     }
 
     return pushToken;
   } catch (e) {
-    console.warn('Error registering push token with backend:', e.message);
+    console.error('[PUSH] token registration failed:', e?.message || e);
     return null;
   }
+};
+
+// 4b. Push Token Refresh / Change Listener
+export const setupPushTokenChangeListener = (apiClient) => {
+  try {
+    if (typeof Notifications.addPushTokenListener === 'function') {
+      const subscription = Notifications.addPushTokenListener(async (tokenData) => {
+        const newToken = tokenData?.data || tokenData;
+        if (newToken && typeof newToken === 'string' && newToken.trim() !== '') {
+          console.log('[PUSH] real token:', newToken);
+          if (apiClient) {
+            try {
+              if (typeof apiClient.registerPushToken === 'function') {
+                await apiClient.registerPushToken(newToken);
+              } else if (typeof apiClient.post === 'function') {
+                await apiClient.post('/driver/push-token', { pushToken: newToken });
+              }
+              console.log('[PUSH] token registration success');
+            } catch (err) {
+              console.error('[PUSH] token registration failed:', err?.response?.data?.message || err?.message || err);
+            }
+          }
+        }
+      });
+      return subscription;
+    }
+  } catch (e) {
+    console.warn('Error setting up push token listener:', e?.message || e);
+  }
+  return null;
 };
 
 // Helper to get storage key per driver
@@ -164,6 +235,7 @@ export default {
   initNotificationChannel,
   requestNotificationPermissions,
   registerPushTokenWithBackend,
+  setupPushTokenChangeListener,
   checkAndNotifyBookingRequests,
   clearDriverNotificationCache,
 };

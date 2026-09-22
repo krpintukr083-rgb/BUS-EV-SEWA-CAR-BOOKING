@@ -6,7 +6,8 @@ import * as Notifications from 'expo-notifications';
 import { LanguageProvider } from './src/state/LanguageContext';
 import { AuthProvider } from './src/state/AuthContext';
 import AppNavigator from './src/navigation/AppNavigator';
-import { initNotificationChannel, requestNotificationPermissions } from './src/services/notificationService';
+import { initNotificationChannel, requestNotificationPermissions, setupPushTokenChangeListener } from './src/services/notificationService';
+import driverService from './src/services/driverService';
 
 export const navigationRef = createNavigationContainerRef();
 
@@ -15,6 +16,9 @@ export default function App() {
     // Initialize High Importance Android Notification Channel and Request Permissions
     initNotificationChannel();
     requestNotificationPermissions();
+
+    // Setup push token refresh / change listener
+    const tokenSub = setupPushTokenChangeListener(driverService);
 
     // Handle Tap on Notification
     const subscription = Notifications.addNotificationResponseReceivedListener(response => {
@@ -29,7 +33,8 @@ export default function App() {
     });
 
     return () => {
-      subscription.remove();
+      subscription?.remove?.();
+      tokenSub?.remove?.();
     };
   }, []);
 
