@@ -15,6 +15,10 @@ const StatusBadge = ({ status, text, style, textStyle }) => {
     bg = '#fef3c7';
     textCol = '#b45309';
     displayText = text || 'Waiting for Driver';
+  } else if (s === 'awaiting cash collection') {
+    bg = '#e0e7ff';
+    textCol = '#4338ca';
+    displayText = text || 'Awaiting Cash';
   } else if (s === 'admin confirmed' || s === 'admin_confirmed') {
     bg = '#dcfce7';
     textCol = '#15803d';

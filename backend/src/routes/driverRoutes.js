@@ -70,6 +70,9 @@ router.get('/active-bookings', getActiveBookingsForDriver);
 router.post('/booking-requests/:id/accept', acceptBookingRequest);
 router.post('/requests/:id/accept', acceptBookingRequest);
 router.post('/accept-ride/:id', acceptBookingRequest);
+router.post('/booking-requests/:id/confirm', acceptBookingRequest);
+router.post('/requests/:id/confirm', acceptBookingRequest);
+router.post('/confirm-bus/:id', acceptBookingRequest);
 router.post('/booking-requests/:id/reject', rejectBookingRequest);
 router.post('/requests/:id/reject', rejectBookingRequest);
 

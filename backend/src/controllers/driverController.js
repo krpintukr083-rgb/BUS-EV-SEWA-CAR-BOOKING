@@ -161,10 +161,15 @@ exports.getDriverDashboard = async (req, res, next) => {
       driver.isOnline
         ? (async () => {
             const candidates = await Booking.find({
-              bookingStatus: { $in: ['Admin Confirmed', 'ADMIN_CONFIRMED', 'Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation'] },
+              serviceType: 'Bus',
+              driverConfirmed: { $ne: true },
+              driverConfirmationStatus: { $ne: 'Confirmed' },
+              confirmationOtpVerifiedAt: null,
+              otpVerified: { $ne: true },
               cashCollected: { $ne: true },
-              paymentStatus: { $nin: ['Paid', 'Successful'] },
-              driverConfirmationStatus: { $ne: 'Confirmed' }
+              bookingStatus: {
+                $in: ['Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation', 'Admin Confirmed', 'ADMIN_CONFIRMED']
+              }
             })
               .select('bookingId customer serviceType pickupLocation dropLocation fare driverPaymentAmount paymentStatus bookingStatus rideStatus travelDate passengerDetails busSeatNumbers vehicle driver createdAt')
               .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory vehicleStatus seatingCapacity fuelType route pickupDropDetails hireDetails')
@@ -175,8 +180,9 @@ exports.getDriverDashboard = async (req, res, next) => {
             const driverVeh = assignedVehicleId ? await Vehicle.findById(assignedVehicleId).lean() : null;
 
             return candidates.filter(b => {
-              if (b.driverConfirmationStatus === 'Confirmed' || b.driverConfirmed) return false;
-              if (b.driver && (b.driver._id || b.driver).toString() === driver._id.toString()) return true;
+              if (b.driverConfirmed || b.driverConfirmationStatus === 'Confirmed' || b.confirmationOtpVerifiedAt || b.otpVerified || b.cashCollected) return false;
+              if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus)) return false;
+              if (b.driver && (b.driver._id || b.driver).toString() !== driver._id.toString()) return false;
               if (driverVeh) return vehicleMatchesBookingRoute(driverVeh, b);
               return false;
             }).slice(0, 10);
@@ -1018,9 +1024,14 @@ exports.getBookingRequests = async (req, res, next) => {
 
     // Fetch candidate pending bookings
     const candidateBookings = await Booking.find({
+      serviceType: 'Bus',
+      driverConfirmed: { $ne: true },
       driverConfirmationStatus: { $ne: 'Confirmed' },
+      confirmationOtpVerifiedAt: null,
+      otpVerified: { $ne: true },
+      cashCollected: { $ne: true },
       bookingStatus: {
-        $nin: ['Completed', 'Cancelled', 'Rejected']
+        $in: ['Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation', 'Admin Confirmed', 'ADMIN_CONFIRMED']
       }
     })
       .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory fuelType fareRate route pickupDropDetails hireDetails')
@@ -1029,13 +1040,16 @@ exports.getBookingRequests = async (req, res, next) => {
 
     // Filter candidate bookings by route match & eligibility
     const requests = candidateBookings.filter(reqItem => {
-      // If directly confirmed/assigned to another driver, skip
-      if (reqItem.driverConfirmationStatus === 'Confirmed' || reqItem.driverConfirmed) {
+      // Direct canonical exclusion check
+      if (reqItem.driverConfirmed || reqItem.driverConfirmationStatus === 'Confirmed' || reqItem.confirmationOtpVerifiedAt || reqItem.otpVerified || reqItem.cashCollected) {
         return false;
       }
-      // If directly assigned to this driver
-      if (reqItem.driver && (reqItem.driver._id || reqItem.driver).toString() === driver._id.toString()) {
-        return true;
+      if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(reqItem.bookingStatus)) {
+        return false;
+      }
+      // If directly assigned to another driver, skip
+      if (reqItem.driver && (reqItem.driver._id || reqItem.driver).toString() !== driver._id.toString()) {
+        return false;
       }
       // If pending/unconfirmed request, check route match between driver's assigned vehicle and booking
       if (assignedVehicle) {
