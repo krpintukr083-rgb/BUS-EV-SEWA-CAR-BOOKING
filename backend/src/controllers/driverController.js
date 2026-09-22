@@ -1007,18 +1007,30 @@ exports.getBookingRequests = async (req, res, next) => {
       });
     }
 
-    // Load driver's assigned vehicle guaranteed via direct DB lookup
+    // Load driver's assigned vehicle guaranteed via fresh DB lookup & type-coerced reverse match
     let assignedVehicle = null;
-    const targetVehId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
-    if (targetVehId) {
-      assignedVehicle = await Vehicle.findById(targetVehId).lean();
+
+    const currentDriverDoc = await Driver.findById(driver._id).lean();
+    if (currentDriverDoc && currentDriverDoc.assignedVehicle) {
+      assignedVehicle = await Vehicle.findById(currentDriverDoc.assignedVehicle).lean();
     }
+
     if (!assignedVehicle) {
-      assignedVehicle = await Vehicle.findOne({ assignedDriver: driver._id }).lean();
+      const driverObjId = mongoose.Types.ObjectId.isValid(driver._id)
+        ? new mongoose.Types.ObjectId(driver._id)
+        : driver._id;
+
+      assignedVehicle = await Vehicle.findOne({
+        $or: [
+          { assignedDriver: driver._id },
+          { assignedDriver: driver._id.toString() },
+          { assignedDriver: driverObjId }
+        ]
+      }).lean();
     }
 
     if (!assignedVehicle || (assignedVehicle.vehicleStatus && assignedVehicle.vehicleStatus !== 'Active')) {
-      return res.json({ success: true, count: 0, data: [], reason: 'NO_ACTIVE_ASSIGNED_VEHICLE', assignedVehicle });
+      return res.json({ success: true, count: 0, data: [], reason: 'NO_ACTIVE_ASSIGNED_VEHICLE', assignedVehicle, driverId: driver._id });
     }
 
     // Fetch candidate pending bookings
