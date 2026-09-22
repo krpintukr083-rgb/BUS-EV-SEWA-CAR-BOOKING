@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { adminService } from '../../services/adminService';
-import { getFullImageUrl } from '../../utils/imageUrl';
 import {
   Image as ImageIcon,
   CheckCircle2,
@@ -16,6 +15,16 @@ import {
   EyeOff,
   Layers
 } from 'lucide-react';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://bus-ev-sewa-car-booking.onrender.com/api';
+const SERVER_URL = API_BASE_URL.replace(/\/api\/?$/, '');
+
+const getFullImageUrl = (url) => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:')) return url;
+  if (url.startsWith('/')) return `${SERVER_URL}${url}`;
+  return `${SERVER_URL}/${url}`;
+};
 
 const BannerManagement = () => {
   const [loading, setLoading] = useState(true);
