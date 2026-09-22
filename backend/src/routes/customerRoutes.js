@@ -32,7 +32,10 @@ router.get('/cars/:id', getCarDetails);
 router.get('/support', getSupportInfo);
 router.get('/policies', getPolicies);
 const { getBusOffer } = require('../controllers/settingsController');
+const { getActiveBanners } = require('../controllers/bannerController');
 router.get('/bus-offer', getBusOffer);
+router.get('/banners', getActiveBanners);
+router.get('/banners/active', getActiveBanners);
 
 // Protected customer endpoints
 router.use(verifyToken);

@@ -62,9 +62,15 @@ export const customerService = {
     return res.data;
   },
 
-  // Bus Promotional Offer Configuration (Dynamic Discount Banner)
+  // Bus Promotional Offer Configuration (Dynamic Discount % — UNTOUCHED)
   getBusOffer: async () => {
     const res = await api.get('/settings/bus-offer');
+    return res.data;
+  },
+
+  // Active Multi-Banners for Customer App Carousel
+  getBanners: async () => {
+    const res = await api.get('/banners/active');
     return res.data;
   },
 

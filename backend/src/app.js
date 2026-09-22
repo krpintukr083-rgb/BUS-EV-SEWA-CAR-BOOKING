@@ -17,6 +17,7 @@ const insuranceRoutes = require('./routes/insuranceRoutes');
 const supportRoutes = require('./routes/supportRoutes');
 const policyRoutes = require('./routes/policyRoutes');
 const settingsRoutes = require('./routes/settingsRoutes');
+const bannerRoutes = require('./routes/bannerRoutes');
 
 const app = express();
 
@@ -166,6 +167,7 @@ app.use('/api/policies', policyRoutes);
 app.use('/api/driver', driverRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/banners', bannerRoutes);
 
 // 404 Handler
 app.use((req, res, next) => {

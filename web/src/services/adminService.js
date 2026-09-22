@@ -281,7 +281,7 @@ export const adminService = {
     return res.data;
   },
 
-  // 18. Bus Discount & Promotional Offer Configuration
+  // 18. Bus Discount & Promotional Offer Configuration (UNTOUCHED)
   getBusOffer: async () => {
     const res = await api.get('/settings/bus-offer');
     return res.data;
@@ -289,6 +289,32 @@ export const adminService = {
 
   updateBusOffer: async data => {
     const res = await api.put('/settings/bus-offer', data);
+    return res.data;
+  },
+
+  // 19. Multiple Promotional Banners API
+  getBanners: async () => {
+    const res = await api.get('/admin/banners');
+    return res.data;
+  },
+
+  createBanner: async bannerData => {
+    const res = await api.post('/admin/banners', bannerData);
+    return res.data;
+  },
+
+  updateBanner: async (id, bannerData) => {
+    const res = await api.put(`/admin/banners/${id}`, bannerData);
+    return res.data;
+  },
+
+  toggleBannerStatus: async (id, status) => {
+    const res = await api.patch(`/admin/banners/${id}/status`, { status });
+    return res.data;
+  },
+
+  deleteBanner: async id => {
+    const res = await api.delete(`/admin/banners/${id}`);
     return res.data;
   }
 };

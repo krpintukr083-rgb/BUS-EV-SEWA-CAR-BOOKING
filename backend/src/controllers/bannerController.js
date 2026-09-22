@@ -1,38 +1,31 @@
-const BusOffer = require('../models/BusOffer');
 const Banner = require('../models/Banner');
+const BusOffer = require('../models/BusOffer');
 
-// @desc    Get all banners / bus offer discount configuration (Admin)
+const DEFAULT_BANNER_IMAGE = 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&q=80';
+
+// Seed initial default banner if Banner collection is completely empty
+const seedInitialBannerIfNeeded = async () => {
+  const count = await Banner.countDocuments();
+  if (count === 0) {
+    let busOffer = await BusOffer.findOne({ service: 'bus' });
+    const imgUrl = busOffer?.bannerImage || DEFAULT_BANNER_IMAGE;
+    await Banner.create({
+      title: busOffer?.offerTitle || 'Travel Nepal With TravelSewa',
+      subtitle: busOffer?.offerSubtitle || 'Book your journey today with verified luxury fleet',
+      imageUrl: imgUrl,
+      status: 'active',
+      sortOrder: 1
+    });
+  }
+};
+
+// @desc    Get all banners (Admin)
 // @route   GET /api/admin/banners
 // @access  Private/Admin
 exports.getBanners = async (req, res, next) => {
   try {
-    let busOffer = await BusOffer.findOne({ service: 'bus' });
-    if (!busOffer) {
-      busOffer = await BusOffer.create({
-        service: 'bus',
-        offerStatus: 'active',
-        discountPercentage: 15,
-        bannerImage: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&q=80',
-        offerTitle: 'Travel Nepal With TravelSewa',
-        offerSubtitle: 'Book your journey today with verified luxury fleet'
-      });
-    }
-
-    const banners = [
-      {
-        _id: busOffer._id,
-        imageUrl: busOffer.bannerImage,
-        bannerImage: busOffer.bannerImage,
-        title: busOffer.offerTitle,
-        subtitle: busOffer.offerSubtitle,
-        status: busOffer.offerStatus,
-        discountStatus: busOffer.offerStatus,
-        discountPercentage: busOffer.discountPercentage,
-        displayOrder: 1,
-        createdAt: busOffer.createdAt,
-        updatedAt: busOffer.updatedAt
-      }
-    ];
+    await seedInitialBannerIfNeeded();
+    const banners = await Banner.find({}).sort({ sortOrder: 1, createdAt: -1 });
 
     res.json({
       success: true,
@@ -45,37 +38,12 @@ exports.getBanners = async (req, res, next) => {
 };
 
 // @desc    Get active banners for Customer App (Public)
-// @route   GET /api/banners/active
+// @route   GET /api/banners/active or GET /api/customer/banners
 // @access  Public
 exports.getActiveBanners = async (req, res, next) => {
   try {
-    let busOffer = await BusOffer.findOne({ service: 'bus' });
-    if (!busOffer) {
-      busOffer = await BusOffer.create({
-        service: 'bus',
-        offerStatus: 'active',
-        discountPercentage: 15,
-        bannerImage: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=1200&q=80',
-        offerTitle: 'Travel Nepal With TravelSewa',
-        offerSubtitle: 'Book your journey today with verified luxury fleet'
-      });
-    }
-
-    const banners = [];
-    if (busOffer.offerStatus === 'active') {
-      banners.push({
-        _id: busOffer._id,
-        imageUrl: busOffer.bannerImage,
-        bannerImage: busOffer.bannerImage,
-        title: busOffer.offerTitle,
-        subtitle: busOffer.offerSubtitle,
-        status: busOffer.offerStatus,
-        discountPercentage: busOffer.discountPercentage,
-        displayOrder: 1,
-        createdAt: busOffer.createdAt,
-        updatedAt: busOffer.updatedAt
-      });
-    }
+    await seedInitialBannerIfNeeded();
+    const banners = await Banner.find({ status: 'active' }).sort({ sortOrder: 1, createdAt: -1 });
 
     res.json({
       success: true,
@@ -92,8 +60,34 @@ exports.getActiveBanners = async (req, res, next) => {
 // @access  Private/Admin
 exports.createBanner = async (req, res, next) => {
   try {
-    const { updateBusOffer } = require('./settingsController');
-    return updateBusOffer(req, res, next);
+    const { title, subtitle, status, sortOrder, linkUrl } = req.body;
+    let imageUrl = req.body.imageUrl || req.body.bannerImage;
+
+    if (req.file) {
+      imageUrl = `/uploads/${req.file.filename}`;
+    }
+
+    if (!imageUrl) {
+      return res.status(400).json({
+        success: false,
+        message: 'Banner image is required'
+      });
+    }
+
+    const banner = await Banner.create({
+      title: title || '',
+      subtitle: subtitle || '',
+      imageUrl,
+      linkUrl: linkUrl || '',
+      status: status === 'inactive' ? 'inactive' : 'active',
+      sortOrder: Number(sortOrder) || 0
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Banner created successfully',
+      data: banner
+    });
   } catch (error) {
     next(error);
   }
@@ -104,8 +98,62 @@ exports.createBanner = async (req, res, next) => {
 // @access  Private/Admin
 exports.updateBanner = async (req, res, next) => {
   try {
-    const { updateBusOffer } = require('./settingsController');
-    return updateBusOffer(req, res, next);
+    const banner = await Banner.findById(req.params.id);
+    if (!banner) {
+      return res.status(404).json({
+        success: false,
+        message: 'Banner not found'
+      });
+    }
+
+    const { title, subtitle, status, sortOrder, linkUrl } = req.body;
+    let imageUrl = req.body.imageUrl || req.body.bannerImage;
+
+    if (req.file) {
+      imageUrl = `/uploads/${req.file.filename}`;
+    }
+
+    if (title !== undefined) banner.title = title;
+    if (subtitle !== undefined) banner.subtitle = subtitle;
+    if (imageUrl) banner.imageUrl = imageUrl;
+    if (linkUrl !== undefined) banner.linkUrl = linkUrl;
+    if (status) banner.status = status;
+    if (sortOrder !== undefined) banner.sortOrder = Number(sortOrder);
+
+    await banner.save();
+
+    res.json({
+      success: true,
+      message: 'Banner updated successfully',
+      data: banner
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Toggle banner active/inactive status (Admin)
+// @route   PATCH /api/admin/banners/:id/status
+// @access  Private/Admin
+exports.toggleBannerStatus = async (req, res, next) => {
+  try {
+    const banner = await Banner.findById(req.params.id);
+    if (!banner) {
+      return res.status(404).json({
+        success: false,
+        message: 'Banner not found'
+      });
+    }
+
+    const newStatus = req.body.status || (banner.status === 'active' ? 'inactive' : 'active');
+    banner.status = newStatus;
+    await banner.save();
+
+    res.json({
+      success: true,
+      message: `Banner status updated to ${newStatus}`,
+      data: banner
+    });
   } catch (error) {
     next(error);
   }
@@ -116,14 +164,18 @@ exports.updateBanner = async (req, res, next) => {
 // @access  Private/Admin
 exports.deleteBanner = async (req, res, next) => {
   try {
-    await BusOffer.findOneAndUpdate(
-      { service: 'bus' },
-      { $set: { offerStatus: 'inactive' } }
-    );
+    const banner = await Banner.findByIdAndDelete(req.params.id);
+    if (!banner) {
+      return res.status(404).json({
+        success: false,
+        message: 'Banner not found'
+      });
+    }
 
     res.json({
       success: true,
-      message: 'Banner deactivated and deleted successfully'
+      message: 'Banner deleted successfully',
+      data: { id: req.params.id }
     });
   } catch (error) {
     next(error);

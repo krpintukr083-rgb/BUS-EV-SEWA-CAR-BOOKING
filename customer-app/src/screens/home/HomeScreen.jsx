@@ -25,6 +25,8 @@ const HomeScreen = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [recentBooking, setRecentBooking] = useState(null);
   const [busOffer, setBusOffer] = useState(null);
+  const [banners, setBanners] = useState([]);
+  const [activeBannerIndex, setActiveBannerIndex] = useState(0);
 
   const fetchHomeData = async () => {
     try {
@@ -57,7 +59,7 @@ const HomeScreen = ({ navigation }) => {
         console.log('Error fetching my bookings on Home:', err);
       }
 
-      // 4. Fetch Bus Offer Configuration (Dynamic Admin-Controlled Discount)
+      // 4. Fetch Bus Offer Configuration (Dynamic Admin-Controlled Discount % — UNTOUCHED)
       try {
         const oRes = await customerService.getBusOffer();
         if (oRes && oRes.success && oRes.data) {
@@ -68,6 +70,29 @@ const HomeScreen = ({ navigation }) => {
       } catch (err) {
         console.log('Error fetching bus offer on Home:', err);
         setBusOffer(null);
+      }
+
+      // 5. Fetch Active Multi-Banners for Customer Home Carousel
+      try {
+        const bRes = await customerService.getBanners();
+        if (bRes && bRes.success && Array.isArray(bRes.data) && bRes.data.length > 0) {
+          const activeList = bRes.data.filter(b => (b.status || 'active') === 'active');
+          if (activeList.length > 0) {
+            setBanners(activeList);
+          } else {
+            setBanners([]);
+          }
+        } else {
+          // Fallback to busOffer if no separate banner documents exist
+          const oRes = await customerService.getBusOffer();
+          if (oRes && oRes.success && oRes.data && oRes.data.offerStatus === 'active') {
+            setBanners([oRes.data]);
+          } else {
+            setBanners([]);
+          }
+        }
+      } catch (err) {
+        console.log('Error fetching active banners on Home:', err);
       }
     } finally {
       setRefreshing(false);
@@ -158,45 +183,83 @@ const HomeScreen = ({ navigation }) => {
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchHomeData(); }} />}
       >
-        {/* Promotional Banner (Admin Controlled Carousel / Banner) */}
-        {busOffer && (busOffer.offerStatus === 'active' || busOffer.discountStatus === 'active') && (
-          <TouchableOpacity
-            style={styles.heroBannerCard}
-            onPress={() => handleSelectService('Bus')}
-            activeOpacity={0.9}
-          >
-            {busOffer.bannerImage || busOffer.imageUrl ? (
-              <View style={{ position: 'relative', width: '100%', height: 160 }}>
-                <Image
-                  source={{ uri: getFullImageUrl(busOffer.bannerImage || busOffer.imageUrl) }}
-                  style={styles.heroBannerFullImage}
-                  resizeMode="cover"
-                />
-                <View style={styles.carouselDotsContainer}>
-                  <View style={[styles.carouselDot, styles.carouselDotActive]} />
-                  <View style={styles.carouselDot} />
-                  <View style={styles.carouselDot} />
-                </View>
-              </View>
-            ) : (
-              <View style={[styles.heroBannerContent, { padding: 16 }]}>
-                <View style={styles.heroBannerBadge}>
-                  <Ionicons name="sparkles" size={13} color="#f59e0b" />
-                  <Text style={styles.heroBannerBadgeText}>PROMOTIONAL OFFER</Text>
-                </View>
-                <Text style={styles.heroBannerTitle}>
-                  {busOffer.offerTitle || 'Travel Nepal With TravelSewa'}
-                </Text>
-                <Text style={styles.heroBannerSubtitle}>
-                  {busOffer.offerSubtitle || 'Book your journey today with verified luxury fleet'}
-                </Text>
-                <View style={styles.heroBannerCtaBtn}>
-                  <Text style={styles.heroBannerCtaText}>Book Bus Tickets</Text>
-                  <Ionicons name="arrow-forward" size={14} color="#ffffff" />
-                </View>
+        {/* Promotional Multi-Banner Carousel (Admin Controlled) */}
+        {banners.length > 0 && (
+          <View style={styles.heroBannerCard}>
+            <ScrollView
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onScroll={(e) => {
+                const contentOffset = e.nativeEvent.contentOffset.x;
+                const layoutWidth = e.nativeEvent.layoutMeasurement.width;
+                if (layoutWidth > 0) {
+                  const currentIndex = Math.round(contentOffset / layoutWidth);
+                  setActiveBannerIndex(currentIndex);
+                }
+              }}
+              scrollEventThrottle={16}
+            >
+              {banners.map((item, idx) => {
+                const imgUri = item.imageUrl || item.bannerImage;
+                return (
+                  <TouchableOpacity
+                    key={item._id || idx}
+                    style={{ width: 335, height: 160, position: 'relative' }}
+                    onPress={() => handleSelectService('Bus')}
+                    activeOpacity={0.9}
+                  >
+                    {imgUri ? (
+                      <Image
+                        source={{ uri: getFullImageUrl(imgUri) }}
+                        style={styles.heroBannerFullImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={[styles.heroBannerContent, { padding: 16, backgroundColor: '#1e293b', height: '100%', borderRadius: 16 }]}>
+                        <View style={styles.heroBannerBadge}>
+                          <Ionicons name="sparkles" size={13} color="#f59e0b" />
+                          <Text style={styles.heroBannerBadgeText}>PROMOTIONAL OFFER</Text>
+                        </View>
+                        <Text style={styles.heroBannerTitle}>
+                          {item.title || 'Travel Nepal With TravelSewa'}
+                        </Text>
+                        <Text style={styles.heroBannerSubtitle}>
+                          {item.subtitle || 'Book your journey today with verified luxury fleet'}
+                        </Text>
+                        <View style={styles.heroBannerCtaBtn}>
+                          <Text style={styles.heroBannerCtaText}>Book Bus Tickets</Text>
+                          <Ionicons name="arrow-forward" size={14} color="#ffffff" />
+                        </View>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {/* Dynamic Carousel Indicators */}
+            {banners.length > 1 && (
+              <View style={styles.carouselDotsContainer}>
+                {banners.map((_, dotIdx) => (
+                  <View
+                    key={dotIdx}
+                    style={[
+                      styles.carouselDot,
+                      activeBannerIndex === dotIdx && styles.carouselDotActive
+                    ]}
+                  />
+                ))}
               </View>
             )}
-          </TouchableOpacity>
+            {banners.length === 1 && (
+              <View style={styles.carouselDotsContainer}>
+                <View style={[styles.carouselDot, styles.carouselDotActive]} />
+                <View style={styles.carouselDot} />
+                <View style={styles.carouselDot} />
+              </View>
+            )}
+          </View>
         )}
 
         {/* Book Your Journey Section */}

@@ -144,14 +144,22 @@ router.get('/reports', getBasicReports);
 router.get('/service-control', getServiceControl);
 router.put('/service-control', updateServiceControl);
 
-// 18. Bus Offer / Discount Settings
+// 18. Bus Offer / Discount Settings (UNTOUCHED)
 const { getBusOffer, updateBusOffer } = require('../controllers/settingsController');
 router.get('/bus-offer', getBusOffer);
 router.put('/bus-offer', updateBusOffer);
 router.get('/settings/bus-offer', getBusOffer);
 router.put('/settings/bus-offer', updateBusOffer);
 
-// 19. Reset Database to Clean Demo State
+// 19. Multiple Promotional Banners Management
+const { getBanners, createBanner, updateBanner, toggleBannerStatus, deleteBanner } = require('../controllers/bannerController');
+router.get('/banners', getBanners);
+router.post('/banners', handleSingleUpload('bannerImage'), createBanner);
+router.put('/banners/:id', handleSingleUpload('bannerImage'), updateBanner);
+router.patch('/banners/:id/status', toggleBannerStatus);
+router.delete('/banners/:id', deleteBanner);
+
+// 20. Reset Database to Clean Demo State
 router.post('/reset-demo-db', resetDemoDatabase);
 
 module.exports = router;
