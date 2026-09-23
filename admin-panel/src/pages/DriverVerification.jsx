@@ -18,6 +18,8 @@ import {
   ShieldAlert,
   AlertTriangle
 } from 'lucide-react';
+import VehicleImagesCard from '../components/VehicleImagesCard';
+// duplicate import removed
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://bus-ev-sewa-car-booking.onrender.com/api';
 const SERVER_URL = API_BASE_URL.replace(/\/api\/?$/, '');
@@ -626,10 +628,21 @@ const DriverVerification = () => {
                         </div>
                       </div>
                     </div>
+
                   );
                 })}
               </div>
             </div>
+
+            {/* Vehicle Images Management Card */}
+            {selectedDriver && (
+              <VehicleImagesCard
+                driver={selectedDriver}
+                refreshDrivers={fetchDrivers}
+              />
+            )}
+
+
           </div>
         ) : (
           <div className="content-card" style={{ padding: '32px', textAlign: 'center', color: '#64748b' }}>
