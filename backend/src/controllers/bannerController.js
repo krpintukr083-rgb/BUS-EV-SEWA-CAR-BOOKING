@@ -80,6 +80,15 @@ exports.getActiveBanners = async (req, res, next) => {
 // @access  Private/Admin
 exports.createBanner = async (req, res, next) => {
   try {
+    console.log('--- DIAGNOSTIC: createBanner ---');
+    console.log('req.file exists?', !!req.file);
+    if (req.file) {
+      console.log('req.file.originalname:', req.file.originalname);
+      console.log('req.file.mimetype:', req.file.mimetype);
+      console.log('req.file.size:', req.file.size);
+    }
+    console.log('req.body:', req.body);
+
     const { title, subtitle, status, sortOrder, linkUrl } = req.body;
     let imageUrl = '';
 
@@ -113,6 +122,13 @@ exports.createBanner = async (req, res, next) => {
 // @access  Private/Admin
 exports.updateBanner = async (req, res, next) => {
   try {
+    console.log('--- DIAGNOSTIC: updateBanner ---');
+    console.log('req.file exists?', !!req.file);
+    if (req.file) {
+      console.log('req.file.originalname:', req.file.originalname);
+    }
+    console.log('req.body:', req.body);
+
     const banner = await Banner.findById(req.params.id);
     if (!banner) {
       return res.status(404).json({

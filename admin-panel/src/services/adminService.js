@@ -493,15 +493,11 @@ export const adminService = {
     return res.data;
   },
   createBanner: async (data) => {
-    const res = await api.post('/admin/banners', data, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
+    const res = await api.post('/admin/banners', data);
     return res.data;
   },
   updateBanner: async (id, data) => {
-    const res = await api.put(`/admin/banners/${id}`, data, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    });
+    const res = await api.put(`/admin/banners/${id}`, data);
     return res.data;
   },
   toggleBannerStatus: async (id, status) => {
