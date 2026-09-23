@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useLanguage } from '../../state/LanguageContext';
 import driverService from '../../services/driverService';
+import { getEffectiveBaseUrl } from '../../services/api';
 import DocumentUploadModal from '../../components/DocumentUploadModal';
 
 export default function DriverKYCScreen({ navigation }) {
@@ -44,6 +45,13 @@ export default function DriverKYCScreen({ navigation }) {
   const [frontImageUri, setFrontImageUri] = useState(null);
   const [backImageUri, setBackImageUri] = useState(null);
   const [uploadingVehicleImages, setUploadingVehicleImages] = useState(false);
+
+  const getVehicleImageUrl = async (value) => {
+    if (!value) return null;
+    if (/^https?:\/\//i.test(value)) return value;
+    const baseUrl = await getEffectiveBaseUrl();
+    return `${baseUrl.replace(/\/api\/?$/, '')}${value.startsWith('/') ? value : `/${value}`}`;
+  };
 
   useEffect(() => {
     fetchDocuments();
@@ -87,7 +95,10 @@ export default function DriverKYCScreen({ navigation }) {
 
   const fetchDocuments = async () => {
     try {
-      const res = await driverService.getDocuments();
+      const [res, vehicleRes] = await Promise.all([
+        driverService.getDocuments(),
+        driverService.getVehicle(),
+      ]);
       const payload = res?.data?.data || res?.data || {};
       if (payload) {
         const docsMap = payload.documents || payload;
@@ -103,6 +114,10 @@ export default function DriverKYCScreen({ navigation }) {
           routePermit: normalizeDoc(docsMap.routePermit || docsMap.route_permit, prev.routePermit),
         }));
       }
+      const vehicle = vehicleRes?.data?.data || vehicleRes?.data || null;
+      const images = Array.isArray(vehicle?.vehicleImages) ? vehicle.vehicleImages : [];
+      if (images[0]) setFrontImageUri(await getVehicleImageUrl(images[0]));
+      if (images[1]) setBackImageUri(await getVehicleImageUrl(images[1]));
     } catch (err) {
       console.log('Error loading KYC documents:', err);
     } finally {
@@ -137,7 +152,16 @@ export default function DriverKYCScreen({ navigation }) {
 
       const uri = asset.uri;
       const extension = uri.split('?')[0].split('.').pop()?.toLowerCase() || 'jpg';
-      const normalizedExtension = ['jpg', 'jpeg', 'png'].includes(extension) ? extension : 'jpg';
+      if (!['jpg', 'jpeg', 'png'].includes(extension)) {
+        Alert.alert('Invalid image', 'Please select a JPG, JPEG, or PNG image.');
+        return;
+      }
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+      if (fileInfo.exists && fileInfo.size > 5 * 1024 * 1024) {
+        Alert.alert('Image too large', 'Each vehicle image must be 5 MB or smaller.');
+        return;
+      }
+      const normalizedExtension = extension;
       const mimeType =
         asset.mimeType ||
         (normalizedExtension === 'png' ? 'image/png' : 'image/jpeg');
@@ -163,11 +187,8 @@ export default function DriverKYCScreen({ navigation }) {
       formData.append('vehicleImages', backImage);
       await driverService.uploadVehicleImages(formData);
       Alert.alert('Success', 'Vehicle images uploaded successfully.');
-      // Reset previews after successful upload
-      setFrontImage(null);
-      setFrontImageUri(null);
-      setBackImage(null);
-      setBackImageUri(null);
+      setFrontImageUri(await getVehicleImageUrl(frontImage.uri));
+      setBackImageUri(await getVehicleImageUrl(backImage.uri));
     } catch (e) {
       console.warn('Vehicle images upload failed', e);
       Alert.alert('Upload Failed', e?.response?.data?.message || 'Could not upload vehicle images. Please try again.');
@@ -437,11 +458,17 @@ export default function DriverKYCScreen({ navigation }) {
             </TouchableOpacity>
           </View>
           <TouchableOpacity
-            style={[styles.uploadBtn, (!frontImage || !backImage) && { backgroundColor: COLORS.border }]}
+            style={[
+              styles.uploadBtn,
+              (!frontImage || !backImage || uploadingVehicleImages) && { backgroundColor: COLORS.border },
+            ]}
             onPress={uploadVehicleImages}
-            disabled={!frontImage || !backImage}
+            disabled={!frontImage || !backImage || uploadingVehicleImages}
           >
-            <Text style={styles.uploadBtnText}>Upload Vehicle Images</Text>
+            {uploadingVehicleImages ? <ActivityIndicator size="small" color={COLORS.white} /> : null}
+            <Text style={styles.uploadBtnText}>
+              {uploadingVehicleImages ? 'Uploading...' : 'Upload Vehicle Images'}
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
