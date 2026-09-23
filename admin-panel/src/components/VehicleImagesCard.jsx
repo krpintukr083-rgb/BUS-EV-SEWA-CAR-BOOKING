@@ -1,13 +1,22 @@
 import React, { useState } from 'react';
 import { adminService } from '../services/adminService';
-import { Upload as UploadIcon, Eye as EyeIcon, Image as ImageIcon } from 'lucide-react';
+import { Upload as UploadIcon, Eye as EyeIcon, Image as ImageIcon, ExternalLink } from 'lucide-react';
 
 const getResolvedUrl = (url) => {
-  if (!url) return null;
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) return url;
-  const backendBase = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://bus-ev-sewa-car-booking.onrender.com' : 'http://localhost:5000');
-  const cleanBase = backendBase.replace(/\/+$/, '').replace(/\/api$/, '');
-  return `${cleanBase}${url.startsWith('/') ? '' : '/'}${url}`;
+  if (!url) return '';
+  if (
+    url.startsWith('http://') ||
+    url.startsWith('https://') ||
+    url.startsWith('data:')
+  ) {
+    return url;
+  }
+
+  if (url.startsWith('/')) {
+    return `https://bus-ev-sewa-car-booking.onrender.com${url}`;
+  }
+
+  return `https://bus-ev-sewa-car-booking.onrender.com/${url}`;
 };
 
 /**
@@ -20,10 +29,18 @@ function VehicleImagesCard({ driver, refreshDrivers }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
 
-  // Extract existing images
-  const existingImages = driver?.assignedVehicle?.vehicleImages || [];
-  const existingFrontUrl = getResolvedUrl(existingImages[0]);
-  const existingBackUrl = getResolvedUrl(existingImages[1]);
+  console.log('[VEHICLE IMAGES] driver:', driver);
+  console.log('[VEHICLE IMAGES] assignedVehicle:', driver?.assignedVehicle);
+  console.log('[VEHICLE IMAGES] vehicleImages:', driver?.assignedVehicle?.vehicleImages);
+
+  const vehicleImages = Array.isArray(
+    driver?.assignedVehicle?.vehicleImages
+  )
+    ? driver.assignedVehicle.vehicleImages
+    : [];
+
+  const existingFrontUrl = getResolvedUrl(vehicleImages[0]);
+  const existingBackUrl = getResolvedUrl(vehicleImages[1]);
 
   const handleUpload = async () => {
     if (!frontImg || !backImg) return;
@@ -76,33 +93,59 @@ function VehicleImagesCard({ driver, refreshDrivers }) {
         </span>
       </div>
 
+      <p style={{ color: '#cbd5e1', marginTop: '4px', fontSize: '0.9rem', marginBottom: '16px' }}>
+        Upload / manage vehicle front and back images.
+      </p>
+
+      <h5 style={{ fontSize: '0.95rem', fontWeight: '600', marginBottom: '12px', color: '#f8fafc' }}>Existing Images</h5>
+
       {/* Existing Images Display */}
       <div style={{ display: 'flex', gap: '16px', marginBottom: '20px' }}>
         <div style={{ flex: 1, backgroundColor: '#0f172a', padding: '12px', borderRadius: '8px', border: '1px solid #334155' }}>
-          <p style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: '#94a3b8', fontWeight: '600' }}>Current Front View</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8', fontWeight: '600' }}>Front</p>
+            {existingFrontUrl && (
+              <a href={existingFrontUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: '#38bdf8', textDecoration: 'none' }}>
+                Open Image <ExternalLink size={12} />
+              </a>
+            )}
+          </div>
           {existingFrontUrl ? (
             <img 
               src={existingFrontUrl} 
-              alt="Front View" 
+              alt="Vehicle Front" 
               style={{ width: '100%', height: '160px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #475569' }} 
+              onError={(e) => {
+                console.error('[VEHICLE IMAGE LOAD ERROR]', e.currentTarget.src);
+              }}
             />
           ) : (
-            <div style={{ width: '100%', height: '160px', backgroundColor: '#1e293b', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', border: '1px dashed #475569' }}>
-              Not Uploaded
+            <div style={{ width: '100%', height: '160px', backgroundColor: '#1e293b', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', border: '1px dashed #475569', fontSize: '0.85rem' }}>
+              Front image not uploaded
             </div>
           )}
         </div>
         <div style={{ flex: 1, backgroundColor: '#0f172a', padding: '12px', borderRadius: '8px', border: '1px solid #334155' }}>
-          <p style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: '#94a3b8', fontWeight: '600' }}>Current Back View</p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+             <p style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8', fontWeight: '600' }}>Back</p>
+             {existingBackUrl && (
+               <a href={existingBackUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem', color: '#38bdf8', textDecoration: 'none' }}>
+                 Open Image <ExternalLink size={12} />
+               </a>
+             )}
+          </div>
           {existingBackUrl ? (
             <img 
               src={existingBackUrl} 
-              alt="Back View" 
+              alt="Vehicle Back" 
               style={{ width: '100%', height: '160px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #475569' }} 
+              onError={(e) => {
+                console.error('[VEHICLE IMAGE LOAD ERROR]', e.currentTarget.src);
+              }}
             />
           ) : (
-            <div style={{ width: '100%', height: '160px', backgroundColor: '#1e293b', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', border: '1px dashed #475569' }}>
-              Not Uploaded
+            <div style={{ width: '100%', height: '160px', backgroundColor: '#1e293b', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', border: '1px dashed #475569', fontSize: '0.85rem' }}>
+              Back image not uploaded
             </div>
           )}
         </div>
@@ -110,9 +153,6 @@ function VehicleImagesCard({ driver, refreshDrivers }) {
 
       <div style={{ height: '1px', backgroundColor: '#334155', margin: '20px 0' }}></div>
 
-      <p style={{ color: '#cbd5e1', marginTop: '4px', fontSize: '0.9rem' }}>
-        Upload new clear images of your vehicle (front &amp; back view)
-      </p>
       <div style={{ display: 'flex', gap: '16px', marginTop: '12px' }}>
         <div style={{ flex: 1 }}>
           <label style={{ display: 'block', marginBottom: '4px', color: '#cbd5e1', fontSize: '0.85rem' }}>Front View *</label>
