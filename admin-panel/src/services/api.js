@@ -4,7 +4,7 @@ import axios from 'axios';
 export const BACKEND_TUNNEL_URL = 'https://bus-ev-sewa-car-booking.onrender.com/api';
 
 // Local Development URL:
-export const LOCAL_DEV_URL = 'http://localhost:5000/api';
+export const LOCAL_DEV_URL = 'http://localhost:5006/api';
 
 /**
  * Computes active API Base URL with prioritized resolution:
@@ -49,6 +49,16 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Fix for Axios 1.x: Prevent serializing FormData to JSON due to instance default
+    if (config.data instanceof FormData) {
+      if (config.headers && typeof config.headers.delete === 'function') {
+        config.headers.delete('Content-Type');
+      } else if (config.headers) {
+        delete config.headers['Content-Type'];
+      }
+    }
+
     return config;
   },
   error => Promise.reject(error)

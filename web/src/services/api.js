@@ -38,6 +38,16 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Fix for Axios 1.x: Prevent serializing FormData to JSON due to instance default
+    if (config.data instanceof FormData) {
+      if (config.headers && typeof config.headers.delete === 'function') {
+        config.headers.delete('Content-Type');
+      } else if (config.headers) {
+        delete config.headers['Content-Type'];
+      }
+    }
+
     return config;
   },
   error => Promise.reject(error)
