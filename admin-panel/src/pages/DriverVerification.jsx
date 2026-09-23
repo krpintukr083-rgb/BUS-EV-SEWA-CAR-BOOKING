@@ -55,17 +55,20 @@ const DriverVerification = () => {
   const fetchDrivers = async () => {
     try {
       const res = await adminService.getDrivers();
+      console.log('--- DIAGNOSIS: fetchDrivers ---');
+      console.log('1. Raw API Response (res):', res);
       if (res.success || Array.isArray(res.data)) {
         const list = res.data || res;
+        console.log('2. Mapped Drivers List (list):', list);
         setDrivers(list);
         if (list.length > 0) {
-          if (selectedDriver) {
-            const updated = list.find(d => d._id === selectedDriver._id);
-            if (updated) setSelectedDriver(updated);
-            else setSelectedDriver(list[0]);
-          } else {
-            setSelectedDriver(list[0]);
-          }
+          setSelectedDriver(prev => {
+            if (prev) {
+              const updated = list.find(d => d._id === prev._id);
+              return updated || list[0];
+            }
+            return list[0];
+          });
         }
       }
     } catch (err) {

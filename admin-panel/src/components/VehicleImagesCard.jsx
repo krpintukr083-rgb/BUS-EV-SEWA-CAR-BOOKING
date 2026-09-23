@@ -115,8 +115,11 @@ function VehicleImagesCard({ driver, refreshDrivers }) {
               src={existingFrontUrl} 
               alt="Vehicle Front" 
               style={{ width: '100%', height: '160px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #475569' }} 
+              onLoad={(e) => {
+                console.log('[VEHICLE IMAGE LOAD SUCCESS] Front image rendered successfully:', e.currentTarget.src);
+              }}
               onError={(e) => {
-                console.error('[VEHICLE IMAGE LOAD ERROR]', e.currentTarget.src);
+                console.error('[VEHICLE IMAGE LOAD ERROR] Failed to load Front Image:', e.currentTarget.src);
               }}
             />
           ) : (
@@ -139,8 +142,11 @@ function VehicleImagesCard({ driver, refreshDrivers }) {
               src={existingBackUrl} 
               alt="Vehicle Back" 
               style={{ width: '100%', height: '160px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #475569' }} 
+              onLoad={(e) => {
+                console.log('[VEHICLE IMAGE LOAD SUCCESS] Back image rendered successfully:', e.currentTarget.src);
+              }}
               onError={(e) => {
-                console.error('[VEHICLE IMAGE LOAD ERROR]', e.currentTarget.src);
+                console.error('[VEHICLE IMAGE LOAD ERROR] Failed to load Back Image:', e.currentTarget.src);
               }}
             />
           ) : (
