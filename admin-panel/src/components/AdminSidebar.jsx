@@ -65,9 +65,13 @@ const AdminSidebar = ({ onOpenLogout }) => {
           <Truck size={17} />
           <span>Vehicle Management</span>
         </NavLink>
-        <NavLink to="/approvals" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+        <NavLink to="/vehicle-approval" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <FileCheck2 size={17} />
-          <span>Driver Approvals</span>
+          <span>Vehicle Approval</span>
+        </NavLink>
+        <NavLink to="/schedule-approval" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          <CalendarCheck size={17} />
+          <span>Schedule Approval</span>
         </NavLink>
         <NavLink to="/bus-management" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <Bus size={17} />

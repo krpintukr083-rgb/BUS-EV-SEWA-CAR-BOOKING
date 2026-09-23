@@ -20,6 +20,7 @@ const VehicleManagement = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('All');
   const [filterSource, setFilterSource] = useState('All'); // 'All' | 'OWN' | 'THIRD_PARTY'
+  const [filterStatus, setFilterStatus] = useState('All');
   const [loading, setLoading] = useState(true);
   const [selectedVehicle, setSelectedVehicle] = useState(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -298,8 +299,9 @@ const VehicleManagement = () => {
 
     const matchesType = filterType === 'All' || v.vehicleType === filterType;
     const matchesSource = filterSource === 'All' || (v.vehicleSource || 'OWN') === filterSource;
+    const matchesStatus = filterStatus === 'All' || (v.vehicleStatus || 'Pending') === filterStatus;
 
-    return matchesSearch && matchesType && matchesSource;
+    return matchesSearch && matchesType && matchesSource && matchesStatus;
   });
 
   const ownCount = vehicles.filter(v => (v.vehicleSource || 'OWN') !== 'THIRD_PARTY').length;
@@ -431,6 +433,15 @@ const VehicleManagement = () => {
               <option value="Bus">Buses Only</option>
               <option value="EV-Sewa">EV-Sewa Only</option>
               <option value="Car">Cars Only</option>
+            </select>
+            <span style={{ fontSize: '0.8rem', fontWeight: '600', color: '#64748b' }}>Status:</span>
+            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="form-control" style={{ width: '140px' }}>
+              <option value="All">All Statuses</option>
+              <option value="Pending">Pending</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+              <option value="Blocked">Blocked</option>
+              <option value="Rejected">Rejected</option>
             </select>
           </div>
         </div>

@@ -23,14 +23,23 @@ import {
 const Dashboard = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [approvalCounts, setApprovalCounts] = useState({ vehicles: 0, schedules: 0 });
 
   useEffect(() => {
     const fetchDashboard = async () => {
       try {
-        const res = await adminService.getDashboard();
+        const [res, pendingVehicles, pendingSchedules] = await Promise.all([
+          adminService.getDashboard(),
+          adminService.getPendingVehicles(),
+          adminService.getPendingSchedules()
+        ]);
         if (res.success) {
           setData(res.data);
         }
+        setApprovalCounts({
+          vehicles: pendingVehicles?.data?.length || 0,
+          schedules: pendingSchedules?.data?.length || 0
+        });
       } catch (err) {
         console.error(err);
       } finally {
@@ -89,6 +98,12 @@ const Dashboard = () => {
 
       {/* 13 Key Platform Counters Grid */}
       <div className="stats-grid">
+        <Link to="/vehicle-approval" style={{ textDecoration: 'none' }}>
+          <StatCard title="Pending Vehicle Approvals" value={approvalCounts.vehicles} icon={Truck} color="#f59e0b" />
+        </Link>
+        <Link to="/schedule-approval" style={{ textDecoration: 'none' }}>
+          <StatCard title="Pending Schedule Approvals" value={approvalCounts.schedules} icon={CalendarCheck} color="#d97706" />
+        </Link>
         <StatCard title="Total Customers" value={counts?.customers ?? 0} icon={Users} color="#1d4ed8" />
         <StatCard title="Total Drivers" value={counts?.drivers ?? 0} icon={UserCheck} color="#059669" />
         <StatCard title="Total Vehicles" value={counts?.vehicles ?? 0} icon={Truck} color="#475569" />

@@ -27,6 +27,8 @@ import BasicReports from './pages/BasicReports';
 import ServiceControl from './pages/ServiceControl';
 import BannerManagement from './pages/BannerManagement';
 import ApprovalManagement from './pages/ApprovalManagement';
+import VehicleApproval from './pages/VehicleApproval';
+import ScheduleApproval from './pages/ScheduleApproval';
 
 // Admin Protected Route
 const AdminProtectedRoute = ({ children }) => {
@@ -61,6 +63,8 @@ function AppRoutes() {
         <Route path="add-vehicle" element={<AddVehicle />} />
         <Route path="vehicles" element={<VehicleManagement />} />
         <Route path="approvals" element={<ApprovalManagement />} />
+        <Route path="vehicle-approval" element={<VehicleApproval />} />
+        <Route path="schedule-approval" element={<ScheduleApproval />} />
         <Route path="bus-management" element={<BusManagement />} />
         <Route path="ev-sewa-management" element={<EvSewaManagement />} />
         <Route path="car-management" element={<CarManagement />} />
