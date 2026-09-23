@@ -9,6 +9,7 @@ const {
   getAssignedVehicle,
   getDriverDocuments,
   uploadDriverDocument,
+  uploadDriverVehicleImages,
   getDriverStatus,
   updateDriverStatus,
   updateLanguage,
@@ -36,7 +37,7 @@ const {
   registerPushToken
 } = require('../controllers/driverController');
 const { verifyToken, driverAuth } = require('../middleware/auth');
-const { handleSingleUpload } = require('../middleware/upload');
+const { handleSingleUpload, handleMultipleUpload } = require('../middleware/upload');
 
 // All driver routes are protected with JWT and driver role verification
 router.use(verifyToken, driverAuth);
@@ -52,6 +53,7 @@ router.get('/vehicle', getAssignedVehicle);
 // 2. Documents & KYC
 router.get('/documents', getDriverDocuments);
 router.post('/documents', handleSingleUpload(), uploadDriverDocument);
+router.post('/vehicle-images', handleMultipleUpload(2), uploadDriverVehicleImages);
 
 // 3. Online/Offline Status Toggle
 router.get('/status', getDriverStatus);

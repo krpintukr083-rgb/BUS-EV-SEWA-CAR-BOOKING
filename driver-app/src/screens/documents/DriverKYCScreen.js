@@ -130,14 +130,13 @@ export default function DriverKYCScreen({ navigation }) {
       allowsEditing: true,
       quality: 1,
     });
-    if (!result.cancelled) {
-      const { uri, type: mimeType } = result;
+    // Support both Expo SDK 48+ (result.assets) and older (result.uri)
+    if (!result.canceled && !result.cancelled) {
+      const asset = result.assets ? result.assets[0] : result;
+      const uri = asset.uri;
       const name = uri.split('/').pop();
-      const file = {
-        uri,
-        name,
-        type: mimeType || 'image/jpeg',
-      };
+      const mimeType = asset.mimeType || asset.type || 'image/jpeg';
+      const file = { uri, name, type: mimeType };
       if (type === 'front') {
         setFrontImage(file);
         setFrontImageUri(uri);
@@ -151,14 +150,21 @@ export default function DriverKYCScreen({ navigation }) {
   const uploadVehicleImages = async () => {
     if (!frontImage || !backImage) return;
     setUploadingVehicleImages(true);
-    const formData = new FormData();
-    formData.append('vehicleFront', frontImage);
-    formData.append('vehicleBack', backImage);
     try {
-      await driverService.uploadDocument(formData);
-      // Success handling – could refresh documents or show toast
+      const formData = new FormData();
+      // Backend uses upload.any() — send both files under the same 'vehicleImages' field
+      formData.append('vehicleImages', frontImage);
+      formData.append('vehicleImages', backImage);
+      await driverService.uploadVehicleImages(formData);
+      Alert.alert('Success', 'Vehicle images uploaded successfully.');
+      // Reset previews after successful upload
+      setFrontImage(null);
+      setFrontImageUri(null);
+      setBackImage(null);
+      setBackImageUri(null);
     } catch (e) {
       console.warn('Vehicle images upload failed', e);
+      Alert.alert('Upload Failed', e?.response?.data?.message || 'Could not upload vehicle images. Please try again.');
     } finally {
       setUploadingVehicleImages(false);
     }

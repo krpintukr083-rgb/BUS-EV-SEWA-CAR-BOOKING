@@ -899,6 +899,63 @@ exports.uploadDriverDocument = async (req, res, next) => {
   }
 };
 
+// @desc    Upload Driver Vehicle Images (Front + Back)
+// @route   POST /api/driver/vehicle-images
+// @access  Private (Driver Only)
+exports.uploadDriverVehicleImages = async (req, res, next) => {
+  try {
+    const driver = await Driver.findById(req.driver._id);
+    if (!driver) {
+      return res.status(404).json({ success: false, message: 'Driver not found' });
+    }
+
+    // Find the vehicle assigned to this driver
+    let vehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
+    if (!vehicleId) {
+      const vByDriver = await Vehicle.findOne({ assignedDriver: driver._id }).select('_id').lean();
+      if (vByDriver) vehicleId = vByDriver._id;
+    }
+
+    if (!vehicleId) {
+      return res.status(404).json({ success: false, message: 'No vehicle assigned to this driver' });
+    }
+
+    const vehicle = await Vehicle.findById(vehicleId);
+    if (!vehicle) {
+      return res.status(404).json({ success: false, message: 'Assigned vehicle not found' });
+    }
+
+    // req.files is populated by handleMultipleUpload / upload.any()
+    // Field names: vehicleImages (sent as array from driver app)
+    const files = req.files || [];
+    if (files.length < 2) {
+      return res.status(400).json({ success: false, message: 'Both front and back vehicle images are required' });
+    }
+
+    // Map uploaded files to URLs — first file = front, second = back
+    const frontUrl = `/uploads/${files[0].filename}`;
+    const backUrl  = `/uploads/${files[1].filename}`;
+
+    // Preserve any additional existing images beyond index 1, then set front[0] back[1]
+    const existingExtra = (vehicle.vehicleImages || []).slice(2);
+    vehicle.vehicleImages = [frontUrl, backUrl, ...existingExtra];
+
+    await vehicle.save();
+
+    res.json({
+      success: true,
+      message: 'Vehicle images uploaded successfully',
+      data: {
+        vehicleImages: vehicle.vehicleImages,
+        frontImage: frontUrl,
+        backImage: backUrl
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Get Driver Online / Offline Status
 // @route   GET /api/driver/status
 // @access  Private (Driver Only)

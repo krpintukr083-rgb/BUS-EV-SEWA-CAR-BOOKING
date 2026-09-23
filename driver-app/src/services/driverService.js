@@ -30,6 +30,11 @@ export const driverService = {
     return apiClient.post(ENDPOINTS.DOCUMENTS, docData);
   },
   getVehicle: () => apiClient.get(ENDPOINTS.VEHICLE),
+  uploadVehicleImages: (formData) =>
+    apiClient.post('/driver/vehicle-images', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      transformRequest: (data) => data,
+    }),
 
   // Booking Requests & Ride Lifecycle
   getBookingRequests: () => apiClient.get(ENDPOINTS.BOOKING_REQUESTS),
