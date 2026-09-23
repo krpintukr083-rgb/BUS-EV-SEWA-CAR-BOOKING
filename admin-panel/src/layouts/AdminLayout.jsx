@@ -12,7 +12,6 @@ const titlesMap = {
   '/driver-verification': 'Driver & Document Verification Desk',
   '/vehicle-approval': 'Vehicle Approval Review',
   '/schedule-approval': 'Schedule Approval Review',
-  '/add-vehicle': 'Add New Fleet Vehicle (Bus, EV-Sewa, Car)',
   '/vehicles': 'Unified Vehicle Management',
   '/bus-management': 'Intercity Bus Fleet & Route Management',
   '/ev-sewa-management': 'EV-Sewa Green Mobility Management',

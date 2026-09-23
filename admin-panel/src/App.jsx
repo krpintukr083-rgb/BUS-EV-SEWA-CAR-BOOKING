@@ -9,7 +9,6 @@ import Dashboard from './pages/Dashboard';
 import CustomerManagement from './pages/CustomerManagement';
 import DriverManagement from './pages/DriverManagement';
 import DriverVerification from './pages/DriverVerification';
-import AddVehicle from './pages/AddVehicle';
 import VehicleManagement from './pages/VehicleManagement';
 import BusManagement from './pages/BusManagement';
 import EvSewaManagement from './pages/EvSewaManagement';
@@ -60,7 +59,6 @@ function AppRoutes() {
         <Route path="customers" element={<CustomerManagement />} />
         <Route path="drivers" element={<DriverManagement />} />
         <Route path="driver-verification" element={<DriverVerification />} />
-        <Route path="add-vehicle" element={<AddVehicle />} />
         <Route path="vehicles" element={<VehicleManagement />} />
         <Route path="approvals" element={<ApprovalManagement />} />
         <Route path="vehicle-approval" element={<VehicleApproval />} />

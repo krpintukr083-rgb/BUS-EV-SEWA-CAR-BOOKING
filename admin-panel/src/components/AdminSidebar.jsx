@@ -6,7 +6,6 @@ import {
   UserCheck,
   UserPlus,
   Truck,
-  PlusCircle,
   Bus,
   Zap,
   Car,
@@ -61,17 +60,13 @@ const AdminSidebar = ({ onOpenLogout, isOpen, onClose }) => {
         </NavLink>
 
         <div className="nav-section-title">Fleet & Services</div>
-        <NavLink to="/add-vehicle" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <PlusCircle size={17} />
-          <span>Add Vehicle</span>
-        </NavLink>
         <NavLink to="/vehicles" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <Truck size={17} />
           <span>Vehicle Management</span>
         </NavLink>
         <NavLink to="/vehicle-approval" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <FileCheck2 size={17} />
-          <span>Vehicle Approval</span>
+          <span>Vehicle Approvals</span>
         </NavLink>
         <NavLink to="/schedule-approval" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <CalendarCheck size={17} />

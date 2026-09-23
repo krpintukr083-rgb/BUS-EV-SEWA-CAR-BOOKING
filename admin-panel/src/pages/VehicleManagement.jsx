@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
 import { adminService } from '../services/adminService';
 import StatusBadge from '../components/StatusBadge';
-import { Truck, PlusCircle, Search, Edit, FileText, Check, AlertCircle, Eye, UserCheck, Image as ImageIcon, Trash2, Plus, Star, Camera, DollarSign, Building, ShoppingBag, Calendar, CheckCircle2, Clock } from 'lucide-react';
+import { Truck, Search, Edit, FileText, Check, AlertCircle, Eye, UserCheck, Image as ImageIcon, Trash2, Plus, Star, Camera, DollarSign, Building, ShoppingBag, Calendar, CheckCircle2, Clock } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const SERVER_URL = API_BASE_URL.replace(/\/api\/?$/, '');
@@ -320,9 +319,6 @@ const VehicleManagement = () => {
             Manage Company-Owned vehicles and Third-Party / Market-Hired vehicles (e.g. Buses, EV-Sewa, Cars).
           </p>
         </div>
-        <Link to="/admin/add-vehicle" className="btn btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <PlusCircle size={18} /> Add Vehicle
-        </Link>
       </div>
 
       {message && (
