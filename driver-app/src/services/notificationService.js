@@ -272,6 +272,7 @@ export const checkAndNotifyBookingRequests = async (requests, driverId) => {
           },
           sound: 'default',
           priority: Notifications.AndroidNotificationPriority.HIGH,
+          channelId: CHANNEL_ID, // FIX: Required for Android 13+ to avoid fallback silent channel
         },
         trigger: null // Deliver immediately
       });
