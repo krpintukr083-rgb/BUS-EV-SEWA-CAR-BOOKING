@@ -31,10 +31,8 @@ export const driverService = {
   },
   getVehicle: () => apiClient.get(ENDPOINTS.VEHICLE),
   uploadVehicleImages: (formData) =>
-    apiClient.post('/driver/vehicle-images', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      transformRequest: (data) => data,
-    }),
+    // Leave Content-Type unset so Axios/React Native adds the multipart boundary.
+    apiClient.post('/driver/vehicle-images', formData),
 
   // Booking Requests & Ride Lifecycle
   getBookingRequests: () => apiClient.get(ENDPOINTS.BOOKING_REQUESTS),

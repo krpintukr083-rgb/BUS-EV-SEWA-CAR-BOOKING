@@ -130,12 +130,18 @@ export default function DriverKYCScreen({ navigation }) {
       allowsEditing: true,
       quality: 1,
     });
-    // Support both Expo SDK 48+ (result.assets) and older (result.uri)
+    // Support both Expo SDK 48+ (result.assets) and older (result.uri).
     if (!result.canceled && !result.cancelled) {
       const asset = result.assets ? result.assets[0] : result;
+      if (!asset?.uri) return;
+
       const uri = asset.uri;
-      const name = uri.split('/').pop();
-      const mimeType = asset.mimeType || asset.type || 'image/jpeg';
+      const extension = uri.split('?')[0].split('.').pop()?.toLowerCase() || 'jpg';
+      const normalizedExtension = ['jpg', 'jpeg', 'png'].includes(extension) ? extension : 'jpg';
+      const mimeType =
+        asset.mimeType ||
+        (normalizedExtension === 'png' ? 'image/png' : 'image/jpeg');
+      const name = `vehicle-${type}.${normalizedExtension}`;
       const file = { uri, name, type: mimeType };
       if (type === 'front') {
         setFrontImage(file);
