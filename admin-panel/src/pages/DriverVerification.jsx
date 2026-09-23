@@ -634,17 +634,14 @@ const DriverVerification = () => {
 
                   );
                 })}
+
+                {/* Vehicle Images Management Card */}
+                <VehicleImagesCard
+                  driver={selectedDriver}
+                  refreshDrivers={fetchDrivers}
+                />
               </div>
             </div>
-
-            {/* Vehicle Images Management Card */}
-            {selectedDriver && (
-              <VehicleImagesCard
-                driver={selectedDriver}
-                refreshDrivers={fetchDrivers}
-              />
-            )}
-
 
           </div>
         ) : (
