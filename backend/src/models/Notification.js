@@ -24,6 +24,19 @@ const notificationSchema = new mongoose.Schema(
       ref: 'User',
       default: null
     },
+    // Typed workflow events are additive; legacy booking/admin notifications use GENERAL.
+    eventType: {
+      type: String,
+      enum: [
+        'GENERAL',
+        'VEHICLE_SUBMITTED', 'VEHICLE_APPROVED', 'VEHICLE_REJECTED',
+        'SCHEDULE_SUBMITTED', 'SCHEDULE_APPROVED', 'SCHEDULE_REJECTED'
+      ],
+      default: 'GENERAL',
+      index: true
+    },
+    entityType: { type: String, enum: ['Vehicle', 'Schedule'], default: null },
+    entityId: { type: mongoose.Schema.Types.ObjectId, default: null },
     status: {
       type: String,
       enum: ['Unread', 'Read'],

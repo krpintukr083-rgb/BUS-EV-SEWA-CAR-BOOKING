@@ -20,9 +20,11 @@ const {
   getPolicies
 } = require('../controllers/customerController');
 const { verifyToken } = require('../middleware/auth');
+const { getActiveSchedules } = require('../controllers/workflowController');
 
 // Public endpoints
 router.get('/services', getServicesStatus);
+router.get('/schedules', getActiveSchedules);
 router.get('/buses', getBuses);
 router.get('/buses/:id', getBusDetails);
 router.get('/ev-sewa', getEvSewa);

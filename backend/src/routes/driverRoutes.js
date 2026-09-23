@@ -36,6 +36,9 @@ const {
   createSupportTicket,
   registerPushToken
 } = require('../controllers/driverController');
+const {
+  registerVehicle, getDriverVehicles, createSchedule, getDriverSchedules
+} = require('../controllers/workflowController');
 const { verifyToken, driverAuth } = require('../middleware/auth');
 const { handleSingleUpload, handleMultipleUpload } = require('../middleware/upload');
 
@@ -49,6 +52,13 @@ router.put('/profile', updateDriverProfile);
 router.put('/account/login-id', changeDriverLoginId);
 router.put('/account/password', changeDriverPassword);
 router.get('/vehicle', getAssignedVehicle);
+// Driver-owned submissions; all new vehicles and schedules start Pending.
+router.post('/vehicles', registerVehicle);
+router.post('/vehicle/register', registerVehicle);
+router.get('/vehicles', getDriverVehicles);
+router.post('/schedules', createSchedule);
+router.post('/schedule', createSchedule);
+router.get('/schedules', getDriverSchedules);
 
 // 2. Documents & KYC
 router.get('/documents', getDriverDocuments);

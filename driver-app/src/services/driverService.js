@@ -30,6 +30,10 @@ export const driverService = {
     return apiClient.post(ENDPOINTS.DOCUMENTS, docData);
   },
   getVehicle: () => apiClient.get(ENDPOINTS.VEHICLE),
+  registerVehicle: (data) => apiClient.post('/driver/vehicles', data),
+  getMyVehicles: () => apiClient.get('/driver/vehicles'),
+  createSchedule: (data) => apiClient.post('/driver/schedules', data),
+  getMySchedules: () => apiClient.get('/driver/schedules'),
   uploadVehicleImages: (formData) =>
     // Leave Content-Type unset so Axios/React Native adds the multipart boundary.
     apiClient.post('/driver/vehicle-images', formData),

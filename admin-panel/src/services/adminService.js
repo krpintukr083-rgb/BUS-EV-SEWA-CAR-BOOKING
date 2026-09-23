@@ -124,6 +124,12 @@ export const adminService = {
     const res = await api.put(`/admin/vehicles/${id}/status`, { status });
     return res.data;
   },
+  getPendingVehicles: async () => (await api.get('/admin/pending-vehicles')).data,
+  approveVehicle: async id => (await api.patch(`/admin/vehicles/${id}/approve`)).data,
+  rejectVehicle: async (id, reason) => (await api.patch(`/admin/vehicles/${id}/reject`, { reason })).data,
+  getPendingSchedules: async () => (await api.get('/admin/pending-schedules')).data,
+  approveSchedule: async id => (await api.patch(`/admin/schedules/${id}/approve`)).data,
+  rejectSchedule: async (id, reason) => (await api.patch(`/admin/schedules/${id}/reject`, { reason })).data,
 
   deleteVehicle: async id => {
     const res = await api.delete(`/admin/vehicles/${id}`);
@@ -315,5 +321,4 @@ export const adminService = {
     return res.data;
   }
 };
-
 

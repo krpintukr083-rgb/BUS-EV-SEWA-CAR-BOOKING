@@ -50,6 +50,10 @@ const {
 } = require('../controllers/adminController');
 const { verifyToken, adminAuth } = require('../middleware/auth');
 const { handleSingleUpload, handleMultipleUpload } = require('../middleware/upload');
+const {
+  getPendingVehicles, getPendingSchedules, approveVehicle, rejectVehicle,
+  approveSchedule, rejectSchedule
+} = require('../controllers/workflowController');
 
 // Protect all admin routes with JWT and admin role verification
 router.use(verifyToken, adminAuth);
@@ -90,6 +94,14 @@ router.post('/vehicles', handleMultipleUpload('vehicleImages', 5), addVehicle);
 router.put('/vehicles/:id', handleMultipleUpload('vehicleImages', 5), updateVehicle);
 router.put('/vehicles/:id/status', updateVehicleStatus);
 router.delete('/vehicles/:id', deleteVehicle);
+router.get('/pending-vehicles', getPendingVehicles);
+router.get('/vehicles/pending', getPendingVehicles);
+router.patch('/vehicles/:id/approve', approveVehicle);
+router.patch('/vehicles/:id/reject', rejectVehicle);
+router.get('/pending-schedules', getPendingSchedules);
+router.get('/schedules/pending', getPendingSchedules);
+router.patch('/schedules/:id/approve', approveSchedule);
+router.patch('/schedules/:id/reject', rejectSchedule);
 router.put('/vehicles/:id/hire-payment', recordHirePayment);
 router.get('/hire-expenses', getHireExpenses);
 

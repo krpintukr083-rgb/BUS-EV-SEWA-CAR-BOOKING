@@ -71,6 +71,9 @@ export default function VehicleDetailsScreen({ navigation }) {
           />
         }
       >
+        <TouchableOpacity style={styles.registerButton} onPress={() => navigation.navigate('VehicleSubmission')}>
+          <Text style={styles.registerButtonText}>Register a vehicle</Text>
+        </TouchableOpacity>
         {loading ? (
           <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 40 }} />
         ) : !vehicle ? (
@@ -400,6 +403,14 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.8)',
     marginTop: 2,
   },
+  registerButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.l,
+    padding: SPACING.m,
+    alignItems: 'center',
+    marginBottom: SPACING.m,
+  },
+  registerButtonText: { color: COLORS.white, fontWeight: '700' },
   emptyContainer: {
     alignItems: 'center',
     paddingVertical: 50,

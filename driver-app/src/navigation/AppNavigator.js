@@ -13,6 +13,7 @@ import BusConfirmationScreen from '../screens/booking/BusConfirmationScreen';
 import EarningsScreen from '../screens/earnings/EarningsScreen';
 import DriverKYCScreen from '../screens/documents/DriverKYCScreen';
 import VehicleDetailsScreen from '../screens/vehicle/VehicleDetailsScreen';
+import VehicleSubmissionScreen from '../screens/vehicle/VehicleSubmissionScreen';
 import EVHubScreen from '../screens/ev/EVHubScreen';
 import RideHistoryScreen from '../screens/history/RideHistoryScreen';
 import SafetyScreen from '../screens/safety/SafetyScreen';
@@ -54,6 +55,7 @@ export default function AppNavigator() {
           <Stack.Screen name="Earnings" component={EarningsScreen} />
           <Stack.Screen name="DriverKYC" component={DriverKYCScreen} />
           <Stack.Screen name="VehicleDetails" component={VehicleDetailsScreen} />
+          <Stack.Screen name="VehicleSubmission" component={VehicleSubmissionScreen} />
           <Stack.Screen name="EVHub" component={EVHubScreen} />
           <Stack.Screen name="RideHistory" component={RideHistoryScreen} />
           <Stack.Screen name="Safety" component={SafetyScreen} />

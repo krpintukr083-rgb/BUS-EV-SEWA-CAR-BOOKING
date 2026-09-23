@@ -55,6 +55,10 @@ export const customerService = {
     const res = await api.get(`/vehicles/${id}`, { params });
     return res.data;
   },
+  getSchedules: async (from, to) => {
+    const res = await api.get('/schedules', { params: { from, to } });
+    return res.data;
+  },
 
   // Bus Services
   getBuses: async (from, to) => {

@@ -89,8 +89,14 @@ const vehicleSchema = new mongoose.Schema(
     ],
     vehicleStatus: {
       type: String,
-      enum: ['Active', 'Inactive', 'Blocked'],
+      enum: ['Pending', 'Active', 'Inactive', 'Blocked', 'Rejected'],
       default: 'Active'
+    },
+    submission: {
+      submittedByDriver: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver', default: null },
+      reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      reviewedAt: { type: Date, default: null },
+      rejectionReason: { type: String, default: '' }
     },
     // Vehicle Compliance Documents
     rcNumber: {
