@@ -152,9 +152,9 @@ router.put('/service-control', updateServiceControl);
 // 18. Bus Offer / Discount Settings (UNTOUCHED)
 const { getBusOffer, updateBusOffer } = require('../controllers/settingsController');
 router.get('/bus-offer', getBusOffer);
-router.put('/bus-offer', updateBusOffer);
+router.put('/bus-offer', handleSingleUpload('image'), updateBusOffer);
 router.get('/settings/bus-offer', getBusOffer);
-router.put('/settings/bus-offer', updateBusOffer);
+router.put('/settings/bus-offer', handleSingleUpload('image'), updateBusOffer);
 
 // 19. Multiple Promotional Banners Management
 const { getBanners, createBanner, updateBanner, toggleBannerStatus, deleteBanner } = require('../controllers/bannerController');
