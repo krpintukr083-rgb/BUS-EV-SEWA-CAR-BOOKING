@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
@@ -9,8 +10,10 @@ import {
   RefreshControl,
   Alert,
 } from 'react-native';
+import * as FileSystem from 'expo-file-system';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useLanguage } from '../../state/LanguageContext';
 import driverService from '../../services/driverService';
@@ -34,6 +37,13 @@ export default function DriverKYCScreen({ navigation }) {
   const [selectedDocKey, setSelectedDocKey] = useState(null);
   const [selectedDocTitle, setSelectedDocTitle] = useState('');
   const [uploadModalVisible, setUploadModalVisible] = useState(false);
+
+  // New state for vehicle images
+  const [frontImage, setFrontImage] = useState(null);
+  const [backImage, setBackImage] = useState(null);
+  const [frontImageUri, setFrontImageUri] = useState(null);
+  const [backImageUri, setBackImageUri] = useState(null);
+  const [uploadingVehicleImages, setUploadingVehicleImages] = useState(false);
 
   useEffect(() => {
     fetchDocuments();
@@ -111,6 +121,47 @@ export default function DriverKYCScreen({ navigation }) {
     setSelectedDocKey(docKey);
     setSelectedDocTitle(docConfig ? docConfig.title : '');
     setUploadModalVisible(true);
+  };
+
+  // Vehicle image pickers
+  const pickImage = async (type) => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 1,
+    });
+    if (!result.cancelled) {
+      const { uri, type: mimeType } = result;
+      const name = uri.split('/').pop();
+      const file = {
+        uri,
+        name,
+        type: mimeType || 'image/jpeg',
+      };
+      if (type === 'front') {
+        setFrontImage(file);
+        setFrontImageUri(uri);
+      } else {
+        setBackImage(file);
+        setBackImageUri(uri);
+      }
+    }
+  };
+
+  const uploadVehicleImages = async () => {
+    if (!frontImage || !backImage) return;
+    setUploadingVehicleImages(true);
+    const formData = new FormData();
+    formData.append('vehicleFront', frontImage);
+    formData.append('vehicleBack', backImage);
+    try {
+      await driverService.uploadDocument(formData);
+      // Success handling – could refresh documents or show toast
+    } catch (e) {
+      console.warn('Vehicle images upload failed', e);
+    } finally {
+      setUploadingVehicleImages(false);
+    }
   };
 
   const handleDocumentSubmitted = () => {
@@ -336,6 +387,51 @@ export default function DriverKYCScreen({ navigation }) {
             );
           })
         )}
+              {/* Vehicle Images Section */}
+        <View style={styles.vehicleCard}>
+          <View style={styles.vehicleHeader}>
+            <Text style={styles.vehicleHeaderTitle}>Vehicle Images</Text>
+            <View style={styles.requiredBadge}>
+              <Text style={styles.requiredBadgeText}>Required</Text>
+            </View>
+          </View>
+          <Text style={styles.vehicleSubtitle}>
+            Upload clear images of your vehicle (front & back view)
+          </Text>
+          <View style={styles.uploadRow}>
+            {/* Front View */}
+            <TouchableOpacity style={styles.uploadBox} onPress={() => pickImage('front')}>
+              {frontImageUri ? (
+                <Image source={{ uri: frontImageUri }} style={styles.uploadImage} />
+              ) : (
+                <>
+                  <MaterialCommunityIcons name="car" size={24} color={COLORS.primary} />
+                  <MaterialCommunityIcons name="upload" size={24} color={COLORS.primary} />
+                  <Text style={styles.uploadBoxLabel}>Front View *</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            {/* Back View */}
+            <TouchableOpacity style={styles.uploadBox} onPress={() => pickImage('back')}>
+              {backImageUri ? (
+                <Image source={{ uri: backImageUri }} style={styles.uploadImage} />
+              ) : (
+                <>
+                  <MaterialCommunityIcons name="car" size={24} color={COLORS.primary} />
+                  <MaterialCommunityIcons name="upload" size={24} color={COLORS.primary} />
+                  <Text style={styles.uploadBoxLabel}>Back View *</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity
+            style={[styles.uploadBtn, (!frontImage || !backImage) && { backgroundColor: COLORS.border }]}
+            onPress={uploadVehicleImages}
+            disabled={!frontImage || !backImage}
+          >
+            <Text style={styles.uploadBtnText}>Upload Vehicle Images</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
       {/* Document Upload Modal */}
@@ -481,5 +577,69 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontSize: 13,
     fontWeight: '700',
+  },
+  vehicleCard: {
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.l,
+    padding: SPACING.m,
+    marginBottom: SPACING.m,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.card,
+  },
+  vehicleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.s,
+  },
+  vehicleHeaderTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+  },
+  requiredBadge: {
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: RADIUS.s,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+  },
+  requiredBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: COLORS.primary,
+  },
+  vehicleSubtitle: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginBottom: SPACING.m,
+  },
+  uploadRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.m,
+  },
+  uploadBox: {
+    width: '48%',
+    aspectRatio: 1,
+    borderWidth: 1,
+    borderColor: COLORS.primary,
+    borderStyle: 'dashed',
+    borderRadius: RADIUS.m,
+    backgroundColor: COLORS.bgDark,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: SPACING.s,
+  },
+  uploadBoxLabel: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    marginTop: SPACING.xs,
+  },
+  uploadImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: RADIUS.m,
   },
 });

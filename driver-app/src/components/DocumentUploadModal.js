@@ -321,7 +321,7 @@ const DocumentUploadModal = ({ visible, docType, docTitle, initialData, onClose,
 
           {isVehicleRc ? (
             <>
-              <Text style={styles.label}>Document / License Number *</Text>
+              <Text style={styles.label}>Vehicle Owner Name *</Text>
               <TextInput
                 style={styles.input}
                 placeholder="e.g. RC-2026-987654"
@@ -397,7 +397,7 @@ const DocumentUploadModal = ({ visible, docType, docTitle, initialData, onClose,
             </>
           ) : (
             <>
-              <Text style={styles.label}>Document / License Number *</Text>
+              <Text style={styles.label}>{docType === 'fitnessCertificate' ? 'Fitness Certificate Number *' : 'Document / License Number *'}</Text>
               <TextInput
                 style={styles.input}
                 placeholder="e.g. DL-01-2024-9982"
