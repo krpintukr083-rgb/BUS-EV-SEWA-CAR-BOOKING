@@ -1,5 +1,6 @@
 const Vehicle = require('../models/Vehicle');
 const Booking = require('../models/Booking');
+const Schedule = require('../models/Schedule');
 
 const formatVehicle = (vehicleDoc, req) => {
   const v = vehicleDoc.toObject ? vehicleDoc.toObject() : { ...vehicleDoc };
@@ -48,7 +49,21 @@ exports.getVehicles = async (req, res, next) => {
 
     const vehicles = await Vehicle.find(query).populate('assignedDriver').sort({ createdAt: -1 });
 
-    let filtered = vehicles;
+    // Legacy vehicles without schedule records remain visible. Once a vehicle
+    // participates in the approval workflow, only vehicles with an active
+    // schedule can enter the customer catalogue.
+    const scheduleAwareVehicles = vehicles.filter(vehicle => vehicle.vehicleType === 'Bus');
+    const vehicleIds = scheduleAwareVehicles.map(vehicle => vehicle._id);
+    const scheduledVehicleIds = await Schedule.distinct('vehicle', { vehicle: { $in: vehicleIds } });
+    const activeScheduledVehicleIds = await Schedule.distinct('vehicle', {
+      vehicle: { $in: vehicleIds },
+      status: 'Active'
+    });
+    const scheduledIds = new Set(scheduledVehicleIds.map(id => String(id)));
+    const activeScheduledIds = new Set(activeScheduledVehicleIds.map(id => String(id)));
+    let filtered = vehicles.filter(vehicle => (
+      !scheduledIds.has(String(vehicle._id)) || activeScheduledIds.has(String(vehicle._id))
+    ));
     if (from || to) {
       filtered = vehicles.filter((v) => {
         const originSearch = (from || '').toLowerCase().trim();

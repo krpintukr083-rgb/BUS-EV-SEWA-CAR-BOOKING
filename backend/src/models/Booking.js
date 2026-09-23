@@ -32,6 +32,11 @@ const bookingSchema = new mongoose.Schema(
       ref: 'Vehicle',
       required: true
     },
+    scheduleId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Schedule',
+      default: null
+    },
     serviceType: {
       type: String,
       enum: ['Bus', 'EV-Sewa', 'Car', 'Truck'],

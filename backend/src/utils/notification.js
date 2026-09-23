@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Notification = require('../models/Notification');
 const Vehicle = require('../models/Vehicle');
 const Driver = require('../models/Driver');
+const Schedule = require('../models/Schedule');
 
 /**
  * Normalizes location strings for accurate route matching.
@@ -77,6 +78,12 @@ const notifyEligibleDriversForBusBooking = async (booking) => {
 
     if (!bookingOrigin || !bookingDest || !bookingIdStr) {
       return;
+    }
+
+    if (booking.scheduleId) {
+      const scheduleId = booking.scheduleId._id || booking.scheduleId;
+      const activeSchedule = await Schedule.exists({ _id: scheduleId, vehicle: booking.vehicle, status: 'Active' });
+      if (!activeSchedule) return;
     }
 
     const routeText = `${bookingOrigin.split('(')[0].trim()} → ${bookingDest.split('(')[0].trim()}`;

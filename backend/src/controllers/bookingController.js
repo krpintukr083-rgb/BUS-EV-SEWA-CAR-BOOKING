@@ -6,6 +6,7 @@ const BusOffer = require('../models/BusOffer');
 const Payment = require('../models/Payment');
 const Cancellation = require('../models/Cancellation');
 const Notification = require('../models/Notification');
+const Schedule = require('../models/Schedule');
 const { notifyEligibleDriversForBusBooking } = require('../utils/notification');
 
 const getBookingQuery = (idOrCode) => {
@@ -28,6 +29,7 @@ exports.createBooking = async (req, res, next) => {
       selectedSeats,
       fare,
       travelDate,
+      scheduleId,
       paymentMethod
     } = req.body;
 
@@ -75,6 +77,31 @@ exports.createBooking = async (req, res, next) => {
         success: false,
         message: `Vehicle is ${vehicle.vehicleStatus.toLowerCase()} and cannot be booked`
       });
+    }
+
+    // Bind bus bookings to an approved schedule when schedules exist for the vehicle.
+    // Vehicles without schedules remain compatible with the legacy catalogue flow.
+    let activeSchedule = null;
+    if (serviceType === 'Bus') {
+      const schedules = await Schedule.find({ vehicle: vehicle._id }).sort({ travelDate: 1 }).lean();
+      const bookingDate = travelDate ? new Date(travelDate) : new Date();
+      activeSchedule = schedules.find(schedule => {
+        if (schedule.status !== 'Active' || (scheduleId && String(schedule._id) !== String(scheduleId))) return false;
+        const sameRoute = String(schedule.origin).trim().toLowerCase() === String(pickupLocation).trim().toLowerCase()
+          && String(schedule.destination).trim().toLowerCase() === String(dropLocation).trim().toLowerCase();
+        const scheduleDate = new Date(schedule.travelDate);
+        return sameRoute
+          && scheduleDate.getFullYear() === bookingDate.getFullYear()
+          && scheduleDate.getMonth() === bookingDate.getMonth()
+          && scheduleDate.getDate() === bookingDate.getDate();
+      }) || null;
+
+      if (scheduleId && !activeSchedule) {
+        return res.status(400).json({ success: false, message: 'Selected schedule is not active or does not belong to this vehicle' });
+      }
+      if (!scheduleId && schedules.length > 0 && !activeSchedule) {
+        return res.status(400).json({ success: false, message: 'No active schedule is available for this route and date' });
+      }
     }
 
     // 3. Check Seat Availability on Backend for Buses (DATE-SPECIFIC)
@@ -165,6 +192,7 @@ exports.createBooking = async (req, res, next) => {
       },
       driver: vehicle.assignedDriver || null,
       vehicle: vehicle._id,
+      scheduleId: activeSchedule?._id || null,
       serviceType,
       pickupLocation,
       dropLocation,
