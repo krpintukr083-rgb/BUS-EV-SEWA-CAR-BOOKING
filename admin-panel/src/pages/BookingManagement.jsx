@@ -53,6 +53,11 @@ const BookingManagement = () => {
   const handleConfirmOtpSubmit = async (e) => {
     e.preventDefault();
     if (!otpBooking || !otpInput.trim()) return;
+    if (isBookingConfirmed(otpBooking)) {
+      setOtpBooking(null);
+      setOtpInput('');
+      return;
+    }
     setOtpError('');
     setOtpLoading(true);
     try {
@@ -71,6 +76,9 @@ const BookingManagement = () => {
       setOtpLoading(false);
     }
   };
+
+  const isBookingConfirmed = booking =>
+    ['Confirmed', 'Admin Confirmed', 'ADMIN_CONFIRMED'].includes(booking?.bookingStatus);
 
   if (loading) {
     return <div style={{ padding: '24px', color: '#64748b' }}>Loading booking records...</div>;
@@ -295,7 +303,7 @@ const BookingManagement = () => {
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                          {isPendingAdmin && (
+                          {isPendingAdmin && !isBookingConfirmed(b) && (
                             <button
                               className="btn btn-primary btn-sm"
                               style={{ backgroundColor: '#2563eb', borderColor: '#1d4ed8', fontWeight: '700', whiteSpace: 'nowrap' }}
@@ -332,7 +340,7 @@ const BookingManagement = () => {
       </div>
 
       {/* Admin OTP Confirmation Modal */}
-      {otpBooking && (
+      {otpBooking && !isBookingConfirmed(otpBooking) && (
         <div className="modal-overlay">
           <div className="modal-content" style={{ maxWidth: '440px', padding: '24px' }}>
             <div className="card-header-flex">
