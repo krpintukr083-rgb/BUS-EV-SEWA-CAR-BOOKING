@@ -51,7 +51,7 @@ const {
 const { verifyToken, adminAuth } = require('../middleware/auth');
 const { handleSingleUpload, handleMultipleUpload } = require('../middleware/upload');
 const {
-  getPendingVehicles, getPendingSchedules, approveVehicle, rejectVehicle,
+  getPendingVehicles, getPendingSchedules, getAdminSchedules, approveVehicle, rejectVehicle,
   approveSchedule, rejectSchedule
 } = require('../controllers/workflowController');
 
@@ -100,6 +100,7 @@ router.patch('/vehicles/:id/approve', approveVehicle);
 router.patch('/vehicles/:id/reject', rejectVehicle);
 router.get('/pending-schedules', getPendingSchedules);
 router.get('/schedules/pending', getPendingSchedules);
+router.get('/schedules', getAdminSchedules);
 router.patch('/schedules/:id/approve', approveSchedule);
 router.patch('/schedules/:id/reject', rejectSchedule);
 router.put('/vehicles/:id/hire-payment', recordHirePayment);

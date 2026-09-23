@@ -57,11 +57,13 @@ describe('Driver vehicle and schedule approval workflow', () => {
     const scheduleId = scheduleResponse.body.data._id;
     expect(scheduleResponse.body.data.status).toBe('Pending');
     expect((await Notification.findOne({ eventType: 'SCHEDULE_SUBMITTED', entityId: scheduleId })).recipientRole).toBe('admin');
+    expect((await request(app).get('/api/admin/schedules?status=Pending').set('Authorization', `Bearer ${adminToken}`)).body.data.some(item => String(item._id) === String(scheduleId))).toBe(true);
 
     const approvedSchedule = await request(app).patch(`/api/admin/schedules/${scheduleId}/approve`)
       .set('Authorization', `Bearer ${adminToken}`).send();
     expect(approvedSchedule.body.data.status).toBe('Active');
     expect((await Notification.findOne({ eventType: 'SCHEDULE_APPROVED', entityId: scheduleId })).recipientRole).toBe('driver');
+    expect((await request(app).get('/api/admin/schedules?status=Active').set('Authorization', `Bearer ${adminToken}`)).body.data.some(item => String(item._id) === String(scheduleId))).toBe(true);
 
     const visible = await request(app).get('/api/schedules');
     expect(visible.status).toBe(200);
@@ -80,6 +82,9 @@ describe('Driver vehicle and schedule approval workflow', () => {
       .set('Authorization', `Bearer ${adminToken}`).send({ reason: 'Route not supported' });
     expect(rejected.body.data.status).toBe('Rejected');
     expect((await Notification.findOne({ eventType: 'SCHEDULE_REJECTED', entityId: id })).recipientRole).toBe('driver');
+    const rejectedHistory = await request(app).get('/api/admin/schedules?status=Rejected').set('Authorization', `Bearer ${adminToken}`);
+    expect(rejectedHistory.body.data.find(item => String(item._id) === String(id)).rejectionReason).toBe('Route not supported');
+    expect((await request(app).get('/api/admin/schedules?status=Rejected').set('Authorization', `Bearer ${token}`)).status).toBe(403);
     const visible = await request(app).get('/api/schedules');
     expect(visible.body.data.some(item => String(item._id) === String(id))).toBe(false);
   });

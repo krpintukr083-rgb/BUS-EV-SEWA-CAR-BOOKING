@@ -10,6 +10,8 @@ const titlesMap = {
   '/customers': 'Customer Accounts Management',
   '/drivers': 'Driver Fleet Management',
   '/driver-verification': 'Driver & Document Verification Desk',
+  '/vehicle-approval': 'Vehicle Approval Review',
+  '/schedule-approval': 'Schedule Approval Review',
   '/add-vehicle': 'Add New Fleet Vehicle (Bus, EV-Sewa, Car)',
   '/vehicles': 'Unified Vehicle Management',
   '/bus-management': 'Intercity Bus Fleet & Route Management',
@@ -31,6 +33,7 @@ const titlesMap = {
 
 const AdminLayout = () => {
   const [isLogoutOpen, setIsLogoutOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { logout } = useAdminAuth();
@@ -45,9 +48,9 @@ const AdminLayout = () => {
 
   return (
     <div className="app-container">
-      <AdminSidebar onOpenLogout={() => setIsLogoutOpen(true)} />
+      <AdminSidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} onOpenLogout={() => setIsLogoutOpen(true)} />
       <div className="main-wrapper">
-        <AdminHeader title={currentTitle} />
+        <AdminHeader title={currentTitle} onMenuClick={() => setIsSidebarOpen(true)} onOpenLogout={() => setIsLogoutOpen(true)} />
         <main className="page-container">
           <Outlet />
         </main>

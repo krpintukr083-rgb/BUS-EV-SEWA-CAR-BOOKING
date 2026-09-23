@@ -143,7 +143,23 @@ exports.getPendingVehicles = async (req, res, next) => {
   try { const data = await Vehicle.find({ vehicleStatus: 'Pending' }).populate('assignedDriver').sort({ createdAt: 1 }); res.json({ success: true, count: data.length, data }); } catch (e) { next(e); }
 };
 exports.getPendingSchedules = async (req, res, next) => {
-  try { const data = await Schedule.find({ status: 'Pending' }).populate('vehicle driver').sort({ createdAt: 1 }); res.json({ success: true, count: data.length, data }); } catch (e) { next(e); }
+  req.query.status = 'Pending';
+  return exports.getAdminSchedules(req, res, next);
+};
+exports.getAdminSchedules = async (req, res, next) => {
+  try {
+    const status = req.query.status || 'Pending';
+    if (!['Pending', 'Active', 'Rejected'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid schedule status' });
+    }
+    const data = await Schedule.find({ status })
+      .select('vehicle driver origin destination departureTime arrivalTime fareRate notes status rejectionReason createdAt updatedAt')
+      .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleStatus seatingCapacity')
+      .populate('driver', 'name mobileNumber driverStatus')
+      .sort({ createdAt: 1 })
+      .lean();
+    res.json({ success: true, count: data.length, data });
+  } catch (e) { next(e); }
 };
 exports.approveVehicle = review('vehicle', 'Active');
 exports.rejectVehicle = review('vehicle', 'Rejected');

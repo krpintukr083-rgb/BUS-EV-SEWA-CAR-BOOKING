@@ -23,16 +23,20 @@ import {
   FileText,
   BarChart3,
   Sliders,
-  LogOut
+  LogOut,
+  ShieldCheck
 } from 'lucide-react';
 
-const AdminSidebar = ({ onOpenLogout }) => {
+const AdminSidebar = ({ onOpenLogout, isOpen, onClose }) => {
   return (
-    <aside className="sidebar">
+    <>
+    <div className={`sidebar-backdrop ${isOpen ? 'visible' : ''}`} onClick={onClose} />
+    <aside className={`sidebar ${isOpen ? 'sidebar-open' : ''}`}>
       <div className="sidebar-header">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <div className="sidebar-brand-title">Fleet Command</div>
-          <span className="sidebar-brand-badge">Super Admin</span>
+          <div className="brand-mark"><ShieldCheck size={18} /></div>
+          <div><div className="sidebar-brand-title">TransitOS</div>
+          <span className="sidebar-brand-badge">Admin workspace</span></div>
         </div>
       </div>
 
@@ -148,6 +152,7 @@ const AdminSidebar = ({ onOpenLogout }) => {
         </button>
       </nav>
     </aside>
+    </>
   );
 };
 

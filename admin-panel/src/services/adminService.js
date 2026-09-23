@@ -128,6 +128,7 @@ export const adminService = {
   approveVehicle: async id => (await api.patch(`/admin/vehicles/${id}/approve`)).data,
   rejectVehicle: async (id, reason) => (await api.patch(`/admin/vehicles/${id}/reject`, { reason })).data,
   getPendingSchedules: async () => (await api.get('/admin/pending-schedules')).data,
+  getSchedules: async status => (await api.get('/admin/schedules', { params: { status } })).data,
   approveSchedule: async id => (await api.patch(`/admin/schedules/${id}/approve`)).data,
   rejectSchedule: async (id, reason) => (await api.patch(`/admin/schedules/${id}/reject`, { reason })).data,
 
