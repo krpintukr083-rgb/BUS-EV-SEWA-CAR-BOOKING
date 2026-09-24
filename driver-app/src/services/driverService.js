@@ -84,6 +84,7 @@ export const driverService = {
   },
   getSupport: () => apiClient.get(ENDPOINTS.SUPPORT),
   createTicket: (ticket) => apiClient.post(ENDPOINTS.SUPPORT_TICKET, ticket),
+  submitSupportTicket: (ticket) => apiClient.post(ENDPOINTS.SUPPORT_TICKET, ticket),
   updateLanguage: (language) => apiClient.put(ENDPOINTS.LANGUAGE, { language })
 };
 

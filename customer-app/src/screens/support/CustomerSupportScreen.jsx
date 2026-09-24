@@ -201,6 +201,12 @@ const CustomerSupportScreen = ({ navigation }) => {
                 {t.bookingId && t.bookingId !== 'N/A' && (
                   <Text style={styles.ticketBooking}>Booking Ref: {t.bookingId}</Text>
                 )}
+                {t.resolutionNotes ? (
+                  <View style={{ marginTop: 8, padding: 10, backgroundColor: '#f1f5f9', borderRadius: 8, borderLeftWidth: 3, borderLeftColor: '#3b82f6' }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#3b82f6', marginBottom: 2 }}>Admin Reply:</Text>
+                    <Text style={{ fontSize: 12, color: '#334155' }}>{t.resolutionNotes}</Text>
+                  </View>
+                ) : null}
                 <Text style={styles.ticketDate}>Logged: {new Date(t.createdAt).toLocaleDateString('en-IN')}</Text>
               </View>
             ))}

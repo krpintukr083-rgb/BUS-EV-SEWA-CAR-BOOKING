@@ -859,7 +859,7 @@ const VehicleManagement = () => {
                   >
                     <img
                       src={getImageUrl(selectedVehicle.vehicleImages[activeGalleryIndex] || selectedVehicle.vehicleImages[0])}
-                      alt={activeGalleryIndex === 0 ? 'Front Vehicle Photo' : activeGalleryIndex === 1 ? 'Back Vehicle Photo' : `Vehicle Photo ${activeGalleryIndex + 1}`}
+                      alt={activeGalleryIndex === 0 ? 'Front Vehicle Photo' : activeGalleryIndex === 1 ? 'Back Vehicle Photo' : activeGalleryIndex === 2 ? 'Left Vehicle Photo' : activeGalleryIndex === 3 ? 'Right Vehicle Photo' : `Vehicle Photo ${activeGalleryIndex + 1}`}
                       style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                     />
                     {activeGalleryIndex === 0 && (
@@ -903,7 +903,7 @@ const VehicleManagement = () => {
                         >
                           <img
                             src={getImageUrl(imgUrl)}
-                            alt={idx === 0 ? 'Front Vehicle Photo' : idx === 1 ? 'Back Vehicle Photo' : `Vehicle Photo ${idx + 1}`}
+                            alt={idx === 0 ? 'Front Vehicle Photo' : idx === 1 ? 'Back Vehicle Photo' : idx === 2 ? 'Left Vehicle Photo' : idx === 3 ? 'Right Vehicle Photo' : `Vehicle Photo ${idx + 1}`}
                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                           />
                         </div>

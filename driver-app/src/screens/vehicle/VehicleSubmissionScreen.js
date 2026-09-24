@@ -47,7 +47,7 @@ export default function VehicleSubmissionScreen() {
   const [vehicleSource, setVehicleSource] = useState('');
   const [sourceOpen, setSourceOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
-  const [photos, setPhotos] = useState({ front: null, back: null });
+  const [photos, setPhotos] = useState({ front: null, back: null, left: null, right: null });
   const [busy, setBusy] = useState(false);
 
   const update = (key, value) => setForm(current => ({ ...current, [key]: value }));
@@ -115,8 +115,8 @@ export default function VehicleSubmissionScreen() {
       Alert.alert('Required', 'Vehicle number, origin, and destination are required.');
       return;
     }
-    if (!photos.front || !photos.back) {
-      Alert.alert('Vehicle photos required', 'Upload both the front and back vehicle photos.');
+    if (!photos.front || !photos.back || !photos.left || !photos.right) {
+      Alert.alert('Vehicle photos required', 'Upload all 4 vehicle photos (Front, Back, Left, Right).');
       return;
     }
 
@@ -147,13 +147,15 @@ export default function VehicleSubmissionScreen() {
       const imageData = new FormData();
       imageData.append('vehicleImages', photos.front);
       imageData.append('vehicleImages', photos.back);
+      imageData.append('vehicleImages', photos.left);
+      imageData.append('vehicleImages', photos.right);
       await driverService.uploadVehicleImages(imageData);
 
       Alert.alert('Submitted', 'Vehicle is pending admin approval.');
       setCategory('');
       setVehicleSource('');
       setForm(EMPTY_FORM);
-      setPhotos({ front: null, back: null });
+      setPhotos({ front: null, back: null, left: null, right: null });
     } catch (e) {
       Alert.alert('Unable to submit', e?.response?.data?.message || 'Please try again.');
     } finally {
@@ -210,10 +212,10 @@ export default function VehicleSubmissionScreen() {
         />
       ))}
 
-      <Text style={styles.sectionTitle}>Vehicle Photos</Text>
-      <Text style={styles.help}>Exactly two photos are required. Tap a photo to replace it.</Text>
-      <View style={styles.photoRow}>
-        {['front', 'back'].map(type => (
+      <Text style={styles.sectionTitle}>Vehicle Photos *</Text>
+      <Text style={styles.help}>Minimum 4 clear photos of your vehicle are required.</Text>
+      <View style={[styles.photoRow, { flexWrap: 'wrap' }]}>
+        {['front', 'back', 'left', 'right'].map(type => (
           <TouchableOpacity key={type} style={styles.photoBox} onPress={() => pickPhoto(type)} activeOpacity={0.8}>
             {photos[type] ? (
               <>
@@ -230,7 +232,11 @@ export default function VehicleSubmissionScreen() {
                 <Text style={styles.uploadText}>Upload Photo</Text>
               </>
             )}
-            <Text style={styles.photoLabel}>{type === 'front' ? 'Front Photo' : 'Back Photo'}</Text>
+            <Text style={styles.photoLabel}>{
+              type === 'front' ? 'Front Photo' : 
+              type === 'back' ? 'Back Photo' : 
+              type === 'left' ? 'Left Photo' : 'Right Photo'
+            }</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -404,7 +410,7 @@ const styles = StyleSheet.create({
   },
   photoRow: { flexDirection: 'row', gap: SPACING.m, marginBottom: SPACING.l },
   photoBox: {
-    flex: 1,
+    width: '47%',
     height: 150,
     backgroundColor: COLORS.bgCard,
     borderColor: COLORS.border,

@@ -19,6 +19,25 @@ import driverService from '../../services/driverService';
 export default function SupportScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { t } = useLanguage();
+  const [recentTickets, setRecentTickets] = useState([]);
+  const [loadingTickets, setLoadingTickets] = useState(true);
+
+  const fetchTickets = async () => {
+    try {
+      const res = await driverService.getSupport();
+      if (res.success && res.data?.tickets) {
+        setRecentTickets(res.data.tickets);
+      }
+    } catch (err) {
+      console.log('Error fetching tickets:', err);
+    } finally {
+      setLoadingTickets(false);
+    }
+  };
+
+  React.useEffect(() => {
+    fetchTickets();
+  }, []);
 
   const [expandedFaq, setExpandedFaq] = useState(null);
   const [subject, setSubject] = useState('');
@@ -62,6 +81,7 @@ export default function SupportScreen({ navigation }) {
         Alert.alert(t('success'), 'Support ticket submitted! Ticket ID #' + (res.data?._id?.slice(-6) || '7821'));
         setSubject('');
         setMessage('');
+        fetchTickets();
       } else {
         Alert.alert(t('error'), res.message || 'Failed to submit ticket');
       }
@@ -158,6 +178,38 @@ export default function SupportScreen({ navigation }) {
             )}
           </TouchableOpacity>
         </View>
+
+        {/* Recent Tickets */}
+        {recentTickets.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>My Recent Support Tickets</Text>
+            {recentTickets.map(t => (
+              <View key={t._id || t.ticketId} style={styles.faqCard}>
+                <View style={[styles.faqHeader, { marginBottom: 6 }]}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: COLORS.primary }}>Ticket: {t.ticketId}</Text>
+                  <View style={{
+                    paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6,
+                    backgroundColor: t.status === 'Resolved' ? '#dcfce7' : '#fef3c7'
+                  }}>
+                    <Text style={{
+                      fontSize: 10, fontWeight: '700',
+                      color: t.status === 'Resolved' ? '#166534' : '#92400e'
+                    }}>{t.status}</Text>
+                  </View>
+                </View>
+                <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.textPrimary }}>{t.supportIssue}</Text>
+                
+                {t.resolutionNotes ? (
+                  <View style={{ marginTop: 8, padding: 10, backgroundColor: '#f1f5f9', borderRadius: 8, borderLeftWidth: 3, borderLeftColor: '#3b82f6' }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#3b82f6', marginBottom: 2 }}>Admin Reply:</Text>
+                    <Text style={{ fontSize: 12, color: '#334155' }}>{t.resolutionNotes}</Text>
+                  </View>
+                ) : null}
+                <Text style={{ fontSize: 10, color: '#94a3b8', marginTop: 8 }}>Logged: {new Date(t.createdAt).toLocaleDateString('en-IN')}</Text>
+              </View>
+            ))}
+          </>
+        )}
 
         {/* FAQs */}
         <Text style={styles.sectionTitle}>{t('frequentlyAskedQuestions')}</Text>
