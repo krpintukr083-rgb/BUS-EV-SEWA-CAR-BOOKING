@@ -585,21 +585,32 @@ body { background: var(--bg-light); }
   .sidebar { transform: translateX(-100%); transition: transform .2s ease; }
   .sidebar.sidebar-open { transform: translateX(0); }
   .sidebar-backdrop.visible { display: block; position: fixed; inset: 0; z-index: 45; background: rgba(15,23,42,.45); }
-  .main-wrapper { margin-left: 0; }
+  .main-wrapper { margin-left: 0; width: 100%; overflow-x: hidden; }
   .mobile-menu-button { display: inline-flex; align-items: center; justify-content: center; border: 0; background: transparent; color: var(--text-main); margin-right: 12px; cursor: pointer; }
   .top-header { padding: 0 22px; }
   .page-container { padding: 24px 22px 36px; }
+  .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -16px; padding: 0 16px; }
+  .card-header-flex { flex-direction: column; align-items: stretch; gap: 12px; }
+  .search-input-wrapper, .select-input { width: 100%; }
+  .filters-row { flex-wrap: wrap; }
 }
+
 @media (max-width: 620px) {
   .top-header { height: 68px; padding: 0 16px; }
   .header-eyebrow, .header-logout-button span, .admin-profile-pill > div:last-child { display: none; }
   .header-title { font-size: 1rem; max-width: 190px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .page-container { padding: 18px 14px 28px; }
-  .content-card { padding: 16px; }
-  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .stat-card { padding: 14px; }
-  .stat-title { font-size: .62rem; }
-  .stat-value { font-size: 1.35rem; }
-  .stat-icon-wrapper { width: 34px; height: 34px; }
-  .card-header-flex { align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .content-card { padding: 16px; overflow: hidden; }
+  .stats-grid { grid-template-columns: 1fr; gap: 12px; }
+  .stat-card { padding: 16px; }
+  .stat-title { font-size: .75rem; }
+  .stat-value { font-size: 1.5rem; }
+  .stat-icon-wrapper { width: 38px; height: 38px; }
+  table th, table td { padding: 12px 10px; font-size: 0.8rem; }
+  .modal-content { width: 95% !important; margin: 20px auto; max-width: none !important; }
+  .form-row, .grid-row { display: flex; flex-direction: column; gap: 12px; }
+  .btn { width: 100%; text-align: center; justify-content: center; }
+  .admin-profile-pill { padding: 4px; background: transparent; border: none; }
+  .header-logout-button { padding: 8px; border: none; }
+  .support-actions-cell { width: 100%; display: flex; flex-direction: column; }
 }
