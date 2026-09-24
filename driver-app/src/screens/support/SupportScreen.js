@@ -42,7 +42,7 @@ export default function SupportScreen({ navigation }) {
   const [expandedFaq, setExpandedFaq] = useState(null);
   const [subject, setSubject] = useState('');
   const [category, setCategory] = useState('PAYMENT');
-  const [message, setMessage] = useState('');
+  const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const faqs = [
@@ -65,22 +65,26 @@ export default function SupportScreen({ navigation }) {
   ];
 
   const handleSubmitTicket = async () => {
-    if (!subject.trim() || !message.trim()) {
-      Alert.alert(t('error'), 'Please provide a subject and details for your ticket.');
+    if (!description.trim()) {
+      Alert.alert(t('error'), 'Issue description is required');
+      return;
+    }
+    if (!subject.trim()) {
+      Alert.alert(t('error'), 'Subject is required');
       return;
     }
 
     setSubmitting(true);
     try {
       const res = await driverService.submitSupportTicket({
-        subject: subject.trim(),
         category,
-        message: message.trim(),
+        subject: subject.trim(),
+        supportIssue: description.trim(),
       });
       if (res.success) {
         Alert.alert(t('success'), 'Support ticket submitted! Ticket ID #' + (res.data?._id?.slice(-6) || '7821'));
         setSubject('');
-        setMessage('');
+        setDescription('');
         fetchTickets();
       } else {
         Alert.alert(t('error'), res.message || 'Failed to submit ticket');
@@ -156,13 +160,13 @@ export default function SupportScreen({ navigation }) {
             onChangeText={setSubject}
           />
 
-          <Text style={styles.inputLabel}>Message Description</Text>
+          <Text style={styles.inputLabel}>Message Description *</Text>
           <TextInput
             style={[styles.input, { minHeight: 90, textAlignVertical: 'top' }]}
             placeholder="Describe your issue in detail..."
             placeholderTextColor={COLORS.textMuted}
-            value={message}
-            onChangeText={setMessage}
+            value={description}
+            onChangeText={setDescription}
             multiline
           />
 
