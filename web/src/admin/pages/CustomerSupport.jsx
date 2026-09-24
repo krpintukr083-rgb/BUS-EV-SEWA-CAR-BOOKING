@@ -129,8 +129,8 @@ const CustomerSupport = () => {
                       {t.resolutionNotes || t.supportInformation}
                     </td>
                     <td>
-                      <button onClick={() => handleOpenEdit(t)} className="btn btn-sm btn-outline">
-                        <Edit size={13} /> Update
+                      <button type="button" onClick={() => handleOpenEdit(t)}>
+                        VIEW / REPLY
                       </button>
                     </td>
                   </tr>
@@ -150,25 +150,54 @@ const CustomerSupport = () => {
       {/* Edit Ticket Modal */}
       {isEditOpen && selectedTicket && (
         <div className="modal-overlay">
-          <div className="modal-content">
+          <div className="modal-content" style={{ maxWidth: '600px' }}>
             <div className="card-header-flex">
-              <h3 className="card-title">Update Ticket: {selectedTicket.ticketId}</h3>
+              <h3 className="card-title">Support Ticket #{selectedTicket.ticketId}</h3>
               <button className="btn btn-outline btn-sm" onClick={() => setIsEditOpen(false)}>
                 ✕
               </button>
             </div>
 
             <form onSubmit={handleSaveTicket}>
-              <div className="form-group">
-                <label className="form-label">Issue Summary</label>
-                <div style={{ padding: '10px', backgroundColor: '#f8fafc', borderRadius: '6px', fontSize: '0.85rem' }}>
-                  {selectedTicket.supportIssue}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: '#64748b' }}>Requester Name</label>
+                  <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{selectedTicket.requesterName}</div>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: '#64748b' }}>Phone Number</label>
+                  <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{selectedTicket.mobileNumber}</div>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: '#64748b' }}>User Type</label>
+                  <div style={{ fontWeight: '600', fontSize: '0.9rem', textTransform: 'capitalize' }}>{selectedTicket.role}</div>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: '#64748b' }}>Category</label>
+                  <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{selectedTicket.category || 'General'}</div>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: '#64748b' }}>Subject / Info</label>
+                  <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{selectedTicket.supportInformation}</div>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: '#64748b' }}>Created Date</label>
+                  <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>
+                    {new Date(selectedTicket.createdAt).toLocaleDateString()} {new Date(selectedTicket.createdAt).toLocaleTimeString()}
+                  </div>
                 </div>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Support Status</label>
-                <select className="form-control" value={status} onChange={e => setStatus(e.target.value)}>
+                <label className="form-label" style={{ fontWeight: '700' }}>Original Message</label>
+                <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '6px', fontSize: '0.9rem', color: '#334155', border: '1px solid #e2e8f0' }}>
+                  {selectedTicket.supportIssue}
+                </div>
+              </div>
+
+              <div className="form-group" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <label className="form-label" style={{ margin: 0, fontWeight: '700' }}>Current Status</label>
+                <select className="form-control" style={{ width: 'auto', padding: '4px 8px', fontSize: '0.85rem' }} value={status} onChange={e => setStatus(e.target.value)}>
                   <option value="Open">Open</option>
                   <option value="In Progress">In Progress</option>
                   <option value="Resolved">Resolved</option>
@@ -176,13 +205,14 @@ const CustomerSupport = () => {
               </div>
 
               <div className="form-group">
-                <label className="form-label">Official Resolution Notes</label>
+                <label className="form-label" style={{ fontWeight: '700' }}>Admin Reply</label>
                 <textarea
                   className="form-control"
-                  rows="3"
-                  placeholder="Record support actions taken..."
+                  rows="4"
+                  placeholder="Type your response..."
                   value={resolutionNotes}
                   onChange={e => setResolutionNotes(e.target.value)}
+                  style={{ resize: 'vertical' }}
                 />
               </div>
 
@@ -191,7 +221,7 @@ const CustomerSupport = () => {
                   Cancel
                 </button>
                 <button type="submit" className="btn btn-primary">
-                  Save Ticket
+                  Send Reply
                 </button>
               </div>
             </form>

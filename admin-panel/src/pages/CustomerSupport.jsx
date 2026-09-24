@@ -129,8 +129,8 @@ const CustomerSupport = () => {
                       {t.resolutionNotes || t.supportInformation}
                     </td>
                     <td>
-                      <button onClick={() => handleOpenEdit(t)} className="btn btn-sm btn-outline">
-                        <Edit size={13} /> View / Reply
+                      <button type="button" onClick={() => handleOpenEdit(t)}>
+                        VIEW / REPLY
                       </button>
                     </td>
                   </tr>
