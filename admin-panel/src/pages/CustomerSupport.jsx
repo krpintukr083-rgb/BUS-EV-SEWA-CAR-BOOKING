@@ -129,8 +129,8 @@ const CustomerSupport = () => {
                       {t.resolutionNotes || t.supportInformation}
                     </td>
                     <td>
-                      <button type="button" onClick={() => handleOpenEdit(t)}>
-                        VIEW / REPLY
+                      <button type="button" className="btn btn-primary btn-sm" style={{ whiteSpace: 'nowrap' }} onClick={() => handleOpenEdit(t)}>
+                        View / Reply
                       </button>
                     </td>
                   </tr>
@@ -161,6 +161,10 @@ const CustomerSupport = () => {
             <form onSubmit={handleSaveTicket}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
                 <div>
+                  <label style={{ fontSize: '0.75rem', color: '#64748b' }}>Ticket ID</label>
+                  <div style={{ fontWeight: '700', fontSize: '0.9rem', color: '#1d4ed8' }}>{selectedTicket.ticketId}</div>
+                </div>
+                <div>
                   <label style={{ fontSize: '0.75rem', color: '#64748b' }}>Requester Name</label>
                   <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{selectedTicket.requesterName}</div>
                 </div>
@@ -171,6 +175,10 @@ const CustomerSupport = () => {
                 <div>
                   <label style={{ fontSize: '0.75rem', color: '#64748b' }}>User Type</label>
                   <div style={{ fontWeight: '600', fontSize: '0.9rem', textTransform: 'capitalize' }}>{selectedTicket.role}</div>
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: '#64748b' }}>Booking Reference</label>
+                  <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{selectedTicket.bookingId || 'N/A'}</div>
                 </div>
                 <div>
                   <label style={{ fontSize: '0.75rem', color: '#64748b' }}>Category</label>
