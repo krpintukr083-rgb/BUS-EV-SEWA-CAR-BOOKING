@@ -853,7 +853,7 @@ const VehicleManagement = () => {
                   >
                     <img
                       src={getImageUrl(selectedVehicle.vehicleImages[activeGalleryIndex] || selectedVehicle.vehicleImages[0])}
-                      alt="Vehicle preview"
+                      alt={activeGalleryIndex === 0 ? 'Front Vehicle Photo' : activeGalleryIndex === 1 ? 'Back Vehicle Photo' : `Vehicle Photo ${activeGalleryIndex + 1}`}
                       style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                     />
                     {activeGalleryIndex === 0 && (
@@ -897,7 +897,7 @@ const VehicleManagement = () => {
                         >
                           <img
                             src={getImageUrl(imgUrl)}
-                            alt={`thumb ${idx + 1}`}
+                            alt={idx === 0 ? 'Front Vehicle Photo' : idx === 1 ? 'Back Vehicle Photo' : `Vehicle Photo ${idx + 1}`}
                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                           />
                         </div>
