@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import driverService from '../../services/driverService';
 import { COLORS, SPACING } from '../../constants/theme';
 
@@ -130,61 +131,21 @@ export default function VehicleSubmissionScreen() {
     }
   };
 
-  if (!category) {
-    return (
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.title}>Register vehicle</Text>
-        <Text style={styles.help}>Select your vehicle category to continue.</Text>
-        <Text style={styles.sectionTitle}>Vehicle Category *</Text>
-        <TouchableOpacity
-          style={styles.dropdown}
-          onPress={() => setCategoryOpen(true)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.dropdownPlaceholder}>Select vehicle category</Text>
-          <Text style={styles.dropdownArrow}>▼</Text>
-        </TouchableOpacity>
-        <Modal
-          visible={categoryOpen}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setCategoryOpen(false)}
-        >
-          <TouchableOpacity
-            style={styles.modalBackdrop}
-            activeOpacity={1}
-            onPress={() => setCategoryOpen(false)}
-          >
-            <View style={styles.dropdownMenu}>
-              <Text style={styles.dropdownMenuTitle}>Vehicle Category *</Text>
-              {CATEGORIES.map(item => (
-                <TouchableOpacity
-                  key={item.value}
-                  style={styles.dropdownOption}
-                  onPress={() => selectCategory(item.value)}
-                >
-                  <Text style={styles.categoryIcon}>{item.icon}</Text>
-                  <Text style={styles.categoryText}>{item.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </TouchableOpacity>
-        </Modal>
-      </ScrollView>
-    );
-  }
-
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Register vehicle</Text>
       <Text style={styles.help}>New vehicles are reviewed by admin before customers can see them.</Text>
-      <View style={styles.selectedCategory}>
-        <Text style={styles.selectedCategoryLabel}>Vehicle Category</Text>
-        <Text style={styles.selectedCategoryValue}>{category}</Text>
-        <TouchableOpacity onPress={() => setCategory('')}>
-          <Text style={styles.changeCategory}>Change</Text>
-        </TouchableOpacity>
-      </View>
+      <Text style={styles.sectionTitle}>Vehicle Category *</Text>
+      <TouchableOpacity
+        style={styles.dropdown}
+        onPress={() => setCategoryOpen(true)}
+        activeOpacity={0.8}
+      >
+        <Text style={category ? styles.dropdownValue : styles.dropdownPlaceholder}>
+          {category || 'Select vehicle category'}
+        </Text>
+        <Text style={styles.dropdownArrow}>▼</Text>
+      </TouchableOpacity>
 
       {[
         ['vehicleNumber', 'Vehicle number *'],
@@ -214,11 +175,21 @@ export default function VehicleSubmissionScreen() {
         {['front', 'back'].map(type => (
           <TouchableOpacity key={type} style={styles.photoBox} onPress={() => pickPhoto(type)} activeOpacity={0.8}>
             {photos[type] ? (
-              <Image source={{ uri: photos[type].uri }} style={styles.photoPreview} />
+              <>
+                <Image source={{ uri: photos[type].uri }} style={styles.photoPreview} />
+                <View style={styles.replaceBadge}>
+                  <MaterialCommunityIcons name="camera-retake-outline" size={16} color={COLORS.white} />
+                  <Text style={styles.replaceText}>Replace</Text>
+                </View>
+              </>
             ) : (
-              <Text style={styles.uploadText}>Upload Photo</Text>
+              <>
+                <MaterialCommunityIcons name="image-outline" size={30} color={COLORS.textSecondary} />
+                <MaterialCommunityIcons name="cloud-upload-outline" size={22} color={COLORS.primaryLight} />
+                <Text style={styles.uploadText}>Upload Photo</Text>
+              </>
             )}
-            <Text style={styles.photoLabel}>{type === 'front' ? 'FRONT PHOTO' : 'BACK PHOTO'}</Text>
+            <Text style={styles.photoLabel}>{type === 'front' ? 'Front Photo' : 'Back Photo'}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -226,6 +197,33 @@ export default function VehicleSubmissionScreen() {
       <TouchableOpacity disabled={busy} onPress={submit} style={styles.button}>
         <Text style={styles.buttonText}>{busy ? 'Submitting...' : 'Submit for approval'}</Text>
       </TouchableOpacity>
+
+      <Modal
+        visible={categoryOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setCategoryOpen(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setCategoryOpen(false)}
+        >
+          <View style={styles.dropdownMenu}>
+            <Text style={styles.dropdownMenuTitle}>Vehicle Category *</Text>
+            {CATEGORIES.map(item => (
+              <TouchableOpacity
+                key={item.value}
+                style={styles.dropdownOption}
+                onPress={() => selectCategory(item.value)}
+              >
+                <Text style={styles.categoryIcon}>{item.icon}</Text>
+                <Text style={styles.categoryText}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </ScrollView>
   );
 }
@@ -258,6 +256,7 @@ const styles = StyleSheet.create({
     padding: SPACING.l
   },
   dropdownPlaceholder: { color: COLORS.textMuted, fontSize: 15 },
+  dropdownValue: { color: COLORS.textPrimary, fontSize: 15, fontWeight: '700' },
   dropdownArrow: { color: COLORS.primaryLight, fontSize: 16 },
   modalBackdrop: {
     flex: 1,
@@ -321,6 +320,19 @@ const styles = StyleSheet.create({
   photoPreview: { width: '100%', flex: 1 },
   uploadText: { color: COLORS.textSecondary, fontWeight: '700', marginBottom: SPACING.s },
   photoLabel: { color: COLORS.textPrimary, fontSize: 11, fontWeight: '800', padding: SPACING.s },
+  replaceBadge: {
+    position: 'absolute',
+    top: SPACING.s,
+    right: SPACING.s,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
+    borderRadius: 6,
+    paddingHorizontal: SPACING.s,
+    paddingVertical: 4
+  },
+  replaceText: { color: COLORS.white, fontSize: 11, fontWeight: '700' },
   button: { backgroundColor: COLORS.primary, padding: SPACING.m, borderRadius: 8, alignItems: 'center', marginTop: SPACING.s },
   buttonText: { color: COLORS.white, fontWeight: '700' }
 });
