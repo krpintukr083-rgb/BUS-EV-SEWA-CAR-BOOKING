@@ -15,13 +15,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useCustomerAuth } from '../../context/CustomerAuthContext';
 import { customerService } from '../../services/customerService';
 import Header from '../../components/Header';
-import ServerSettingsModal from '../../components/ServerSettingsModal';
+
 import { COLORS } from '../../constants/colors';
 
 const CustomerProfileScreen = ({ navigation }) => {
   const { customer, logout, refreshUser } = useCustomerAuth();
-  const [showServerModal, setShowServerModal] = useState(false);
-
   // Modals state
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showLoginIdModal, setShowLoginIdModal] = useState(false);
@@ -192,18 +190,7 @@ const CustomerProfileScreen = ({ navigation }) => {
         }
       ]
     },
-    {
-      title: 'Connectivity & Server',
-      items: [
-        {
-          id: 'server-settings',
-          title: 'Server & Tunnel Settings',
-          subtitle: 'Configure HTTPS Tunnel for 4G/5G & WiFi',
-          icon: 'git-network-outline',
-          action: () => setShowServerModal(true)
-        }
-      ]
-    },
+
     {
       title: 'Protection & Safety',
       items: [
@@ -445,11 +432,6 @@ const CustomerProfileScreen = ({ navigation }) => {
         </View>
       </Modal>
 
-      {/* Server Settings Modal */}
-      <ServerSettingsModal
-        visible={showServerModal}
-        onClose={() => setShowServerModal(false)}
-      />
     </View>
   );
 };
