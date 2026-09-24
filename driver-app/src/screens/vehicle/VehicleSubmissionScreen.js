@@ -22,6 +22,11 @@ const CATEGORIES = [
   { value: 'EV-Sewa', label: 'EV-Sewa', icon: '⚡' }
 ];
 
+const VEHICLE_SOURCES = [
+  { value: 'OWN', label: 'Own Vehicle' },
+  { value: 'THIRD_PARTY', label: 'Third-Party / Market Hired' }
+];
+
 const EMPTY_FORM = {
   vehicleNumber: '',
   vehicleName: '',
@@ -32,12 +37,15 @@ const EMPTY_FORM = {
   seatingCapacity: '',
   acType: '',
   origin: '',
-  destination: ''
+  destination: '',
+  hireAmount: ''
 };
 
 export default function VehicleSubmissionScreen() {
   const [category, setCategory] = useState('');
   const [categoryOpen, setCategoryOpen] = useState(false);
+  const [vehicleSource, setVehicleSource] = useState('');
+  const [sourceOpen, setSourceOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [photos, setPhotos] = useState({ front: null, back: null });
   const [busy, setBusy] = useState(false);
@@ -48,6 +56,11 @@ export default function VehicleSubmissionScreen() {
     setCategoryOpen(false);
     setCategory(value);
     setForm(current => ({ ...current, vehicleType: value }));
+  };
+
+  const selectSource = value => {
+    setSourceOpen(false);
+    setVehicleSource(value);
   };
 
   const pickPhoto = async type => {
@@ -91,7 +104,11 @@ export default function VehicleSubmissionScreen() {
 
   const submit = async () => {
     if (!category) {
-      Alert.alert('Select category', 'Choose Bus, Car, or EV-Sewa before continuing.');
+      Alert.alert('Select driver category', 'Choose Bus, Car, or EV-Sewa before continuing.');
+      return;
+    }
+    if (!vehicleSource) {
+      Alert.alert('Select vehicle source', 'Choose Own Vehicle or Third-Party / Market Hired before continuing.');
       return;
     }
     if (!form.vehicleNumber?.trim() || !form.origin?.trim() || !form.destination?.trim()) {
@@ -108,7 +125,11 @@ export default function VehicleSubmissionScreen() {
       await driverService.registerVehicle({
         ...form,
         vehicleType: category,
+        vehicleSource,
         seatingCapacity: form.seatingCapacity ? Number(form.seatingCapacity) : undefined,
+        hireDetails: vehicleSource === 'THIRD_PARTY'
+          ? { hireAmount: Number(form.hireAmount) || 0 }
+          : undefined,
         route: {
           origin: form.origin.trim(),
           destination: form.destination.trim()
@@ -122,6 +143,7 @@ export default function VehicleSubmissionScreen() {
 
       Alert.alert('Submitted', 'Vehicle is pending admin approval.');
       setCategory('');
+      setVehicleSource('');
       setForm(EMPTY_FORM);
       setPhotos({ front: null, back: null });
     } catch (e) {
@@ -135,14 +157,28 @@ export default function VehicleSubmissionScreen() {
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Register vehicle</Text>
       <Text style={styles.help}>New vehicles are reviewed by admin before customers can see them.</Text>
-      <Text style={styles.sectionTitle}>Vehicle Category *</Text>
+      <Text style={styles.sectionTitle}>Driver Category *</Text>
       <TouchableOpacity
         style={styles.dropdown}
         onPress={() => setCategoryOpen(true)}
         activeOpacity={0.8}
       >
         <Text style={category ? styles.dropdownValue : styles.dropdownPlaceholder}>
-          {category || 'Select vehicle category'}
+          {category || 'Select driver category'}
+        </Text>
+        <Text style={styles.dropdownArrow}>▼</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.sectionTitle}>Vehicle Source *</Text>
+      <TouchableOpacity
+        style={styles.dropdown}
+        onPress={() => setSourceOpen(true)}
+        activeOpacity={0.8}
+      >
+        <Text style={vehicleSource ? styles.dropdownValue : styles.dropdownPlaceholder}>
+          {vehicleSource
+            ? VEHICLE_SOURCES.find(item => item.value === vehicleSource)?.label
+            : 'Select vehicle source'}
         </Text>
         <Text style={styles.dropdownArrow}>▼</Text>
       </TouchableOpacity>
@@ -151,7 +187,6 @@ export default function VehicleSubmissionScreen() {
         ['vehicleNumber', 'Vehicle number *'],
         ['vehicleName', 'Vehicle name'],
         ['vehicleModel', 'Model'],
-        ['vehicleCategory', 'Category / Variant'],
         ['fuelType', 'Fuel Type'],
         ['seatingCapacity', 'Seating Capacity'],
         ['acType', 'AC / Non-AC']
@@ -208,6 +243,20 @@ export default function VehicleSubmissionScreen() {
         style={styles.input}
       />
 
+      {vehicleSource === 'THIRD_PARTY' && (
+        <>
+          <Text style={styles.sectionTitle}>Market Hire Details</Text>
+          <TextInput
+            value={form.hireAmount}
+            onChangeText={value => update('hireAmount', value)}
+            placeholder="Market Hire Amount"
+            placeholderTextColor={COLORS.textMuted}
+            keyboardType="numeric"
+            style={styles.input}
+          />
+        </>
+      )}
+
       <TouchableOpacity disabled={busy} onPress={submit} style={styles.button}>
         <Text style={styles.buttonText}>{busy ? 'Submitting...' : 'Submit for approval'}</Text>
       </TouchableOpacity>
@@ -224,7 +273,7 @@ export default function VehicleSubmissionScreen() {
           onPress={() => setCategoryOpen(false)}
         >
           <View style={styles.dropdownMenu}>
-            <Text style={styles.dropdownMenuTitle}>Vehicle Category *</Text>
+            <Text style={styles.dropdownMenuTitle}>Driver Category *</Text>
             {CATEGORIES.map(item => (
               <TouchableOpacity
                 key={item.value}
@@ -232,6 +281,32 @@ export default function VehicleSubmissionScreen() {
                 onPress={() => selectCategory(item.value)}
               >
                 <Text style={styles.categoryIcon}>{item.icon}</Text>
+                <Text style={styles.categoryText}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal
+        visible={sourceOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSourceOpen(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setSourceOpen(false)}
+        >
+          <View style={styles.dropdownMenu}>
+            <Text style={styles.dropdownMenuTitle}>Vehicle Source *</Text>
+            {VEHICLE_SOURCES.map(item => (
+              <TouchableOpacity
+                key={item.value}
+                style={styles.dropdownOption}
+                onPress={() => selectSource(item.value)}
+              >
                 <Text style={styles.categoryText}>{item.label}</Text>
               </TouchableOpacity>
             ))}
