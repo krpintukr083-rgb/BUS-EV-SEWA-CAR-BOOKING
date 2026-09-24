@@ -15,6 +15,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useLanguage } from '../../state/LanguageContext';
 import driverService from '../../services/driverService';
+import { useFocusEffect } from '@react-navigation/native';
 
 export default function SupportScreen({ navigation }) {
   const insets = useSafeAreaInsets();
@@ -35,9 +36,11 @@ export default function SupportScreen({ navigation }) {
     }
   };
 
-  React.useEffect(() => {
-    fetchTickets();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchTickets();
+    }, [])
+  );
 
   const [expandedFaq, setExpandedFaq] = useState(null);
   const [subject, setSubject] = useState('');
@@ -208,7 +211,12 @@ export default function SupportScreen({ navigation }) {
                     <Text style={{ fontSize: 11, fontWeight: '700', color: '#3b82f6', marginBottom: 2 }}>Admin Reply:</Text>
                     <Text style={{ fontSize: 12, color: '#334155' }}>{t.resolutionNotes}</Text>
                   </View>
-                ) : null}
+                ) : (
+                  <View style={{ marginTop: 8, padding: 10, backgroundColor: '#1e293b', borderRadius: 8, borderLeftWidth: 3, borderLeftColor: '#475569' }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#94a3b8', marginBottom: 2 }}>Admin Reply:</Text>
+                    <Text style={{ fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>Waiting for admin response</Text>
+                  </View>
+                )}
                 <Text style={{ fontSize: 10, color: '#94a3b8', marginTop: 8 }}>Logged: {new Date(t.createdAt).toLocaleDateString('en-IN')}</Text>
               </View>
             ))}

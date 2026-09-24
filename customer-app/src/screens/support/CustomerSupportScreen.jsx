@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -44,9 +45,11 @@ const CustomerSupportScreen = ({ navigation }) => {
     }
   };
 
-  useEffect(() => {
-    fetchSupport();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      fetchSupport();
+    }, [])
+  );
 
   const handleSubmitTicket = async () => {
     if (!issueTopic.trim()) {
@@ -206,7 +209,12 @@ const CustomerSupportScreen = ({ navigation }) => {
                     <Text style={{ fontSize: 11, fontWeight: '700', color: '#3b82f6', marginBottom: 2 }}>Admin Reply:</Text>
                     <Text style={{ fontSize: 12, color: '#334155' }}>{t.resolutionNotes}</Text>
                   </View>
-                ) : null}
+                ) : (
+                  <View style={{ marginTop: 8, padding: 10, backgroundColor: '#f8fafc', borderRadius: 8, borderLeftWidth: 3, borderLeftColor: '#94a3b8' }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', marginBottom: 2 }}>Admin Reply:</Text>
+                    <Text style={{ fontSize: 12, color: '#64748b', fontStyle: 'italic' }}>Waiting for admin response</Text>
+                  </View>
+                )}
                 <Text style={styles.ticketDate}>Logged: {new Date(t.createdAt).toLocaleDateString('en-IN')}</Text>
               </View>
             ))}
