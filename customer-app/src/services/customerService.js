@@ -87,7 +87,7 @@ export const customerService = {
 
   // EV-Sewa Services
   getEvSewa: async () => {
-    const res = await api.get('/vehicles', { params: { type: 'ev-sewa' } });
+    const res = await api.get('/customer/ev-sewa');
     return res.data;
   },
 
@@ -98,7 +98,7 @@ export const customerService = {
 
   // Car Services
   getCars: async () => {
-    const res = await api.get('/vehicles', { params: { type: 'car' } });
+    const res = await api.get('/customer/cars');
     return res.data;
   },
 

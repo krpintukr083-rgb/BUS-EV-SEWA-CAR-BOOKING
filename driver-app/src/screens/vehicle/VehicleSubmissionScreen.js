@@ -94,7 +94,7 @@ export default function VehicleSubmissionScreen() {
       Alert.alert('Select category', 'Choose Bus, Car, or EV-Sewa before continuing.');
       return;
     }
-    if (!form.vehicleNumber || !form.origin || !form.destination) {
+    if (!form.vehicleNumber?.trim() || !form.origin?.trim() || !form.destination?.trim()) {
       Alert.alert('Required', 'Vehicle number, origin, and destination are required.');
       return;
     }
@@ -154,9 +154,7 @@ export default function VehicleSubmissionScreen() {
         ['vehicleCategory', 'Category / Variant'],
         ['fuelType', 'Fuel Type'],
         ['seatingCapacity', 'Seating Capacity'],
-        ['acType', 'AC / Non-AC'],
-        ['origin', 'From / Origin *'],
-        ['destination', 'To / Destination *']
+        ['acType', 'AC / Non-AC']
       ].map(([key, label]) => (
         <TextInput
           key={key}
@@ -193,6 +191,22 @@ export default function VehicleSubmissionScreen() {
           </TouchableOpacity>
         ))}
       </View>
+
+      <Text style={styles.sectionTitle}>Route Details</Text>
+      <TextInput
+        value={form.origin}
+        onChangeText={value => update('origin', value)}
+        placeholder="Select / Enter Origin *"
+        placeholderTextColor={COLORS.textMuted}
+        style={styles.input}
+      />
+      <TextInput
+        value={form.destination}
+        onChangeText={value => update('destination', value)}
+        placeholder="Select / Enter Destination *"
+        placeholderTextColor={COLORS.textMuted}
+        style={styles.input}
+      />
 
       <TouchableOpacity disabled={busy} onPress={submit} style={styles.button}>
         <Text style={styles.buttonText}>{busy ? 'Submitting...' : 'Submit for approval'}</Text>

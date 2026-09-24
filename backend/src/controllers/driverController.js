@@ -17,6 +17,7 @@ const getBookingQuery = (idOrCode) => {
     : { bookingId: idOrCode };
 };
 
+
 // Helper to safely get user ObjectId for Notification recipientId
 const getValidRecipientId = async (booking) => {
   if (!booking) return null;
@@ -914,6 +915,12 @@ exports.uploadDriverVehicleImages = async (req, res, next) => {
     if (!vehicleId) {
       const vByDriver = await Vehicle.findOne({ assignedDriver: driver._id }).select('_id').lean();
       if (vByDriver) vehicleId = vByDriver._id;
+    }
+    if (!vehicleId) {
+      const submittedVehicle = await Vehicle.findOne({
+        'submission.submittedByDriver': driver._id
+      }).sort({ createdAt: -1 }).select('_id').lean();
+      if (submittedVehicle) vehicleId = submittedVehicle._id;
     }
 
     if (!vehicleId) {
@@ -2410,4 +2417,3 @@ exports.registerPushToken = async (req, res, next) => {
     next(error);
   }
 };
-
