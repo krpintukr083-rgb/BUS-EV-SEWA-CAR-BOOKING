@@ -7,7 +7,8 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
-  Image
+  Image,
+  Modal
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
@@ -35,6 +36,7 @@ const EMPTY_FORM = {
 
 export default function VehicleSubmissionScreen() {
   const [category, setCategory] = useState('');
+  const [categoryOpen, setCategoryOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [photos, setPhotos] = useState({ front: null, back: null });
   const [busy, setBusy] = useState(false);
@@ -42,6 +44,7 @@ export default function VehicleSubmissionScreen() {
   const update = (key, value) => setForm(current => ({ ...current, [key]: value }));
 
   const selectCategory = value => {
+    setCategoryOpen(false);
     setCategory(value);
     setForm(current => ({ ...current, vehicleType: value }));
   };
@@ -132,18 +135,41 @@ export default function VehicleSubmissionScreen() {
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.title}>Register vehicle</Text>
         <Text style={styles.help}>Select your vehicle category to continue.</Text>
-        <Text style={styles.sectionTitle}>Vehicle Category</Text>
-        {CATEGORIES.map(item => (
+        <Text style={styles.sectionTitle}>Vehicle Category *</Text>
+        <TouchableOpacity
+          style={styles.dropdown}
+          onPress={() => setCategoryOpen(true)}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.dropdownPlaceholder}>Select vehicle category</Text>
+          <Text style={styles.dropdownArrow}>▼</Text>
+        </TouchableOpacity>
+        <Modal
+          visible={categoryOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setCategoryOpen(false)}
+        >
           <TouchableOpacity
-            key={item.value}
-            style={styles.categoryOption}
-            onPress={() => selectCategory(item.value)}
-            activeOpacity={0.8}
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={() => setCategoryOpen(false)}
           >
-            <Text style={styles.categoryIcon}>{item.icon}</Text>
-            <Text style={styles.categoryText}>{item.label}</Text>
+            <View style={styles.dropdownMenu}>
+              <Text style={styles.dropdownMenuTitle}>Vehicle Category *</Text>
+              {CATEGORIES.map(item => (
+                <TouchableOpacity
+                  key={item.value}
+                  style={styles.dropdownOption}
+                  onPress={() => selectCategory(item.value)}
+                >
+                  <Text style={styles.categoryIcon}>{item.icon}</Text>
+                  <Text style={styles.categoryText}>{item.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </TouchableOpacity>
-        ))}
+        </Modal>
       </ScrollView>
     );
   }
@@ -221,6 +247,45 @@ const styles = StyleSheet.create({
   },
   categoryIcon: { fontSize: 28, marginRight: SPACING.m },
   categoryText: { color: COLORS.textPrimary, fontSize: 16, fontWeight: '700' },
+  dropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.bgCard,
+    borderColor: COLORS.border,
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: SPACING.l
+  },
+  dropdownPlaceholder: { color: COLORS.textMuted, fontSize: 15 },
+  dropdownArrow: { color: COLORS.primaryLight, fontSize: 16 },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    padding: SPACING.l
+  },
+  dropdownMenu: {
+    backgroundColor: COLORS.bgCard,
+    borderColor: COLORS.border,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: SPACING.m
+  },
+  dropdownMenuTitle: {
+    color: COLORS.textPrimary,
+    fontSize: 16,
+    fontWeight: '800',
+    padding: SPACING.s,
+    marginBottom: SPACING.s
+  },
+  dropdownOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderTopColor: COLORS.border,
+    borderTopWidth: 1,
+    padding: SPACING.m
+  },
   selectedCategory: {
     backgroundColor: COLORS.badgeBg,
     borderColor: COLORS.primary,
