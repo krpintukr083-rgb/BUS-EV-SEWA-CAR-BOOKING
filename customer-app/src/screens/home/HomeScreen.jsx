@@ -16,7 +16,7 @@ import { useBooking } from '../../context/BookingContext';
 import { customerService } from '../../services/customerService';
 import StatusBadge from '../../components/StatusBadge';
 import { COLORS } from '../../constants/colors';
-import { getFullImageUrl } from '../../utils/imageUrl';
+import { getFullImageUrl, getPrimaryVehicleImage } from '../../utils/imageUrl';
 
 const HomeScreen = ({ navigation }) => {
   const { user } = useCustomerAuth();
@@ -419,9 +419,7 @@ const HomeScreen = ({ navigation }) => {
                 >
                   <Image
                     source={{
-                      uri: bus.vehicleImages && bus.vehicleImages.length > 0
-                        ? bus.vehicleImages[0]
-                        : 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80'
+                      uri: getPrimaryVehicleImage(bus, 'Bus')
                     }}
                     style={styles.homeBusImage}
                   />

@@ -1,0 +1,1 @@
+const express = require('express'); const app = express(); app.use(express.json()); app.post('/', (req, res) => res.json(req.body)); app.use((err, req, res, next) => res.status(400).json({ message: err.message })); app.listen(3000, () => console.log('started'));

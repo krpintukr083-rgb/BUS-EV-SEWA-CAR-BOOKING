@@ -469,41 +469,47 @@ const VehicleManagement = () => {
                     <tr key={v._id}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          {v.vehicleImages && v.vehicleImages.length > 0 ? (
-                            <img
-                              src={getImageUrl(v.vehicleImages[0])}
-                              alt={v.vehicleName}
-                              style={{
-                                width: '54px',
-                                height: '42px',
-                                borderRadius: '6px',
-                                objectFit: 'cover',
-                                border: '1px solid #e2e8f0',
-                                flexShrink: 0
-                              }}
-                              onError={e => {
-                                e.target.onerror = null;
-                                e.target.src = 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=100';
-                              }}
-                            />
-                          ) : (
-                            <div
-                              style={{
-                                width: '54px',
-                                height: '42px',
-                                borderRadius: '6px',
-                                backgroundColor: isThirdParty ? '#fff7ed' : '#f1f5f9',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                color: isThirdParty ? '#ea580c' : '#94a3b8',
-                                flexShrink: 0,
-                                border: '1px solid #e2e8f0'
-                              }}
-                            >
-                              <Truck size={20} />
-                            </div>
-                          )}
+                          {(() => {
+                            const primaryImage = Array.isArray(v.vehicleImages) && v.vehicleImages.length > 0 
+                              ? v.vehicleImages[0] 
+                              : (typeof v.vehicleImages === 'string' ? v.vehicleImages : null);
+
+                            return primaryImage ? (
+                              <img
+                                src={getImageUrl(primaryImage)}
+                                alt={v.vehicleName}
+                                style={{
+                                  width: '54px',
+                                  height: '42px',
+                                  borderRadius: '6px',
+                                  objectFit: 'cover',
+                                  border: '1px solid #e2e8f0',
+                                  flexShrink: 0
+                                }}
+                                onError={e => {
+                                  e.target.onerror = null;
+                                  e.target.src = 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=100';
+                                }}
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  width: '54px',
+                                  height: '42px',
+                                  borderRadius: '6px',
+                                  backgroundColor: isThirdParty ? '#fff7ed' : '#f1f5f9',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: isThirdParty ? '#ea580c' : '#94a3b8',
+                                  flexShrink: 0,
+                                  border: '1px solid #e2e8f0'
+                                }}
+                              >
+                                <Truck size={20} />
+                              </div>
+                            );
+                          })()}
                           <div>
                             <strong style={{ color: '#0f172a', fontSize: '0.95rem' }}>{v.vehicleName}</strong>
                             <div style={{ fontWeight: '700', color: isThirdParty ? '#ea580c' : '#1d4ed8', fontSize: '0.85rem' }}>
