@@ -5,6 +5,22 @@ import { clearDriverNotificationCache, registerPushTokenWithBackend } from '../s
 
 const AuthContext = createContext();
 
+const parseStoredJson = (value, fallback = null) => {
+  if (value === null || value === undefined || value === '' || value === 'null' || value === 'undefined') {
+    return fallback;
+  }
+
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [driver, setDriver] = useState(null);
@@ -24,12 +40,12 @@ export const AuthProvider = ({ children }) => {
 
       if (storedToken && storedUser) {
         setToken(storedToken);
-        const parsedUser = JSON.parse(storedUser);
+        const parsedUser = parseStoredJson(storedUser);
         setUser(parsedUser);
         if (storedDriver) {
-          const parsedDriver = JSON.parse(storedDriver);
+          const parsedDriver = parseStoredJson(storedDriver);
           setDriver(parsedDriver);
-          setIsOnline(Boolean(parsedDriver.isOnline));
+          setIsOnline(Boolean(parsedDriver?.isOnline));
         }
         // Fetch fresh profile from backend
         fetchFreshProfile();

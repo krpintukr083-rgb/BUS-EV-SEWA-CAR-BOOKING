@@ -122,19 +122,27 @@ export default function VehicleSubmissionScreen() {
 
     setBusy(true);
     try {
-      await driverService.registerVehicle({
-        ...form,
+      const payload = {
+        vehicleNumber: form.vehicleNumber.trim(),
+        vehicleName: form.vehicleName,
         vehicleType: category,
         vehicleSource,
+        vehicleModel: form.vehicleModel,
+        vehicleCategory: form.vehicleCategory,
+        fuelType: form.fuelType,
+        acType: form.acType,
         seatingCapacity: form.seatingCapacity ? Number(form.seatingCapacity) : undefined,
-        hireDetails: vehicleSource === 'THIRD_PARTY'
-          ? { hireAmount: Number(form.hireAmount) || 0 }
-          : undefined,
         route: {
           origin: form.origin.trim(),
           destination: form.destination.trim()
         }
-      });
+      };
+
+      if (vehicleSource === 'THIRD_PARTY') {
+        payload.hireDetails = { hireAmount: Number(form.hireAmount) || 0 };
+      }
+
+      await driverService.registerVehicle(payload);
 
       const imageData = new FormData();
       imageData.append('vehicleImages', photos.front);
