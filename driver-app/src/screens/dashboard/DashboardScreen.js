@@ -287,7 +287,7 @@ const DashboardScreen = ({ navigation }) => {
             <Ionicons name="bus" size={24} color={COLORS.warning} />
             <Text style={styles.menuItemText}>Bus Confirm</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('VehicleSubmission')}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate(hasVehicle ? 'VehicleDetails' : 'VehicleSubmission')}>
             <Ionicons name="bus-outline" size={24} color={COLORS.primaryLight} />
             <Text style={styles.menuItemText}>{hasVehicle ? 'My Vehicle / Update Vehicle' : 'Register Vehicle'}</Text>
             <Text style={styles.menuItemSub}>

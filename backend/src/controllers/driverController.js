@@ -143,7 +143,10 @@ exports.getDriverDashboard = async (req, res, next) => {
     const driver = req.driver;
     let assignedVehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
     if (!assignedVehicleId) {
-      const vByDriver = await Vehicle.findOne({ assignedDriver: driver._id }).select('_id').lean();
+      let vByDriver = await Vehicle.findOne({ assignedDriver: driver._id, vehicleStatus: 'Active' }).select('_id').lean();
+      if (!vByDriver) {
+        vByDriver = await Vehicle.findOne({ assignedDriver: driver._id }).sort({ createdAt: -1 }).select('_id').lean();
+      }
       if (vByDriver) assignedVehicleId = vByDriver._id;
     }
 
@@ -533,7 +536,10 @@ exports.getAssignedVehicle = async (req, res, next) => {
     const driver = req.driver;
     let assignedVehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
     if (!assignedVehicleId) {
-      const vByDriver = await Vehicle.findOne({ assignedDriver: driver._id }).select('_id').lean();
+      let vByDriver = await Vehicle.findOne({ assignedDriver: driver._id, vehicleStatus: 'Active' }).select('_id').lean();
+      if (!vByDriver) {
+        vByDriver = await Vehicle.findOne({ assignedDriver: driver._id }).sort({ createdAt: -1 }).select('_id').lean();
+      }
       if (vByDriver) assignedVehicleId = vByDriver._id;
     }
 
