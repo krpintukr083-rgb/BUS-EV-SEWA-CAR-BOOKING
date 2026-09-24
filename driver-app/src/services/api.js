@@ -2,6 +2,14 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getDefaultBaseUrl, sanitizeApiUrl, CANDIDATE_URLS } from '../constants/api';
 
+const parseApiResponse = (data) => {
+  if (data === null || data === undefined || typeof data !== 'string' || data === '') {
+    return data;
+  }
+
+  return JSON.parse(data);
+};
+
 /**
  * Retrieves custom server URL saved in storage
  */
@@ -69,7 +77,8 @@ const apiClient = axios.create({
     'Bypass-Tunnel-Reminder': 'true',
     'ngrok-skip-browser-warning': 'true',
     'User-Agent': 'TravelSewaDriverApp/1.0'
-  }
+  },
+  transformResponse: [parseApiResponse]
 });
 
 // Dynamic Request Interceptor: Resolves active server URL & injects Bearer JWT
