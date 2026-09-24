@@ -44,7 +44,14 @@ export default function SupportScreen({ navigation }) {
 
   const [expandedFaq, setExpandedFaq] = useState(null);
   const [subject, setSubject] = useState('');
-  const [category, setCategory] = useState('PAYMENT');
+  const CATEGORIES = [
+    { label: 'Payment', value: 'Payment Issue' },
+    { label: 'KYC', value: 'KYC/Account' },
+    { label: 'Trip', value: 'Customer Issue' },
+    { label: 'Technical', value: 'Vehicle Issue' }
+  ];
+
+  const [category, setCategory] = useState(CATEGORIES[0].value);
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -141,14 +148,14 @@ export default function SupportScreen({ navigation }) {
 
           <Text style={styles.inputLabel}>Category</Text>
           <View style={styles.categoryRow}>
-            {['PAYMENT', 'KYC', 'TRIP', 'TECHNICAL'].map((cat) => (
+            {CATEGORIES.map((cat) => (
               <TouchableOpacity
-                key={cat}
-                style={[styles.catBtn, category === cat && styles.catBtnActive]}
-                onPress={() => setCategory(cat)}
+                key={cat.value}
+                style={[styles.catBtn, category === cat.value && styles.catBtnActive]}
+                onPress={() => setCategory(cat.value)}
               >
-                <Text style={[styles.catBtnText, category === cat && styles.catBtnTextActive]}>
-                  {cat}
+                <Text style={[styles.catBtnText, category === cat.value && styles.catBtnTextActive]}>
+                  {cat.label}
                 </Text>
               </TouchableOpacity>
             ))}
