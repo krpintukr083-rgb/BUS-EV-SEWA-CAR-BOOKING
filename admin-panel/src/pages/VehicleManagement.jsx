@@ -9,8 +9,23 @@ const SERVER_URL = API_BASE_URL.replace(/\/api\/?$/, '');
 const getImageUrl = (url) => {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  if (url.startsWith('/')) return `${SERVER_URL}${url}`;
-  return `${SERVER_URL}/${url}`;
+  const backendUrl = 'https://bus-ev-sewa-car-booking.onrender.com';
+  if (url.startsWith('/')) return `${backendUrl}${url}`;
+  return `${backendUrl}/${url}`;
+};
+
+const getVehicleImagesList = (images) => {
+  if (!images) return [];
+  if (Array.isArray(images)) return images;
+  if (typeof images === 'string') {
+    try {
+      const parsed = JSON.parse(images);
+      return Array.isArray(parsed) ? parsed : [images];
+    } catch (e) {
+      return [images];
+    }
+  }
+  return [];
 };
 
 const VehicleManagement = () => {
@@ -470,9 +485,8 @@ const VehicleManagement = () => {
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                           {(() => {
-                            const primaryImage = Array.isArray(v.vehicleImages) && v.vehicleImages.length > 0 
-                              ? v.vehicleImages[0] 
-                              : (typeof v.vehicleImages === 'string' ? v.vehicleImages : null);
+                            const imagesList = getVehicleImagesList(v.vehicleImages);
+                            const primaryImage = imagesList.length > 0 ? imagesList[0] : null;
 
                             return primaryImage ? (
                               <img
@@ -485,10 +499,6 @@ const VehicleManagement = () => {
                                   objectFit: 'cover',
                                   border: '1px solid #e2e8f0',
                                   flexShrink: 0
-                                }}
-                                onError={e => {
-                                  e.target.onerror = null;
-                                  e.target.src = 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=100';
                                 }}
                               />
                             ) : (
@@ -845,7 +855,9 @@ const VehicleManagement = () => {
                 </button>
               </div>
 
-              {selectedVehicle.vehicleImages && selectedVehicle.vehicleImages.length > 0 ? (
+              {(() => {
+                const photosList = getVehicleImagesList(selectedVehicle.vehicleImages);
+                return photosList.length > 0 ? (
                 <div>
                   <div
                     style={{
@@ -858,7 +870,7 @@ const VehicleManagement = () => {
                     }}
                   >
                     <img
-                      src={getImageUrl(selectedVehicle.vehicleImages[activeGalleryIndex] || selectedVehicle.vehicleImages[0])}
+                      src={getImageUrl(photosList[activeGalleryIndex] || photosList[0])}
                       alt={activeGalleryIndex === 0 ? 'Front Vehicle Photo' : activeGalleryIndex === 1 ? 'Back Vehicle Photo' : activeGalleryIndex === 2 ? 'Left Vehicle Photo' : activeGalleryIndex === 3 ? 'Right Vehicle Photo' : `Vehicle Photo ${activeGalleryIndex + 1}`}
                       style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                     />
@@ -884,9 +896,9 @@ const VehicleManagement = () => {
                     )}
                   </div>
 
-                  {selectedVehicle.vehicleImages.length > 1 && (
+                  {photosList.length > 1 && (
                     <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px' }}>
-                      {selectedVehicle.vehicleImages.map((imgUrl, idx) => (
+                      {photosList.map((imgUrl, idx) => (
                         <div
                           key={idx}
                           onClick={() => setActiveGalleryIndex(idx)}
@@ -916,7 +928,8 @@ const VehicleManagement = () => {
                   <ImageIcon size={28} color="#94a3b8" style={{ margin: '0 auto 8px', display: 'block' }} />
                   No photos uploaded for this vehicle yet.
                 </div>
-              )}
+              );
+              })()}
             </div>
 
             {/* Third Party Hire Breakdown if applicable */}

@@ -659,6 +659,13 @@ exports.getVehicles = async (req, res, next) => {
     if (source && source !== 'All') query.vehicleSource = source;
 
     const vehicles = await Vehicle.find(query).populate('assignedDriver').sort({ createdAt: -1 });
+    
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+
     res.json({ success: true, count: vehicles.length, data: vehicles });
   } catch (error) {
     next(error);
