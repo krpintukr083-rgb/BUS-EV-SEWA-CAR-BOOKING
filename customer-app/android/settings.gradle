@@ -44,7 +44,7 @@ if (getRNMinorVersion() >= 75) {
   }
 }
 
-rootProject.name = 'TravelEase - Customer Booking App'
+rootProject.name = 'TravelSewa'
 
 dependencyResolutionManagement {
   versionCatalogs {
