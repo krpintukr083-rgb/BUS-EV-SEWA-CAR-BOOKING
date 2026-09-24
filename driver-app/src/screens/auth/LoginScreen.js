@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -10,21 +10,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Modal,
   Image
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../state/AuthContext';
 import { useLanguage } from '../../state/LanguageContext';
-import {
-  getEffectiveBaseUrl,
-  setCustomServerUrl,
-  resetServerUrl,
-  testServerConnection,
-  getUrlEnvironment
-} from '../../services/api';
-import { PRODUCTION_RENDER_URL, CLOUDFLARE_TUNNEL_URL, sanitizeApiUrl } from '../../constants/api';
 
 const LoginScreen = ({ navigation }) => {
   const { login } = useAuth();
@@ -34,74 +25,6 @@ const LoginScreen = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-
-  // Server Settings Modal State
-  const [serverModalVisible, setServerModalVisible] = useState(false);
-  const [currentBaseUrl, setCurrentBaseUrl] = useState('');
-  const [customInputUrl, setCustomInputUrl] = useState('');
-  const [testStatus, setTestStatus] = useState(null);
-  const [testingConnection, setTestingConnection] = useState(false);
-
-  useEffect(() => {
-    loadEffectiveUrl();
-  }, []);
-
-  const loadEffectiveUrl = async () => {
-    try {
-      const url = await getEffectiveBaseUrl();
-      setCurrentBaseUrl(url);
-      setCustomInputUrl(url);
-    } catch (e) {
-      // ignore
-    }
-  };
-
-  const handleTestConnection = async (targetUrl = null) => {
-    setTestingConnection(true);
-    setTestStatus(null);
-    try {
-      const result = await testServerConnection(targetUrl || customInputUrl || currentBaseUrl);
-      setTestStatus(result);
-    } catch (err) {
-      setTestStatus({
-        success: false,
-        error: err.message,
-        environment: getUrlEnvironment(targetUrl || customInputUrl || currentBaseUrl)
-      });
-    } finally {
-      setTestingConnection(false);
-    }
-  };
-
-  const handleSaveCustomServer = async () => {
-    if (!customInputUrl.trim()) {
-      Alert.alert('Empty URL', 'Please enter a valid server URL or click Reset to Production.');
-      return;
-    }
-    const cleanUrl = sanitizeApiUrl(customInputUrl.trim());
-    await setCustomServerUrl(cleanUrl);
-    await loadEffectiveUrl();
-    Alert.alert('Server Saved', `Driver Backend API URL updated to:\n${cleanUrl}`);
-    setServerModalVisible(false);
-  };
-
-  const handleResetToProduction = async () => {
-    const prodUrl = sanitizeApiUrl(PRODUCTION_RENDER_URL);
-    await setCustomServerUrl(prodUrl);
-    await loadEffectiveUrl();
-    setTestStatus(null);
-    Alert.alert('Reset Complete', `Backend API URL set to Production Cloud:\n${prodUrl}`);
-    setServerModalVisible(false);
-  };
-
-  const handleResetToTunnel = async () => {
-    const tunnelUrl = sanitizeApiUrl(CLOUDFLARE_TUNNEL_URL);
-    await setCustomServerUrl(tunnelUrl);
-    await loadEffectiveUrl();
-    setTestStatus(null);
-    Alert.alert('Tunnel Active', `Backend API URL set to Development Tunnel:\n${tunnelUrl}`);
-    setServerModalVisible(false);
-  };
 
   const handleLogin = async () => {
     if (!identifier || !password) {
@@ -117,16 +40,7 @@ const LoginScreen = ({ navigation }) => {
       Alert.alert(
         'Login Failed',
         res.message || 'Invalid credentials. Please verify your login details.',
-        [
-          { text: 'OK' },
-          {
-            text: 'Server Settings',
-            onPress: () => {
-              setServerModalVisible(true);
-              handleTestConnection();
-            }
-          }
-        ]
+        [{ text: 'OK' }]
       );
     }
   };
@@ -199,21 +113,6 @@ const LoginScreen = ({ navigation }) => {
             )}
           </TouchableOpacity>
 
-          {/* Server Connection Pill */}
-          <TouchableOpacity
-            style={styles.serverPill}
-            onPress={() => {
-              setServerModalVisible(true);
-              handleTestConnection();
-            }}
-          >
-            <Ionicons name="server-outline" size={14} color={COLORS.textMuted} />
-            <Text style={styles.serverPillText} numberOfLines={1}>
-              Server: {currentBaseUrl || 'Live Cloud (Render)'}
-            </Text>
-            <Ionicons name="chevron-forward" size={14} color={COLORS.textMuted} />
-          </TouchableOpacity>
-
           {/* Register Link */}
           <View style={styles.registerRow}>
             <Text style={styles.registerPrompt}>New driver partner? </Text>
@@ -224,111 +123,6 @@ const LoginScreen = ({ navigation }) => {
         </View>
       </ScrollView>
 
-      {/* Backend Server Settings Modal */}
-      <Modal
-        visible={serverModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setServerModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ionicons name="server" size={20} color={COLORS.primary} />
-                <Text style={styles.modalTitle}>Backend Server Settings</Text>
-              </View>
-              <TouchableOpacity onPress={() => setServerModalVisible(false)}>
-                <Ionicons name="close" size={24} color="#64748b" />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={styles.modalSub}>
-              Driver App connects to public HTTPS cloud backend or verified development tunnel.
-            </Text>
-
-            <Text style={styles.fieldLabel}>Active Server URL</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={customInputUrl}
-              onChangeText={setCustomInputUrl}
-              placeholder="https://archived-updating-louisiana-program.trycloudflare.com/api"
-              placeholderTextColor="#94a3b8"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-
-            {/* Connection Information Card */}
-            {testStatus && (
-              <View
-                style={[
-                  styles.statusCard,
-                  testStatus.success ? styles.statusCardSuccess : styles.statusCardError
-                ]}
-              >
-                <Ionicons
-                  name={testStatus.success ? 'checkmark-circle' : 'alert-circle'}
-                  size={20}
-                  color={testStatus.success ? '#16a34a' : '#dc2626'}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={[
-                      styles.statusCardTitle,
-                      { color: testStatus.success ? '#15803d' : '#b91c1c' }
-                    ]}
-                  >
-                    Connection: {testStatus.success ? 'CONNECTED' : 'FAILED'}
-                  </Text>
-                  <Text style={styles.statusMetaText}>
-                    Environment: {testStatus.environment || getUrlEnvironment(testStatus.url)}
-                  </Text>
-                  <Text style={styles.statusMetaText}>
-                    Latency: {testStatus.latency} ms
-                  </Text>
-                  {!testStatus.success && (
-                    <Text style={[styles.statusMetaText, { color: '#b91c1c' }]}>
-                      Error: {testStatus.error}
-                    </Text>
-                  )}
-                </View>
-              </View>
-            )}
-
-            <TouchableOpacity
-              style={styles.testBtn}
-              onPress={() => handleTestConnection()}
-              disabled={testingConnection}
-            >
-              {testingConnection ? (
-                <ActivityIndicator size="small" color="#ffffff" />
-              ) : (
-                <>
-                  <Ionicons name="pulse-outline" size={16} color="#ffffff" />
-                  <Text style={styles.testBtnText}>Test Server Connection</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            <View style={styles.quickSelectRow}>
-              <TouchableOpacity style={styles.quickBtn} onPress={handleResetToProduction}>
-                <Ionicons name="cloud-done-outline" size={14} color="#0369a1" />
-                <Text style={styles.quickBtnText}>Production</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.quickBtn} onPress={handleResetToTunnel}>
-                <Ionicons name="shield-checkmark-outline" size={14} color="#0369a1" />
-                <Text style={styles.quickBtnText}>Cloudflare Tunnel</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.modalActionRow}>
-              <TouchableOpacity style={styles.saveBtn} onPress={handleSaveCustomServer}>
-                <Text style={styles.saveBtnText}>Save URL</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </KeyboardAvoidingView>
   );
 };

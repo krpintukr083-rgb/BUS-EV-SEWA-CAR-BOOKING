@@ -45,10 +45,6 @@ export const resetServerUrl = async () => {
  * Returns current effective base URL
  */
 export const getEffectiveBaseUrl = async () => {
-  const custom = await getCustomServerUrl();
-  if (custom) {
-    return sanitizeApiUrl(custom);
-  }
   return getDefaultBaseUrl();
 };
 

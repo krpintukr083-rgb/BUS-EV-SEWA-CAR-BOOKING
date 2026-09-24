@@ -251,6 +251,17 @@ const DashboardScreen = ({ navigation }) => {
             <Text style={styles.vehicleSub}>
               {dashboardData?.assignedVehicle?.vehicleNumber || driver?.assignedVehicle?.vehicleNumber || 'Vehicle #'} • {dashboardData?.assignedVehicle?.vehicleType || 'Transport'}
             </Text>
+            <Text style={styles.vehicleRoute}>
+              {dashboardData?.assignedVehicle?.route?.origin || driver?.assignedVehicle?.route?.origin || 'Route not assigned'}
+              {(dashboardData?.assignedVehicle?.route?.origin || driver?.assignedVehicle?.route?.origin) &&
+                (dashboardData?.assignedVehicle?.route?.destination || driver?.assignedVehicle?.route?.destination)
+                ? ' → '
+                : ''}
+              {dashboardData?.assignedVehicle?.route?.destination || driver?.assignedVehicle?.route?.destination || ''}
+            </Text>
+            <Text style={styles.vehicleStatus}>
+              Driver: {dashboardData?.driver?.name || driver?.name || 'Driver'} • Status: {dashboardData?.assignedVehicle?.vehicleStatus || driver?.assignedVehicle?.vehicleStatus || 'Inactive'}
+            </Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
         </TouchableOpacity>
@@ -506,6 +517,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textMuted,
     marginTop: 2
+  },
+  vehicleRoute: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+    marginTop: 5
+  },
+  vehicleStatus: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    marginTop: 3
   },
   sectionHeader: {
     fontSize: 13,
