@@ -10,6 +10,7 @@ const {
   getDriverDocuments,
   uploadDriverDocument,
   uploadDriverVehicleImages,
+  updateVehicleFare,
   getDriverStatus,
   updateDriverStatus,
   updateLanguage,
@@ -55,6 +56,7 @@ router.get('/vehicle', getAssignedVehicle);
 // Driver-owned submissions; all new vehicles and schedules start Pending.
 router.post('/vehicles', registerVehicle);
 router.post('/vehicle/register', registerVehicle);
+router.put('/vehicle/fare', updateVehicleFare);
 router.get('/vehicles', getDriverVehicles);
 router.post('/schedules', createSchedule);
 router.post('/schedule', createSchedule);
@@ -63,7 +65,7 @@ router.get('/schedules', getDriverSchedules);
 // 2. Documents & KYC
 router.get('/documents', getDriverDocuments);
 router.post('/documents', handleSingleUpload(), uploadDriverDocument);
-router.post('/vehicle-images', handleMultipleUpload(2), uploadDriverVehicleImages);
+router.post('/vehicle-images', handleMultipleUpload(4), uploadDriverVehicleImages);
 
 // 3. Online/Offline Status Toggle
 router.get('/status', getDriverStatus);

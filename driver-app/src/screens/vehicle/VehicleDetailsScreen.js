@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  TextInput,
+  Alert,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -21,6 +23,8 @@ export default function VehicleDetailsScreen({ navigation }) {
   const [vehicle, setVehicle] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [fare, setFare] = useState('');
+  const [savingFare, setSavingFare] = useState(false);
 
   useEffect(() => {
     fetchVehicle();
@@ -32,9 +36,11 @@ export default function VehicleDetailsScreen({ navigation }) {
       // axios wraps the response: actual JSON is at res.data
       if (res?.data?.success && res.data.data) {
         setVehicle(res.data.data);
+        setFare(res.data.data.fareRate ? res.data.data.fareRate.toString() : '');
       } else {
         // null => shows "No vehicle assigned" empty state
         setVehicle(null);
+        setFare('');
       }
     } catch (err) {
       console.log('Error fetching vehicle:', err?.response?.data || err.message);
@@ -48,6 +54,27 @@ export default function VehicleDetailsScreen({ navigation }) {
   const onRefresh = () => {
     setRefreshing(true);
     fetchVehicle();
+  };
+
+  const handleSaveFare = async () => {
+    if (!fare || isNaN(fare) || Number(fare) <= 0) {
+      Alert.alert('Invalid Fare', 'Please enter a valid numeric fare amount greater than 0.');
+      return;
+    }
+    setSavingFare(true);
+    try {
+      const res = await driverService.updateVehicleFare(fare);
+      if (res.data?.success) {
+        Alert.alert('Success', 'Vehicle fare updated successfully');
+        fetchVehicle();
+      } else {
+        Alert.alert('Error', res.data?.message || 'Failed to update fare');
+      }
+    } catch (err) {
+      Alert.alert('Error', err?.response?.data?.message || 'Failed to update fare');
+    } finally {
+      setSavingFare(false);
+    }
   };
 
   return (
@@ -197,6 +224,33 @@ export default function VehicleDetailsScreen({ navigation }) {
                 </View>
               </View>
             )}
+
+            {/* Fare / Price Editing Card */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Fare / Price *</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Text style={{ fontSize: 20, color: COLORS.textPrimary, fontWeight: '700' }}>₹</Text>
+                <TextInput
+                  style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                  value={fare}
+                  onChangeText={setFare}
+                  keyboardType="numeric"
+                  placeholder="Enter base fare"
+                  placeholderTextColor={COLORS.textMuted}
+                />
+              </View>
+              <TouchableOpacity 
+                style={[styles.button, { marginTop: 15, paddingVertical: 12 }]} 
+                onPress={handleSaveFare}
+                disabled={savingFare}
+              >
+                {savingFare ? (
+                  <ActivityIndicator color={COLORS.white} size="small" />
+                ) : (
+                  <Text style={styles.buttonText}>Save / Update</Text>
+                )}
+              </TouchableOpacity>
+            </View>
 
             {/* Vehicle Type Badge Card */}
             <View style={styles.card}>

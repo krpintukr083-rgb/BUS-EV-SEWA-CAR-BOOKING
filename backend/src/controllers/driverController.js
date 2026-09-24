@@ -935,17 +935,17 @@ exports.uploadDriverVehicleImages = async (req, res, next) => {
     // req.files is populated by handleMultipleUpload / upload.any()
     // Field names: vehicleImages (sent as array from driver app)
     const files = req.files || [];
-    if (files.length < 2) {
-      return res.status(400).json({ success: false, message: 'Both front and back vehicle images are required' });
+    if (files.length !== 4) {
+      return res.status(400).json({ success: false, message: 'Exactly 4 vehicle images (Front, Back, Left, Right) are required' });
     }
 
-    // Map uploaded files to URLs — first file = front, second = back
     const frontUrl = `/uploads/${files[0].filename}`;
     const backUrl  = `/uploads/${files[1].filename}`;
+    const leftUrl  = `/uploads/${files[2].filename}`;
+    const rightUrl = `/uploads/${files[3].filename}`;
 
-    // Preserve any additional existing images beyond index 1, then set front[0] back[1]
-    const existingExtra = (vehicle.vehicleImages || []).slice(2);
-    vehicle.vehicleImages = [frontUrl, backUrl, ...existingExtra];
+    // Replace all existing images with the new 4 exactly
+    vehicle.vehicleImages = [frontUrl, backUrl, leftUrl, rightUrl];
 
     await vehicle.save();
 
@@ -953,9 +953,7 @@ exports.uploadDriverVehicleImages = async (req, res, next) => {
       success: true,
       message: 'Vehicle images uploaded successfully',
       data: {
-        vehicleImages: vehicle.vehicleImages,
-        frontImage: frontUrl,
-        backImage: backUrl
+        vehicleImages: vehicle.vehicleImages
       }
     });
   } catch (error) {
@@ -2412,6 +2410,34 @@ exports.registerPushToken = async (req, res, next) => {
       success: true,
       message: 'Push token registered successfully',
       data: { expoPushToken: finalExpoToken, fcmToken: finalFcmToken }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update Driver Vehicle Fare
+// @route   PUT /api/driver/vehicle/fare
+// @access  Private (Driver Only)
+exports.updateVehicleFare = async (req, res, next) => {
+  try {
+    const { fareRate } = req.body;
+    if (fareRate === undefined || fareRate === null || Number(fareRate) <= 0) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid positive fare amount' });
+    }
+
+    const vehicle = await Vehicle.findOne({ assignedDriver: req.user._id });
+    if (!vehicle) {
+      return res.status(404).json({ success: false, message: 'Assigned vehicle not found or you are not authorized to edit this vehicle' });
+    }
+
+    vehicle.fareRate = Number(fareRate);
+    await vehicle.save();
+
+    res.json({
+      success: true,
+      message: 'Vehicle fare updated successfully',
+      data: vehicle
     });
   } catch (error) {
     next(error);
