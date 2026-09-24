@@ -538,6 +538,42 @@ body { background: var(--bg-light); }
 .data-table th { background: #f8fafc; font-size: .68rem; letter-spacing: .07em; text-transform: uppercase; padding: 12px 14px; }
 .data-table td { padding: 15px 14px; }
 .data-table tr:hover td { background: #f8fbff; }
+.support-table { min-width: 1040px; }
+.support-summary-cell,
+.support-reply-cell {
+  max-width: 220px;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+.support-category,
+.support-subject {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.support-category {
+  color: var(--text-main);
+  font-weight: 600;
+}
+.support-subject {
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+.support-reply-cell { color: var(--text-muted); }
+.support-actions-cell {
+  min-width: 132px;
+  white-space: nowrap;
+}
+.support-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  visibility: visible;
+  opacity: 1;
+  white-space: nowrap;
+}
 .badge { padding: 4px 9px; font-size: .68rem; letter-spacing: .02em; }
 .btn { border-radius: 8px; padding: 8px 14px; }
 .btn-primary { box-shadow: 0 3px 8px rgba(37,99,235,.18); }

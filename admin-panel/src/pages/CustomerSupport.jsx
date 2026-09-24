@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { adminService } from '../services/adminService';
 import StatusBadge from '../components/StatusBadge';
-import { Headphones, Check, Edit, AlertCircle } from 'lucide-react';
+import { Check } from 'lucide-react';
 
 const CustomerSupport = () => {
   const [tickets, setTickets] = useState([]);
@@ -91,17 +91,18 @@ const CustomerSupport = () => {
       {/* Tickets Table */}
       <div className="content-card">
         <div className="table-responsive">
-          <table className="data-table">
+          <table className="data-table support-table">
             <thead>
               <tr>
                 <th>Ticket ID</th>
                 <th>Requester</th>
-                <th>Role</th>
-                <th>Booking Ref</th>
-                <th>Support Grievance / Issue</th>
+                <th>Phone</th>
+                <th>User Type</th>
+                <th>Booking ID</th>
+                <th>Category / Subject</th>
                 <th>Status</th>
-                <th>Resolution Details</th>
-                <th>Action</th>
+                <th>Admin Reply</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -111,25 +112,28 @@ const CustomerSupport = () => {
                     <td style={{ fontWeight: '700', color: '#1d4ed8' }}>{t.ticketId}</td>
                     <td>
                       <div style={{ fontWeight: '600' }}>{t.requesterName}</div>
-                      <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{t.mobileNumber}</div>
                     </td>
+                    <td>{t.mobileNumber || 'N/A'}</td>
                     <td>
                       <span className="badge badge-pending" style={{ textTransform: 'capitalize' }}>
-                        {t.role}
+                        {t.role || 'Unknown'}
                       </span>
                     </td>
                     <td>
                       <span style={{ fontWeight: '600' }}>{t.bookingId || 'N/A'}</span>
                     </td>
-                    <td style={{ fontSize: '0.85rem', color: '#334155', maxWidth: '280px' }}>{t.supportIssue}</td>
+                    <td className="support-summary-cell">
+                      <div className="support-category">{t.category || 'General'}</div>
+                      <div className="support-subject">{t.supportInformation || 'Support request'}</div>
+                    </td>
                     <td>
                       <StatusBadge status={t.status} />
                     </td>
-                    <td style={{ fontSize: '0.8rem', color: '#64748b', maxWidth: '200px' }}>
-                      {t.resolutionNotes || t.supportInformation}
+                    <td className="support-reply-cell">
+                      {t.resolutionNotes || 'Not replied'}
                     </td>
-                    <td>
-                      <button type="button" className="btn btn-primary btn-sm" style={{ whiteSpace: 'nowrap' }} onClick={() => handleOpenEdit(t)}>
+                    <td className="support-actions-cell">
+                      <button type="button" className="btn btn-primary btn-sm support-action-button" onClick={() => handleOpenEdit(t)}>
                         View / Reply
                       </button>
                     </td>
@@ -137,7 +141,7 @@ const CustomerSupport = () => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
+                  <td colSpan="9" style={{ textAlign: 'center', padding: '24px', color: '#64748b' }}>
                     No support tickets logged.
                   </td>
                 </tr>
@@ -186,7 +190,7 @@ const CustomerSupport = () => {
                 </div>
                 <div>
                   <label style={{ fontSize: '0.75rem', color: '#64748b' }}>Subject / Info</label>
-                  <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{selectedTicket.supportInformation}</div>
+                  <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{selectedTicket.supportInformation || 'General support request'}</div>
                 </div>
                 <div>
                   <label style={{ fontSize: '0.75rem', color: '#64748b' }}>Created Date</label>
