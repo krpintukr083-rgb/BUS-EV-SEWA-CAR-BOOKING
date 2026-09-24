@@ -15,6 +15,7 @@ const DashboardScreen = ({ navigation }) => {
 
   const [dashboardData, setDashboardData] = useState(null);
   const [incomingRequests, setIncomingRequests] = useState([]);
+  const [submittedVehicles, setSubmittedVehicles] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const isPendingVerification = ['Pending Verification', 'Pending', 'Rejected'].includes(driver?.driverStatus);
@@ -36,9 +37,10 @@ const DashboardScreen = ({ navigation }) => {
 
   const loadDashboard = async () => {
     try {
-      const [dashRes, reqRes] = await Promise.all([
+      const [dashRes, reqRes, vehicleRes] = await Promise.all([
         driverService.getDashboard().catch(() => ({ data: { data: null } })),
-        driverService.getBookingRequests().catch(() => ({ data: { data: [] } }))
+        driverService.getBookingRequests().catch(() => ({ data: { data: [] } })),
+        driverService.getMyVehicles().catch(() => ({ data: { data: [] } }))
       ]);
 
       if (dashRes.data?.data) {
@@ -47,6 +49,9 @@ const DashboardScreen = ({ navigation }) => {
       if (reqRes.data?.data) {
         setIncomingRequests(reqRes.data.data);
         checkAndNotifyBookingRequests(reqRes.data.data, user?._id || driver?._id);
+      }
+      if (Array.isArray(vehicleRes.data?.data)) {
+        setSubmittedVehicles(vehicleRes.data.data);
       }
     } catch (e) {
       console.warn('Dashboard load error', e);
@@ -71,6 +76,11 @@ const DashboardScreen = ({ navigation }) => {
   const isEV = driver?.assignedType === 'ev' || dashboardData?.assignedVehicle?.vehicleType === 'EV-Sewa';
   const todayEarnings = dashboardData?.paymentAggregate?.todayDriverNet || driver?.walletBalance || 0;
   const completedCount = dashboardData?.completedTripsCount || 0;
+  const hasVehicle = Boolean(
+    submittedVehicles.length ||
+    dashboardData?.assignedVehicle ||
+    driver?.assignedVehicle
+  );
 
   return (
     <View style={styles.container}>
@@ -276,6 +286,13 @@ const DashboardScreen = ({ navigation }) => {
           <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('BusConfirmation')}>
             <Ionicons name="bus" size={24} color={COLORS.warning} />
             <Text style={styles.menuItemText}>Bus Confirm</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('VehicleSubmission')}>
+            <Ionicons name="bus-outline" size={24} color={COLORS.primaryLight} />
+            <Text style={styles.menuItemText}>{hasVehicle ? 'My Vehicle / Update Vehicle' : 'Register Vehicle'}</Text>
+            <Text style={styles.menuItemSub}>
+              {hasVehicle ? 'View or update your vehicle' : 'Register your vehicle for approval'}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('DriverKYC')}>
             <Ionicons name="document-text" size={24} color={COLORS.accent} />
@@ -555,6 +572,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: COLORS.textPrimary
+  },
+  menuItemSub: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    textAlign: 'center'
   }
 });
 
