@@ -1825,6 +1825,11 @@ exports.createNotification = async (req, res, next) => {
 exports.getSupportTickets = async (req, res, next) => {
   try {
     const tickets = await Support.find().sort({ createdAt: -1 });
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
     res.json({ success: true, count: tickets.length, data: tickets });
   } catch (error) {
     next(error);

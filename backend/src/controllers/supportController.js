@@ -46,6 +46,12 @@ exports.getCustomerSupport = async (req, res, next) => {
       mobileNumber: req.user.phone
     }).sort({ createdAt: -1 });
 
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+
     res.json({
       success: true,
       data: {

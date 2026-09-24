@@ -2340,6 +2340,12 @@ exports.getDriverSupport = async (req, res, next) => {
       { q: 'How do I submit withdrawal requests?', a: 'Visit the Wallet screen, enter the withdrawal amount and payout details (Bank, eSewa, or Khalti).' }
     ];
 
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+
     res.json({
       success: true,
       data: {
