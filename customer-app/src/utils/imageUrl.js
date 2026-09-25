@@ -2,10 +2,10 @@ import { BACKEND_TUNNEL_URL, BACKEND_LAN_URL, EMULATOR_URL, getDefaultBaseUrl } 
 import { Platform } from 'react-native';
 
 const DEFAULT_FALLBACKS = {
-  Bus: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&w=800&q=80',
-  'EV-Sewa': 'https://images.unsplash.com/photo-1570125909232-eb263c188f7e?auto=format&fit=crop&w=800&q=80',
-  Car: 'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=800&q=80',
-  Driver: 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?auto=format&fit=crop&w=300&q=80'
+  Bus: '',
+  'EV-Sewa': '',
+  Car: '',
+  Driver: ''
 };
 
 /**

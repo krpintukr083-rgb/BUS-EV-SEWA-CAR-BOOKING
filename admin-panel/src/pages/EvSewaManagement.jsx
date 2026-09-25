@@ -1,17 +1,9 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { adminService } from '../services/adminService';
 import StatusBadge from '../components/StatusBadge';
 import { Zap, MapPin, UserCheck, FileCheck, CheckCircle2, ShieldCheck, Check } from 'lucide-react';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const SERVER_URL = API_BASE_URL.replace(/\/api\/?$/, '');
-
-const getImageUrl = (url) => {
-  if (!url) return '';
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  if (url.startsWith('/')) return `${SERVER_URL}${url}`;
-  return `${SERVER_URL}/${url}`;
-};
+import { getPrimaryVehicleImage } from '../utils/imageUrl';
 
 const EvSewaManagement = () => {
   const [evs, setEvs] = useState([]);
@@ -88,9 +80,9 @@ const EvSewaManagement = () => {
           <div key={ev._id} className="content-card">
             <div className="card-header-flex">
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                {ev.vehicleImages && ev.vehicleImages.length > 0 ? (
+                {getPrimaryVehicleImage(ev.vehicleImages) ? (
                   <img
-                    src={getImageUrl(ev.vehicleImages[0])}
+                    src={getPrimaryVehicleImage(ev.vehicleImages)}
                     alt={ev.vehicleName}
                     style={{
                       width: '64px',

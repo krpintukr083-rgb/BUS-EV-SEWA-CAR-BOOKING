@@ -3,15 +3,7 @@ import { adminService } from '../services/adminService';
 import StatusBadge from '../components/StatusBadge';
 import { Bus, MapPin, Users, Check, Clock, Tag, Percent, Sparkles, Save, AlertCircle, Eye, EyeOff, Trash2 } from 'lucide-react';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-const SERVER_URL = API_BASE_URL.replace(/\/api\/?$/, '');
-
-const getImageUrl = (url) => {
-  if (!url) return '';
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  if (url.startsWith('/')) return `${SERVER_URL}${url}`;
-  return `${SERVER_URL}/${url}`;
-};
+import { getPrimaryVehicleImage } from '../utils/imageUrl';
 
 const BusManagement = () => {
   const [buses, setBuses] = useState([]);
@@ -472,9 +464,9 @@ const BusManagement = () => {
           <div key={bus._id} className="content-card">
             <div className="card-header-flex">
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                {bus.vehicleImages && bus.vehicleImages.length > 0 ? (
+                {getPrimaryVehicleImage(bus.vehicleImages) ? (
                   <img
-                    src={getImageUrl(bus.vehicleImages[0])}
+                    src={getPrimaryVehicleImage(bus.vehicleImages)}
                     alt={bus.vehicleName}
                     style={{
                       width: '64px',
