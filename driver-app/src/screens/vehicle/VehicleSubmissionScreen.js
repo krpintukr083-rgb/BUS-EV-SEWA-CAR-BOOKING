@@ -33,6 +33,7 @@ const EMPTY_FORM = {
   vehicleType: '',
   vehicleModel: '',
   vehicleCategory: '',
+  busType: '',
   fuelType: '',
   seatingCapacity: '',
   acType: '',
@@ -115,6 +116,10 @@ export default function VehicleSubmissionScreen() {
       Alert.alert('Required', 'Vehicle number, origin, and destination are required.');
       return;
     }
+    if (category === 'Bus' && (!form.vehicleName?.trim() || !form.seatingCapacity)) {
+      Alert.alert('Required', 'Bus Name and Seating Capacity are required for buses.');
+      return;
+    }
     if (!photos.front || !photos.back || !photos.left || !photos.right) {
       Alert.alert('Vehicle photos required', 'Upload all 4 vehicle photos (Front, Back, Left, Right).');
       return;
@@ -128,7 +133,7 @@ export default function VehicleSubmissionScreen() {
         vehicleType: category,
         vehicleSource,
         vehicleModel: form.vehicleModel,
-        vehicleCategory: form.vehicleCategory,
+        vehicleCategory: form.vehicleCategory || (category === 'Bus' ? (form.busType || 'Bus') : undefined),
         fuelType: form.fuelType,
         acType: form.acType,
         seatingCapacity: form.seatingCapacity ? Number(form.seatingCapacity) : undefined,
@@ -137,6 +142,10 @@ export default function VehicleSubmissionScreen() {
           destination: form.destination.trim()
         }
       };
+
+      if (category === 'Bus') {
+        payload.busDetails = { busType: form.busType || 'Bus' };
+      }
 
       if (vehicleSource === 'THIRD_PARTY') {
         payload.hireDetails = { hireAmount: Number(form.hireAmount) || 0 };
@@ -193,14 +202,22 @@ export default function VehicleSubmissionScreen() {
         <Text style={styles.dropdownArrow}>▼</Text>
       </TouchableOpacity>
 
-      {[
+      {(category === 'Bus' ? [
+        ['vehicleNumber', 'Vehicle number *'],
+        ['vehicleName', 'Bus Name / Vehicle Name *'],
+        ['vehicleModel', 'Bus Model'],
+        ['busType', 'Bus Type'],
+        ['seatingCapacity', 'Seating Capacity *'],
+        ['fuelType', 'Fuel Type'],
+        ['acType', 'AC / Non-AC']
+      ] : [
         ['vehicleNumber', 'Vehicle number *'],
         ['vehicleName', 'Vehicle name'],
         ['vehicleModel', 'Model'],
         ['fuelType', 'Fuel Type'],
         ['seatingCapacity', 'Seating Capacity'],
         ['acType', 'AC / Non-AC']
-      ].map(([key, label]) => (
+      ]).map(([key, label]) => (
         <TextInput
           key={key}
           value={form[key]}
