@@ -40,6 +40,86 @@ describe('Driver vehicle and schedule approval workflow', () => {
     expect(adminNotice.recipientRole).toBe('admin');
   });
 
+  test('EV registration persists per-vehicle battery percentage and estimated range', async () => {
+    const vehicleNumber = `WF-EV-${Date.now()}`;
+    const response = await request(app)
+      .post('/api/driver/vehicles')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        vehicleNumber,
+        vehicleType: 'EV-Sewa',
+        evDetails: { batteryPercentage: 78, rangeKm: 185 }
+      });
+
+    expect(response.status).toBe(201);
+    expect(response.body.data.evDetails.batteryPercentage).toBe(78);
+    expect(response.body.data.evDetails.rangeKm).toBe(185);
+    expect(response.body.data.vehicleStatus).toBe('Pending');
+    const evId = response.body.data._id;
+
+    const updated = await request(app)
+      .put(`/api/driver/vehicles/${evId}/ev-details`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ batteryPercentage: 64, estimatedRangeKm: 172 });
+    expect(updated.status).toBe(200);
+    expect(updated.body.data.evDetails.batteryPercentage).toBe(64);
+    expect(updated.body.data.evDetails.rangeKm).toBe(172);
+
+    const invalidUpdate = await request(app)
+      .put(`/api/driver/vehicles/${evId}/ev-details`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ batteryPercentage: 101, estimatedRangeKm: 172 });
+    expect(invalidUpdate.status).toBe(400);
+
+    const suffix = Date.now();
+    const otherUser = await User.create({
+      name: 'Other EV Owner',
+      email: `workflow-other-${suffix}@example.com`,
+      phone: `982${String(suffix).slice(-7)}`,
+      password: 'Password123!',
+      role: 'driver',
+      status: 'Active'
+    });
+    const otherDriver = await Driver.create({
+      user: otherUser._id,
+      name: otherUser.name,
+      mobileNumber: otherUser.phone,
+      drivingLicenceNumber: `DL-OTHER-${suffix}`
+    });
+    const otherToken = jwt.sign({ id: otherUser._id, role: 'driver' }, jwtConfig.secret, { expiresIn: '1h' });
+    try {
+      const unauthorizedUpdate = await request(app)
+        .put(`/api/driver/vehicles/${evId}/ev-details`)
+        .set('Authorization', `Bearer ${otherToken}`)
+        .send({ batteryPercentage: 1, estimatedRangeKm: 1 });
+      expect(unauthorizedUpdate.status).toBe(404);
+      expect((await Vehicle.findById(evId)).evDetails.batteryPercentage).toBe(64);
+    } finally {
+      await Driver.findByIdAndDelete(otherDriver._id);
+      await User.findByIdAndDelete(otherUser._id);
+    }
+
+    const invalidBattery = await request(app)
+      .post('/api/driver/vehicles')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        vehicleNumber: `${vehicleNumber}-INVALID`,
+        vehicleType: 'EV-Sewa',
+        evDetails: { batteryPercentage: 101, rangeKm: 185 }
+      });
+    expect(invalidBattery.status).toBe(400);
+
+    const invalidRange = await request(app)
+      .post('/api/driver/vehicles')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        vehicleNumber: `${vehicleNumber}-INVALID-RANGE`,
+        vehicleType: 'EV-Sewa',
+        evDetails: { batteryPercentage: 78, rangeKm: -1 }
+      });
+    expect(invalidRange.status).toBe(400);
+  });
+
   test('admin approval enables schedule submission and customer visibility', async () => {
     const approvedVehicle = await request(app).patch(`/api/admin/vehicles/${vehicleId}/approve`)
       .set('Authorization', `Bearer ${adminToken}`).send();

@@ -6,6 +6,7 @@ import { COLORS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../state/AuthContext';
 import { useLanguage } from '../../state/LanguageContext';
 import { driverService } from '../../services/driverService';
+import { getEffectiveBaseUrl } from '../../services/api';
 import { checkAndNotifyBookingRequests } from '../../services/notificationService';
 import DriverHeader from '../../components/DriverHeader';
 
@@ -16,6 +17,10 @@ const DashboardScreen = ({ navigation }) => {
   const [dashboardData, setDashboardData] = useState(null);
   const [incomingRequests, setIncomingRequests] = useState([]);
   const [submittedVehicles, setSubmittedVehicles] = useState([]);
+  const [vehicleListLoaded, setVehicleListLoaded] = useState(false);
+  const [vehicleListError, setVehicleListError] = useState(false);
+  const [vehicleImageBaseUrl, setVehicleImageBaseUrl] = useState('');
+  const [failedVehicleImages, setFailedVehicleImages] = useState({});
   const [refreshing, setRefreshing] = useState(false);
 
   const isPendingVerification = ['Pending Verification', 'Pending', 'Rejected'].includes(driver?.driverStatus);
@@ -37,10 +42,9 @@ const DashboardScreen = ({ navigation }) => {
 
   const loadDashboard = async () => {
     try {
-      const [dashRes, reqRes, vehicleRes] = await Promise.all([
+      const [dashRes, reqRes] = await Promise.all([
         driverService.getDashboard().catch(() => ({ data: { data: null } })),
-        driverService.getBookingRequests().catch(() => ({ data: { data: [] } })),
-        driverService.getMyVehicles().catch(() => ({ data: { data: [] } }))
+        driverService.getBookingRequests().catch(() => ({ data: { data: [] } }))
       ]);
 
       if (dashRes.data?.data) {
@@ -50,17 +54,35 @@ const DashboardScreen = ({ navigation }) => {
         setIncomingRequests(reqRes.data.data);
         checkAndNotifyBookingRequests(reqRes.data.data, user?._id || driver?._id);
       }
-      if (Array.isArray(vehicleRes.data?.data)) {
-        setSubmittedVehicles(vehicleRes.data.data);
-      }
     } catch (e) {
       console.warn('Dashboard load error', e);
+    }
+  };
+
+  const loadVehicles = async () => {
+    try {
+      const [imageBaseUrl, vehicleRes] = await Promise.all([
+        getEffectiveBaseUrl(),
+        driverService.getMyVehicles()
+      ]);
+      setVehicleImageBaseUrl(imageBaseUrl.replace(/\/api\/?$/, ''));
+      if (Array.isArray(vehicleRes.data?.data)) {
+        setSubmittedVehicles(vehicleRes.data.data);
+        setVehicleListLoaded(true);
+        setVehicleListError(false);
+      } else {
+        setVehicleListError(true);
+      }
+    } catch (e) {
+      console.warn('Vehicle list load error', e);
+      setVehicleListError(true);
     }
   };
 
   useFocusEffect(
     useCallback(() => {
       loadDashboard();
+      loadVehicles();
       const interval = setInterval(loadDashboard, 10000);
       return () => clearInterval(interval);
     }, [isOnline])
@@ -68,7 +90,7 @@ const DashboardScreen = ({ navigation }) => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadDashboard();
+    await Promise.all([loadDashboard(), loadVehicles()]);
     setRefreshing(false);
   };
 
@@ -76,11 +98,13 @@ const DashboardScreen = ({ navigation }) => {
   const isEV = driver?.assignedType === 'ev' || dashboardData?.assignedVehicle?.vehicleType === 'EV-Sewa';
   const todayEarnings = dashboardData?.paymentAggregate?.todayDriverNet || driver?.walletBalance || 0;
   const completedCount = dashboardData?.completedTripsCount || 0;
-  const hasVehicle = Boolean(
-    submittedVehicles.length ||
-    dashboardData?.assignedVehicle ||
-    driver?.assignedVehicle
-  );
+  const getVehicleImageUri = (imagePath) => {
+    if (!imagePath) return null;
+    if (/^https?:\/\//i.test(imagePath)) return imagePath;
+    return vehicleImageBaseUrl
+      ? `${vehicleImageBaseUrl}${imagePath.startsWith('/') ? imagePath : `/${imagePath}`}`
+      : null;
+  };
 
   return (
     <View style={styles.container}>
@@ -247,34 +271,80 @@ const DashboardScreen = ({ navigation }) => {
           </TouchableOpacity>
         )}
 
-        {/* Assigned Vehicle Quick Card */}
-        <TouchableOpacity
-          style={styles.vehicleCard}
-          onPress={() => navigation.navigate('VehicleDetails')}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="car" size={22} color={COLORS.primary} />
-          <View style={styles.vehicleInfo}>
-            <Text style={styles.vehicleTitle}>
-              {dashboardData?.assignedVehicle?.vehicleName || driver?.assignedVehicle?.vehicleName || 'Assigned Vehicle'}
-            </Text>
-            <Text style={styles.vehicleSub}>
-              {dashboardData?.assignedVehicle?.vehicleNumber || driver?.assignedVehicle?.vehicleNumber || 'Vehicle #'} • {dashboardData?.assignedVehicle?.vehicleType || 'Transport'}
-            </Text>
-            <Text style={styles.vehicleRoute}>
-              {dashboardData?.assignedVehicle?.route?.origin || driver?.assignedVehicle?.route?.origin || 'Route not assigned'}
-              {(dashboardData?.assignedVehicle?.route?.origin || driver?.assignedVehicle?.route?.origin) &&
-                (dashboardData?.assignedVehicle?.route?.destination || driver?.assignedVehicle?.route?.destination)
-                ? ' → '
-                : ''}
-              {dashboardData?.assignedVehicle?.route?.destination || driver?.assignedVehicle?.route?.destination || ''}
-            </Text>
-            <Text style={styles.vehicleStatus}>
-              Driver: {dashboardData?.driver?.name || driver?.name || 'Driver'} • Status: {dashboardData?.assignedVehicle?.vehicleStatus || driver?.assignedVehicle?.vehicleStatus || 'Inactive'}
-            </Text>
+        <View style={styles.vehiclesSection}>
+          <View style={styles.vehiclesHeader}>
+            <Text style={styles.sectionHeader}>My Vehicles</Text>
+            <TouchableOpacity
+              style={styles.registerVehicleButton}
+              onPress={() => navigation.navigate('VehicleSubmission')}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add" size={18} color={COLORS.white} />
+              <Text style={styles.registerVehicleText}>Register Vehicle</Text>
+            </TouchableOpacity>
           </View>
-          <Ionicons name="chevron-forward" size={18} color={COLORS.textMuted} />
-        </TouchableOpacity>
+          {!vehicleListLoaded ? (
+            <Text style={styles.vehicleEmptyText}>
+              {vehicleListError ? 'Unable to load vehicles. Pull down to refresh.' : 'Loading vehicles...'}
+            </Text>
+          ) : submittedVehicles.length === 0 ? (
+            <Text style={styles.vehicleEmptyText}>No vehicles registered yet.</Text>
+          ) : submittedVehicles.map(vehicle => {
+            const imageUri = getVehicleImageUri(vehicle.vehicleImages?.[0]);
+            const vehicleIcon = vehicle.vehicleType === 'EV-Sewa'
+              ? 'flash'
+              : vehicle.vehicleType === 'Car' ? 'car' : 'bus';
+            const statusColor = vehicle.vehicleStatus === 'Active'
+              ? COLORS.online
+              : vehicle.vehicleStatus === 'Pending' ? COLORS.warning
+              : vehicle.vehicleStatus === 'Rejected' ? COLORS.danger
+              : COLORS.textMuted;
+
+            return (
+              <View key={vehicle._id} style={styles.vehicleCard}>
+                {imageUri && !failedVehicleImages[imageUri] ? (
+                  <Image
+                    source={{ uri: imageUri }}
+                    style={styles.vehicleImage}
+                    onError={() => setFailedVehicleImages(current => ({ ...current, [imageUri]: true }))}
+                  />
+                ) : (
+                  <View style={styles.vehicleImageFallback}>
+                    <Ionicons name={vehicleIcon} size={30} color={COLORS.primary} />
+                  </View>
+                )}
+                <View style={styles.vehicleInfo}>
+                  <Text style={styles.vehicleTitle} numberOfLines={1}>
+                    {vehicle.vehicleName || vehicle.vehicleModel || vehicle.vehicleNumber}
+                  </Text>
+                  {vehicle.vehicleModel && vehicle.vehicleName !== vehicle.vehicleModel ? (
+                    <Text style={styles.vehicleSub} numberOfLines={1}>{vehicle.vehicleModel}</Text>
+                  ) : null}
+                  <Text style={styles.vehicleSub}>{vehicle.vehicleNumber}</Text>
+                  <Text style={styles.vehicleSub}>
+                    {[vehicle.vehicleCategory, vehicle.vehicleType].filter(Boolean).join(' • ')}
+                  </Text>
+                  <Text style={styles.vehicleRoute}>
+                    {vehicle.route?.origin || 'Route not set'}
+                    {vehicle.route?.origin && vehicle.route?.destination ? ' → ' : ''}
+                    {vehicle.route?.destination || ''}
+                  </Text>
+                  <Text style={[styles.vehicleStatus, { color: statusColor }]}>
+                    Status: {vehicle.vehicleStatus}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.viewVehicleButton}
+                    onPress={() => navigation.navigate('VehicleDetails', { vehicleId: vehicle._id })}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.viewVehicleText}>View Vehicle</Text>
+                    <Ionicons name="chevron-forward" size={16} color={COLORS.primaryLight} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })}
+        </View>
 
         {/* Quick Menu Actions Grid */}
         <Text style={styles.sectionHeader}>Quick Operations</Text>
@@ -287,12 +357,10 @@ const DashboardScreen = ({ navigation }) => {
             <Ionicons name="bus" size={24} color={COLORS.warning} />
             <Text style={styles.menuItemText}>Bus Confirm</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate(hasVehicle ? 'VehicleDetails' : 'VehicleSubmission')}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('VehicleSubmission')}>
             <Ionicons name="bus-outline" size={24} color={COLORS.primaryLight} />
-            <Text style={styles.menuItemText}>{hasVehicle ? 'My Vehicle' : 'Register Vehicle'}</Text>
-            <Text style={styles.menuItemSub}>
-              {hasVehicle ? 'View your vehicle' : 'Register your vehicle'}
-            </Text>
+            <Text style={styles.menuItemText}>Register Vehicle</Text>
+            <Text style={styles.menuItemSub}>Add another vehicle</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('CreateSchedule')}>
             <Ionicons name="calendar" size={24} color={COLORS.accent} />
@@ -523,14 +591,57 @@ const styles = StyleSheet.create({
   },
   vehicleCard: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     backgroundColor: COLORS.surface,
     padding: SPACING.md,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.md,
     gap: 12
+  },
+  vehiclesSection: {
+    marginBottom: SPACING.md
+  },
+  vehiclesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.sm
+  },
+  registerVehicleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    gap: 3
+  },
+  registerVehicleText: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  vehicleImage: {
+    width: 76,
+    height: 76,
+    borderRadius: 10,
+    backgroundColor: COLORS.surfaceLight
+  },
+  vehicleImageFallback: {
+    width: 76,
+    height: 76,
+    borderRadius: 10,
+    backgroundColor: COLORS.surfaceLight,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  vehicleEmptyText: {
+    color: COLORS.textMuted,
+    fontSize: 13,
+    textAlign: 'center',
+    paddingVertical: SPACING.lg
   },
   vehicleInfo: {
     flex: 1
@@ -553,8 +664,20 @@ const styles = StyleSheet.create({
   },
   vehicleStatus: {
     fontSize: 11,
-    color: COLORS.textMuted,
-    marginTop: 3
+    fontWeight: '700',
+    marginTop: 5
+  },
+  viewVehicleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 4,
+    marginTop: SPACING.sm
+  },
+  viewVehicleText: {
+    fontSize: 12,
+    color: COLORS.primaryLight,
+    fontWeight: '800'
   },
   sectionHeader: {
     fontSize: 13,

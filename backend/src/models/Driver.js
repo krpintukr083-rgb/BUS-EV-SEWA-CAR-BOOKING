@@ -31,6 +31,10 @@ const driverSchema = new mongoose.Schema(
       enum: ['Active', 'Inactive', 'Blocked', 'Pending Verification', 'Approved', 'Rejected', 'Suspended'],
       default: 'Active'
     },
+    canViewCustomerPhone: {
+      type: Boolean,
+      default: false
+    },
     isOnline: {
       type: Boolean,
       default: true

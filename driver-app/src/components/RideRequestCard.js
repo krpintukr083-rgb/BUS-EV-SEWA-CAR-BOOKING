@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Linking, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING } from '../constants/theme';
 import CountdownTimer from './CountdownTimer';
@@ -9,6 +9,12 @@ const RideRequestCard = ({ request, onAccept, onReject }) => {
 
   const fareAmount = request.fare || request.totalFare || 0;
   const isCash = request.paymentMethod === 'Offline Cash' || request.paymentMethod === 'Cash';
+  const callCustomer = () => {
+    const phone = String(request.customerPhone).replace(/[^\d+]/g, '');
+    Linking.openURL(`tel:${phone}`).catch(() => {
+      Alert.alert('Unable to open dialer', 'Please try calling the customer again.');
+    });
+  };
 
   return (
     <View style={styles.card}>
@@ -34,6 +40,16 @@ const RideRequestCard = ({ request, onAccept, onReject }) => {
           <Text style={styles.ratingText}>{request.customerRating || '4.9'}</Text>
         </View>
       </View>
+
+      {request.customerPhone ? (
+        <TouchableOpacity style={styles.callCustomerButton} onPress={callCustomer} activeOpacity={0.8}>
+          <Ionicons name="call" size={16} color={COLORS.online} />
+          <View>
+            <Text style={styles.customerPhone}>{request.customerPhone}</Text>
+            <Text style={styles.callCustomerText}>Call Customer</Text>
+          </View>
+        </TouchableOpacity>
+      ) : null}
 
       {/* Route Info */}
       <View style={styles.routeContainer}>
@@ -161,6 +177,28 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: COLORS.textPrimary
+  },
+  callCustomerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 9,
+    backgroundColor: COLORS.successBg,
+    borderRadius: 9,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: SPACING.md
+  },
+  customerPhone: {
+    color: COLORS.textPrimary,
+    fontSize: 13,
+    fontWeight: '700'
+  },
+  callCustomerText: {
+    color: COLORS.online,
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: 1
   },
   routeContainer: {
     backgroundColor: COLORS.surfaceLight,

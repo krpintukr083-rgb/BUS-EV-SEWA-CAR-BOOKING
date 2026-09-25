@@ -472,16 +472,21 @@ exports.updateDriver = async (req, res, next) => {
       assignedVehicle,
       drivingLicenceNumber,
       driverPhoto,
-      profilePhoto
+      profilePhoto,
+      canViewCustomerPhone
     } = req.body;
 
     const driver = await Driver.findById(req.params.id);
     if (!driver) return res.status(404).json({ success: false, message: 'Driver not found' });
+    if (canViewCustomerPhone !== undefined && typeof canViewCustomerPhone !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'canViewCustomerPhone must be a boolean' });
+    }
 
     if (name) driver.name = name;
     if (mobileNumber) driver.mobileNumber = mobileNumber;
     if (driverStatus) driver.driverStatus = driverStatus;
     if (drivingLicenceNumber) driver.drivingLicenceNumber = drivingLicenceNumber;
+    if (canViewCustomerPhone !== undefined) driver.canViewCustomerPhone = canViewCustomerPhone;
 
     if (req.file) {
       const uploadedUrl = `/uploads/${req.file.filename}`;
@@ -2198,4 +2203,3 @@ exports.resetDemoDatabase = async (req, res, next) => {
     next(error);
   }
 };
-

@@ -10,11 +10,19 @@ const Support = require('../models/Support');
 const Incentive = require('../models/Incentive');
 const Withdrawal = require('../models/Withdrawal');
 const { dashboardCache } = require('../utils/cache');
+const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
+const driverBookingResponse = require('../utils/driverBookingResponse');
 
 const getBookingQuery = (idOrCode) => {
   return mongoose.isValidObjectId(idOrCode)
     ? { $or: [{ bookingId: idOrCode }, { _id: idOrCode }] }
     : { bookingId: idOrCode };
+};
+
+const omitCustomerPhonePermission = driver => {
+  const profile = driver.toObject();
+  delete profile.canViewCustomerPhone;
+  return profile;
 };
 
 
@@ -296,13 +304,13 @@ exports.getDriverDashboard = async (req, res, next) => {
         documentStatus: documentSummary.overallStatus
       },
       activeRide: activeRide ? {
-        ...activeRide,
+        ...driverBookingResponse(activeRide, driver.canViewCustomerPhone === true),
         // External navigation URL to pickup or drop (strictly NO GPS tracking)
         pickupNavigationUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(activeRide.pickupLocation)}`,
         dropNavigationUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(activeRide.dropLocation)}`
       } : null,
-      bookingRequests,
-      recentHistory,
+      bookingRequests: bookingRequests.map(booking => driverBookingResponse(booking, driver.canViewCustomerPhone === true)),
+      recentHistory: recentHistory.map(booking => driverBookingResponse(booking, driver.canViewCustomerPhone === true)),
       documentSummary,
       evDetails: isEV ? {
         batteryPercentage: driver.batteryPercentage || 85,
@@ -341,6 +349,7 @@ exports.getDriverProfile = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Driver profile not found' });
     }
 
+    delete driver.canViewCustomerPhone;
     res.json({
       success: true,
       data: {
@@ -421,7 +430,7 @@ exports.updateDriverProfile = async (req, res, next) => {
     res.json({
       success: true,
       message: 'Driver profile updated successfully',
-      data: driver
+      data: omitCustomerPhonePermission(driver)
     });
   } catch (error) {
     next(error);
@@ -540,6 +549,32 @@ exports.changeDriverPassword = async (req, res, next) => {
 exports.getAssignedVehicle = async (req, res, next) => {
   try {
     const driver = req.driver;
+    if (req.query.vehicleId) {
+      if (!mongoose.isValidObjectId(req.query.vehicleId)) {
+        return res.status(400).json({ success: false, message: 'Invalid vehicleId' });
+      }
+
+      const selectedVehicle = await Vehicle.findOne({
+        _id: req.query.vehicleId,
+        ...getDriverVehicleOwnershipQuery(driver)
+      }).lean();
+      if (!selectedVehicle) {
+        return res.status(404).json({ success: false, message: 'Vehicle not found or you are not authorized to view it' });
+      }
+
+      const isEV = selectedVehicle.vehicleType === 'EV-Sewa' || selectedVehicle.fuelType === 'EV';
+      return res.json({
+        success: true,
+        data: {
+          ...selectedVehicle,
+          isEV,
+          fuelType: selectedVehicle.fuelType || (isEV ? 'EV' : 'Diesel'),
+          batteryPercentage: isEV ? (driver.batteryPercentage || 85) : null,
+          estimatedRangeKm: isEV ? (driver.estimatedRangeKm || 180) : null
+        }
+      });
+    }
+
     let assignedVehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
     if (!assignedVehicleId) {
       let vByDriver = await Vehicle.findOne({ assignedDriver: driver._id, vehicleStatus: 'Active' }).select('_id').lean();
@@ -893,7 +928,7 @@ exports.uploadDriverDocument = async (req, res, next) => {
       success: true,
       message: `${docType} submitted for review and set to Pending verification`,
       data: {
-        ...driver.toObject(),
+        ...omitCustomerPhonePermission(driver),
         docType,
         docUrl,
         fileUrl: docUrl,
@@ -932,10 +967,16 @@ exports.uploadDriverVehicleImages = async (req, res, next) => {
     if (!vehicleId) {
       return res.status(404).json({ success: false, message: 'vehicleId is required or no vehicle assigned to this driver' });
     }
+    if (!mongoose.isValidObjectId(vehicleId)) {
+      return res.status(400).json({ success: false, message: 'Invalid vehicleId' });
+    }
 
-    const vehicle = await Vehicle.findById(vehicleId);
+    const vehicle = await Vehicle.findOne({
+      _id: vehicleId,
+      ...getDriverVehicleOwnershipQuery(driver)
+    });
     if (!vehicle) {
-      return res.status(404).json({ success: false, message: 'Assigned vehicle not found' });
+      return res.status(404).json({ success: false, message: 'Vehicle not found or you are not authorized to update it' });
     }
 
     // req.files is populated by handleMultipleUpload / upload.any()
@@ -1174,7 +1215,7 @@ exports.getBookingRequests = async (req, res, next) => {
       }
 
       return {
-        ...reqItem,
+        ...driverBookingResponse(reqItem, driver.canViewCustomerPhone === true),
         hiredVehicleDetails: safeHiredDetails,
         countdownSeconds,
         remainingSeconds: countdownSeconds > 0 ? countdownSeconds : 45,
@@ -1222,7 +1263,7 @@ exports.getActiveBookingsForDriver = async (req, res, next) => {
     res.json({
       success: true,
       count: bookings.length,
-      data: bookings
+      data: bookings.map(booking => driverBookingResponse(booking, driver.canViewCustomerPhone === true))
     });
   } catch (error) {
     next(error);
@@ -1299,7 +1340,7 @@ exports.acceptBookingRequest = async (req, res, next) => {
       success: true,
       message: 'Booking request accepted successfully',
       data: {
-        ...booking.toObject(),
+        ...driverBookingResponse(booking, driver.canViewCustomerPhone === true),
         rideStatus: booking.rideStatus,
         pickupNavigationUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(booking.pickupLocation)}`,
         dropNavigationUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(booking.dropLocation)}`
@@ -1356,7 +1397,7 @@ exports.rejectBookingRequest = async (req, res, next) => {
     res.json({
       success: true,
       message: 'Booking request rejected',
-      data: booking
+      data: driverBookingResponse(booking, driver.canViewCustomerPhone === true)
     });
   } catch (error) {
     next(error);
@@ -1492,7 +1533,7 @@ exports.verifyRideOtp = async (req, res, next) => {
     res.json({
       success: true,
       message: 'Customer OTP verified successfully. Booking confirmed!',
-      data: booking
+      data: driverBookingResponse(booking, driver.canViewCustomerPhone === true)
     });
   } catch (error) {
     next(error);
@@ -1537,7 +1578,7 @@ exports.arriveAtPickup = async (req, res, next) => {
       success: true,
       message: 'Arrived at pickup location. Customer notified.',
       data: {
-        ...booking.toObject(),
+        ...driverBookingResponse(booking, driver.canViewCustomerPhone === true),
         bookingId: booking.bookingId,
         rideStatus: booking.rideStatus,
         arrivedAt: booking.arrivedAt,
@@ -1594,7 +1635,7 @@ exports.startRide = async (req, res, next) => {
       success: true,
       message: 'Ride started successfully',
       data: {
-        ...booking.toObject(),
+        ...driverBookingResponse(booking, driver.canViewCustomerPhone === true),
         dropNavigationUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(booking.dropLocation)}`
       }
     });
@@ -1627,7 +1668,7 @@ exports.endRide = async (req, res, next) => {
         success: true,
         message: 'Ride is already completed.',
         data: {
-          ...booking.toObject(),
+          ...driverBookingResponse(booking, driver.canViewCustomerPhone === true),
           bookingId: booking.bookingId,
           rideStatus: 'Completed',
           bookingStatus: 'Completed'
@@ -1688,7 +1729,7 @@ exports.endRide = async (req, res, next) => {
       success: true,
       message: 'Ride completed successfully. Receipt generated.',
       data: {
-        ...booking.toObject(),
+        ...driverBookingResponse(booking, driver.canViewCustomerPhone === true),
         bookingId: booking.bookingId,
         rideStatus: booking.rideStatus,
         dropLocation: booking.dropLocation,
@@ -1767,7 +1808,7 @@ exports.cancelRide = async (req, res, next) => {
     res.json({
       success: true,
       message: 'Ride cancelled successfully',
-      data: booking
+      data: driverBookingResponse(booking, driver.canViewCustomerPhone === true)
     });
   } catch (error) {
     next(error);
@@ -1857,7 +1898,7 @@ exports.collectCash = async (req, res, next) => {
       success: true,
       message: 'Cash collection confirmed. Payment status updated to Paid.',
       data: {
-        booking: booking,
+        booking: driverBookingResponse(booking, driver.canViewCustomerPhone === true),
         bookingId: booking.bookingId,
         paymentStatus: booking.paymentStatus,
         bookingStatus: booking.bookingStatus,
@@ -1894,7 +1935,7 @@ exports.getBookingHistory = async (req, res, next) => {
       date: new Date(b.createdAt).toLocaleDateString(),
       time: new Date(b.createdAt).toLocaleTimeString(),
       customer: b.customer?.name || 'Passenger',
-      customerPhone: b.customer?.phone ? `${b.customer.phone.slice(0, 3)}****${b.customer.phone.slice(-3)}` : 'N/A',
+      ...(driver.canViewCustomerPhone === true && b.customer?.phone ? { customerPhone: b.customer.phone } : {}),
       pickup: b.pickupLocation,
       drop: b.dropLocation,
       distance: '15.4 km',
@@ -2438,24 +2479,22 @@ exports.updateVehicleFare = async (req, res, next) => {
     if (finalFare === undefined || finalFare === null || Number(finalFare) <= 0 || isNaN(Number(finalFare))) {
       return res.status(400).json({ success: false, message: 'Please provide a valid positive fare amount' });
     }
-
-    // Build query: always verify ownership via Driver._id (NOT User._id)
-    const query = { assignedDriver: req.driver._id };
-
-    // If frontend sent vehicleId, add it to query for extra precision
-    if (vehicleId) {
-      query._id = vehicleId;
+    if (vehicleId && !mongoose.isValidObjectId(vehicleId)) {
+      return res.status(400).json({ success: false, message: 'Invalid vehicleId' });
     }
 
-    let vehicle = await Vehicle.findOne(query);
-
-    // Fallback: if driver.assignedVehicle is set, verify it belongs to this driver
-    if (!vehicle && req.driver.assignedVehicle) {
-      const assignedId = req.driver.assignedVehicle._id || req.driver.assignedVehicle;
-      vehicle = await Vehicle.findById(assignedId);
-      // Ensure the vehicle actually belongs to this driver
-      if (vehicle && vehicle.assignedDriver && vehicle.assignedDriver.toString() !== req.driver._id.toString()) {
-        vehicle = null;
+    const ownershipQuery = getDriverVehicleOwnershipQuery(req.driver);
+    let vehicle;
+    if (vehicleId) {
+      vehicle = await Vehicle.findOne({ _id: vehicleId, ...ownershipQuery });
+    } else {
+      vehicle = await Vehicle.findOne({ assignedDriver: req.driver._id });
+      const assignedVehicleId = req.driver.assignedVehicle?._id || req.driver.assignedVehicle;
+      if (!vehicle && assignedVehicleId) {
+        vehicle = await Vehicle.findOne({ _id: assignedVehicleId, ...ownershipQuery });
+      }
+      if (!vehicle) {
+        vehicle = await Vehicle.findOne({ 'submission.submittedByDriver': req.driver._id });
       }
     }
 

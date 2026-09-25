@@ -16,7 +16,7 @@ import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useLanguage } from '../../state/LanguageContext';
 import driverService from '../../services/driverService';
 
-export default function VehicleDetailsScreen({ navigation }) {
+export default function VehicleDetailsScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { t } = useLanguage();
 
@@ -27,12 +27,12 @@ export default function VehicleDetailsScreen({ navigation }) {
   const [savingFare, setSavingFare] = useState(false);
 
   useEffect(() => {
-    fetchVehicle();
-  }, []);
+    fetchVehicle(route?.params?.vehicleId);
+  }, [route?.params?.vehicleId]);
 
-  const fetchVehicle = async () => {
+  const fetchVehicle = async (vehicleId) => {
     try {
-      const res = await driverService.getVehicle();
+      const res = await driverService.getVehicle(vehicleId);
       // axios wraps the response: actual JSON is at res.data
       if (res?.data?.success && res.data.data) {
         setVehicle(res.data.data);
@@ -53,7 +53,7 @@ export default function VehicleDetailsScreen({ navigation }) {
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchVehicle();
+    fetchVehicle(route?.params?.vehicleId);
   };
 
   const isFareValid = fare !== '' && !isNaN(fare) && Number(fare) > 0;
@@ -303,17 +303,26 @@ export default function VehicleDetailsScreen({ navigation }) {
 
             {/* Quick Link to EV Hub if EV-Sewa vehicle */}
             {vehicle.vehicleType === 'EV-Sewa' && (
-              <TouchableOpacity
-                style={styles.evBannerBtn}
-                onPress={() => navigation.navigate('EVHub')}
-              >
-                <MaterialCommunityIcons name="ev-station" size={24} color={COLORS.white} />
-                <View style={{ flex: 1, marginLeft: SPACING.s }}>
-                  <Text style={styles.evBannerTitle}>{t('evHub')}</Text>
-                  <Text style={styles.evBannerSub}>Check battery %, range & find fast chargers</Text>
-                </View>
-                <MaterialCommunityIcons name="chevron-right" size={24} color={COLORS.white} />
-              </TouchableOpacity>
+              <>
+                <TouchableOpacity
+                  style={styles.editEVButton}
+                  onPress={() => navigation.navigate('VehicleSubmission', { vehicleId: vehicle._id })}
+                >
+                  <MaterialCommunityIcons name="pencil-outline" size={20} color={COLORS.white} />
+                  <Text style={styles.editEVButtonText}>Edit Battery / Range</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.evBannerBtn}
+                  onPress={() => navigation.navigate('EVHub')}
+                >
+                  <MaterialCommunityIcons name="ev-station" size={24} color={COLORS.white} />
+                  <View style={{ flex: 1, marginLeft: SPACING.s }}>
+                    <Text style={styles.evBannerTitle}>{t('evHub')}</Text>
+                    <Text style={styles.evBannerSub}>Check battery %, range & find fast chargers</Text>
+                  </View>
+                  <MaterialCommunityIcons name="chevron-right" size={24} color={COLORS.white} />
+                </TouchableOpacity>
+              </>
             )}
           </>
         )}
@@ -461,6 +470,19 @@ const styles = StyleSheet.create({
     padding: SPACING.m,
     marginTop: SPACING.xs,
   },
+  editEVButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.s,
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.primaryLight,
+    borderWidth: 1,
+    borderRadius: RADIUS.l,
+    padding: SPACING.m,
+    marginTop: SPACING.xs,
+  },
+  editEVButtonText: { color: COLORS.textPrimary, fontWeight: '700' },
   evBannerTitle: {
     fontSize: 15,
     fontWeight: '700',

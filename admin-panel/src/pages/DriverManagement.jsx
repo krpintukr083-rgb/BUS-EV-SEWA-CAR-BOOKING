@@ -33,6 +33,7 @@ const DriverManagement = () => {
   const [drivingLicenceNumber, setDrivingLicenceNumber] = useState('');
   const [assignedVehicle, setAssignedVehicle] = useState('');
   const [driverStatus, setDriverStatus] = useState('Active');
+  const [canViewCustomerPhone, setCanViewCustomerPhone] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Photo upload states
@@ -116,6 +117,7 @@ const DriverManagement = () => {
     setDrivingLicenceNumber(driver.drivingLicenceNumber);
     setAssignedVehicle(driver.assignedVehicle?._id || driver.assignedVehicle || '');
     setDriverStatus(driver.driverStatus);
+    setCanViewCustomerPhone(driver.canViewCustomerPhone === true);
     setPhotoFile(null);
     setPhotoPreview(driver.driverPhoto || driver.profilePhoto || '');
     setPhotoError('');
@@ -179,7 +181,8 @@ const DriverManagement = () => {
         drivingLicenceNumber,
         driverStatus,
         assignedVehicle: assignedVehicle || null,
-        driverPhoto: uploadedPhotoUrl
+        driverPhoto: uploadedPhotoUrl,
+        canViewCustomerPhone
       });
       if (res.success) {
         setMessage('Driver details and photo updated!');
@@ -732,6 +735,21 @@ const DriverManagement = () => {
                 </select>
               </div>
 
+              <div className="form-group" style={{ marginTop: '14px' }}>
+                <label className="form-label">Customer Phone Visibility</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '700', color: '#0f172a' }}>
+                  <input
+                    type="checkbox"
+                    checked={canViewCustomerPhone}
+                    onChange={e => setCanViewCustomerPhone(e.target.checked)}
+                  />
+                  Allow customer phone number
+                </label>
+                <p style={{ margin: '6px 0 0 25px', color: '#64748b', fontSize: '0.8rem' }}>
+                  Allow this driver to view and call customer phone numbers for assigned booking requests.
+                </p>
+              </div>
+
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
                 <button type="button" className="btn btn-outline" onClick={() => setIsEditModalOpen(false)}>
                   Cancel
@@ -749,4 +767,3 @@ const DriverManagement = () => {
 };
 
 export default DriverManagement;
-

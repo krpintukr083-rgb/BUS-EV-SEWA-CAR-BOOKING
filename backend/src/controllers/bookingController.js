@@ -7,6 +7,9 @@ const Payment = require('../models/Payment');
 const Cancellation = require('../models/Cancellation');
 const Notification = require('../models/Notification');
 const Schedule = require('../models/Schedule');
+const Driver = require('../models/Driver');
+const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
+const driverBookingResponse = require('../utils/driverBookingResponse');
 const { notifyEligibleDriversForBusBooking } = require('../utils/notification');
 
 const getBookingQuery = (idOrCode) => {
@@ -277,6 +280,10 @@ exports.createBooking = async (req, res, next) => {
 // @access  Private (Customer)
 exports.getMyBookings = async (req, res, next) => {
   try {
+    if (req.user.role === 'driver') {
+      return res.status(403).json({ success: false, message: 'Customer booking history is not available to drivers' });
+    }
+
     let query = {};
     if (req.user.role === 'customer') {
       const orConditions = [
@@ -328,7 +335,7 @@ exports.getBookingById = async (req, res, next) => {
   try {
     const booking = await Booking.findOne(getBookingQuery(req.params.id))
       .populate('vehicle')
-      .populate('driver');
+      .populate('driver', '-canViewCustomerPhone');
 
     if (!booking) {
       return res.status(404).json({
@@ -349,9 +356,32 @@ exports.getBookingById = async (req, res, next) => {
       });
     }
 
+    let driver;
+    if (req.user.role === 'driver') {
+      driver = await Driver.findOne({ user: req.user._id });
+      if (!driver) {
+        return res.status(404).json({ success: false, message: 'Driver profile not found' });
+      }
+
+      const bookingDriverId = booking.driver?._id || booking.driver;
+      const isAssignedToDriver = bookingDriverId &&
+        [driver._id.toString(), req.user._id.toString()].includes(bookingDriverId.toString());
+      const bookingVehicleId = booking.vehicle?._id || booking.vehicle;
+      const ownedVehicle = await Vehicle.findOne({
+        _id: bookingVehicleId,
+        ...getDriverVehicleOwnershipQuery(driver)
+      }).select('_id').lean();
+
+      if (!isAssignedToDriver && !ownedVehicle) {
+        return res.status(403).json({ success: false, message: 'You are not authorized to view this booking' });
+      }
+    }
+
     const payment = await Payment.findOne({ booking: booking._id });
 
-    const obj = booking.toObject();
+    const obj = driver
+      ? driverBookingResponse(booking, driver.canViewCustomerPhone === true)
+      : booking.toObject();
     if (req.user.role === 'customer') {
       obj.confirmationOtp = obj.customerViewOtp;
     }

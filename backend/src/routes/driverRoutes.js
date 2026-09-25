@@ -38,7 +38,7 @@ const {
   registerPushToken
 } = require('../controllers/driverController');
 const {
-  registerVehicle, getDriverVehicles, createSchedule, getDriverSchedules
+  registerVehicle, getDriverVehicles, updateDriverVehicleEVDetails, createSchedule, getDriverSchedules
 } = require('../controllers/workflowController');
 const { verifyToken, driverAuth } = require('../middleware/auth');
 const { handleSingleUpload, handleMultipleUpload } = require('../middleware/upload');
@@ -58,6 +58,7 @@ router.post('/vehicles', registerVehicle);
 router.post('/vehicle/register', registerVehicle);
 router.put('/vehicle/fare', updateVehicleFare);
 router.get('/vehicles', getDriverVehicles);
+router.put('/vehicles/:vehicleId/ev-details', updateDriverVehicleEVDetails);
 router.post('/schedules', createSchedule);
 router.post('/schedule', createSchedule);
 router.get('/schedules', getDriverSchedules);

@@ -367,6 +367,10 @@ exports.processPayment = async (req, res, next) => {
 // 10. Get Customer Bookings (Upcoming & Completed)
 exports.getMyBookings = async (req, res, next) => {
   try {
+    if (req.user.role === 'driver') {
+      return res.status(403).json({ success: false, message: 'Customer booking history is not available to drivers' });
+    }
+
     const userQuery = [
       { 'customer.phone': req.user.phone },
       ...(req.user.email ? [{ 'customer.email': req.user.email }] : []),
@@ -404,9 +408,13 @@ exports.getMyBookings = async (req, res, next) => {
 // 11. Get Single Booking Details & Ticket
 exports.getBookingDetails = async (req, res, next) => {
   try {
+    if (req.user.role === 'driver') {
+      return res.status(403).json({ success: false, message: 'Customer booking details are not available to drivers' });
+    }
+
     const booking = await Booking.findOne(getBookingQuery(req.params.id))
       .populate('vehicle')
-      .populate('driver');
+      .populate('driver', '-canViewCustomerPhone');
 
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking not found' });

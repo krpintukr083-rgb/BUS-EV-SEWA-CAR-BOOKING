@@ -153,6 +153,7 @@ const vehicleSchema = new mongoose.Schema(
     // EV Specifics
     evDetails: {
       batteryCapacity: { type: String, default: '72 kWh' },
+      batteryPercentage: { type: Number, min: 0, max: 100 },
       rangeKm: { type: Number, default: 280 }
     },
     // Car Specifics

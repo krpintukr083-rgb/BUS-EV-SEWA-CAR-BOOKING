@@ -29,9 +29,13 @@ export const driverService = {
     }
     return apiClient.post(ENDPOINTS.DOCUMENTS, docData);
   },
-  getVehicle: () => apiClient.get(ENDPOINTS.VEHICLE),
+  getVehicle: (vehicleId) => apiClient.get(ENDPOINTS.VEHICLE, {
+    params: vehicleId ? { vehicleId } : undefined
+  }),
   registerVehicle: (data) => apiClient.post('/driver/vehicles', data),
   getMyVehicles: () => apiClient.get('/driver/vehicles'),
+  updateVehicleEVDetails: (vehicleId, batteryPercentage, estimatedRangeKm) =>
+    apiClient.put(`/driver/vehicles/${vehicleId}/ev-details`, { batteryPercentage, estimatedRangeKm }),
   createSchedule: (data) => apiClient.post('/driver/schedules', data),
   getMySchedules: () => apiClient.get('/driver/schedules'),
   uploadVehicleImages: (formData) => apiClient.post('/driver/vehicle-images', formData, { headers: { 'Content-Type': 'multipart/form-data' }, transformRequest: (data) => data }),

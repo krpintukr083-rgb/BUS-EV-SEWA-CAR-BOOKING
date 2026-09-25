@@ -1,7 +1,9 @@
+const mongoose = require('mongoose');
 const Vehicle = require('../models/Vehicle');
 const Schedule = require('../models/Schedule');
 const Notification = require('../models/Notification');
 const Driver = require('../models/Driver');
+const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
 
 const notifyDriver = async (driver, title, message, eventType, entityType, entityId) => {
   if (!driver) return;
@@ -24,12 +26,33 @@ const notifyAdmins = async (title, message, eventType, entityType, entityId) => 
 };
 
 const driverId = req => req.driver && req.driver._id;
+const isMissingNumericValue = value => value == null || (typeof value === 'string' && value.trim() === '');
 
 exports.registerVehicle = async (req, res, next) => {
   try {
     const body = req.body || {};
     if (!body.vehicleNumber || !body.vehicleType) {
       return res.status(400).json({ success: false, message: 'vehicleNumber and vehicleType are required' });
+    }
+    if (body.vehicleType === 'EV-Sewa') {
+      const batteryPercentage = Number(body.evDetails && body.evDetails.batteryPercentage);
+      const rangeKm = Number(body.evDetails && body.evDetails.rangeKm);
+      if (
+        isMissingNumericValue(body.evDetails?.batteryPercentage) ||
+        !Number.isFinite(batteryPercentage) ||
+        batteryPercentage < 0 ||
+        batteryPercentage > 100
+      ) {
+        return res.status(400).json({ success: false, message: 'EV battery percentage must be between 0 and 100' });
+      }
+      if (
+        isMissingNumericValue(body.evDetails?.rangeKm) ||
+        !Number.isFinite(rangeKm) ||
+        rangeKm < 0
+      ) {
+        return res.status(400).json({ success: false, message: 'EV estimated range must be a valid non-negative number' });
+      }
+      body.evDetails = { ...body.evDetails, batteryPercentage, rangeKm };
     }
     const vehicleNumber = String(body.vehicleNumber).trim().toUpperCase();
     if (await Vehicle.exists({ vehicleNumber })) {
@@ -59,8 +82,50 @@ exports.registerVehicle = async (req, res, next) => {
 
 exports.getDriverVehicles = async (req, res, next) => {
   try {
-    const data = await Vehicle.find({ 'submission.submittedByDriver': driverId(req) }).sort({ createdAt: -1 }).lean();
+    const data = await Vehicle.find(getDriverVehicleOwnershipQuery(req.driver)).sort({ createdAt: -1 }).lean();
     res.json({ success: true, count: data.length, data });
+  } catch (error) { next(error); }
+};
+
+exports.updateDriverVehicleEVDetails = async (req, res, next) => {
+  try {
+    const { vehicleId } = req.params;
+    const { batteryPercentage, estimatedRangeKm } = req.body || {};
+    if (!mongoose.isValidObjectId(vehicleId)) {
+      return res.status(400).json({ success: false, message: 'Invalid vehicleId' });
+    }
+
+    const battery = Number(batteryPercentage);
+    const rangeKm = Number(estimatedRangeKm);
+    if (
+      isMissingNumericValue(batteryPercentage) ||
+      !Number.isFinite(battery) ||
+      battery < 0 ||
+      battery > 100
+    ) {
+      return res.status(400).json({ success: false, message: 'EV battery percentage must be between 0 and 100' });
+    }
+    if (
+      isMissingNumericValue(estimatedRangeKm) ||
+      !Number.isFinite(rangeKm) ||
+      rangeKm < 0
+    ) {
+      return res.status(400).json({ success: false, message: 'EV estimated range must be a valid non-negative number' });
+    }
+
+    const vehicle = await Vehicle.findOne({
+      _id: vehicleId,
+      vehicleType: 'EV-Sewa',
+      ...getDriverVehicleOwnershipQuery(req.driver)
+    });
+    if (!vehicle) {
+      return res.status(404).json({ success: false, message: 'EV vehicle not found or you are not authorized to edit it' });
+    }
+
+    vehicle.set('evDetails.batteryPercentage', battery);
+    vehicle.set('evDetails.rangeKm', rangeKm);
+    await vehicle.save();
+    res.json({ success: true, data: vehicle, message: 'EV battery and range updated successfully' });
   } catch (error) { next(error); }
 };
 
