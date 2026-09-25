@@ -39,6 +39,7 @@ const {
   createNotification,
   getSupportTickets,
   updateSupportTicket,
+  deleteSupportTicket,
   getPolicies,
   updatePolicy,
   getBasicReports,
@@ -150,6 +151,7 @@ router.post('/notifications', createNotification);
 // 14. Customer Support
 router.get('/support', getSupportTickets);
 router.put('/support/:id', updateSupportTicket);
+router.delete('/support/:id', deleteSupportTicket);
 
 // 15. Terms and Policies
 router.get('/policies', getPolicies);

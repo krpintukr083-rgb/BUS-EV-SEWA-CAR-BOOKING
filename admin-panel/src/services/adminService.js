@@ -262,6 +262,11 @@ export const adminService = {
     return res.data;
   },
 
+  deleteSupportTicket: async (id) => {
+    const res = await api.delete(`/admin/support/${id}`);
+    return res.data;
+  },
+
   // 15. Terms & Policies
   getPolicies: async () => {
     const res = await api.get('/admin/policies');

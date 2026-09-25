@@ -1859,6 +1859,20 @@ exports.updateSupportTicket = async (req, res, next) => {
   }
 };
 
+exports.deleteSupportTicket = async (req, res, next) => {
+  try {
+    const ticket = await Support.findById(req.params.id);
+    if (!ticket) {
+      return res.status(404).json({ success: false, message: 'Support ticket not found' });
+    }
+    
+    await Support.findByIdAndDelete(req.params.id);
+    res.json({ success: true, message: 'Support ticket deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // ==========================================
 // 15. TERMS & POLICIES
 // ==========================================

@@ -814,6 +814,53 @@ input, select, textarea {
     aspect-ratio: 4/3;
   }
   
+  /* Support Table Mobile Cards */
+  .support-table, .support-table tbody, .support-table tr, .support-table td {
+    display: block;
+    width: 100%;
+  }
+  .support-table thead {
+    display: none;
+  }
+  .support-table tr {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    margin-bottom: 16px;
+    padding: 16px;
+    background: var(--card-bg);
+    box-shadow: var(--shadow-sm);
+  }
+  .support-table td {
+    padding: 6px 0;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .support-table td:empty {
+    display: none;
+  }
+  .support-table td::before {
+    content: attr(data-label);
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+    display: block;
+  }
+  .support-table td:nth-child(1) { font-size: 1.1rem; padding-bottom: 12px; }
+  .support-actions-cell {
+    flex-direction: row !important;
+    gap: 12px !important;
+    margin-top: 12px;
+    padding-top: 16px !important;
+    border-top: 1px solid var(--border-color) !important;
+  }
+  .support-action-button {
+    flex: 1;
+  }
+  
   /* Typography wrapping */
   h1, h2, h3, h4, h5, h6, p, span, div {
     overflow-wrap: break-word;

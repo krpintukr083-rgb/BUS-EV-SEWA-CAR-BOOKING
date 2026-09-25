@@ -11,6 +11,9 @@ const CustomerSupport = () => {
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [message, setMessage] = useState('');
+  
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchTickets = async () => {
     try {
@@ -50,6 +53,32 @@ const CustomerSupport = () => {
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    try {
+      setDeleting(true);
+      const res = await adminService.deleteSupportTicket(deleteTarget._id);
+      if (res && res.success) {
+        setMessage('Support ticket deleted successfully.');
+        setDeleteTarget(null);
+        await fetchTickets();
+        setTimeout(() => setMessage(''), 4000);
+      } else {
+        alert(res?.message || 'Unable to delete support ticket.');
+      }
+    } catch (err) {
+      if (err?.response?.status === 404) {
+        alert('Ticket no longer exists. Support list refreshed.');
+        setDeleteTarget(null);
+        await fetchTickets();
+      } else {
+        alert(err?.response?.data?.message || err.message || 'Unable to delete support ticket.');
+      }
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -109,32 +138,35 @@ const CustomerSupport = () => {
               {tickets.length > 0 ? (
                 tickets.map(t => (
                   <tr key={t._id}>
-                    <td style={{ fontWeight: '700', color: '#1d4ed8' }}>{t.ticketId}</td>
-                    <td>
+                    <td data-label="Ticket ID" style={{ fontWeight: '700', color: '#1d4ed8' }}>{t.ticketId}</td>
+                    <td data-label="Requester">
                       <div style={{ fontWeight: '600' }}>{t.requesterName}</div>
                     </td>
-                    <td>{t.mobileNumber || 'N/A'}</td>
-                    <td>
+                    <td data-label="Phone">{t.mobileNumber || 'N/A'}</td>
+                    <td data-label="User Type">
                       <span className="badge badge-pending" style={{ textTransform: 'capitalize' }}>
                         {t.role || 'Unknown'}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="Booking ID">
                       <span style={{ fontWeight: '600' }}>{t.bookingId || 'N/A'}</span>
                     </td>
-                    <td className="support-summary-cell">
+                    <td data-label="Category / Subject" className="support-summary-cell">
                       <div className="support-category">{t.category || 'General'}</div>
                       <div className="support-subject">{t.supportInformation || 'Support request'}</div>
                     </td>
-                    <td>
+                    <td data-label="Status">
                       <StatusBadge status={t.status} />
                     </td>
-                    <td className="support-reply-cell">
+                    <td data-label="Admin Reply" className="support-reply-cell">
                       {t.resolutionNotes || 'Not replied'}
                     </td>
-                    <td className="support-actions-cell">
+                    <td className="support-actions-cell" style={{ display: 'flex', gap: '8px' }}>
                       <button type="button" className="btn btn-primary btn-sm support-action-button" onClick={() => handleOpenEdit(t)}>
                         View / Reply
+                      </button>
+                      <button type="button" className="btn btn-sm support-action-button" style={{ backgroundColor: '#ef4444', color: 'white', border: 'none' }} onClick={() => setDeleteTarget(t)}>
+                        Delete
                       </button>
                     </td>
                   </tr>
@@ -163,7 +195,7 @@ const CustomerSupport = () => {
             </div>
 
             <form onSubmit={handleSaveTicket}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+              <div className="modal-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
                 <div>
                   <label style={{ fontSize: '0.75rem', color: '#64748b' }}>Ticket ID</label>
                   <div style={{ fontWeight: '700', fontSize: '0.9rem', color: '#1d4ed8' }}>{selectedTicket.ticketId}</div>
@@ -202,12 +234,12 @@ const CustomerSupport = () => {
 
               <div className="form-group">
                 <label className="form-label" style={{ fontWeight: '700' }}>Original Message</label>
-                <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '6px', fontSize: '0.9rem', color: '#334155', border: '1px solid #e2e8f0' }}>
+                <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '6px', fontSize: '0.9rem', color: '#334155', border: '1px solid #e2e8f0', wordWrap: 'break-word', overflowWrap: 'break-word' }}>
                   {selectedTicket.supportIssue}
                 </div>
               </div>
 
-              <div className="form-group" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <div className="form-group" style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <label className="form-label" style={{ margin: 0, fontWeight: '700' }}>Current Status</label>
                 <select className="form-control" style={{ width: 'auto', padding: '4px 8px', fontSize: '0.85rem' }} value={status} onChange={e => setStatus(e.target.value)}>
                   <option value="Open">Open</option>
@@ -228,7 +260,7 @@ const CustomerSupport = () => {
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
+              <div className="modal-actions" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '24px', borderTop: '1px solid #e2e8f0', paddingTop: '16px' }}>
                 <button type="button" className="btn btn-outline" onClick={() => setIsEditOpen(false)}>
                   Cancel
                 </button>
@@ -237,6 +269,50 @@ const CustomerSupport = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div className="modal-overlay" style={{ zIndex: 9999, position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+          <div className="modal-content" style={{ backgroundColor: 'white', borderRadius: '8px', padding: '24px', maxWidth: '400px', width: '100%' }}>
+            <h3 style={{ marginTop: 0, color: '#0f172a', fontSize: '1.25rem', marginBottom: '8px' }}>Delete Support Ticket?</h3>
+            <p style={{ color: '#475569', fontSize: '0.95rem', marginBottom: '16px', lineHeight: '1.5' }}>
+              Are you sure you want to permanently delete this support ticket?
+            </p>
+            <div style={{ backgroundColor: '#f1f5f9', padding: '12px', borderRadius: '6px', marginBottom: '24px', fontSize: '0.9rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <span style={{ color: '#64748b' }}>Ticket:</span>
+                <span style={{ fontWeight: '600', color: '#0f172a' }}>{deleteTarget.ticketId}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: '#64748b' }}>Requester:</span>
+                <span style={{ fontWeight: '600', color: '#0f172a', wordBreak: 'break-all' }}>{deleteTarget.requesterName}</span>
+              </div>
+            </div>
+            <p style={{ color: '#ef4444', fontSize: '0.85rem', fontWeight: '500', marginBottom: '24px' }}>
+              This action cannot be undone.
+            </p>
+            <div className="modal-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button 
+                type="button" 
+                className="btn btn-outline" 
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+              >
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                className="btn" 
+                style={{ backgroundColor: '#ef4444', color: 'white', border: 'none' }} 
+                onClick={handleDeleteConfirm}
+                disabled={deleting}
+              >
+                {deleting ? 'Deleting...' : 'Delete Ticket'}
+              </button>
+            </div>
           </div>
         </div>
       )}
