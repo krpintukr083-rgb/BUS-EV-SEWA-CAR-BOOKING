@@ -107,11 +107,7 @@ export const adminService = {
   // 4. Vehicle Management (Bus, EV-Sewa, Car, Truck & Market Hire)
   getVehicles: async (type, source) => {
     const res = await api.get('/admin/vehicles', { 
-      params: { type, source },
-      headers: {
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
-      }
+      params: { type, source }
     });
     return res.data;
   },
