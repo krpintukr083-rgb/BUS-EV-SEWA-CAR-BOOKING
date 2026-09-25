@@ -26,7 +26,7 @@ const formatPoints = (points, fallback) => {
 };
 
 const BusDetailsScreen = ({ navigation, route }) => {
-  const { busId, bus: initialBus } = route.params || {};
+  const { busId, bus: initialBus, schedule } = route.params || {};
   const { bookingDraft, updateDraft } = useBooking();
   
   const [bus, setBus] = useState(
