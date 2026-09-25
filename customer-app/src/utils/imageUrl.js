@@ -56,8 +56,19 @@ export const getFullImageUrl = (url, type = 'Bus') => {
  */
 export const getPrimaryVehicleImage = (vehicle, type = 'Bus') => {
   const vehicleType = vehicle?.vehicleType || type;
-  if (vehicle && Array.isArray(vehicle.vehicleImages) && vehicle.vehicleImages.length > 0) {
-    const valid = vehicle.vehicleImages.find(img => img && typeof img === 'string' && img.trim() !== '');
+  let imgs = vehicle?.vehicleImages;
+  
+  if (typeof imgs === 'string') {
+    try {
+      const parsed = JSON.parse(imgs);
+      imgs = Array.isArray(parsed) ? parsed : [imgs];
+    } catch (e) {
+      imgs = [imgs];
+    }
+  }
+
+  if (Array.isArray(imgs) && imgs.length > 0) {
+    const valid = imgs.find(img => img && typeof img === 'string' && img.trim() !== '');
     if (valid) {
       return getFullImageUrl(valid, vehicleType);
     }
@@ -70,8 +81,19 @@ export const getPrimaryVehicleImage = (vehicle, type = 'Bus') => {
  */
 export const getAllVehicleImages = (vehicle, type = 'Bus') => {
   const vehicleType = vehicle?.vehicleType || type;
-  if (vehicle && Array.isArray(vehicle.vehicleImages) && vehicle.vehicleImages.length > 0) {
-    const validUrls = vehicle.vehicleImages
+  let imgs = vehicle?.vehicleImages;
+
+  if (typeof imgs === 'string') {
+    try {
+      const parsed = JSON.parse(imgs);
+      imgs = Array.isArray(parsed) ? parsed : [imgs];
+    } catch (e) {
+      imgs = [imgs];
+    }
+  }
+
+  if (Array.isArray(imgs) && imgs.length > 0) {
+    const validUrls = imgs
       .filter(img => img && typeof img === 'string' && img.trim() !== '')
       .map(img => getFullImageUrl(img, vehicleType));
     if (validUrls.length > 0) return validUrls;

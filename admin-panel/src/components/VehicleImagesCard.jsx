@@ -2,22 +2,7 @@ import React, { useState } from 'react';
 import { adminService } from '../services/adminService';
 import { Upload as UploadIcon, Eye as EyeIcon, Image as ImageIcon, ExternalLink } from 'lucide-react';
 
-const getResolvedUrl = (url) => {
-  if (!url) return '';
-  if (
-    url.startsWith('http://') ||
-    url.startsWith('https://') ||
-    url.startsWith('data:')
-  ) {
-    return url;
-  }
-
-  if (url.startsWith('/')) {
-    return `https://bus-ev-sewa-car-booking.onrender.com${url}`;
-  }
-
-  return `https://bus-ev-sewa-car-booking.onrender.com/${url}`;
-};
+import { resolveImageUrl, getAllVehicleImages } from '../utils/imageUrl';
 
 /**
  * VehicleImagesCard
@@ -33,14 +18,10 @@ function VehicleImagesCard({ driver, refreshDrivers }) {
   console.log('[VEHICLE IMAGES] assignedVehicle:', driver?.assignedVehicle);
   console.log('[VEHICLE IMAGES] vehicleImages:', driver?.assignedVehicle?.vehicleImages);
 
-  const vehicleImages = Array.isArray(
-    driver?.assignedVehicle?.vehicleImages
-  )
-    ? driver.assignedVehicle.vehicleImages
-    : [];
+  const vehicleImages = getAllVehicleImages(driver?.assignedVehicle?.vehicleImages);
 
-  const existingFrontUrl = getResolvedUrl(vehicleImages[0]);
-  const existingBackUrl = getResolvedUrl(vehicleImages[1]);
+  const existingFrontUrl = vehicleImages[0] || '';
+  const existingBackUrl = vehicleImages[1] || '';
 
   const handleUpload = async () => {
     if (!frontImg || !backImg) return;

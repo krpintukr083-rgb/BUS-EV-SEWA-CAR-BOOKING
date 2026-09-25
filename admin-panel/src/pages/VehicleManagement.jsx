@@ -3,30 +3,11 @@ import { adminService } from '../services/adminService';
 import StatusBadge from '../components/StatusBadge';
 import { Truck, Search, Edit, FileText, Check, AlertCircle, Eye, UserCheck, Image as ImageIcon, Trash2, Plus, Star, Camera, DollarSign, Building, ShoppingBag, Calendar, CheckCircle2, Clock } from 'lucide-react';
 
+import { resolveImageUrl, getPrimaryVehicleImage, getAllVehicleImages } from '../utils/imageUrl';
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const SERVER_URL = API_BASE_URL.replace(/\/api\/?$/, '');
 
-const getImageUrl = (url) => {
-  if (!url) return '';
-  if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  const backendUrl = 'https://bus-ev-sewa-car-booking.onrender.com';
-  if (url.startsWith('/')) return `${backendUrl}${url}`;
-  return `${backendUrl}/${url}`;
-};
-
-const getVehicleImagesList = (images) => {
-  if (!images) return [];
-  if (Array.isArray(images)) return images;
-  if (typeof images === 'string') {
-    try {
-      const parsed = JSON.parse(images);
-      return Array.isArray(parsed) ? parsed : [images];
-    } catch (e) {
-      return [images];
-    }
-  }
-  return [];
-};
 
 const VehicleManagement = () => {
   const [vehicles, setVehicles] = useState([]);
@@ -491,12 +472,12 @@ const VehicleManagement = () => {
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                           {(() => {
-                            const imagesList = getVehicleImagesList(v.vehicleImages);
+                            const imagesList = getAllVehicleImages(v.vehicleImages);
                             const primaryImage = imagesList.length > 0 ? imagesList[0] : null;
 
                             return primaryImage ? (
                               <img
-                                src={getImageUrl(primaryImage)}
+                                src={primaryImage}
                                 alt={v.vehicleName}
                                 style={{
                                   width: '54px',
@@ -862,7 +843,7 @@ const VehicleManagement = () => {
               </div>
 
               {(() => {
-                const photosList = getVehicleImagesList(selectedVehicle.vehicleImages);
+                const photosList = getAllVehicleImages(selectedVehicle.vehicleImages);
                 return photosList.length > 0 ? (
                 <div>
                   <div
@@ -1080,7 +1061,7 @@ const VehicleManagement = () => {
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '20px' }}>
               {existingPhotos.map((imgUrl, idx) => (
                 <div key={idx} style={{ position: 'relative', width: '120px', height: '90px', borderRadius: '8px', overflow: 'hidden', border: idx === 0 ? '2px solid #2563eb' : '1px solid #cbd5e1' }}>
-                  <img src={getImageUrl(imgUrl)} alt="photo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={imgUrl} alt="photo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   {idx === 0 && (
                     <span style={{ position: 'absolute', bottom: '4px', left: '4px', backgroundColor: '#2563eb', color: '#fff', fontSize: '0.65rem', padding: '1px 5px', borderRadius: '3px', fontWeight: '700' }}>
                       PRIMARY
