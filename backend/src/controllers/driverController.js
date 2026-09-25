@@ -922,18 +922,15 @@ exports.uploadDriverVehicleImages = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Driver not found' });
     }
 
-    // Find the vehicle assigned to this driver
-    let vehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
-    if (!vehicleId) {
-      const vByDriver = await Vehicle.findOne({ assignedDriver: driver._id }).select('_id').lean();
-      if (vByDriver) vehicleId = vByDriver._id;
-    }
-    if (!vehicleId) {
-      const submittedVehicle = await Vehicle.findOne({
-        'submission.submittedByDriver': driver._id
-      }).sort({ createdAt: -1 }).select('_id').lean();
-      if (submittedVehicle) vehicleId = submittedVehicle._id;
-    }
+    // Find the latest vehicle created by this driver
+    const latestVehicle = await Vehicle.findOne({
+      $or: [
+        { assignedDriver: driver._id },
+        { 'submission.submittedByDriver': driver._id }
+      ]
+    }).sort({ createdAt: -1 }).select('_id').lean();
+
+    let vehicleId = latestVehicle ? latestVehicle._id : null;
 
     if (!vehicleId) {
       return res.status(404).json({ success: false, message: 'No vehicle assigned to this driver' });
