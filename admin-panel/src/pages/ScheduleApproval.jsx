@@ -10,7 +10,19 @@ export default function ScheduleApproval() {
   const [rejecting, setRejecting] = useState(null);
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
-  const load = async () => { try { const res = await adminService.getSchedules(status); setSchedules(res.data || []); setError(''); } catch (e) { setError(e?.response?.data?.message || 'Unable to load schedule approvals'); } };
+  const load = async () => {
+    try {
+      const res = await adminService.getSchedules(status);
+      let arr = [];
+      if (Array.isArray(res)) arr = res;
+      else if (res && Array.isArray(res.data)) arr = res.data;
+      else if (res && res.data && Array.isArray(res.data.data)) arr = res.data.data;
+      setSchedules(arr);
+      setError('');
+    } catch (e) {
+      setError(e?.response?.data?.message || 'Unable to load schedule approvals');
+    }
+  };
   useEffect(() => { load(); }, [status]);
   const review = async (schedule, approved) => { try { await (approved ? adminService.approveSchedule(schedule._id) : adminService.rejectSchedule(schedule._id, reason.trim())); setRejecting(null); setReason(''); setSelected(null); load(); } catch (e) { setError(e?.response?.data?.message || 'Unable to update schedule approval'); } };
   return <div className="page-container">
