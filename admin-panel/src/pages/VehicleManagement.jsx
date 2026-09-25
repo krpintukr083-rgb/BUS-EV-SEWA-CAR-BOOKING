@@ -65,13 +65,19 @@ const VehicleManagement = () => {
       if (res && res.success) {
         setDeleteSuccessMsg('Vehicle deleted successfully.');
         setDeleteTarget(null);
-        fetchVehicles();
+        fetchVehiclesAndDrivers();
         setTimeout(() => setDeleteSuccessMsg(''), 4000);
       } else {
         alert(res?.message || 'Unable to delete vehicle. Please try again.');
       }
     } catch (err) {
-      alert(err?.response?.data?.message || err.message || 'Unable to delete vehicle. Please try again.');
+      if (err?.response?.status === 404) {
+        alert('Vehicle no longer exists. Refreshing vehicle list...');
+        setDeleteTarget(null);
+        fetchVehiclesAndDrivers();
+      } else {
+        alert(err?.response?.data?.message || err.message || 'Unable to delete vehicle. Please try again.');
+      }
     } finally {
       setDeleting(false);
     }
