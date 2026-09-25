@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { adminService } from '../services/adminService';
 import StatusBadge from '../components/StatusBadge';
-import { Users, Search, Check, AlertCircle, Tag, Percent, Save, Sparkles } from 'lucide-react';
+import { Search, Check, AlertCircle, Percent, Save, Tag } from 'lucide-react';
 
 const CustomerManagement = () => {
   const [customers, setCustomers] = useState([]);
@@ -10,11 +10,9 @@ const CustomerManagement = () => {
   const [actionLoading, setActionLoading] = useState(null);
   const [message, setMessage] = useState('');
 
-  // Bus Offer State
+  // Bus Discount State
   const [offerStatus, setOfferStatus] = useState('active');
   const [discountPercentage, setDiscountPercentage] = useState(15);
-  const [offerTitle, setOfferTitle] = useState('Intercity Luxury Bus Travel');
-  const [offerSubtitle, setOfferSubtitle] = useState('AC Sleeper & Seater coaches with live tracking and instant seat selection.');
   const [offerSaving, setOfferSaving] = useState(false);
   const [offerMsg, setOfferMsg] = useState({ type: '', text: '' });
 
@@ -37,8 +35,6 @@ const CustomerManagement = () => {
       if (res && res.success && res.data) {
         setOfferStatus(res.data.offerStatus || 'active');
         setDiscountPercentage(res.data.discountPercentage !== undefined ? res.data.discountPercentage : 15);
-        setOfferTitle(res.data.offerTitle || 'Intercity Luxury Bus Travel');
-        setOfferSubtitle(res.data.offerSubtitle || 'AC Sleeper & Seater coaches with live tracking and instant seat selection.');
       }
     } catch (err) {
       console.error('Error loading bus offer settings:', err);
@@ -65,21 +61,17 @@ const CustomerManagement = () => {
     try {
       const res = await adminService.updateBusOffer({
         offerStatus,
-        discountPercentage: numPct,
-        offerTitle,
-        offerSubtitle
+        discountPercentage: numPct
       });
 
       if (res && res.success) {
-        setOfferMsg({ type: 'success', text: 'Bus Discount Offer updated successfully! Customer App will reflect changes immediately.' });
+        setOfferMsg({ type: 'success', text: 'Bus Discount Settings updated successfully! Customer App will reflect changes immediately.' });
         if (res.data) {
           setOfferStatus(res.data.offerStatus);
           setDiscountPercentage(res.data.discountPercentage);
-          setOfferTitle(res.data.offerTitle);
-          setOfferSubtitle(res.data.offerSubtitle);
         }
       } else {
-        setOfferMsg({ type: 'error', text: res?.message || 'Failed to update bus offer.' });
+        setOfferMsg({ type: 'error', text: res?.message || 'Failed to update discount settings.' });
       }
     } catch (err) {
       console.error('Save bus offer error:', err);
@@ -146,14 +138,14 @@ const CustomerManagement = () => {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', borderBottom: '1px solid #f1f5f9', paddingBottom: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <div style={{ width: '36px', height: '36px', borderRadius: '8px', backgroundColor: '#eff6ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#1d4ed8' }}>
-              <Sparkles size={20} />
+              <Tag size={20} />
             </div>
             <div>
               <h3 style={{ fontSize: '1.05rem', fontWeight: '700', color: '#0f172a', margin: 0 }}>
-                BUS DISCOUNT / OFFER CONTROL
+                BUS FARE DISCOUNT CONTROL
               </h3>
               <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>
-                Configure dynamic percentage discount for Bus bookings. Applied strictly by backend server.
+                Configure dynamic percentage discount applied to Bus booking fares. Enforced server-side on every booking.
               </p>
             </div>
           </div>
@@ -169,7 +161,7 @@ const CustomerManagement = () => {
               border: `1px solid ${offerStatus === 'active' ? '#a7f3d0' : '#cbd5e1'}`
             }}
           >
-            {offerStatus === 'active' ? `Flat ${discountPercentage}% OFF (Active Banner)` : 'Offer Inactive'}
+            {offerStatus === 'active' ? `Flat ${discountPercentage}% OFF` : 'Discount Inactive'}
           </div>
         </div>
 
@@ -205,8 +197,8 @@ const CustomerManagement = () => {
                 onChange={(e) => setOfferStatus(e.target.value)}
                 style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
               >
-                <option value="active">Active (Show Banner & Apply Discount)</option>
-                <option value="inactive">Inactive (Hide Banner & No Discount)</option>
+                <option value="active">Active (Apply Discount to Bookings)</option>
+                <option value="inactive">Inactive (No Discount Applied)</option>
               </select>
             </div>
 
@@ -230,34 +222,6 @@ const CustomerManagement = () => {
                 <Percent size={15} color="#64748b" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
               </div>
             </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
-                Offer Title
-              </label>
-              <input
-                type="text"
-                className="form-control"
-                value={offerTitle}
-                onChange={(e) => setOfferTitle(e.target.value)}
-                placeholder="Intercity Luxury Bus Travel"
-                style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-              />
-            </div>
-          </div>
-
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>
-              Offer Subtitle
-            </label>
-            <input
-              type="text"
-              className="form-control"
-              value={offerSubtitle}
-              onChange={(e) => setOfferSubtitle(e.target.value)}
-              placeholder="AC Sleeper & Seater coaches with live tracking and instant seat selection."
-              style={{ width: '100%', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-            />
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pt: '8px' }}>
@@ -286,7 +250,7 @@ const CustomerManagement = () => {
               }}
             >
               <Save size={16} />
-              <span>{offerSaving ? 'Saving Changes...' : 'Save Offer Settings'}</span>
+              <span>{offerSaving ? 'Saving...' : 'Save Discount Settings'}</span>
             </button>
           </div>
         </form>
