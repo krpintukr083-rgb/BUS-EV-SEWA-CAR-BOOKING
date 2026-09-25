@@ -2433,8 +2433,9 @@ exports.registerPushToken = async (req, res, next) => {
 // @access  Private (Driver Only)
 exports.updateVehicleFare = async (req, res, next) => {
   try {
-    const { fareRate, vehicleId } = req.body;
-    if (fareRate === undefined || fareRate === null || Number(fareRate) <= 0) {
+    const { fareRate, fare, vehicleId } = req.body;
+    const finalFare = fare !== undefined && fare !== null ? fare : fareRate;
+    if (finalFare === undefined || finalFare === null || Number(finalFare) <= 0 || isNaN(Number(finalFare))) {
       return res.status(400).json({ success: false, message: 'Please provide a valid positive fare amount' });
     }
 
@@ -2462,7 +2463,7 @@ exports.updateVehicleFare = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Assigned vehicle not found or you are not authorized to edit this vehicle' });
     }
 
-    vehicle.fareRate = Number(fareRate);
+    vehicle.fareRate = Number(finalFare);
     await vehicle.save();
 
     res.json({
