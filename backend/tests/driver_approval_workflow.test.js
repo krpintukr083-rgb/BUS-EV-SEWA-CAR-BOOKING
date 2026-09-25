@@ -65,11 +65,39 @@ describe('Driver vehicle and schedule approval workflow', () => {
     expect(updated.body.data.evDetails.batteryPercentage).toBe(64);
     expect(updated.body.data.evDetails.rangeKm).toBe(172);
 
+    const reopenedVehicle = await request(app)
+      .get('/api/driver/vehicle')
+      .query({ vehicleId: evId })
+      .set('Authorization', `Bearer ${token}`);
+    expect(reopenedVehicle.status).toBe(200);
+    expect(reopenedVehicle.body.data.evDetails.batteryPercentage).toBe(64);
+    expect(reopenedVehicle.body.data.evDetails.rangeKm).toBe(172);
+
+    const zeroCharge = await request(app)
+      .put(`/api/driver/vehicles/${evId}/ev-details`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ batteryPercentage: 0, estimatedRangeKm: 1 });
+    expect(zeroCharge.status).toBe(200);
+    expect(zeroCharge.body.data.evDetails.batteryPercentage).toBe(0);
+
+    const fullCharge = await request(app)
+      .put(`/api/driver/vehicles/${evId}/ev-details`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ batteryPercentage: 100, estimatedRangeKm: 185 });
+    expect(fullCharge.status).toBe(200);
+    expect(fullCharge.body.data.evDetails.batteryPercentage).toBe(100);
+    expect(fullCharge.body.data.evDetails.rangeKm).toBe(185);
+
     const invalidUpdate = await request(app)
       .put(`/api/driver/vehicles/${evId}/ev-details`)
       .set('Authorization', `Bearer ${token}`)
       .send({ batteryPercentage: 101, estimatedRangeKm: 172 });
     expect(invalidUpdate.status).toBe(400);
+    const invalidRangeUpdate = await request(app)
+      .put(`/api/driver/vehicles/${evId}/ev-details`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ batteryPercentage: 78, estimatedRangeKm: 0 });
+    expect(invalidRangeUpdate.status).toBe(400);
 
     const suffix = Date.now();
     const otherUser = await User.create({
@@ -93,7 +121,7 @@ describe('Driver vehicle and schedule approval workflow', () => {
         .set('Authorization', `Bearer ${otherToken}`)
         .send({ batteryPercentage: 1, estimatedRangeKm: 1 });
       expect(unauthorizedUpdate.status).toBe(404);
-      expect((await Vehicle.findById(evId)).evDetails.batteryPercentage).toBe(64);
+      expect((await Vehicle.findById(evId)).evDetails.batteryPercentage).toBe(100);
     } finally {
       await Driver.findByIdAndDelete(otherDriver._id);
       await User.findByIdAndDelete(otherUser._id);

@@ -313,7 +313,7 @@ export default function VehicleDetailsScreen({ navigation, route }) {
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.evBannerBtn}
-                  onPress={() => navigation.navigate('EVHub')}
+                  onPress={() => navigation.navigate('EVHub', { vehicleId: vehicle._id })}
                 >
                   <MaterialCommunityIcons name="ev-station" size={24} color={COLORS.white} />
                   <View style={{ flex: 1, marginLeft: SPACING.s }}>

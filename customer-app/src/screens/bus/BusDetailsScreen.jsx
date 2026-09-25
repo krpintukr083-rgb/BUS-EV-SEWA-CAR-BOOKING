@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Image,
   TouchableOpacity,
   ActivityIndicator
 } from 'react-native';
@@ -14,7 +13,7 @@ import { useBooking } from '../../context/BookingContext';
 import Header from '../../components/Header';
 import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
-import { getPrimaryVehicleImage, getAllVehicleImages } from '../../utils/imageUrl';
+import VehicleImageSlider from '../../components/VehicleImageSlider';
 
 const formatPoints = (points, fallback) => {
   if (!points) return fallback || '';
@@ -34,7 +33,6 @@ const BusDetailsScreen = ({ navigation, route }) => {
   );
   const [loading, setLoading] = useState(!bus);
   const [errorMessage, setErrorMessage] = useState('');
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   const fetchDetails = async () => {
     const targetId = busId || bus?._id || bookingDraft.vehicle?._id;
@@ -101,59 +99,15 @@ const BusDetailsScreen = ({ navigation, route }) => {
     );
   }
 
-  const busImages = getAllVehicleImages(bus, 'Bus');
-
   return (
     <View style={styles.container}>
       <Header title="Bus Details" onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Large Image Carousel / Header */}
+        {/* Vehicle images from the selected vehicle */}
         <View style={styles.imageWrapper}>
-          <Image
-            source={{ uri: busImages[activeImageIndex] || getPrimaryVehicleImage(bus, 'Bus') }}
-            style={styles.heroImage}
-            resizeMode="cover"
-          />
-
-          {busImages.length > 1 && (
-            <View style={styles.carouselPills}>
-              {busImages.map((imgUri, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  onPress={() => setActiveImageIndex(idx)}
-                  style={[
-                    styles.indicatorDot,
-                    activeImageIndex === idx && styles.indicatorDotActive
-                  ]}
-                />
-              ))}
-            </View>
-          )}
+          <VehicleImageSlider vehicle={bus} type="Bus" imageStyle={styles.heroImage} />
         </View>
-
-        {/* Multi-Image Thumbnails row if multiple images exist */}
-        {busImages.length > 1 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.thumbnailRow}
-            contentContainerStyle={{ gap: 8, paddingHorizontal: 2 }}
-          >
-            {busImages.map((imgUri, idx) => (
-              <TouchableOpacity
-                key={idx}
-                onPress={() => setActiveImageIndex(idx)}
-                style={[
-                  styles.thumbnailBtn,
-                  activeImageIndex === idx && styles.thumbnailBtnActive
-                ]}
-              >
-                <Image source={{ uri: imgUri }} style={styles.thumbnailImg} />
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        )}
 
         {/* Title and Pricing Card */}
         <View style={styles.contentCard}>
@@ -294,45 +248,6 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 190,
     borderRadius: 14
-  },
-  carouselPills: {
-    position: 'absolute',
-    bottom: 10,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 6
-  },
-  indicatorDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.5)'
-  },
-  indicatorDotActive: {
-    backgroundColor: '#ffffff',
-    width: 20
-  },
-  thumbnailRow: {
-    marginBottom: 16
-  },
-  thumbnailBtn: {
-    width: 58,
-    height: 44,
-    borderRadius: 8,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: 'transparent',
-    backgroundColor: '#f1f5f9'
-  },
-  thumbnailBtnActive: {
-    borderColor: COLORS.primary
-  },
-  thumbnailImg: {
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover'
   },
   contentCard: {
     backgroundColor: '#ffffff',

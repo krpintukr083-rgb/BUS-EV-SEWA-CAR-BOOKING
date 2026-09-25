@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Image,
   ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,18 +13,19 @@ import { useBooking } from '../../context/BookingContext';
 import Header from '../../components/Header';
 import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
-import { getPrimaryVehicleImage, getAllVehicleImages } from '../../utils/imageUrl';
+import VehicleImageSlider from '../../components/VehicleImageSlider';
 
 const CarDetailsScreen = ({ route, navigation }) => {
   const { carId } = route.params || {};
   const { bookingDraft, updateDraft } = useBooking();
-  const [car, setCar] = useState(bookingDraft.vehicle || null);
-  const [loading, setLoading] = useState(!car);
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const initialCar = bookingDraft.vehicle?._id === carId ? bookingDraft.vehicle : null;
+  const [car, setCar] = useState(initialCar);
+  const [loading, setLoading] = useState(!initialCar);
 
   useEffect(() => {
     if (carId && (!car || car._id !== carId)) {
       const fetchDetail = async () => {
+        setLoading(true);
         try {
           const res = await customerService.getCarDetails(carId);
           if (res.success) {
@@ -38,6 +38,7 @@ const CarDetailsScreen = ({ route, navigation }) => {
           }
         } catch (err) {
           console.log('Error fetching car details:', err);
+          setCar(null);
         } finally {
           setLoading(false);
         }
@@ -46,7 +47,7 @@ const CarDetailsScreen = ({ route, navigation }) => {
     }
   }, [carId]);
 
-  if (loading) {
+  if (loading || (carId && car?._id !== carId)) {
     return (
       <View style={styles.container}>
         <Header title="Car Details" onBack={() => navigation.goBack()} />
@@ -74,8 +75,6 @@ const CarDetailsScreen = ({ route, navigation }) => {
     );
   }
 
-  const carImages = getAllVehicleImages(car, 'Car');
-
   const handleBookNow = () => {
     updateDraft({
       serviceType: 'Car',
@@ -98,46 +97,13 @@ const CarDetailsScreen = ({ route, navigation }) => {
       <Header title="Car Details" onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Hero Image / Carousel */}
+        {/* Vehicle images from the selected vehicle */}
         <View style={styles.imageContainer}>
-          <Image
-            source={{
-              uri: carImages[activeImageIndex] || getPrimaryVehicleImage(car, 'Car')
-            }}
-            style={styles.heroImage}
-            resizeMode="cover"
-          />
+          <VehicleImageSlider vehicle={car} type="Car" imageStyle={styles.heroImage} />
           <View style={styles.categoryBadge}>
             <Text style={styles.categoryBadgeText}>{car.vehicleCategory || 'Premium Sedan'}</Text>
           </View>
         </View>
-
-        {/* Thumbnails if multiple */}
-        {carImages.length > 1 && (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={{ marginBottom: 14 }}
-            contentContainerStyle={{ gap: 8, paddingHorizontal: 2 }}
-          >
-            {carImages.map((imgUri, idx) => (
-              <TouchableOpacity
-                key={idx}
-                onPress={() => setActiveImageIndex(idx)}
-                style={{
-                  width: 58,
-                  height: 44,
-                  borderRadius: 8,
-                  overflow: 'hidden',
-                  borderWidth: 2,
-                  borderColor: activeImageIndex === idx ? '#ea580c' : 'transparent'
-                }}
-              >
-                <Image source={{ uri: imgUri }} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        )}
 
         {/* Title and Fare Card */}
         <View style={styles.mainCard}>

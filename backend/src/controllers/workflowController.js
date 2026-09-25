@@ -108,9 +108,9 @@ exports.updateDriverVehicleEVDetails = async (req, res, next) => {
     if (
       isMissingNumericValue(estimatedRangeKm) ||
       !Number.isFinite(rangeKm) ||
-      rangeKm < 0
+      rangeKm <= 0
     ) {
-      return res.status(400).json({ success: false, message: 'EV estimated range must be a valid non-negative number' });
+      return res.status(400).json({ success: false, message: 'EV estimated range must be a valid positive number' });
     }
 
     const vehicle = await Vehicle.findOne({

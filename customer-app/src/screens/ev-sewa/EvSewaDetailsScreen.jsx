@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Image,
   TouchableOpacity,
   ActivityIndicator
 } from 'react-native';
@@ -14,7 +13,7 @@ import { useBooking } from '../../context/BookingContext';
 import Header from '../../components/Header';
 import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
-import { getPrimaryVehicleImage, getAllVehicleImages } from '../../utils/imageUrl';
+import VehicleImageSlider from '../../components/VehicleImageSlider';
 
 const EvSewaDetailsScreen = ({ navigation, route }) => {
   const { evId } = route.params || {};
@@ -105,19 +104,18 @@ const EvSewaDetailsScreen = ({ navigation, route }) => {
     navigation.navigate('PickupDrop');
   };
 
-  const vehicleImg = getPrimaryVehicleImage(ev, 'EV-Sewa');
-
   return (
     <View style={styles.container}>
       <Header title="EV-Sewa Vehicle Details" onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        {/* Hero Vehicle Image */}
+        {/* Vehicle images from the selected vehicle */}
         <View style={styles.imageCard}>
-          <Image
-            source={{ uri: vehicleImg }}
-            style={styles.heroImage}
-            resizeMode="cover"
+          <VehicleImageSlider
+            vehicle={ev}
+            type="EV-Sewa"
+            style={styles.sliderFill}
+            imageStyle={styles.heroImage}
           />
           <View style={styles.heroOverlay}>
             <View style={styles.electricBadge}>
@@ -350,6 +348,9 @@ const styles = StyleSheet.create({
   },
   heroImage: {
     width: '100%',
+    height: '100%'
+  },
+  sliderFill: {
     height: '100%'
   },
   heroOverlay: {
@@ -697,4 +698,3 @@ const styles = StyleSheet.create({
 });
 
 export default EvSewaDetailsScreen;
-

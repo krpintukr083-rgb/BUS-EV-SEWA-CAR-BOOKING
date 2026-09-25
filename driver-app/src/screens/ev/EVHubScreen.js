@@ -17,77 +17,88 @@ import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useLanguage } from '../../state/LanguageContext';
 import driverService from '../../services/driverService';
 
-export default function EVHubScreen({ navigation }) {
+const FALLBACK_STATIONS = [
+  {
+    id: 'st-1',
+    name: 'Nepal Electricity Authority (NEA) Fast Hub',
+    address: 'Ratnapark, Kathmandu',
+    distance: '2.4 km',
+    chargers: '60 kW DC Fast (CCS2)',
+    availableSlots: 2,
+    totalSlots: 4,
+    pricePerKwh: '₹8.50',
+  },
+  {
+    id: 'st-2',
+    name: 'EcoCharge Station Pokhara Highway',
+    address: 'Kurintar, Chitwan Highway',
+    distance: '48 km',
+    chargers: '120 kW Ultra-Fast (CCS2 / GB/T)',
+    availableSlots: 3,
+    totalSlots: 6,
+    pricePerKwh: '₹9.00',
+  },
+  {
+    id: 'st-3',
+    name: 'Sewa Green Charging Point',
+    address: 'Prithvi Chowk, Pokhara',
+    distance: '180 km',
+    chargers: '50 kW DC Fast + 22 kW AC',
+    availableSlots: 1,
+    totalSlots: 2,
+    pricePerKwh: '₹8.00',
+  },
+];
+
+export default function EVHubScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { t } = useLanguage();
+  const vehicleId = route?.params?.vehicleId;
 
   const [evStats, setEvStats] = useState({
-    batteryPercentage: 78,
-    estimatedRangeKm: 185,
+    batteryPercentage: null,
+    estimatedRangeKm: null,
     chargingStatus: 'DISCHARGING', // 'CHARGING', 'DISCHARGING', 'FULL'
     healthScore: 96,
   });
 
-  const [stations, setStations] = useState([]);
+  const [vehicle, setVehicle] = useState(null);
+  const [stations, setStations] = useState(FALLBACK_STATIONS);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [newSocInput, setNewSocInput] = useState('78');
+  const [newSocInput, setNewSocInput] = useState('');
+  const [newRangeInput, setNewRangeInput] = useState('');
   const [updatingSoc, setUpdatingSoc] = useState(false);
 
   useEffect(() => {
     fetchEVData();
-  }, []);
+  }, [vehicleId]);
 
   const fetchEVData = async () => {
     try {
-      const [statsRes, stationsRes] = await Promise.all([
-        driverService.getEVStats(),
-        driverService.getChargingStations(),
-      ]);
+      const response = await driverService.getVehicle(vehicleId);
+      const selectedVehicle = response?.data?.data;
+      if (!selectedVehicle || selectedVehicle.vehicleType !== 'EV-Sewa') {
+        throw new Error('No EV-Sewa vehicle is available for this driver.');
+      }
 
-      if (statsRes.success && statsRes.data) {
-        setEvStats(statsRes.data);
-        setNewSocInput(String(statsRes.data.batteryPercentage || 78));
-      }
-      if (stationsRes.success && stationsRes.data) {
-        setStations(stationsRes.data);
-      } else {
-        // Fallback realistic EV charging stations with addresses
-        setStations([
-          {
-            id: 'st-1',
-            name: 'Nepal Electricity Authority (NEA) Fast Hub',
-            address: 'Ratnapark, Kathmandu',
-            distance: '2.4 km',
-            chargers: '60 kW DC Fast (CCS2)',
-            availableSlots: 2,
-            totalSlots: 4,
-            pricePerKwh: '₹8.50',
-          },
-          {
-            id: 'st-2',
-            name: 'EcoCharge Station Pokhara Highway',
-            address: 'Kurintar, Chitwan Highway',
-            distance: '48 km',
-            chargers: '120 kW Ultra-Fast (CCS2 / GB/T)',
-            availableSlots: 3,
-            totalSlots: 6,
-            pricePerKwh: '₹9.00',
-          },
-          {
-            id: 'st-3',
-            name: 'Sewa Green Charging Point',
-            address: 'Prithvi Chowk, Pokhara',
-            distance: '180 km',
-            chargers: '50 kW DC Fast + 22 kW AC',
-            availableSlots: 1,
-            totalSlots: 2,
-            pricePerKwh: '₹8.00',
-          },
-        ]);
-      }
+      const batteryPercentage = selectedVehicle.evDetails?.batteryPercentage
+        ?? selectedVehicle.batteryPercentage
+        ?? null;
+      const estimatedRangeKm = selectedVehicle.evDetails?.rangeKm
+        ?? selectedVehicle.estimatedRangeKm
+        ?? null;
+      setVehicle(selectedVehicle);
+      setEvStats(current => ({ ...current, batteryPercentage, estimatedRangeKm }));
+      setNewSocInput(batteryPercentage == null ? '' : String(batteryPercentage));
+      setNewRangeInput(estimatedRangeKm == null ? '' : String(estimatedRangeKm));
+      setStations(FALLBACK_STATIONS);
     } catch (err) {
-      console.log('Error fetching EV data:', err);
+      setVehicle(null);
+      setEvStats(current => ({ ...current, batteryPercentage: null, estimatedRangeKm: null }));
+      setNewSocInput('');
+      setNewRangeInput('');
+      Alert.alert(t('error'), err.response?.data?.message || err.message || 'Unable to load EV vehicle details.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -96,31 +107,58 @@ export default function EVHubScreen({ navigation }) {
 
   const onRefresh = () => {
     setRefreshing(true);
+    setLoading(true);
     fetchEVData();
   };
 
   const handleUpdateBattery = async () => {
-    const val = parseInt(newSocInput, 10);
-    if (isNaN(val) || val < 0 || val > 100) {
+    const batteryPercentage = Number(newSocInput);
+    if (
+      newSocInput.trim() === '' ||
+      !Number.isFinite(batteryPercentage) ||
+      batteryPercentage < 0 ||
+      batteryPercentage > 100
+    ) {
       Alert.alert(t('error'), 'Please enter a valid battery percentage (0-100)%');
+      return;
+    }
+    const estimatedRangeKm = Number(newRangeInput);
+    if (
+      newRangeInput.trim() === '' ||
+      !Number.isFinite(estimatedRangeKm) ||
+      estimatedRangeKm <= 0
+    ) {
+      Alert.alert(t('error'), 'Please enter a valid estimated range greater than 0 km.');
+      return;
+    }
+    if (!vehicle?._id) {
+      Alert.alert(t('error'), 'No EV-Sewa vehicle is available to update.');
       return;
     }
 
     setUpdatingSoc(true);
     try {
-      const res = await driverService.updateEVBattery(val);
-      if (res.success) {
-        setEvStats((prev) => ({
-          ...prev,
-          batteryPercentage: val,
-          estimatedRangeKm: Math.round(val * 2.4),
-        }));
-        Alert.alert(t('success'), `Vehicle battery updated to ${val}% (${Math.round(val * 2.4)} km range)`);
-      } else {
-        Alert.alert(t('error'), res.message || 'Failed to update battery level');
+      const response = await driverService.updateVehicleEVDetails(
+        vehicle._id,
+        batteryPercentage,
+        estimatedRangeKm
+      );
+      const updatedVehicle = response.data?.success && response.data.data;
+      if (!updatedVehicle) {
+        throw new Error(response.data?.message || 'Failed to update battery and range.');
       }
+
+      setVehicle(updatedVehicle);
+      setEvStats(current => ({
+        ...current,
+        batteryPercentage: updatedVehicle.evDetails?.batteryPercentage ?? batteryPercentage,
+        estimatedRangeKm: updatedVehicle.evDetails?.rangeKm ?? estimatedRangeKm
+      }));
+      setNewSocInput(String(updatedVehicle.evDetails?.batteryPercentage ?? batteryPercentage));
+      setNewRangeInput(String(updatedVehicle.evDetails?.rangeKm ?? estimatedRangeKm));
+      Alert.alert(t('success'), 'Vehicle battery and estimated range updated successfully.');
     } catch (err) {
-      Alert.alert(t('error'), err.response?.data?.message || 'Failed to update battery level');
+      Alert.alert(t('error'), err.response?.data?.message || err.message || 'Failed to update battery and range.');
     } finally {
       setUpdatingSoc(false);
     }
@@ -168,7 +206,7 @@ export default function EVHubScreen({ navigation }) {
               <Text style={styles.socSubtitle}>{t('currentCharge')}</Text>
               <View style={styles.socMainRow}>
                 <Text style={[styles.socPercentage, { color: getBatteryColor(evStats.batteryPercentage) }]}>
-                  {evStats.batteryPercentage}%
+                  {evStats.batteryPercentage == null ? '--' : `${evStats.batteryPercentage}%`}
                 </Text>
                 <MaterialCommunityIcons
                   name={evStats.batteryPercentage > 20 ? 'battery-charging-80' : 'battery-alert'}
@@ -180,7 +218,9 @@ export default function EVHubScreen({ navigation }) {
 
             <View style={styles.rangeBox}>
               <Text style={styles.rangeLabel}>{t('estRange')}</Text>
-              <Text style={styles.rangeValue}>{evStats.estimatedRangeKm} km</Text>
+              <Text style={styles.rangeValue}>
+                {evStats.estimatedRangeKm == null ? '--' : `${evStats.estimatedRangeKm} km`}
+              </Text>
             </View>
           </View>
 
@@ -190,7 +230,7 @@ export default function EVHubScreen({ navigation }) {
               style={[
                 styles.batteryFill,
                 {
-                  width: `${evStats.batteryPercentage}%`,
+                  width: `${Math.min(100, Math.max(0, Number(evStats.batteryPercentage) || 0))}%`,
                   backgroundColor: getBatteryColor(evStats.batteryPercentage),
                 },
               ]}
@@ -199,18 +239,30 @@ export default function EVHubScreen({ navigation }) {
 
           {/* Manual SOC Update Section (Zero GPS Telemetry) */}
           <View style={styles.socUpdateRow}>
-            <Text style={styles.socUpdateLabel}>{t('updateBatteryPct')}:</Text>
-            <TextInput
-              style={styles.socInput}
-              keyboardType="number-pad"
-              maxLength={3}
-              value={newSocInput}
-              onChangeText={setNewSocInput}
-            />
+            <View style={styles.socInputGroup}>
+              <Text style={styles.socUpdateLabel}>{t('updateBatteryPct')}</Text>
+              <TextInput
+                style={styles.socInput}
+                keyboardType="number-pad"
+                maxLength={3}
+                value={newSocInput}
+                onChangeText={setNewSocInput}
+              />
+            </View>
+            <View style={styles.socInputGroup}>
+              <Text style={styles.socUpdateLabel}>{t('estRange')}</Text>
+              <TextInput
+                style={styles.rangeInput}
+                keyboardType="number-pad"
+                value={newRangeInput}
+                onChangeText={setNewRangeInput}
+              />
+            </View>
             <TouchableOpacity
-              style={[styles.socUpdateBtn, updatingSoc && { opacity: 0.6 }]}
-              disabled={updatingSoc}
+              style={[styles.socUpdateBtn, (updatingSoc || loading || !vehicle) && styles.socUpdateBtnDisabled]}
+              disabled={updatingSoc || loading || !vehicle}
               onPress={handleUpdateBattery}
+              activeOpacity={0.75}
             >
               {updatingSoc ? (
                 <ActivityIndicator color={COLORS.white} size="small" />
@@ -366,11 +418,16 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.m,
     gap: SPACING.s,
   },
+  socInputGroup: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+  },
   socUpdateLabel: {
     fontSize: 12,
     color: COLORS.textSecondary,
     fontWeight: '600',
-    flex: 1,
+    textAlign: 'center',
   },
   socInput: {
     backgroundColor: COLORS.bgSurface,
@@ -384,11 +441,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+  rangeInput: {
+    backgroundColor: COLORS.bgSurface,
+    color: COLORS.textPrimary,
+    width: 74,
+    height: 36,
+    borderRadius: RADIUS.s,
+    textAlign: 'center',
+    fontWeight: '700',
+    fontSize: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
   socUpdateBtn: {
     backgroundColor: COLORS.primary,
     paddingVertical: 8,
     paddingHorizontal: 14,
     borderRadius: RADIUS.s,
+  },
+  socUpdateBtnDisabled: {
+    backgroundColor: COLORS.surfaceHighlight,
+    opacity: 0.55,
   },
   socUpdateBtnText: {
     color: COLORS.white,
