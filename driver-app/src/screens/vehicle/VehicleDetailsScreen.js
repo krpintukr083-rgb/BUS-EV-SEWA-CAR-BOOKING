@@ -56,8 +56,10 @@ export default function VehicleDetailsScreen({ navigation }) {
     fetchVehicle();
   };
 
+  const isFareValid = fare !== '' && !isNaN(fare) && Number(fare) > 0;
+
   const handleSaveFare = async () => {
-    if (!fare || isNaN(fare) || Number(fare) <= 0) {
+    if (!isFareValid) {
       Alert.alert('Invalid Fare', 'Please enter a valid numeric fare amount greater than 0.');
       return;
     }
@@ -75,7 +77,8 @@ export default function VehicleDetailsScreen({ navigation }) {
         Alert.alert('Error', res.data?.message || 'Failed to update fare');
       }
     } catch (err) {
-      Alert.alert('Error', err?.response?.data?.message || 'Failed to update fare');
+      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to update fare';
+      Alert.alert('Error', errorMsg);
     } finally {
       setSavingFare(false);
     }
@@ -232,10 +235,10 @@ export default function VehicleDetailsScreen({ navigation }) {
             {/* Fare / Price Editing Card */}
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Fare / Price *</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <Text style={{ fontSize: 20, color: COLORS.textPrimary, fontWeight: '700' }}>₹</Text>
+              <View style={styles.fareInputContainer}>
+                <Text style={styles.currencyPrefix}>₹</Text>
                 <TextInput
-                  style={[styles.input, { flex: 1, marginBottom: 0 }]}
+                  style={styles.fareInput}
                   value={fare}
                   onChangeText={setFare}
                   keyboardType="numeric"
@@ -244,14 +247,21 @@ export default function VehicleDetailsScreen({ navigation }) {
                 />
               </View>
               <TouchableOpacity 
-                style={[styles.button, { marginTop: 15, paddingVertical: 12 }]} 
+                style={[
+                  styles.saveFareButton,
+                  (!isFareValid || savingFare) && styles.saveFareButtonDisabled,
+                ]} 
                 onPress={handleSaveFare}
-                disabled={savingFare}
+                disabled={!isFareValid || savingFare}
+                activeOpacity={0.8}
               >
                 {savingFare ? (
-                  <ActivityIndicator color={COLORS.white} size="small" />
+                  <View style={styles.saveFareButtonContent}>
+                    <ActivityIndicator color={COLORS.white} size="small" style={{ marginRight: SPACING.s }} />
+                    <Text style={styles.saveFareButtonText}>Updating...</Text>
+                  </View>
                 ) : (
-                  <Text style={styles.buttonText}>Save / Update</Text>
+                  <Text style={styles.saveFareButtonText}>Save / Update</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -477,5 +487,58 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.textMuted,
     marginTop: SPACING.m,
+  },
+  fareInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.bgDark,
+    borderRadius: RADIUS.m,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: SPACING.m,
+    minHeight: 48,
+  },
+  currencyPrefix: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.primary,
+    marginRight: SPACING.s,
+  },
+  fareInput: {
+    flex: 1,
+    color: COLORS.textPrimary,
+    fontSize: 16,
+    fontWeight: '600',
+    paddingVertical: SPACING.s,
+  },
+  saveFareButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: RADIUS.m,
+    minHeight: 48,
+    paddingVertical: 14,
+    paddingHorizontal: SPACING.l,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: SPACING.l,
+    width: '100%',
+    ...SHADOWS.card,
+  },
+  saveFareButtonDisabled: {
+    backgroundColor: COLORS.surfaceHighlight,
+    opacity: 0.6,
+    elevation: 0,
+    shadowOpacity: 0,
+  },
+  saveFareButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveFareButtonText: {
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: 0.5,
   },
 });
