@@ -22,7 +22,12 @@ export const getFullImageUrl = (url, type = 'Bus') => {
     return fallback;
   }
 
-  const cleanUrl = url.trim();
+  let cleanUrl = url.trim();
+
+  // If http:// URL pointing to render backend, convert to https:// (Android blocks http:// cleartext)
+  if (cleanUrl.startsWith('http://bus-ev-sewa-car-booking.onrender.com')) {
+    cleanUrl = cleanUrl.replace('http://', 'https://');
+  }
 
   // Already a full remote URL or data/file URI
   if (
@@ -52,22 +57,36 @@ export const getFullImageUrl = (url, type = 'Bus') => {
 };
 
 /**
+ * Helper to extract an array of image path/url strings from vehicleImages field
+ */
+const parseVehicleImages = (imgs) => {
+  if (!imgs) return [];
+  if (Array.isArray(imgs)) return imgs;
+  if (typeof imgs === 'string') {
+    const trimmed = imgs.trim();
+    if (trimmed === '') return [];
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return parsed;
+        if (typeof parsed === 'string') return [parsed];
+      } catch (e) {
+        // Fallback to single string
+      }
+    }
+    return [trimmed];
+  }
+  return [];
+};
+
+/**
  * Helper to get the primary vehicle image URL or fallback
  */
 export const getPrimaryVehicleImage = (vehicle, type = 'Bus') => {
   const vehicleType = vehicle?.vehicleType || type;
-  let imgs = vehicle?.vehicleImages;
-  
-  if (typeof imgs === 'string') {
-    try {
-      const parsed = JSON.parse(imgs);
-      imgs = Array.isArray(parsed) ? parsed : [imgs];
-    } catch (e) {
-      imgs = [imgs];
-    }
-  }
+  const imgs = parseVehicleImages(vehicle?.vehicleImages);
 
-  if (Array.isArray(imgs) && imgs.length > 0) {
+  if (imgs.length > 0) {
     const valid = imgs.find(img => img && typeof img === 'string' && img.trim() !== '');
     if (valid) {
       return getFullImageUrl(valid, vehicleType);
@@ -81,18 +100,9 @@ export const getPrimaryVehicleImage = (vehicle, type = 'Bus') => {
  */
 export const getAllVehicleImages = (vehicle, type = 'Bus') => {
   const vehicleType = vehicle?.vehicleType || type;
-  let imgs = vehicle?.vehicleImages;
+  const imgs = parseVehicleImages(vehicle?.vehicleImages);
 
-  if (typeof imgs === 'string') {
-    try {
-      const parsed = JSON.parse(imgs);
-      imgs = Array.isArray(parsed) ? parsed : [imgs];
-    } catch (e) {
-      imgs = [imgs];
-    }
-  }
-
-  if (Array.isArray(imgs) && imgs.length > 0) {
+  if (imgs.length > 0) {
     const validUrls = imgs
       .filter(img => img && typeof img === 'string' && img.trim() !== '')
       .map(img => getFullImageUrl(img, vehicleType));
@@ -100,3 +110,4 @@ export const getAllVehicleImages = (vehicle, type = 'Bus') => {
   }
   return [getFullImageUrl(null, vehicleType)];
 };
+
