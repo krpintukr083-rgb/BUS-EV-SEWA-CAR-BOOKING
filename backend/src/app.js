@@ -64,7 +64,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'bypass-tunnel-reminder', 'Bypass-Tunnel-Reminder', 'ngrok-skip-browser-warning'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'bypass-tunnel-reminder', 'Bypass-Tunnel-Reminder', 'ngrok-skip-browser-warning', 'cache-control', 'Cache-Control'],
   exposedHeaders: ['Content-Length', 'X-Requested-With'],
   optionsSuccessStatus: 204
 };
