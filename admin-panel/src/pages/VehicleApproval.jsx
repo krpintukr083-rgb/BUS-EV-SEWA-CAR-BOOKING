@@ -3,7 +3,7 @@ import { adminService } from '../services/adminService';
 import StatusBadge from '../components/StatusBadge';
 import { Check, Eye, FileText, Image as ImageIcon, X } from 'lucide-react';
 
-const SERVER_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
+const SERVER_URL = (import.meta.env.VITE_API_URL || 'https://bus-ev-sewa-car-booking.onrender.com/api').replace(/\/api\/?$/, '');
 const resolveUrl = value => {
   if (!value) return '';
   if (/^(https?:|data:)/i.test(value)) return value;
@@ -25,7 +25,11 @@ export default function VehicleApproval() {
       // The all-vehicles endpoint includes the reviewed statuses; the pending
       // endpoint alone cannot populate the Active/Rejected filter.
       const res = await adminService.getVehicles();
-      setVehicles(res.data || []);
+      let arr = [];
+      if (Array.isArray(res)) arr = res;
+      else if (res && Array.isArray(res.data)) arr = res.data;
+      else if (res && res.data && Array.isArray(res.data.data)) arr = res.data.data;
+      setVehicles(arr);
       setError('');
     } catch (e) { setError(e?.response?.data?.message || 'Unable to load vehicle approvals'); }
     finally { setLoading(false); }
