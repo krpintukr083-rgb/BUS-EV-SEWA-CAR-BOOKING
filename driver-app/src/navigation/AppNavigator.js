@@ -19,6 +19,8 @@ import RideHistoryScreen from '../screens/history/RideHistoryScreen';
 import SafetyScreen from '../screens/safety/SafetyScreen';
 import SupportScreen from '../screens/support/SupportScreen';
 import NotificationsScreen from '../screens/notifications/NotificationsScreen';
+import CreateScheduleScreen from '../screens/schedule/CreateScheduleScreen';
+import MySchedulesScreen from '../screens/schedule/MySchedulesScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -61,6 +63,8 @@ export default function AppNavigator() {
           <Stack.Screen name="Safety" component={SafetyScreen} />
           <Stack.Screen name="Support" component={SupportScreen} />
           <Stack.Screen name="Notifications" component={NotificationsScreen} />
+          <Stack.Screen name="CreateSchedule" component={CreateScheduleScreen} />
+          <Stack.Screen name="MySchedules" component={MySchedulesScreen} />
         </Stack.Group>
       )}
     </Stack.Navigator>

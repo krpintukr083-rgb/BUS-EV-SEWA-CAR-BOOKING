@@ -18,7 +18,7 @@ import { getPrimaryVehicleImage } from '../../utils/imageUrl';
 
 const BusListingScreen = ({ navigation, route }) => {
   const { from = '', to = '' } = route.params || {};
-  const { updateDraft } = useBooking();
+  const { updateDraft, bookingDraft } = useBooking();
   const [buses, setBuses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -27,7 +27,8 @@ const BusListingScreen = ({ navigation, route }) => {
   const fetchBuses = async (customFrom = from, customTo = to) => {
     try {
       setErrorMessage('');
-      const res = await customerService.getBuses(customFrom, customTo);
+      const travelDate = bookingDraft?.travelDate || new Date().toISOString().split('T')[0];
+      const res = await customerService.getSchedules(customFrom, customTo, travelDate);
       if (res && res.success) {
         setBuses(res.data || []);
       } else {
@@ -47,15 +48,17 @@ const BusListingScreen = ({ navigation, route }) => {
     fetchBuses();
   }, [from, to]);
 
-  const handleSelectBus = (bus) => {
+  const handleSelectBus = (schedule) => {
+    const bus = schedule.vehicle;
     updateDraft({
       serviceType: 'Bus',
       vehicle: bus,
-      baseFare: bus.fareRate,
-      pickupLocation: bus.route?.origin || from || 'Delhi ISBT Kashmere Gate',
-      dropLocation: bus.route?.destination || to || 'Jaipur Sindhi Camp'
+      baseFare: schedule.fareRate || bus.fareRate,
+      pickupLocation: schedule.origin || bus.route?.origin || from || 'Delhi ISBT Kashmere Gate',
+      dropLocation: schedule.destination || bus.route?.destination || to || 'Jaipur Sindhi Camp',
+      scheduleId: schedule._id
     });
-    navigation.navigate('BusDetails', { busId: bus._id, bus });
+    navigation.navigate('BusDetails', { busId: bus._id, bus, schedule });
   };
 
   const getFirstStop = (points, fallback) => {
@@ -127,70 +130,97 @@ const BusListingScreen = ({ navigation, route }) => {
               </TouchableOpacity>
             </View>
           }
-          renderItem={({ item }) => (
-            <TouchableOpacity
-              style={styles.busCard}
-              onPress={() => handleSelectBus(item)}
-              activeOpacity={0.88}
-            >
-              {/* Bus Image Banner */}
-              <Image
-                source={{
-                  uri: getPrimaryVehicleImage(item, 'Bus')
-                }}
-                style={styles.busImage}
-              />
+          renderItem={({ item }) => {
+            const vehicle = item.vehicle || {};
+            return (
+              <TouchableOpacity
+                style={styles.busCard}
+                onPress={() => handleSelectBus(item)}
+                activeOpacity={0.88}
+              >
+                {/* Bus Image Banner */}
+                <Image
+                  source={{
+                    uri: getPrimaryVehicleImage(vehicle, 'Bus')
+                  }}
+                  style={styles.busImage}
+                />
 
-              <View style={styles.cardBody}>
-                {/* Header Row: Bus Name & Price */}
-                <View style={styles.rowBetween}>
-                  <View style={{ flex: 1, marginRight: 8 }}>
-                    <Text style={styles.busName} numberOfLines={1}>
-                      {item.vehicleName}
-                    </Text>
-                    <Text style={styles.busSub}>
-                      {item.vehicleNumber} • {item.busDetails?.busType || item.vehicleCategory}
-                    </Text>
+                <View style={styles.cardBody}>
+                  {/* Header Row: Bus Name & Price */}
+                  <View style={styles.rowBetween}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <Text style={styles.busName} numberOfLines={1}>
+                        {vehicle.vehicleName || 'Bus'}
+                      </Text>
+                      <Text style={styles.busSub}>
+                        {vehicle.vehicleNumber} • {vehicle.busDetails?.busType || vehicle.vehicleCategory || 'Transport'}
+                      </Text>
+                    </View>
+                    <View style={styles.farePill}>
+                      <Text style={styles.fareAmount}>₹{item.fareRate || vehicle.fareRate}</Text>
+                      <Text style={styles.fareSub}>Per Seat</Text>
+                    </View>
                   </View>
-                  <View style={styles.farePill}>
-                    <Text style={styles.fareAmount}>₹{item.fareRate}</Text>
-                    <Text style={styles.fareSub}>Per Seat</Text>
+
+                  {/* Schedule Timings */}
+                  <View style={{ marginBottom: 10, paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+                      <Ionicons name="calendar-outline" size={14} color={COLORS.textSecondary} style={{ marginRight: 4 }} />
+                      <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.textSecondary }}>
+                        Travel Date: {item.travelDate ? new Date(item.travelDate).toDateString() : 'N/A'}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Ionicons name="time-outline" size={16} color={COLORS.primary} style={{ marginRight: 4 }} />
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.textPrimary }}>
+                        Departure: {item.departureTime || '—'}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Ionicons name="time-outline" size={16} color={COLORS.warning} style={{ marginRight: 4 }} />
+                      <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.textPrimary }}>
+                        Arrival: {item.arrivalTime || '—'}
+                      </Text>
+                    </View>
+                  </View>
+                  </View>
+
+                  {/* Route Details */}
+                  <View style={styles.routeBox}>
+                    <View style={styles.stopRow}>
+                      <Ionicons name="radio-button-on" size={14} color={COLORS.primary} />
+                      <Text style={styles.stopText} numberOfLines={1}>
+                        Boarding: {getFirstStop(vehicle.route?.boardingPoints, item.origin || vehicle.route?.origin || vehicle.pickupDropDetails?.pickupLocation || 'Delhi ISBT')}
+                      </Text>
+                    </View>
+                    <View style={styles.stopRow}>
+                      <Ionicons name="location" size={14} color="#ef4444" />
+                      <Text style={styles.stopText} numberOfLines={1}>
+                        Dropping: {getFirstStop(vehicle.route?.droppingPoints, item.destination || vehicle.route?.destination || vehicle.pickupDropDetails?.dropLocation || 'Jaipur Sindhi Camp')}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Footer Row: Available seats & View Details Button */}
+                  <View style={styles.cardFooter}>
+                    <View style={styles.seatsBadge}>
+                      <Ionicons name="people-outline" size={14} color="#059669" />
+                      <Text style={styles.seatsText}>
+                        {vehicle.busDetails?.availableSeats || vehicle.seatingCapacity || 36} Seats Left
+                      </Text>
+                    </View>
+
+                    <View style={styles.selectBtn}>
+                      <Text style={styles.selectBtnText}>View Bus</Text>
+                      <Ionicons name="arrow-forward" size={14} color="#ffffff" />
+                    </View>
                   </View>
                 </View>
-
-                {/* Route Details */}
-                <View style={styles.routeBox}>
-                  <View style={styles.stopRow}>
-                    <Ionicons name="radio-button-on" size={14} color={COLORS.primary} />
-                    <Text style={styles.stopText} numberOfLines={1}>
-                      Boarding: {getFirstStop(item.route?.boardingPoints, item.route?.origin || item.pickupDropDetails?.pickupLocation || 'Delhi ISBT')}
-                    </Text>
-                  </View>
-                  <View style={styles.stopRow}>
-                    <Ionicons name="location" size={14} color="#ef4444" />
-                    <Text style={styles.stopText} numberOfLines={1}>
-                      Dropping: {getFirstStop(item.route?.droppingPoints, item.route?.destination || item.pickupDropDetails?.dropLocation || 'Jaipur Sindhi Camp')}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Footer Row: Available seats & View Details Button */}
-                <View style={styles.cardFooter}>
-                  <View style={styles.seatsBadge}>
-                    <Ionicons name="people-outline" size={14} color="#059669" />
-                    <Text style={styles.seatsText}>
-                      {item.busDetails?.availableSeats || item.seatingCapacity || 36} Seats Left
-                    </Text>
-                  </View>
-
-                  <View style={styles.selectBtn}>
-                    <Text style={styles.selectBtnText}>Select Seats</Text>
-                    <Ionicons name="arrow-forward" size={14} color="#ffffff" />
-                  </View>
-                </View>
-              </View>
-            </TouchableOpacity>
-          )}
+              </TouchableOpacity>
+            );
+          }}
         />
       )}
     </View>

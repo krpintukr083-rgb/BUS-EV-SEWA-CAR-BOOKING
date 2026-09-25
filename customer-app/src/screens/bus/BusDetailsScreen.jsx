@@ -194,13 +194,26 @@ const BusDetailsScreen = ({ navigation, route }) => {
         <View style={styles.contentCard}>
           <Text style={styles.cardHeader}>Route & Boarding Points</Text>
 
+          {schedule && (
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, backgroundColor: '#f1f5f9', padding: 10, borderRadius: 8 }}>
+              <View>
+                <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>Departure</Text>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.textPrimary }}>{schedule.departureTime}</Text>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>Arrival</Text>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.textPrimary }}>{schedule.arrivalTime}</Text>
+              </View>
+            </View>
+          )}
+
           <View style={styles.routeBox}>
             <View style={styles.stopItem}>
               <Ionicons name="radio-button-on" size={16} color={COLORS.primary} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.stopName}>Origin: {bus.route?.origin || 'Delhi ISBT'}</Text>
+                <Text style={styles.stopName}>Origin: {schedule?.origin || bus.route?.origin || 'Delhi ISBT'}</Text>
                 <Text style={styles.stopSub}>
-                  Boarding: {formatPoints(bus.route?.boardingPoints, bus.route?.origin || 'ISBT Gate 3')}
+                  Boarding: {formatPoints(bus.route?.boardingPoints, schedule?.origin || bus.route?.origin || 'ISBT Gate 3')}
                 </Text>
               </View>
             </View>
@@ -210,9 +223,9 @@ const BusDetailsScreen = ({ navigation, route }) => {
             <View style={styles.stopItem}>
               <Ionicons name="location" size={16} color="#ef4444" />
               <View style={{ flex: 1 }}>
-                <Text style={styles.stopName}>Destination: {bus.route?.destination || 'Jaipur Sindhi Camp'}</Text>
+                <Text style={styles.stopName}>Destination: {schedule?.destination || bus.route?.destination || 'Jaipur Sindhi Camp'}</Text>
                 <Text style={styles.stopSub}>
-                  Dropping: {formatPoints(bus.route?.droppingPoints, bus.route?.destination || 'Platform 4')}
+                  Dropping: {formatPoints(bus.route?.droppingPoints, schedule?.destination || bus.route?.destination || 'Platform 4')}
                 </Text>
               </View>
             </View>

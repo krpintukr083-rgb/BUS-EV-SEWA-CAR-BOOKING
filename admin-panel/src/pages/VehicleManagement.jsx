@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { adminService } from '../services/adminService';
 import StatusBadge from '../components/StatusBadge';
-import { Truck, Search, Edit, FileText, Check, AlertCircle, Eye, UserCheck, Image as ImageIcon, Trash2, Plus, Star, Camera, DollarSign, Building, ShoppingBag, Calendar, CheckCircle2, Clock } from 'lucide-react';
+import { Truck, Search, Check, AlertCircle, Eye, UserCheck, Image as ImageIcon, Trash2, Star, Camera, DollarSign, Building, ShoppingBag, Calendar, CheckCircle2, Clock } from 'lucide-react';
 
 import { resolveImageUrl, getPrimaryVehicleImage, getAllVehicleImages } from '../utils/imageUrl';
 
@@ -26,11 +26,6 @@ const VehicleManagement = () => {
   // Photo Management State
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [existingPhotos, setExistingPhotos] = useState([]);
-  const [newPhotoFiles, setNewPhotoFiles] = useState([]);
-  const [newPhotoPreviews, setNewPhotoPreviews] = useState([]);
-  const [photoError, setPhotoError] = useState('');
-  const [photoSaving, setPhotoSaving] = useState(false);
-  const photoInputRef = useRef(null);
 
   // Delete Modal State
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -177,118 +172,9 @@ const VehicleManagement = () => {
   const handleOpenPhotoModal = vehicle => {
     setSelectedVehicle(vehicle);
     setExistingPhotos(vehicle.vehicleImages || []);
-    setNewPhotoFiles([]);
-    setNewPhotoPreviews([]);
-    setPhotoError('');
     setIsPhotoModalOpen(true);
   };
 
-  const handleSelectNewPhotos = e => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-
-    setPhotoError('');
-    const totalCurrent = existingPhotos.length + newPhotoFiles.length;
-    const remainingSlots = 5 - totalCurrent;
-
-    if (remainingSlots <= 0) {
-      setPhotoError('Maximum limit of 5 vehicle images already reached.');
-      if (e.target) e.target.value = '';
-      return;
-    }
-
-    const filesToProcess = files.slice(0, remainingSlots);
-    if (files.length > remainingSlots) {
-      setPhotoError(`Only ${remainingSlots} more image(s) can be added (maximum 5 allowed).`);
-    }
-
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
-    const maxSize = 2 * 1024 * 1024; // 2MB
-
-    const validFiles = [];
-    const previews = [];
-    let hasTypeError = false;
-    let hasSizeError = false;
-
-    for (const file of filesToProcess) {
-      if (!validTypes.includes(file.type.toLowerCase())) {
-        hasTypeError = true;
-        continue;
-      }
-      if (file.size > maxSize) {
-        hasSizeError = true;
-        continue;
-      }
-      validFiles.push(file);
-      previews.push({
-        file,
-        previewUrl: URL.createObjectURL(file),
-        name: file.name
-      });
-    }
-
-    if (hasTypeError) {
-      setPhotoError('Only JPG, JPEG, and PNG images are allowed.');
-    } else if (hasSizeError) {
-      setPhotoError('Some files were skipped because they exceed the 2MB size limit.');
-    }
-
-    if (validFiles.length > 0) {
-      setNewPhotoFiles(prev => [...prev, ...validFiles]);
-      setNewPhotoPreviews(prev => [...prev, ...previews]);
-    }
-
-    if (e.target) e.target.value = '';
-  };
-
-  const handleRemoveExistingPhoto = indexToRemove => {
-    setExistingPhotos(prev => prev.filter((_, idx) => idx !== indexToRemove));
-  };
-
-  const handleRemoveNewPhoto = indexToRemove => {
-    setNewPhotoFiles(prev => prev.filter((_, idx) => idx !== indexToRemove));
-    setNewPhotoPreviews(prev => prev.filter((_, idx) => idx !== indexToRemove));
-  };
-
-  const handleSetPrimaryExistingPhoto = indexToMakePrimary => {
-    setExistingPhotos(prev => {
-      const item = prev[indexToMakePrimary];
-      const rest = prev.filter((_, idx) => idx !== indexToMakePrimary);
-      return [item, ...rest];
-    });
-  };
-
-  const handleSavePhotos = async () => {
-    if (!selectedVehicle) return;
-    setPhotoSaving(true);
-    setPhotoError('');
-
-    try {
-      let newlyUploadedUrls = [];
-      if (newPhotoFiles.length > 0) {
-        const uploadRes = await adminService.uploadVehicleImages(newPhotoFiles);
-        if (uploadRes.success && uploadRes.urls) {
-          newlyUploadedUrls = uploadRes.urls;
-        }
-      }
-
-      const finalImagesList = [...existingPhotos, ...newlyUploadedUrls].slice(0, 5);
-
-      const updateRes = await adminService.updateVehicle(selectedVehicle._id, {
-        vehicleImages: finalImagesList
-      });
-
-      if (updateRes.success) {
-        setMessage('Vehicle photos updated successfully!');
-        setIsPhotoModalOpen(false);
-        await fetchVehiclesAndDrivers();
-      }
-    } catch (err) {
-      setPhotoError(err.response?.data?.message || 'Failed to save vehicle photos');
-    } finally {
-      setPhotoSaving(false);
-    }
-  };
 
   const filteredVehicles = vehicles.filter(v => {
     const matchesSearch =
@@ -857,7 +743,7 @@ const VehicleManagement = () => {
                     }}
                   >
                     <img
-                      src={getImageUrl(photosList[activeGalleryIndex] || photosList[0])}
+                      src={resolveImageUrl(photosList[activeGalleryIndex] || photosList[0])}
                       alt={activeGalleryIndex === 0 ? 'Front Vehicle Photo' : activeGalleryIndex === 1 ? 'Back Vehicle Photo' : activeGalleryIndex === 2 ? 'Left Vehicle Photo' : activeGalleryIndex === 3 ? 'Right Vehicle Photo' : `Vehicle Photo ${activeGalleryIndex + 1}`}
                       style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                     />
@@ -901,7 +787,7 @@ const VehicleManagement = () => {
                           }}
                         >
                           <img
-                            src={getImageUrl(imgUrl)}
+                            src={resolveImageUrl(imgUrl)}
                             alt={idx === 0 ? 'Front Vehicle Photo' : idx === 1 ? 'Back Vehicle Photo' : idx === 2 ? 'Left Vehicle Photo' : idx === 3 ? 'Right Vehicle Photo' : `Vehicle Photo ${idx + 1}`}
                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                           />
@@ -1049,15 +935,6 @@ const VehicleManagement = () => {
               <button className="btn btn-outline btn-sm" onClick={() => setIsPhotoModalOpen(false)}>✕</button>
             </div>
 
-            <input
-              type="file"
-              ref={photoInputRef}
-              onChange={handleSelectNewPhotos}
-              multiple
-              accept="image/png, image/jpeg, image/jpg"
-              style={{ display: 'none' }}
-            />
-
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '20px' }}>
               {existingPhotos.map((imgUrl, idx) => (
                 <div key={idx} style={{ position: 'relative', width: '120px', height: '90px', borderRadius: '8px', overflow: 'hidden', border: idx === 0 ? '2px solid #2563eb' : '1px solid #cbd5e1' }}>
@@ -1067,60 +944,13 @@ const VehicleManagement = () => {
                       PRIMARY
                     </span>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveExistingPhoto(idx)}
-                    style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                  {idx !== 0 && (
-                    <button
-                      type="button"
-                      onClick={() => handleSetPrimaryExistingPhoto(idx)}
-                      style={{ position: 'absolute', bottom: '4px', right: '4px', background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '4px', padding: '2px 4px', fontSize: '0.65rem', cursor: 'pointer' }}
-                    >
-                      Make Primary
-                    </button>
-                  )}
                 </div>
               ))}
-
-              {newPhotoPreviews.map((p, idx) => (
-                <div key={`new-${idx}`} style={{ position: 'relative', width: '120px', height: '90px', borderRadius: '8px', overflow: 'hidden', border: '2px dashed #10b981' }}>
-                  <img src={p.previewUrl} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  <span style={{ position: 'absolute', bottom: '4px', left: '4px', backgroundColor: '#10b981', color: '#fff', fontSize: '0.65rem', padding: '1px 5px', borderRadius: '3px', fontWeight: '700' }}>
-                    NEW
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveNewPhoto(idx)}
-                    style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(0,0,0,0.6)', color: '#fff', border: 'none', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
-                  >
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              ))}
-
-              {existingPhotos.length + newPhotoPreviews.length < 5 && (
-                <button
-                  type="button"
-                  onClick={() => photoInputRef.current?.click()}
-                  style={{ width: '120px', height: '90px', border: '2px dashed #cbd5e1', borderRadius: '8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px', background: '#f8fafc', cursor: 'pointer', color: '#64748b', fontSize: '0.8rem' }}
-                >
-                  <Plus size={20} /> Add Photo
-                </button>
-              )}
             </div>
 
-            {photoError && <p style={{ color: '#ef4444', fontSize: '0.85rem', marginBottom: '14px' }}>{photoError}</p>}
-
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button type="button" className="btn btn-outline" onClick={() => setIsPhotoModalOpen(false)}>
-                Cancel
-              </button>
-              <button type="button" className="btn btn-primary" onClick={handleSavePhotos} disabled={photoSaving}>
-                {photoSaving ? 'Saving Changes...' : 'Save Photos'}
+                Close
               </button>
             </div>
           </div>

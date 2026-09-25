@@ -67,14 +67,30 @@ exports.getDriverVehicles = async (req, res, next) => {
 exports.createSchedule = async (req, res, next) => {
   try {
     const body = req.body || {};
-    if (!body.vehicle || !body.origin || !body.destination || !body.travelDate || !body.departureTime) {
-      return res.status(400).json({ success: false, message: 'vehicle, origin, destination, travelDate and departureTime are required' });
+    if (!body.vehicle || !body.origin || !body.destination || !body.travelDate || !body.departureTime || !body.arrivalTime) {
+      return res.status(400).json({ success: false, message: 'vehicle, origin, destination, travelDate, departureTime, and arrivalTime are required' });
     }
     const vehicle = await Vehicle.findOne({ _id: body.vehicle, assignedDriver: req.driver._id });
     if (!vehicle) return res.status(404).json({ success: false, message: 'Vehicle is not assigned to this driver' });
     if (vehicle.vehicleStatus !== 'Active') {
       return res.status(400).json({ success: false, message: 'Only an active vehicle can have a schedule' });
     }
+
+    const startOfDay = new Date(body.travelDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(body.travelDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const duplicate = await Schedule.findOne({
+      vehicle: vehicle._id,
+      departureTime: body.departureTime,
+      travelDate: { $gte: startOfDay, $lte: endOfDay }
+    });
+
+    if (duplicate) {
+      return res.status(409).json({ success: false, message: 'A schedule for this vehicle on this date and time already exists.' });
+    }
+
     const schedule = await Schedule.create({
       ...body, driver: req.driver._id, status: 'Pending',
       fareRate: Number(body.fareRate) || vehicle.fareRate || 0
@@ -97,7 +113,21 @@ exports.getDriverSchedules = async (req, res, next) => {
 
 exports.getActiveSchedules = async (req, res, next) => {
   try {
-    const data = await Schedule.find({ status: 'Active' }).populate({
+    const { from, to, travelDate } = req.query;
+    const filter = { status: 'Active' };
+    
+    if (from) filter.origin = new RegExp(from, 'i');
+    if (to) filter.destination = new RegExp(to, 'i');
+    
+    if (travelDate) {
+      const startOfDay = new Date(travelDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(travelDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      filter.travelDate = { $gte: startOfDay, $lte: endOfDay };
+    }
+
+    const data = await Schedule.find(filter).populate({
       path: 'vehicle', match: { vehicleStatus: 'Active' }, populate: { path: 'assignedDriver' }
     }).sort({ travelDate: 1, departureTime: 1 }).lean();
     res.json({ success: true, count: data.filter(s => s.vehicle).length, data: data.filter(s => s.vehicle) });

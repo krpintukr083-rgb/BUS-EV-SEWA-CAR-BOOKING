@@ -289,10 +289,20 @@ const DashboardScreen = ({ navigation }) => {
           </TouchableOpacity>
           <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate(hasVehicle ? 'VehicleDetails' : 'VehicleSubmission')}>
             <Ionicons name="bus-outline" size={24} color={COLORS.primaryLight} />
-            <Text style={styles.menuItemText}>{hasVehicle ? 'My Vehicle / Update Vehicle' : 'Register Vehicle'}</Text>
+            <Text style={styles.menuItemText}>{hasVehicle ? 'My Vehicle' : 'Register Vehicle'}</Text>
             <Text style={styles.menuItemSub}>
-              {hasVehicle ? 'View or update your vehicle' : 'Register your vehicle for approval'}
+              {hasVehicle ? 'View your vehicle' : 'Register your vehicle'}
             </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('CreateSchedule')}>
+            <Ionicons name="calendar" size={24} color={COLORS.accent} />
+            <Text style={styles.menuItemText}>Create Schedule</Text>
+            <Text style={styles.menuItemSub}>Add schedule for vehicle</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('MySchedules')}>
+            <Ionicons name="time" size={24} color={COLORS.primary} />
+            <Text style={styles.menuItemText}>My Schedules</Text>
+            <Text style={styles.menuItemSub}>View pending/active schedules</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('DriverKYC')}>
             <Ionicons name="document-text" size={24} color={COLORS.accent} />
