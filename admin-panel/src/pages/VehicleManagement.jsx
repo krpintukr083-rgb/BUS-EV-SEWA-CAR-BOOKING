@@ -1061,7 +1061,7 @@ const VehicleManagement = () => {
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', marginBottom: '20px' }}>
               {existingPhotos.map((imgUrl, idx) => (
                 <div key={idx} style={{ position: 'relative', width: '120px', height: '90px', borderRadius: '8px', overflow: 'hidden', border: idx === 0 ? '2px solid #2563eb' : '1px solid #cbd5e1' }}>
-                  <img src={imgUrl} alt="photo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={resolveImageUrl(imgUrl)} alt="photo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   {idx === 0 && (
                     <span style={{ position: 'absolute', bottom: '4px', left: '4px', backgroundColor: '#2563eb', color: '#fff', fontSize: '0.65rem', padding: '1px 5px', borderRadius: '3px', fontWeight: '700' }}>
                       PRIMARY
