@@ -151,9 +151,12 @@ export default function VehicleSubmissionScreen() {
         payload.hireDetails = { hireAmount: Number(form.hireAmount) || 0 };
       }
 
-      await driverService.registerVehicle(payload);
+      const res = await driverService.registerVehicle(payload);
 
       const imageData = new FormData();
+      if (res.data && res.data.data && res.data.data._id) {
+        imageData.append('vehicleId', res.data.data._id);
+      }
       imageData.append('vehicleImages', photos.front);
       imageData.append('vehicleImages', photos.back);
       imageData.append('vehicleImages', photos.left);

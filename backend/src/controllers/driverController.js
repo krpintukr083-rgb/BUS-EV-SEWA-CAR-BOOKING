@@ -922,18 +922,15 @@ exports.uploadDriverVehicleImages = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Driver not found' });
     }
 
-    // Find the latest vehicle created by this driver
-    const latestVehicle = await Vehicle.findOne({
-      $or: [
-        { assignedDriver: driver._id },
-        { 'submission.submittedByDriver': driver._id }
-      ]
-    }).sort({ createdAt: -1 }).select('_id').lean();
-
-    let vehicleId = latestVehicle ? latestVehicle._id : null;
+    // Use exact vehicleId provided by the client, fallback to driver's assigned vehicle if missing.
+    let vehicleId = req.body.vehicleId || null;
+    
+    if (!vehicleId) {
+      vehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
+    }
 
     if (!vehicleId) {
-      return res.status(404).json({ success: false, message: 'No vehicle assigned to this driver' });
+      return res.status(404).json({ success: false, message: 'vehicleId is required or no vehicle assigned to this driver' });
     }
 
     const vehicle = await Vehicle.findById(vehicleId);
