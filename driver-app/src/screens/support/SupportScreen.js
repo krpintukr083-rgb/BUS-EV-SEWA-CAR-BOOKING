@@ -26,8 +26,8 @@ export default function SupportScreen({ navigation }) {
   const fetchTickets = async () => {
     try {
       const res = await driverService.getSupport();
-      if (res.success && res.data?.tickets) {
-        setRecentTickets(res.data.tickets);
+      if (res.data?.success && res.data?.data?.tickets) {
+        setRecentTickets(res.data.data.tickets);
       }
     } catch (err) {
       console.log('Error fetching tickets:', err);
@@ -91,16 +91,21 @@ export default function SupportScreen({ navigation }) {
         subject: subject.trim(),
         supportIssue: description.trim(),
       });
-      if (res.success) {
-        Alert.alert(t('success'), 'Support ticket submitted! Ticket ID #' + (res.data?._id?.slice(-6) || '7821'));
+      if (res.data?.success) {
+        Alert.alert(t('success'), 'Support ticket submitted! Ticket ID #' + (res.data?.data?._id?.slice(-6) || '7821'));
         setSubject('');
         setDescription('');
         fetchTickets();
       } else {
-        Alert.alert(t('error'), res.message || 'Failed to submit ticket');
+        Alert.alert(t('error'), res.data?.message || 'Failed to submit ticket');
       }
     } catch (err) {
-      Alert.alert(t('error'), err.response?.data?.message || 'Failed to submit ticket');
+      const message =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err?.message ||
+        'Failed to submit ticket';
+      Alert.alert(t('error'), message);
     } finally {
       setSubmitting(false);
     }
