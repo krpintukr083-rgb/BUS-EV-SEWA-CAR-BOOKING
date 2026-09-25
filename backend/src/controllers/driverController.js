@@ -2433,12 +2433,31 @@ exports.registerPushToken = async (req, res, next) => {
 // @access  Private (Driver Only)
 exports.updateVehicleFare = async (req, res, next) => {
   try {
-    const { fareRate } = req.body;
+    const { fareRate, vehicleId } = req.body;
     if (fareRate === undefined || fareRate === null || Number(fareRate) <= 0) {
       return res.status(400).json({ success: false, message: 'Please provide a valid positive fare amount' });
     }
 
-    const vehicle = await Vehicle.findOne({ assignedDriver: req.user._id });
+    // Build query: always verify ownership via Driver._id (NOT User._id)
+    const query = { assignedDriver: req.driver._id };
+
+    // If frontend sent vehicleId, add it to query for extra precision
+    if (vehicleId) {
+      query._id = vehicleId;
+    }
+
+    let vehicle = await Vehicle.findOne(query);
+
+    // Fallback: if driver.assignedVehicle is set, verify it belongs to this driver
+    if (!vehicle && req.driver.assignedVehicle) {
+      const assignedId = req.driver.assignedVehicle._id || req.driver.assignedVehicle;
+      vehicle = await Vehicle.findById(assignedId);
+      // Ensure the vehicle actually belongs to this driver
+      if (vehicle && vehicle.assignedDriver && vehicle.assignedDriver.toString() !== req.driver._id.toString()) {
+        vehicle = null;
+      }
+    }
+
     if (!vehicle) {
       return res.status(404).json({ success: false, message: 'Assigned vehicle not found or you are not authorized to edit this vehicle' });
     }

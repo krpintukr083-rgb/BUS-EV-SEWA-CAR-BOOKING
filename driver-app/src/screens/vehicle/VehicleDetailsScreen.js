@@ -63,10 +63,14 @@ export default function VehicleDetailsScreen({ navigation }) {
     }
     setSavingFare(true);
     try {
-      const res = await driverService.updateVehicleFare(fare);
+      const res = await driverService.updateVehicleFare(fare, vehicle?._id);
       if (res.data?.success) {
-        Alert.alert('Success', 'Vehicle fare updated successfully');
-        fetchVehicle();
+        // Update displayed fare immediately without full refetch
+        if (res.data.data) {
+          setVehicle(res.data.data);
+          setFare(res.data.data.fareRate ? res.data.data.fareRate.toString() : fare);
+        }
+        Alert.alert('Success', 'Fare updated successfully');
       } else {
         Alert.alert('Error', res.data?.message || 'Failed to update fare');
       }
