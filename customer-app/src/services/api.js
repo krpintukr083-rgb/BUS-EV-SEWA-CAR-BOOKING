@@ -152,6 +152,20 @@ api.interceptors.request.use(
           config.headers.Authorization = `Bearer ${token}`;
         }
       }
+
+      // Safe Diagnostic Logging (User Requirement 7: Never log JWT)
+      if (config.url && config.url.includes('/bookings/instant/availability')) {
+        const hasAuthHeader = !!(
+          (config.headers && typeof config.headers.get === 'function' ? config.headers.get('Authorization') : null) ||
+          config.headers?.Authorization
+        );
+        console.log('[AXIOS DIAGNOSTIC] Instant Booking Request Dispatch:', {
+          endpoint: config.url,
+          tokenExists: !!token,
+          tokenLength: token ? token.length : 0,
+          authorizationHeaderExists: hasAuthHeader
+        });
+      }
     } catch (e) {
       console.error('Error in request interceptor:', e);
     }
@@ -181,7 +195,8 @@ api.interceptors.response.use(
       }
     }
 
-    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+    // Only actual 401 Unauthorized invalidates the stored session (403 Forbidden is a business error)
+    if (error.response && error.response.status === 401) {
       try {
         await AsyncStorage.removeItem('customer_token');
         await AsyncStorage.removeItem('customer_user');

@@ -165,7 +165,11 @@ const HomeScreen = ({ navigation }) => {
   const startBooking = bookingMode => {
     resetDraft();
     updateDraft({ bookingMode });
-    navigation.getParent()?.navigate('BookingServiceSelection', { bookingMode });
+    if (bookingMode === 'INSTANT') {
+      navigation.getParent()?.navigate('InstantBookingRoute');
+    } else {
+      navigation.getParent()?.navigate('BookingServiceSelection', { bookingMode });
+    }
   };
 
   const handleViewBus = (bus) => {

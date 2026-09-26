@@ -108,10 +108,10 @@ const verifyDriverVehicleAccess = async (driver, booking) => {
     return false;
   }
 
-  if (assignedVehicle.vehicleType !== booking.serviceType) return false;
+  if (booking.serviceType !== 'Any' && assignedVehicle.vehicleType !== booking.serviceType) return false;
 
-  const isSelectedBusVehicle = booking.serviceType === 'Bus'
-    && String(assignedVehicle._id) === String(booking.vehicle?._id || booking.vehicle);
+  const isSelectedBusVehicle = (booking.serviceType === 'Bus' || booking.serviceType === 'Any')
+    && booking.vehicle && String(assignedVehicle._id) === String(booking.vehicle?._id || booking.vehicle);
   return vehicleMatchesBookingRoute(assignedVehicle, booking, {
     requireRouteMatch: !isSelectedBusVehicle
   });
@@ -1145,8 +1145,7 @@ exports.getBookingRequests = async (req, res, next) => {
       rideStatus: { $ne: 'Accepted' },
       bookingStatus: {
         $in: ['Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation', 'Admin Confirmed', 'ADMIN_CONFIRMED']
-      },
-      bookingMode: { $ne: 'INSTANT' }
+      }
     })
       .populate('user', 'phone')
       .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory fuelType fareRate route pickupDropDetails hireDetails')
@@ -1164,10 +1163,10 @@ exports.getBookingRequests = async (req, res, next) => {
       if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(reqItem.bookingStatus)) {
         return false;
       }
-      // Bus requests remain broadcast; non-Bus requests cannot be claimed by another assigned driver.
-      if (reqItem.serviceType === 'Bus') {
+      // Bus or Any requests remain broadcast; non-Bus requests cannot be claimed by another assigned driver unless they are 'Any' broadcast.
+      if (reqItem.serviceType === 'Bus' || reqItem.serviceType === 'Any') {
         if (assignedVehicle) {
-          const isSelectedBusVehicle = String(assignedVehicle._id) === String(reqItem.vehicle?._id || reqItem.vehicle);
+          const isSelectedBusVehicle = reqItem.vehicle && String(assignedVehicle._id) === String(reqItem.vehicle?._id || reqItem.vehicle);
           const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem, {
             requireRouteMatch: !isSelectedBusVehicle
           });
@@ -1288,8 +1287,18 @@ exports.acceptBookingRequest = async (req, res, next) => {
       });
     }
 
-    // Assign driver if unassigned (pending OTP verification)
-    const isBus = booking.serviceType === 'Bus';
+    let assignedVehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
+    if (!assignedVehicleId) {
+      let vByDriver = await Vehicle.findOne({ assignedDriver: driver._id, vehicleStatus: 'Active' }).select('_id').lean();
+      if (!vByDriver) {
+         vByDriver = await Vehicle.findOne({ assignedDriver: driver._id }).sort({ createdAt: -1 }).select('_id').lean();
+      }
+      if (vByDriver) assignedVehicleId = vByDriver._id;
+    }
+    const assignedVehicle = assignedVehicleId ? await Vehicle.findById(assignedVehicleId).lean() : null;
+
+    const finalServiceType = booking.serviceType === 'Any' && assignedVehicle ? assignedVehicle.vehicleType : booking.serviceType;
+    const isBus = finalServiceType === 'Bus';
     const isOfflineCash = booking.paymentMethod === 'Offline Cash' || booking.paymentMethod === 'Cash';
     const isPaid = booking.paymentStatus === 'Paid' || booking.paymentStatus === 'Successful';
 
@@ -1305,6 +1314,33 @@ exports.acceptBookingRequest = async (req, res, next) => {
       nextBookingStatus = 'Ongoing';
     }
 
+
+    const updateSet = {
+      driver: driver._id,
+      assignedDriverId: driver._id,
+      driverConfirmationStatus: 'Pending',
+      driverConfirmed: false,
+      rideStatus: 'Accepted',
+      bookingStatus: nextBookingStatus
+    };
+
+    if (booking.bookingMode === 'INSTANT' && (booking.serviceType === 'Any' || !booking.vehicle) && assignedVehicle) {
+      updateSet.vehicle = assignedVehicle._id;
+      updateSet.serviceType = assignedVehicle.vehicleType;
+      
+      const { getRouteSegmentFare } = require('../../utils/routeFares');
+      let fare = assignedVehicle.fareRate || assignedVehicle.fare || 0;
+      if (Array.isArray(assignedVehicle.route?.stops) && assignedVehicle.route.stops.length > 0) {
+        const segFare = getRouteSegmentFare(assignedVehicle.route, booking.pickupLocation, booking.dropLocation);
+        if (segFare != null) fare = segFare;
+      }
+      
+      const passCount = booking.passengerDetails?.length || 1;
+      updateSet.fare = fare * passCount;
+      updateSet.originalFare = fare * passCount;
+      updateSet.finalFare = fare * passCount;
+    }
+
     const claimedBooking = await Booking.findOneAndUpdate(
       {
         _id: booking._id,
@@ -1318,16 +1354,7 @@ exports.acceptBookingRequest = async (req, res, next) => {
           $in: ['Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation', 'Admin Confirmed', 'ADMIN_CONFIRMED']
         }
       },
-      {
-        $set: {
-          driver: driver._id,
-          assignedDriverId: driver._id,
-          driverConfirmationStatus: 'Pending',
-          driverConfirmed: false,
-          rideStatus: 'Accepted',
-          bookingStatus: nextBookingStatus
-        }
-      },
+      { $set: updateSet },
       { new: true }
     );
     if (!claimedBooking) {

@@ -30,7 +30,7 @@ const bookingSchema = new mongoose.Schema(
     vehicle: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Vehicle',
-      required: true
+      default: null
     },
     scheduleId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -39,8 +39,8 @@ const bookingSchema = new mongoose.Schema(
     },
     serviceType: {
       type: String,
-      enum: ['Bus', 'EV-Sewa', 'Car', 'Truck'],
-      required: true
+      enum: ['Bus', 'EV-Sewa', 'Car', 'Truck', 'Any'],
+      default: 'Any'
     },
     bookingMode: {
       type: String,

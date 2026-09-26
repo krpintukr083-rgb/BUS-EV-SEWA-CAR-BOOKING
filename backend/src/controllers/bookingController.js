@@ -51,6 +51,58 @@ exports.createBooking = async (req, res, next) => {
     }
     const bookingMode = requestedBookingMode || 'NORMAL';
 
+    if (bookingMode === 'INSTANT') {
+      if (!pickupLocation || !dropLocation) {
+        return res.status(400).json({ success: false, message: 'Missing required booking fields (pickupLocation, dropLocation)' });
+      }
+
+      const serviceControl = await ServiceControl.findOne();
+      if (!serviceControl?.instantBookingEnabled) {
+        return res.status(403).json({ success: false, code: 'INSTANT_BOOKING_DISABLED', message: 'Instant booking is currently unavailable.' });
+      }
+
+      const crypto = require('crypto');
+      const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
+      const confirmationOtpHash = crypto.createHash('sha256').update(rawOtp).digest('hex');
+      const bookingId = `BK-${Date.now().toString().slice(-4)}${Math.floor(100 + Math.random() * 900)}`;
+
+      const booking = await Booking.create({
+        bookingId,
+        bookingMode: 'INSTANT',
+        serviceType: serviceType || 'Any',
+        user: req.user?._id,
+        customer: {
+          name: req.body.customer?.name || req.user?.name || 'Customer',
+          phone: req.body.customer?.phone || req.user?.phone || '0000000000',
+          email: req.body.customer?.email || req.user?.email || ''
+        },
+        passengerDetails: Array.isArray(passengerDetails) ? passengerDetails : [],
+        pickupLocation,
+        dropLocation,
+        fare: 0,
+        originalFare: 0,
+        finalFare: 0,
+        paymentMethod: paymentMethod || 'Offline Cash',
+        paymentStatus: 'Pending Cash',
+        bookingStatus: 'Pending Driver Confirmation',
+        confirmationOtpHash,
+        customerViewOtp: rawOtp,
+        travelDate: travelDate ? new Date(travelDate) : new Date()
+      });
+
+      await notifyEligibleDriversForBooking(booking);
+
+      const bookingObj = booking.toObject();
+      bookingObj.confirmationOtp = rawOtp;
+      delete bookingObj.confirmationOtpHash;
+
+      return res.status(201).json({
+        success: true,
+        message: 'Instant booking request created successfully. Waiting for a driver to accept.',
+        data: bookingObj
+      });
+    }
+
     if (!vehicleId || !serviceType || !pickupLocation || !dropLocation) {
       return res.status(400).json({
         success: false,
@@ -210,21 +262,6 @@ exports.createBooking = async (req, res, next) => {
     }
 
     let instantDriver = null;
-    if (bookingMode === 'INSTANT') {
-      const noDriverAvailable = () => res.status(409).json({
-        success: false,
-        code: 'INSTANT_BOOKING_UNAVAILABLE',
-        message: 'No driver is currently available for instant booking.'
-      });
-      const available = await getAvailableInstantVehicleDrivers(
-        serviceType,
-        pickupLocation,
-        dropLocation,
-        [vehicle.toObject()]
-      );
-      instantDriver = available[0]?.driver || null;
-      if (!instantDriver) return noDriverAvailable();
-    }
 
     // 4. Calculate Server-Side Fare with Dynamic Admin Bus Offer Discount
     const fareUnitCount = serviceType === 'Bus' && selectedSeats && selectedSeats.length > 0

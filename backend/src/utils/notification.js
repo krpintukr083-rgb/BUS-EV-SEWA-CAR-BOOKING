@@ -72,7 +72,7 @@ const notifyEligibleDriversForBooking = async (booking) => {
     if (!booking) return;
 
     const serviceType = booking.serviceType;
-    if (!['Bus', 'EV-Sewa', 'Car'].includes(serviceType) || booking.bookingMode === 'INSTANT') return;
+    if (!['Bus', 'EV-Sewa', 'Car', 'Any'].includes(serviceType)) return;
 
     const bookingOrigin = booking.pickupLocation || booking.route?.origin || '';
     const bookingDest = booking.dropLocation || booking.route?.destination || '';
@@ -100,10 +100,11 @@ const notifyEligibleDriversForBooking = async (booking) => {
     const tQueryStart = Date.now();
 
     // Step A: Only approved vehicles in the requested service category may receive requests.
-    const activeVehicles = await Vehicle.find({
-      vehicleType: serviceType,
-      vehicleStatus: 'Active'
-    })
+    const vehicleQuery = { vehicleStatus: 'Active' };
+    if (serviceType !== 'Any') {
+      vehicleQuery.vehicleType = serviceType;
+    }
+    const activeVehicles = await Vehicle.find(vehicleQuery)
       .select('_id vehicleNumber vehicleName vehicleType vehicleStatus route pickupDropDetails hireDetails assignedDriver')
       .lean();
 
