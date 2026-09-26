@@ -46,6 +46,7 @@ export default function MySchedulesScreen({ navigation }) {
             setRemovingScheduleId(schedule._id);
             try {
               await driverService.removeSchedule(schedule._id);
+              setSchedules(current => current.filter(item => item._id !== schedule._id));
               await fetchSchedules();
               Alert.alert('Success', 'Schedule removed successfully.');
             } catch (error) {

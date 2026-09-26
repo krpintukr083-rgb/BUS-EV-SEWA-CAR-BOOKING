@@ -29,6 +29,20 @@ const notifyAdmins = async (title, message, eventType, entityType, entityId) => 
 
 const driverId = req => req.driver && req.driver._id;
 const isMissingNumericValue = value => value == null || (typeof value === 'string' && value.trim() === '');
+const ACTIVE_BOOKING_STATUSES = [
+  'Pending Admin Confirmation',
+  'PENDING_ADMIN_CONFIRMATION',
+  'Admin Confirmed',
+  'ADMIN_CONFIRMED',
+  'Pending',
+  'Pending Driver Confirmation',
+  'Confirmed',
+  'In Transit',
+  'Active',
+  'Pending Cash',
+  'Awaiting Cash Collection',
+  'Ongoing'
+];
 
 exports.registerVehicle = async (req, res, next) => {
   try {
@@ -128,7 +142,7 @@ exports.deleteDriverVehicle = async (req, res, next) => {
     const activeBooking = await Booking.exists({
       vehicle: vehicle._id,
       $or: [
-        { bookingStatus: { $in: ['Pending Admin Confirmation', 'Pending', 'Pending Driver Confirmation', 'Confirmed', 'In Transit', 'Active', 'Pending Cash', 'Awaiting Cash Collection', 'Ongoing'] } },
+        { bookingStatus: { $in: ACTIVE_BOOKING_STATUSES } },
         { rideStatus: { $in: ['Accepted', 'Arrived', 'Started'] } }
       ]
     });
@@ -261,7 +275,7 @@ exports.deleteDriverSchedule = async (req, res, next) => {
         },
         {
           $or: [
-            { bookingStatus: { $in: ['Pending Admin Confirmation', 'Pending', 'Pending Driver Confirmation', 'Confirmed', 'In Transit', 'Active', 'Pending Cash', 'Awaiting Cash Collection', 'Ongoing'] } },
+            { bookingStatus: { $in: ACTIVE_BOOKING_STATUSES } },
             { rideStatus: { $in: ['Accepted', 'Arrived', 'Started'] } }
           ]
         }

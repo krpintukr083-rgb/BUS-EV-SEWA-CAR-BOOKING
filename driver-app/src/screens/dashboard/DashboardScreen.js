@@ -91,7 +91,8 @@ const DashboardScreen = ({ navigation }) => {
           onPress: async () => {
             try {
               await driverService.removeVehicle(vehicle._id);
-              await loadVehicles();
+              setSubmittedVehicles(current => current.filter(item => item._id !== vehicle._id));
+              await Promise.all([loadVehicles(), loadDashboard()]);
               Alert.alert('Success', 'Vehicle removed successfully.');
             } catch (error) {
               Alert.alert(
