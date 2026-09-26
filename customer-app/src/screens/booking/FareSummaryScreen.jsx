@@ -97,10 +97,15 @@ const FareSummaryScreen = ({ navigation }) => {
     totalPayable = Math.max(0, originalFare - discountAmt);
   }
 
-  const handleProceedToPayment = async (requestedMode = bookingDraft.bookingMode || 'NORMAL') => {
+  const handleProceedToPayment = async (requestedMode) => {
     try {
       setLoading(true);
 
+      const bookingMode = ['NORMAL', 'INSTANT'].includes(requestedMode)
+        ? requestedMode
+        : ['NORMAL', 'INSTANT'].includes(bookingDraft.bookingMode)
+        ? bookingDraft.bookingMode
+        : 'NORMAL';
       const payload = {
         vehicleId: bookingDraft.vehicle?._id,
         serviceType: bookingDraft.serviceType,
@@ -108,7 +113,7 @@ const FareSummaryScreen = ({ navigation }) => {
         dropLocation: bookingDraft.dropLocation,
         passengerDetails: bookingDraft.passengerDetails,
         selectedSeats: bookingDraft.selectedSeats,
-        bookingMode: requestedMode,
+        bookingMode,
         ...(bookingDraft.serviceType === 'EV-Sewa' ? { passengerCount: fareUnitCount } : {}),
         fare: totalPayable,
         travelDate: bookingDraft.travelDate,
@@ -355,7 +360,7 @@ const FareSummaryScreen = ({ navigation }) => {
       <View style={styles.footer}>
         <Button
           title={loading ? 'Creating Booking...' : 'Proceed to Payment'}
-          onPress={handleProceedToPayment}
+          onPress={() => handleProceedToPayment()}
           loading={loading}
           disabled={loading}
           style={{ backgroundColor: serviceColor }}
