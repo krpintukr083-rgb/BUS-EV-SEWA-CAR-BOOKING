@@ -79,7 +79,8 @@ export default function EVHubScreen({ navigation, route }) {
       const response = await driverService.getVehicle(vehicleId);
       const selectedVehicle = response?.data?.data;
       if (!selectedVehicle || selectedVehicle.vehicleType !== 'EV-Sewa') {
-        throw new Error('No EV-Sewa vehicle is available for this driver.');
+        setStations(FALLBACK_STATIONS);
+        return;
       }
 
       const batteryPercentage = selectedVehicle.evDetails?.batteryPercentage
@@ -98,7 +99,7 @@ export default function EVHubScreen({ navigation, route }) {
       setEvStats(current => ({ ...current, batteryPercentage: null, estimatedRangeKm: null }));
       setNewSocInput('');
       setNewRangeInput('');
-      Alert.alert(t('error'), err.response?.data?.message || err.message || 'Unable to load EV vehicle details.');
+      console.log('Error loading EV details:', err.message);
     } finally {
       setLoading(false);
       setRefreshing(false);

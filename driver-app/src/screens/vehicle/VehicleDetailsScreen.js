@@ -244,6 +244,18 @@ export default function VehicleDetailsScreen({ navigation, route }) {
                       : 'Non-AC'}
                   </Text>
                 </View>
+                {(vehicle.vehicleType === 'EV-Sewa' || vehicle.carDetails?.fuelType === 'Electric' || vehicle.evDetails || vehicle.batteryPercentage != null) && (
+                  <>
+                    <View style={styles.specDivider} />
+                    <View style={styles.specItem}>
+                      <MaterialCommunityIcons name="battery-charging" size={20} color={COLORS.success} />
+                      <Text style={styles.specLabel}>Battery</Text>
+                      <Text style={styles.specVal}>
+                        {vehicle.evDetails?.batteryPercentage ?? vehicle.batteryPercentage ?? '--'}%
+                      </Text>
+                    </View>
+                  </>
+                )}
               </View>
             </View>
 
