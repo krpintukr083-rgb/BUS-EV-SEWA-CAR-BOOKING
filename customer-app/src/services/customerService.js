@@ -125,7 +125,13 @@ export const customerService = {
   },
 
   getInstantBookingAvailability: async availability => {
-    const res = await api.post('/bookings/instant/availability', availability);
+    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
+    const token = await AsyncStorage.getItem('customer_token');
+    const res = await api.post('/bookings/instant/availability', availability, {
+      headers: {
+        Authorization: token ? `Bearer ${token}` : undefined
+      }
+    });
     return res.data;
   },
 
