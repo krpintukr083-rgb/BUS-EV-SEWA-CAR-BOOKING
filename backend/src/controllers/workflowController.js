@@ -43,6 +43,21 @@ const ACTIVE_BOOKING_STATUSES = [
   'Awaiting Cash Collection',
   'Ongoing'
 ];
+const ACTIVE_RIDE_STATUSES = ['Accepted', 'Arrived', 'Started'];
+
+const getActiveVehicleBookingQuery = (vehicleId, startOfToday) => ({
+  vehicle: vehicleId,
+  $or: [
+    {
+      bookingStatus: { $in: ACTIVE_BOOKING_STATUSES },
+      travelDate: { $gte: startOfToday }
+    },
+    {
+      rideStatus: { $in: ACTIVE_RIDE_STATUSES },
+      bookingStatus: { $nin: ['Completed', 'Cancelled', 'Rejected'] }
+    }
+  ]
+});
 
 exports.registerVehicle = async (req, res, next) => {
   try {
@@ -138,14 +153,16 @@ exports.deleteDriverVehicle = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Vehicle not found or you are not authorized to remove it.' });
     }
 
-    const activeSchedule = await Schedule.exists({ vehicle: vehicle._id, status: 'Active' });
-    const activeBooking = await Booking.exists({
-      vehicle: vehicle._id,
-      $or: [
-        { bookingStatus: { $in: ACTIVE_BOOKING_STATUSES } },
-        { rideStatus: { $in: ['Accepted', 'Arrived', 'Started'] } }
-      ]
-    });
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const [activeSchedule, activeBooking] = await Promise.all([
+      Schedule.exists({
+        vehicle: vehicle._id,
+        status: 'Active',
+        travelDate: { $gte: startOfToday }
+      }),
+      Booking.exists(getActiveVehicleBookingQuery(vehicle._id, startOfToday))
+    ]);
     if (activeSchedule || activeBooking) {
       return res.status(400).json({
         success: false,

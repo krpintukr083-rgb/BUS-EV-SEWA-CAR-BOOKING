@@ -53,7 +53,7 @@ describe('driver-owned schedule and vehicle removal', () => {
     return schedule;
   };
 
-  const createActiveBooking = async (vehicle, schedule, index) => {
+  const createActiveBooking = async (vehicle, schedule, index, options = {}) => {
     const booking = await Booking.create({
       bookingId: `REMOVE-BOOKING-${suffix}-${index}`,
       customer: { name: 'Removal Test Customer', phone: '9800000000' },
@@ -63,7 +63,9 @@ describe('driver-owned schedule and vehicle removal', () => {
       pickupLocation: 'Delhi',
       dropLocation: 'Jaipur',
       fare: 500,
-      bookingStatus: 'Pending Driver Confirmation'
+      bookingStatus: options.bookingStatus || 'Pending Driver Confirmation',
+      travelDate: options.travelDate || new Date(),
+      ...(options.rideStatus ? { rideStatus: options.rideStatus } : {})
     });
     bookingIds.push(booking._id);
     return booking;
@@ -159,6 +161,18 @@ describe('driver-owned schedule and vehicle removal', () => {
     await createActiveBooking(vehicleWithBooking, null, 2);
     const removableVehicle = await createVehicle(driver, 6);
     const otherVehicle = await createVehicle(otherDriver, 7);
+    const historyOnlyVehicle = await createVehicle(driver, 8);
+    await createSchedule(driver, historyOnlyVehicle, -10, 'Active');
+    await createSchedule(driver, historyOnlyVehicle, 9, 'Cancelled');
+    await createActiveBooking(historyOnlyVehicle, null, 3, {
+      bookingStatus: 'Completed',
+      rideStatus: 'Completed',
+      travelDate: new Date(Date.now() - 10 * 86400000)
+    });
+    await createActiveBooking(historyOnlyVehicle, null, 4, {
+      bookingStatus: 'Pending',
+      travelDate: new Date(Date.now() - 10 * 86400000)
+    });
 
     const scheduledResponse = await request(app)
       .delete(`/api/driver/vehicles/${vehicleWithSchedule._id}`)
@@ -185,5 +199,11 @@ describe('driver-owned schedule and vehicle removal', () => {
       .set('Authorization', `Bearer ${driverToken}`)
       .expect(200, { success: true, message: 'Vehicle removed successfully.' });
     expect(await Vehicle.exists({ _id: removableVehicle._id })).toBeFalsy();
+
+    await request(app)
+      .delete(`/api/driver/vehicles/${historyOnlyVehicle._id}`)
+      .set('Authorization', `Bearer ${driverToken}`)
+      .expect(200, { success: true, message: 'Vehicle removed successfully.' });
+    expect(await Vehicle.exists({ _id: historyOnlyVehicle._id })).toBeFalsy();
   });
 });
