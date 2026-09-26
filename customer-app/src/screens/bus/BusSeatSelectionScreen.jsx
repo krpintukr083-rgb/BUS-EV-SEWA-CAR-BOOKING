@@ -13,6 +13,7 @@ import { customerService } from '../../services/customerService';
 import Header from '../../components/Header';
 import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
+import { getRouteSegmentFare } from '../../utils/routeFares';
 
 const seatRows = [
   ['01', '02', 'AISLE', '03', '04'],
@@ -36,7 +37,11 @@ const BusSeatSelectionScreen = ({ navigation, route }) => {
   const [bookedSeats, setBookedSeats] = useState(
     Array.isArray(activeBus?.bookedSeats) ? activeBus.bookedSeats : []
   );
-  const [farePerSeat, setFarePerSeat] = useState(activeBus?.fareRate || 850);
+  const [farePerSeat, setFarePerSeat] = useState(
+    getRouteSegmentFare(activeBus?.route, bookingDraft.pickupLocation, bookingDraft.dropLocation)
+      ?? activeBus?.fareRate
+      ?? 0
+  );
 
   useEffect(() => {
     if (activeBus && !bookingDraft.vehicle) {
@@ -53,7 +58,11 @@ const BusSeatSelectionScreen = ({ navigation, route }) => {
           const travelDate = bookingDraft.travelDate || route.params?.travelDate;
           const res = await customerService.getBusDetails(targetBusId, travelDate);
           if (res.success && res.data) {
-            setFarePerSeat(res.data.fareRate);
+            setFarePerSeat(
+              getRouteSegmentFare(res.data.route, bookingDraft.pickupLocation, bookingDraft.dropLocation)
+                ?? res.data.fareRate
+                ?? 0
+            );
             if (res.data.bookedSeats && Array.isArray(res.data.bookedSeats)) {
               setBookedSeats(res.data.bookedSeats);
             }

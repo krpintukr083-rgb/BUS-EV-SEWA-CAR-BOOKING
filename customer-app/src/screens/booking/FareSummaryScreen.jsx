@@ -14,6 +14,7 @@ import { customerService } from '../../services/customerService';
 import Header from '../../components/Header';
 import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
+import { getRouteSegmentFare } from '../../utils/routeFares';
 
 const FareSummaryScreen = ({ navigation }) => {
   const { bookingDraft, updateDraft } = useBooking();
@@ -73,7 +74,12 @@ const FareSummaryScreen = ({ navigation }) => {
     : bookingDraft.serviceType === 'EV-Sewa'
     ? (Number(bookingDraft.passengerCount) || bookingDraft.passengerDetails?.length || 1)
     : 1;
-  const baseSeatRate = bookingDraft.vehicle?.fareRate || bookingDraft.vehicle?.fare || bookingDraft.baseFare || 0;
+  const routeSegmentFare = getRouteSegmentFare(
+    bookingDraft.vehicle?.route,
+    bookingDraft.pickupLocation,
+    bookingDraft.dropLocation
+  );
+  const baseSeatRate = routeSegmentFare ?? bookingDraft.vehicle?.fareRate ?? bookingDraft.vehicle?.fare ?? bookingDraft.baseFare ?? 0;
   const originalFare = baseSeatRate * fareUnitCount;
 
   let discountPct = 0;
@@ -105,7 +111,8 @@ const FareSummaryScreen = ({ navigation }) => {
         bookingMode: requestedMode,
         ...(bookingDraft.serviceType === 'EV-Sewa' ? { passengerCount: fareUnitCount } : {}),
         fare: totalPayable,
-        travelDate: bookingDraft.travelDate
+        travelDate: bookingDraft.travelDate,
+        scheduleId: bookingDraft.scheduleId
       };
 
       const res = await customerService.createBooking(payload);
@@ -123,7 +130,11 @@ const FareSummaryScreen = ({ navigation }) => {
     } catch (err) {
       console.log('Error creating booking:', err);
       const errMsg = err.response?.data?.message || err.message || 'Failed to initialize booking';
-      if (err.response?.data?.code === 'INSTANT_BOOKING_UNAVAILABLE') {
+      if (
+        ['INSTANT_BOOKING_UNAVAILABLE', 'INSTANT_BOOKING_DISABLED'].includes(
+          err.response?.data?.code
+        )
+      ) {
         Alert.alert('Instant Booking Unavailable', errMsg, [
           {
             text: 'Continue with Normal Booking',
@@ -289,8 +300,12 @@ const FareSummaryScreen = ({ navigation }) => {
           <Text style={styles.cardHeading}>Fare Breakdown</Text>
 
           <View style={styles.billRow}>
-            <Text style={styles.billLabel}>Original Fare</Text>
-            <Text style={styles.billVal}>₹{originalFare}</Text>
+            <Text style={styles.billLabel}>
+              {routeSegmentFare == null
+                ? 'Original Fare'
+                : `Segment Fare (${bookingDraft.pickupLocation} → ${bookingDraft.dropLocation})`}
+            </Text>
+            <Text style={styles.billVal}>₹{routeSegmentFare == null ? originalFare : baseSeatRate}</Text>
           </View>
 
           {discountAmt > 0 && (

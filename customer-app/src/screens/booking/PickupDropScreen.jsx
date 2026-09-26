@@ -15,6 +15,7 @@ import Header from '../../components/Header';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
+import { getRoutePoints } from '../../utils/routeFares';
 
 const PickupDropScreen = ({ navigation }) => {
   const { bookingDraft, updateDraft } = useBooking();
@@ -32,11 +33,26 @@ const PickupDropScreen = ({ navigation }) => {
     ''
   );
   const [errors, setErrors] = useState({});
+  const routePoints = getRoutePoints(bookingDraft.vehicle?.route);
+  const hasPricedStops = (bookingDraft.vehicle?.route?.stops || []).length > 0;
+
+  const selectRoutePoint = (kind, point) => {
+    if (kind === 'pickup') {
+      setPickup(point);
+      if (errors.pickup) setErrors({ ...errors, pickup: null });
+      return;
+    }
+    setDrop(point);
+    if (errors.drop) setErrors({ ...errors, drop: null });
+  };
 
   const handleContinue = () => {
     let errs = {};
     if (!pickup.trim()) errs.pickup = 'Please enter a valid pickup location';
     if (!drop.trim()) errs.drop = 'Please enter a valid dropping point';
+    if (hasPricedStops && routePoints.indexOf(drop) <= routePoints.indexOf(pickup)) {
+      errs.drop = 'Choose a destination after the pickup point on this route';
+    }
 
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
@@ -92,15 +108,30 @@ const PickupDropScreen = ({ navigation }) => {
               <Ionicons name="radio-button-on" size={16} color={COLORS.primary} />
               <Text style={styles.inputLabel}>Pickup Location / Terminal</Text>
             </View>
-            <Input
-              placeholder="e.g. Kashmere Gate ISBT / Airport T3"
-              value={pickup}
-              onChangeText={t => {
-                setPickup(t);
-                if (errors.pickup) setErrors({ ...errors, pickup: null });
-              }}
-              error={errors.pickup}
-            />
+            {hasPricedStops ? (
+              <View style={styles.routePointOptions}>
+                {routePoints.slice(0, -1).map(point => (
+                  <TouchableOpacity
+                    key={`pickup-${point}`}
+                    onPress={() => selectRoutePoint('pickup', point)}
+                    style={[styles.routePointOption, pickup === point && styles.routePointOptionSelected]}
+                  >
+                    <Text style={[styles.routePointOptionText, pickup === point && styles.routePointOptionTextSelected]}>{point}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <Input
+                placeholder="e.g. Kashmere Gate ISBT / Airport T3"
+                value={pickup}
+                onChangeText={t => {
+                  setPickup(t);
+                  if (errors.pickup) setErrors({ ...errors, pickup: null });
+                }}
+                error={errors.pickup}
+              />
+            )}
+            {errors.pickup ? <Text style={styles.validationError}>{errors.pickup}</Text> : null}
           </View>
 
           {/* Swap Indicator */}
@@ -118,15 +149,30 @@ const PickupDropScreen = ({ navigation }) => {
               <Ionicons name="location" size={16} color="#ef4444" />
               <Text style={styles.inputLabel}>Drop-off Location / Stand</Text>
             </View>
-            <Input
-              placeholder="e.g. Sindhi Camp Bus Stand / Cyber Hub"
-              value={drop}
-              onChangeText={t => {
-                setDrop(t);
-                if (errors.drop) setErrors({ ...errors, drop: null });
-              }}
-              error={errors.drop}
-            />
+            {hasPricedStops ? (
+              <View style={styles.routePointOptions}>
+                {routePoints.slice(1).map(point => (
+                  <TouchableOpacity
+                    key={`drop-${point}`}
+                    onPress={() => selectRoutePoint('drop', point)}
+                    style={[styles.routePointOption, drop === point && styles.routePointOptionSelected]}
+                  >
+                    <Text style={[styles.routePointOptionText, drop === point && styles.routePointOptionTextSelected]}>{point}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : (
+              <Input
+                placeholder="e.g. Sindhi Camp Bus Stand / Cyber Hub"
+                value={drop}
+                onChangeText={t => {
+                  setDrop(t);
+                  if (errors.drop) setErrors({ ...errors, drop: null });
+                }}
+                error={errors.drop}
+              />
+            )}
+            {errors.drop ? <Text style={styles.validationError}>{errors.drop}</Text> : null}
           </View>
         </View>
 
@@ -217,6 +263,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.darkNavy
   },
+  routePointOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  routePointOption: { borderWidth: 1, borderColor: COLORS.border, borderRadius: 18, paddingHorizontal: 12, paddingVertical: 8 },
+  routePointOptionSelected: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+  routePointOptionText: { color: COLORS.textSecondary, fontSize: 13, fontWeight: '600' },
+  routePointOptionTextSelected: { color: '#ffffff' },
+  validationError: { color: '#dc2626', fontSize: 12, marginTop: 4 },
   routeConnector: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -3,6 +3,7 @@ const Notification = require('../models/Notification');
 const Vehicle = require('../models/Vehicle');
 const Driver = require('../models/Driver');
 const Schedule = require('../models/Schedule');
+const { getRouteSegmentFare } = require('./routeFares');
 
 /**
  * Normalizes location strings for accurate route matching.
@@ -42,6 +43,10 @@ const vehicleMatchesBookingRoute = (vehicle, booking) => {
 
   const bOrigin = booking.pickupLocation || booking.route?.origin || '';
   const bDest = booking.dropLocation || booking.route?.destination || '';
+
+  if (Array.isArray(vehicle.route?.stops) && vehicle.route.stops.length > 0) {
+    return getRouteSegmentFare(vehicle.route, bOrigin, bDest) != null;
+  }
 
   if (vOrigin && vDest && bOrigin && bDest) {
     const originMatches = isLocationMatch(vOrigin, bOrigin);

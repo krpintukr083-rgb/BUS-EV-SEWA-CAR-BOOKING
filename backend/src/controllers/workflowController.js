@@ -4,6 +4,7 @@ const Schedule = require('../models/Schedule');
 const Notification = require('../models/Notification');
 const Driver = require('../models/Driver');
 const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
+const { validateRoutePricing } = require('../utils/routeFares');
 
 const notifyDriver = async (driver, title, message, eventType, entityType, entityId) => {
   if (!driver) return;
@@ -61,6 +62,18 @@ exports.registerVehicle = async (req, res, next) => {
         return res.status(400).json({ success: false, message: 'EV estimated range must be a valid non-negative number' });
       }
       body.evDetails = { ...body.evDetails, batteryCapacity, batteryPercentage, rangeKm };
+    }
+    if (body.route?.stops?.length) {
+      const routePricing = validateRoutePricing(body.route);
+      if (!routePricing.valid) {
+        return res.status(400).json({ success: false, message: routePricing.message });
+      }
+      body.fareRate = routePricing.totalFare;
+    } else if (body.fareRate != null && (
+      !Number.isFinite(Number(body.fareRate)) ||
+      Number(body.fareRate) <= 0
+    )) {
+      return res.status(400).json({ success: false, message: 'A positive full-route fare is required when route stops are not configured.' });
     }
     const vehicleNumber = String(body.vehicleNumber).trim().toUpperCase();
     if (await Vehicle.exists({ vehicleNumber })) {
@@ -188,10 +201,7 @@ exports.getActiveSchedules = async (req, res, next) => {
   try {
     const { from, to, travelDate } = req.query;
     const filter = { status: 'Active' };
-    
-    if (from) filter.origin = new RegExp(from, 'i');
-    if (to) filter.destination = new RegExp(to, 'i');
-    
+
     if (travelDate) {
       const startOfDay = new Date(travelDate);
       startOfDay.setHours(0, 0, 0, 0);
@@ -200,9 +210,22 @@ exports.getActiveSchedules = async (req, res, next) => {
       filter.travelDate = { $gte: startOfDay, $lte: endOfDay };
     }
 
-    const data = await Schedule.find(filter).populate({
+    let data = await Schedule.find(filter).populate({
       path: 'vehicle', match: { vehicleStatus: 'Active' }, populate: { path: 'assignedDriver' }
     }).sort({ travelDate: 1, departureTime: 1 }).lean();
+    if (from || to) {
+      const { isRouteSegmentWithin, normalizeLocation } = require('../utils/routeFares');
+      data = data.filter(schedule => {
+        if (!schedule.vehicle) return false;
+        const route = schedule.vehicle.route;
+        if (Array.isArray(route?.stops) && route.stops.length > 0) {
+          return isRouteSegmentWithin(route, schedule.origin, schedule.destination, from || schedule.origin, to || schedule.destination);
+        }
+        const originMatches = !from || normalizeLocation(schedule.origin).includes(normalizeLocation(from));
+        const destinationMatches = !to || normalizeLocation(schedule.destination).includes(normalizeLocation(to));
+        return originMatches && destinationMatches;
+      });
+    }
     res.json({ success: true, count: data.filter(s => s.vehicle).length, data: data.filter(s => s.vehicle) });
   } catch (error) { next(error); }
 };

@@ -14,6 +14,7 @@ import Header from '../../components/Header';
 import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
 import VehicleImageSlider from '../../components/VehicleImageSlider';
+import { getRouteSegmentFare } from '../../utils/routeFares';
 
 const formatPoints = (points, fallback) => {
   if (!points) return fallback || '';
@@ -33,6 +34,11 @@ const BusDetailsScreen = ({ navigation, route }) => {
   );
   const [loading, setLoading] = useState(!bus);
   const [errorMessage, setErrorMessage] = useState('');
+  const displayFare = getRouteSegmentFare(
+    bus?.route,
+    bookingDraft.pickupLocation,
+    bookingDraft.dropLocation
+  ) ?? bus?.fareRate;
 
   const fetchDetails = async () => {
     const targetId = busId || bus?._id || bookingDraft.vehicle?._id;
@@ -117,7 +123,7 @@ const BusDetailsScreen = ({ navigation, route }) => {
               <Text style={styles.busNumber}>Reg: {bus.vehicleNumber}</Text>
             </View>
             <View style={styles.farePill}>
-              <Text style={styles.farePrice}>₹{bus.fareRate}</Text>
+              <Text style={styles.farePrice}>₹{displayFare}</Text>
               <Text style={styles.fareSub}>Per Seat</Text>
             </View>
           </View>
@@ -214,7 +220,7 @@ const BusDetailsScreen = ({ navigation, route }) => {
       <View style={styles.bottomBar}>
         <View>
           <Text style={styles.barLabel}>Starting From</Text>
-          <Text style={styles.barPrice}>₹{bus.fareRate}</Text>
+          <Text style={styles.barPrice}>₹{displayFare}</Text>
         </View>
         <Button
           title="Select Seat"

@@ -15,6 +15,7 @@ import { useBooking } from '../../context/BookingContext';
 import Header from '../../components/Header';
 import { COLORS } from '../../constants/colors';
 import { getPrimaryVehicleImage } from '../../utils/imageUrl';
+import { getRouteSegmentFare } from '../../utils/routeFares';
 
 const BusListingScreen = ({ navigation, route }) => {
   const { from = '', to = '' } = route.params || {};
@@ -50,13 +51,19 @@ const BusListingScreen = ({ navigation, route }) => {
 
   const handleSelectBus = (schedule) => {
     const bus = schedule.vehicle;
+    const routeFare = getRouteSegmentFare(bus.route, from, to);
     updateDraft({
       serviceType: 'Bus',
       vehicle: bus,
-      baseFare: schedule.fareRate || bus.fareRate,
-      pickupLocation: schedule.origin || bus.route?.origin || from || 'Delhi ISBT Kashmere Gate',
-      dropLocation: schedule.destination || bus.route?.destination || to || 'Jaipur Sindhi Camp',
-      scheduleId: schedule._id
+      baseFare: routeFare ?? schedule.fareRate ?? bus.fareRate,
+      pickupLocation: routeFare == null
+        ? (schedule.origin || bus.route?.origin || from || 'Delhi ISBT Kashmere Gate')
+        : from,
+      dropLocation: routeFare == null
+        ? (schedule.destination || bus.route?.destination || to || 'Jaipur Sindhi Camp')
+        : to,
+      scheduleId: schedule._id,
+      schedule
     });
     navigation.navigate('BusDetails', { busId: bus._id, bus, schedule });
   };
@@ -158,7 +165,7 @@ const BusListingScreen = ({ navigation, route }) => {
                       </Text>
                     </View>
                     <View style={styles.farePill}>
-                      <Text style={styles.fareAmount}>₹{item.fareRate || vehicle.fareRate}</Text>
+                      <Text style={styles.fareAmount}>₹{getRouteSegmentFare(vehicle.route, from, to) ?? item.fareRate ?? vehicle.fareRate}</Text>
                       <Text style={styles.fareSub}>Per Seat</Text>
                     </View>
                   </View>

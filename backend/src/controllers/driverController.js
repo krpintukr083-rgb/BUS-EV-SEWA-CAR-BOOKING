@@ -11,6 +11,7 @@ const Incentive = require('../models/Incentive');
 const Withdrawal = require('../models/Withdrawal');
 const { dashboardCache } = require('../utils/cache');
 const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
+const { validateRoutePricing } = require('../utils/routeFares');
 const driverBookingResponse = require('../utils/driverBookingResponse');
 
 const getBookingQuery = (idOrCode) => {
@@ -1527,6 +1528,7 @@ exports.verifyRideOtp = async (req, res, next) => {
     if (recipientId) {
       await Notification.create({
         recipientId,
+        recipient: `Customer: ${booking.customer?.name || 'Customer'}`,
         title: 'Booking Confirmed by Driver',
         message: `Your booking #${booking.bookingId} has been confirmed by your assigned driver.`,
         recipientRole: 'customer',
@@ -2493,9 +2495,14 @@ exports.registerPushToken = async (req, res, next) => {
 // @access  Private (Driver Only)
 exports.updateVehicleFare = async (req, res, next) => {
   try {
-    const { fareRate, fare, vehicleId } = req.body;
+    const { fareRate, fare, vehicleId, route } = req.body;
     const finalFare = fare !== undefined && fare !== null ? fare : fareRate;
-    if (finalFare === undefined || finalFare === null || Number(finalFare) <= 0 || isNaN(Number(finalFare))) {
+    const hasSegmentPricing = Array.isArray(route?.stops) && route.stops.length > 0;
+    const routePricing = hasSegmentPricing ? validateRoutePricing(route) : null;
+    if (hasSegmentPricing && !routePricing.valid) {
+      return res.status(400).json({ success: false, message: routePricing.message });
+    }
+    if (!hasSegmentPricing && (finalFare === undefined || finalFare === null || Number(finalFare) <= 0 || isNaN(Number(finalFare)))) {
       return res.status(400).json({ success: false, message: 'Please provide a valid positive fare amount' });
     }
     if (vehicleId && !mongoose.isValidObjectId(vehicleId)) {
@@ -2521,7 +2528,15 @@ exports.updateVehicleFare = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Assigned vehicle not found or you are not authorized to edit this vehicle' });
     }
 
-    vehicle.fareRate = Number(finalFare);
+    if (hasSegmentPricing) {
+      vehicle.route = { ...(vehicle.route?.toObject?.() || vehicle.route || {}), ...route };
+      vehicle.fareRate = routePricing.totalFare;
+    } else {
+      if (Array.isArray(vehicle.route?.stops) && vehicle.route.stops.length > 0) {
+        return res.status(400).json({ success: false, message: 'Update each route segment fare for a vehicle with route stops.' });
+      }
+      vehicle.fareRate = Number(finalFare);
+    }
     await vehicle.save();
 
     res.json({

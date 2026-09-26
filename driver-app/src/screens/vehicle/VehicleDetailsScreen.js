@@ -24,6 +24,8 @@ export default function VehicleDetailsScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [fare, setFare] = useState('');
+  const [segmentFares, setSegmentFares] = useState([]);
+  const [finalSegmentFare, setFinalSegmentFare] = useState('');
   const [savingFare, setSavingFare] = useState(false);
 
   useEffect(() => {
@@ -37,6 +39,10 @@ export default function VehicleDetailsScreen({ navigation, route }) {
       if (res?.data?.success && res.data.data) {
         setVehicle(res.data.data);
         setFare(res.data.data.fareRate ? res.data.data.fareRate.toString() : '');
+        setSegmentFares((res.data.data.route?.stops || []).map(stop => String(stop.fareFromPrevious ?? '')));
+        setFinalSegmentFare(
+          res.data.data.route?.finalSegmentFare == null ? '' : String(res.data.data.route.finalSegmentFare)
+        );
       } else {
         // null => shows "No vehicle assigned" empty state
         setVehicle(null);
@@ -56,7 +62,19 @@ export default function VehicleDetailsScreen({ navigation, route }) {
     fetchVehicle(route?.params?.vehicleId);
   };
 
-  const isFareValid = fare !== '' && !isNaN(fare) && Number(fare) > 0;
+  const hasRouteSegments = (vehicle?.route?.stops || []).length > 0;
+  const routeFareInputsValid = [
+    ...segmentFares.map(Number),
+    Number(finalSegmentFare)
+  ].every(value => Number.isFinite(value) && value > 0)
+    && segmentFares.length === vehicle?.route?.stops?.length;
+  const calculatedRouteFare = [
+    ...segmentFares.map(value => Number(value) || 0),
+    Number(finalSegmentFare) || 0
+  ].reduce((sum, value) => sum + value, 0);
+  const isFareValid = hasRouteSegments
+    ? routeFareInputsValid
+    : fare !== '' && !isNaN(fare) && Number(fare) > 0;
 
   const handleSaveFare = async () => {
     if (!isFareValid) {
@@ -65,7 +83,19 @@ export default function VehicleDetailsScreen({ navigation, route }) {
     }
     setSavingFare(true);
     try {
-      const res = await driverService.updateVehicleFare(fare, vehicle?._id);
+      const routeUpdate = hasRouteSegments ? {
+        ...vehicle.route,
+        stops: vehicle.route.stops.map((stop, index) => ({
+          ...stop,
+          fareFromPrevious: Number(segmentFares[index])
+        })),
+        finalSegmentFare: Number(finalSegmentFare)
+      } : undefined;
+      const res = await driverService.updateVehicleFare(
+        hasRouteSegments ? calculatedRouteFare : fare,
+        vehicle?._id,
+        routeUpdate
+      );
       if (res.data?.success) {
         // Update displayed fare immediately without full refetch
         if (res.data.data) {
@@ -235,17 +265,53 @@ export default function VehicleDetailsScreen({ navigation, route }) {
             {/* Fare / Price Editing Card */}
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Fare / Price *</Text>
-              <View style={styles.fareInputContainer}>
-                <Text style={styles.currencyPrefix}>₹</Text>
-                <TextInput
-                  style={styles.fareInput}
-                  value={fare}
-                  onChangeText={setFare}
-                  keyboardType="numeric"
-                  placeholder="Enter base fare"
-                  placeholderTextColor={COLORS.textMuted}
-                />
-              </View>
+                {hasRouteSegments ? (
+                  <View style={{ gap: SPACING.s }}>
+                    {vehicle.route.stops.map((stop, index) => (
+                      <View key={`${stop.name}-${index}`}>
+                        <Text style={styles.specLabel}>
+                          {index === 0 ? vehicle.route.origin : vehicle.route.stops[index - 1].name} → {stop.name}
+                        </Text>
+                        <TextInput
+                          style={styles.fareInput}
+                          value={segmentFares[index] || ''}
+                          onChangeText={value => setSegmentFares(current => current.map((fareValue, fareIndex) =>
+                            fareIndex === index ? value : fareValue
+                          ))}
+                          keyboardType="decimal-pad"
+                          placeholder="Segment fare"
+                          placeholderTextColor={COLORS.textMuted}
+                        />
+                      </View>
+                    ))}
+                    <View>
+                      <Text style={styles.specLabel}>
+                        {vehicle.route.stops[vehicle.route.stops.length - 1].name} → {vehicle.route.destination}
+                      </Text>
+                      <TextInput
+                        style={styles.fareInput}
+                        value={finalSegmentFare}
+                        onChangeText={setFinalSegmentFare}
+                        keyboardType="decimal-pad"
+                        placeholder="Final segment fare"
+                        placeholderTextColor={COLORS.textMuted}
+                      />
+                    </View>
+                    <Text style={styles.specLabel}>Calculated Full Route Fare: ₹{calculatedRouteFare}</Text>
+                  </View>
+                ) : (
+                  <View style={styles.fareInputContainer}>
+                    <Text style={styles.currencyPrefix}>₹</Text>
+                    <TextInput
+                      style={styles.fareInput}
+                      value={fare}
+                      onChangeText={setFare}
+                      keyboardType="numeric"
+                      placeholder="Enter base fare"
+                      placeholderTextColor={COLORS.textMuted}
+                    />
+                  </View>
+                )}
               <TouchableOpacity 
                 style={[
                   styles.saveFareButton,

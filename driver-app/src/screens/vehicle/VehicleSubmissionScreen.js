@@ -39,6 +39,7 @@ const EMPTY_FORM = {
   acType: '',
   origin: '',
   destination: '',
+  fareRate: '',
   hireAmount: '',
   batteryCapacity: '',
   batteryPercentage: '',
@@ -119,6 +120,8 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
   const [vehicleSource, setVehicleSource] = useState('');
   const [sourceOpen, setSourceOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [routeStops, setRouteStops] = useState([]);
+  const [finalSegmentFare, setFinalSegmentFare] = useState('');
   const [evValues, setEvValues] = useState({ batteryPercentage: '', estimatedRangeKm: '' });
   const [evValuesSaved, setEvValuesSaved] = useState(false);
   const [loadingVehicle, setLoadingVehicle] = useState(isEditing);
@@ -127,6 +130,11 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
   const [busy, setBusy] = useState(false);
 
   const update = (key, value) => setForm(current => ({ ...current, [key]: value }));
+  const updateRouteStop = (index, key, value) => {
+    setRouteStops(current => current.map((stop, stopIndex) =>
+      stopIndex === index ? { ...stop, [key]: value } : stop
+    ));
+  };
 
   useEffect(() => {
     if (!vehicleId) return undefined;
@@ -301,6 +309,24 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
       Alert.alert('Required', 'Vehicle number, origin, and destination are required.');
       return;
     }
+    const routePoints = [form.origin.trim(), ...routeStops.map(stop => stop.name.trim()), form.destination.trim()];
+    if (routePoints.some(point => !point) || new Set(routePoints.map(point => point.toLowerCase())).size !== routePoints.length) {
+      Alert.alert('Invalid route', 'Enter a unique name for each route stop.');
+      return;
+    }
+    const segmentFares = [
+      ...routeStops.map(stop => Number(stop.fareFromPrevious)),
+      ...(routeStops.length ? [Number(finalSegmentFare)] : [])
+    ];
+    if (segmentFares.some(value => !Number.isFinite(value) || value <= 0)) {
+      Alert.alert('Invalid route fare', 'Enter a positive fare for every route segment.');
+      return;
+    }
+    const flatFare = Number(form.fareRate);
+    if (!routeStops.length && (!Number.isFinite(flatFare) || flatFare <= 0)) {
+      Alert.alert('Invalid fare', 'Enter a positive full-route fare or add route stops with segment fares.');
+      return;
+    }
     if (category === 'Bus' && (!form.vehicleName?.trim() || !form.seatingCapacity)) {
       Alert.alert('Required', 'Bus Name and Seating Capacity are required for buses.');
       return;
@@ -338,8 +364,18 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
         seatingCapacity: form.seatingCapacity ? Number(form.seatingCapacity) : undefined,
         route: {
           origin: form.origin.trim(),
-          destination: form.destination.trim()
-        }
+          destination: form.destination.trim(),
+          ...(routeStops.length ? {
+            stops: routeStops.map(stop => ({
+              name: stop.name.trim(),
+              fareFromPrevious: Number(stop.fareFromPrevious)
+            })),
+            finalSegmentFare: Number(finalSegmentFare)
+          } : {})
+        },
+        fareRate: routeStops.length
+          ? segmentFares.reduce((sum, value) => sum + value, 0)
+          : flatFare
       };
 
       if (category === 'Bus') {
@@ -378,6 +414,8 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
       setCategory('');
       setVehicleSource('');
       setForm(EMPTY_FORM);
+      setRouteStops([]);
+      setFinalSegmentFare('');
       setEvValues({ batteryPercentage: '', estimatedRangeKm: '' });
       setEvValuesSaved(false);
       setPhotos({ front: null, back: null, left: null, right: null });
@@ -537,6 +575,69 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
         placeholderTextColor={COLORS.textMuted}
         style={styles.input}
       />
+      <Text style={styles.help}>
+        Add optional stops and the fare from the previous point. The full-route fare is calculated automatically.
+      </Text>
+      {routeStops.map((stop, index) => (
+        <View key={`route-stop-${index}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TextInput
+            value={stop.name}
+            onChangeText={value => updateRouteStop(index, 'name', value)}
+            placeholder={`Stop ${index + 1} name`}
+            placeholderTextColor={COLORS.textMuted}
+            style={[styles.input, { flex: 1 }]}
+          />
+          <TextInput
+            value={stop.fareFromPrevious}
+            onChangeText={value => updateRouteStop(index, 'fareFromPrevious', value)}
+            placeholder="Fare from previous point (₹)"
+            placeholderTextColor={COLORS.textMuted}
+            keyboardType="decimal-pad"
+            style={[styles.input, { flex: 0.7 }]}
+          />
+          <TouchableOpacity
+            onPress={() => setRouteStops(current => current.filter((_, stopIndex) => stopIndex !== index))}
+            style={{ padding: 8 }}
+            accessibilityLabel={`Remove stop ${index + 1}`}
+          >
+            <MaterialCommunityIcons name="close-circle" size={22} color={COLORS.danger || '#dc2626'} />
+          </TouchableOpacity>
+        </View>
+      ))}
+      {routeStops.length > 0 && (
+        <View>
+          <TextInput
+            value={finalSegmentFare}
+            onChangeText={setFinalSegmentFare}
+            placeholder={`Fare from ${routeStops[routeStops.length - 1]?.name || 'last stop'} to destination ₹`}
+            placeholderTextColor={COLORS.textMuted}
+            keyboardType="decimal-pad"
+            style={styles.input}
+          />
+          <Text style={styles.help}>
+            Full Route Fare: ₹{[
+              ...routeStops.map(stop => Number(stop.fareFromPrevious) || 0),
+              Number(finalSegmentFare) || 0
+            ].reduce((sum, value) => sum + value, 0)}
+          </Text>
+        </View>
+      )}
+      <TouchableOpacity
+        onPress={() => setRouteStops(current => [...current, { name: '', fareFromPrevious: '' }])}
+        style={[styles.button, { backgroundColor: COLORS.bgCard, borderWidth: 1, borderColor: COLORS.border }]}
+      >
+        <Text style={[styles.buttonText, { color: COLORS.primaryLight }]}>+ Add Stop</Text>
+      </TouchableOpacity>
+      {routeStops.length === 0 && (
+        <TextInput
+          value={form.fareRate}
+          onChangeText={value => update('fareRate', value)}
+          placeholder="Full Route Fare (₹) *"
+          placeholderTextColor={COLORS.textMuted}
+          keyboardType="decimal-pad"
+          style={styles.input}
+        />
+      )}
 
       {vehicleSource === 'THIRD_PARTY' && (
         <>

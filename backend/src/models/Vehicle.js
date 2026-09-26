@@ -138,7 +138,12 @@ const vehicleSchema = new mongoose.Schema(
       arrivalTime: { type: String, default: '11:30 AM' },
       duration: { type: String, default: '5h 30m' },
       boardingPoints: [{ type: String }],
-      droppingPoints: [{ type: String }]
+      droppingPoints: [{ type: String }],
+      stops: [{
+        name: { type: String, required: true, trim: true },
+        fareFromPrevious: { type: Number, required: true, min: 0 }
+      }],
+      finalSegmentFare: { type: Number, min: 0, default: undefined }
     },
     pickupDropDetails: {
       pickupLocation: { type: String, default: '' },

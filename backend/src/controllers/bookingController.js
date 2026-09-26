@@ -15,6 +15,7 @@ const {
   notifyEligibleDriversForBusBooking,
   vehicleMatchesBookingRoute
 } = require('../utils/notification');
+const { getRouteSegmentFare, isRouteSegmentWithin } = require('../utils/routeFares');
 
 const getBookingQuery = (idOrCode) => {
   return mongoose.isValidObjectId(idOrCode)
@@ -102,6 +103,16 @@ exports.createBooking = async (req, res, next) => {
         message: `Vehicle is ${vehicle.vehicleStatus.toLowerCase()} and cannot be booked`
       });
     }
+    let routeSegmentFare = null;
+    if (Array.isArray(vehicle.route?.stops) && vehicle.route.stops.length > 0) {
+      routeSegmentFare = getRouteSegmentFare(vehicle.route, pickupLocation, dropLocation);
+      if (routeSegmentFare == null) {
+        return res.status(400).json({
+          success: false,
+          message: 'Select a valid forward route segment between the registered route stops.'
+        });
+      }
+    }
     if (bookingMode === 'INSTANT' && vehicle.vehicleType !== serviceType) {
       return res.status(400).json({ success: false, message: 'Selected vehicle does not match the requested service' });
     }
@@ -147,8 +158,10 @@ exports.createBooking = async (req, res, next) => {
       const bookingDate = travelDate ? new Date(travelDate) : new Date();
       activeSchedule = schedules.find(schedule => {
         if (schedule.status !== 'Active' || (scheduleId && String(schedule._id) !== String(scheduleId))) return false;
-        const sameRoute = String(schedule.origin).trim().toLowerCase() === String(pickupLocation).trim().toLowerCase()
-          && String(schedule.destination).trim().toLowerCase() === String(dropLocation).trim().toLowerCase();
+        const sameRoute = routeSegmentFare == null
+          ? String(schedule.origin).trim().toLowerCase() === String(pickupLocation).trim().toLowerCase()
+            && String(schedule.destination).trim().toLowerCase() === String(dropLocation).trim().toLowerCase()
+          : isRouteSegmentWithin(vehicle.route, schedule.origin, schedule.destination, pickupLocation, dropLocation);
         const scheduleDate = new Date(schedule.travelDate);
         return sameRoute
           && scheduleDate.getFullYear() === bookingDate.getFullYear()
@@ -257,7 +270,10 @@ exports.createBooking = async (req, res, next) => {
       : serviceType === 'EV-Sewa'
       ? evPassengerCount
       : 1;
-    const computedBaseFare = (vehicle.fareRate || vehicle.fare || 0) * fareUnitCount;
+    const unitFare = routeSegmentFare == null
+      ? (vehicle.fareRate || vehicle.fare || 0)
+      : routeSegmentFare;
+    const computedBaseFare = unitFare * fareUnitCount;
     let originalFare = computedBaseFare;
     let discountPercentage = 0;
     let discountAmount = 0;
