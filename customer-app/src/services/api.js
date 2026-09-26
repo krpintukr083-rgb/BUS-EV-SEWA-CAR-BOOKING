@@ -133,14 +133,24 @@ api.interceptors.request.use(
       }
 
       // 2. Tunnel bypass headers
-      config.headers['bypass-tunnel-reminder'] = 'true';
-      config.headers['Bypass-Tunnel-Reminder'] = 'true';
-      config.headers['ngrok-skip-browser-warning'] = 'true';
+      if (config.headers && typeof config.headers.set === 'function') {
+        config.headers.set('bypass-tunnel-reminder', 'true');
+        config.headers.set('Bypass-Tunnel-Reminder', 'true');
+        config.headers.set('ngrok-skip-browser-warning', 'true');
+      } else {
+        config.headers['bypass-tunnel-reminder'] = 'true';
+        config.headers['Bypass-Tunnel-Reminder'] = 'true';
+        config.headers['ngrok-skip-browser-warning'] = 'true';
+      }
 
       // 3. Auth Token
       const token = await AsyncStorage.getItem('customer_token');
       if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+        if (config.headers && typeof config.headers.set === 'function') {
+          config.headers.set('Authorization', `Bearer ${token}`);
+        } else {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
       }
     } catch (e) {
       console.error('Error in request interceptor:', e);
