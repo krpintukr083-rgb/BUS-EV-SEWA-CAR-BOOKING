@@ -23,9 +23,7 @@ const PaymentScreen = ({ route, navigation }) => {
 
   const isInstantBooking =
     bookingMode === 'INSTANT' || bookingDraft.confirmedBooking?.bookingMode === 'INSTANT';
-  const [selectedMethod, setSelectedMethod] = useState(
-    isInstantBooking ? 'Razorpay_UPI' : 'Offline_Cash'
-  );
+  const [selectedMethod, setSelectedMethod] = useState('Offline_Cash');
   const [paymentState, setPaymentState] = useState('idle'); // 'idle' | 'processing' | 'success' | 'failed'
   const [transactionId, setTransactionId] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
@@ -70,11 +68,7 @@ const PaymentScreen = ({ route, navigation }) => {
       isUpcoming: true
     }
   ];
-  const visiblePaymentOptions = isInstantBooking
-    ? paymentOptions
-        .filter(option => !option.isOffline)
-        .map(option => ({ ...option, isUpcoming: false }))
-    : paymentOptions;
+  const visiblePaymentOptions = paymentOptions;
 
   // Confirm Offline Cash Booking
   const handleConfirmOfflineCash = async () => {
@@ -815,17 +809,6 @@ const PaymentScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         ))}
 
-        {isInstantBooking ? (
-          <View style={styles.offlineGuideBox}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-              <Ionicons name="shield-checkmark" size={20} color="#059669" />
-              <Text style={styles.offlineGuideTitle}>Razorpay Secure Payment</Text>
-            </View>
-            <Text style={styles.offlineGuideText}>
-              Your booking will be confirmed only after server-side Razorpay payment verification.
-            </Text>
-          </View>
-        ) : (
           <>
             {/* Instructions / Guarantee Box */}
             <View style={styles.offlineGuideBox}>
@@ -851,17 +834,13 @@ const PaymentScreen = ({ route, navigation }) => {
               </Text>
             </View>
           </>
-        )}
       </ScrollView>
 
-      {/* Sticky Action Footer */}
       <View style={styles.footer}>
         <Button
-          title={isInstantBooking
-            ? `Pay Securely with Razorpay - ₹${finalPayable}`
-            : `Confirm Booking (Offline Cash - ₹${finalPayable})`}
-          onPress={isInstantBooking ? handleInitiateRazorpay : handleConfirmOfflineCash}
-          style={{ backgroundColor: isInstantBooking ? COLORS.primary : '#059669' }}
+          title={`Confirm Booking (Offline Cash - ₹${finalPayable})`}
+          onPress={handleConfirmOfflineCash}
+          style={{ backgroundColor: '#059669' }}
         />
       </View>
 
