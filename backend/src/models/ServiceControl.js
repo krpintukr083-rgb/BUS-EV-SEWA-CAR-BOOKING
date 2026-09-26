@@ -17,6 +17,10 @@ const serviceControlSchema = new mongoose.Schema(
       enum: ['Active', 'Inactive'],
       default: 'Active'
     },
+    instantBookingEnabled: {
+      type: Boolean,
+      default: false
+    },
     lastUpdatedBy: {
       type: String,
       default: 'Super Admin'

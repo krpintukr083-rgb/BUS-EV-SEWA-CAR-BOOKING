@@ -19,6 +19,30 @@ const FareSummaryScreen = ({ navigation }) => {
   const { bookingDraft, updateDraft } = useBooking();
   const [loading, setLoading] = useState(false);
   const [busOffer, setBusOffer] = useState(null);
+  const [instantBookingEnabled, setInstantBookingEnabled] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    customerService.getServicesStatus()
+      .then(res => {
+        if (!mounted) return;
+        const enabled = res?.success === true && res.data?.instantBookingEnabled === true;
+        setInstantBookingEnabled(enabled);
+        if (!enabled && bookingDraft.bookingMode === 'INSTANT') {
+          updateDraft({ bookingMode: 'NORMAL' });
+        }
+      })
+      .catch(err => {
+        console.log('Error fetching instant booking setting:', err);
+        if (mounted) {
+          setInstantBookingEnabled(false);
+          updateDraft({ bookingMode: 'NORMAL' });
+        }
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [bookingDraft.serviceType]);
 
   useEffect(() => {
     const fetchOffer = async () => {
@@ -67,7 +91,7 @@ const FareSummaryScreen = ({ navigation }) => {
     totalPayable = Math.max(0, originalFare - discountAmt);
   }
 
-  const handleProceedToPayment = async () => {
+  const handleProceedToPayment = async (requestedMode = bookingDraft.bookingMode || 'NORMAL') => {
     try {
       setLoading(true);
 
@@ -78,6 +102,7 @@ const FareSummaryScreen = ({ navigation }) => {
         dropLocation: bookingDraft.dropLocation,
         passengerDetails: bookingDraft.passengerDetails,
         selectedSeats: bookingDraft.selectedSeats,
+        bookingMode: requestedMode,
         ...(bookingDraft.serviceType === 'EV-Sewa' ? { passengerCount: fareUnitCount } : {}),
         fare: totalPayable,
         travelDate: bookingDraft.travelDate
@@ -98,7 +123,20 @@ const FareSummaryScreen = ({ navigation }) => {
     } catch (err) {
       console.log('Error creating booking:', err);
       const errMsg = err.response?.data?.message || err.message || 'Failed to initialize booking';
-      Alert.alert('Booking Notice', errMsg);
+      if (err.response?.data?.code === 'INSTANT_BOOKING_UNAVAILABLE') {
+        Alert.alert('Instant Booking Unavailable', errMsg, [
+          {
+            text: 'Continue with Normal Booking',
+            onPress: () => {
+              updateDraft({ bookingMode: 'NORMAL' });
+              handleProceedToPayment('NORMAL');
+            }
+          },
+          { text: 'Cancel', style: 'cancel' }
+        ]);
+      } else {
+        Alert.alert('Booking Notice', errMsg);
+      }
     } finally {
       setLoading(false);
     }
@@ -141,6 +179,49 @@ const FareSummaryScreen = ({ navigation }) => {
             {bookingDraft.vehicle?.busType || bookingDraft.vehicle?.vehicleModel}
           </Text>
         </View>
+
+        {instantBookingEnabled && (
+          <View style={styles.bookingModeCard}>
+            <Text style={styles.bookingModeHeading}>Booking Type</Text>
+            <View style={styles.bookingModeOptions}>
+              {[
+                { value: 'NORMAL', label: 'Normal Booking' },
+                { value: 'INSTANT', label: 'Instant Booking' }
+              ].map(option => {
+                const selected = (bookingDraft.bookingMode || 'NORMAL') === option.value;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.bookingModeOption,
+                      selected && styles.bookingModeOptionSelected,
+                      selected && { borderColor: serviceColor }
+                    ]}
+                    onPress={() => updateDraft({ bookingMode: option.value })}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name={selected ? 'radio-button-on' : 'radio-button-off'}
+                      size={17}
+                      color={selected ? serviceColor : COLORS.textSecondary}
+                    />
+                    <Text style={[
+                      styles.bookingModeOptionText,
+                      selected && { color: serviceColor }
+                    ]}>
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {bookingDraft.bookingMode === 'INSTANT' && (
+              <Text style={styles.bookingModeHint}>
+                A driver will be assigned immediately if one is available for this route.
+              </Text>
+            )}
+          </View>
+        )}
 
         {/* Route / Trip Details */}
         <View style={styles.detailCard}>
@@ -285,6 +366,49 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
     marginBottom: 16
+  },
+  bookingModeCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 16
+  },
+  bookingModeHeading: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: COLORS.darkNavy,
+    marginBottom: 10
+  },
+  bookingModeOptions: {
+    flexDirection: 'row',
+    gap: 8
+  },
+  bookingModeOption: {
+    flex: 1,
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 9
+  },
+  bookingModeOptionSelected: {
+    backgroundColor: '#f8fafc'
+  },
+  bookingModeOptionText: {
+    color: COLORS.textSecondary,
+    fontSize: 11,
+    fontWeight: '700'
+  },
+  bookingModeHint: {
+    color: COLORS.textSecondary,
+    fontSize: 11,
+    marginTop: 9
   },
   serviceHeader: {
     flexDirection: 'row',

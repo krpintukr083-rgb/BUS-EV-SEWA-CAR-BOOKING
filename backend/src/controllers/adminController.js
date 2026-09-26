@@ -113,7 +113,7 @@ exports.getDashboardStats = async (req, res, next) => {
       Insurance.countDocuments(),
       ServiceControl.findOne().lean(),
       Booking.find()
-        .select('bookingId customer serviceType pickupLocation dropLocation fare driverPaymentAmount paymentStatus bookingStatus travelDate vehicleSource createdAt vehicle driver')
+        .select('bookingId customer serviceType bookingMode pickupLocation dropLocation fare driverPaymentAmount paymentStatus bookingStatus travelDate vehicleSource createdAt vehicle driver')
         .populate('vehicle', 'vehicleName vehicleNumber vehicleType vehicleCategory seatingCapacity vehicleStatus vehicleSource')
         .populate('driver', 'name mobileNumber profilePhoto driverStatus')
         .sort({ createdAt: -1 })
@@ -2092,7 +2092,16 @@ exports.getServiceControl = async (req, res, next) => {
 
 exports.updateServiceControl = async (req, res, next) => {
   try {
-    const { busService, evSewaService, carService } = req.body;
+    const { busService, evSewaService, carService, instantBookingEnabled } = req.body;
+    if (
+      instantBookingEnabled !== undefined &&
+      typeof instantBookingEnabled !== 'boolean'
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'instantBookingEnabled must be a boolean'
+      });
+    }
     let serviceControl = await ServiceControl.findOne();
     if (!serviceControl) {
       serviceControl = new ServiceControl();
@@ -2101,6 +2110,9 @@ exports.updateServiceControl = async (req, res, next) => {
     if (busService) serviceControl.busService = busService;
     if (evSewaService) serviceControl.evSewaService = evSewaService;
     if (carService) serviceControl.carService = carService;
+    if (instantBookingEnabled !== undefined) {
+      serviceControl.instantBookingEnabled = instantBookingEnabled;
+    }
 
     await serviceControl.save();
 

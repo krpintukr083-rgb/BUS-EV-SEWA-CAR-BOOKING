@@ -42,6 +42,11 @@ const bookingSchema = new mongoose.Schema(
       enum: ['Bus', 'EV-Sewa', 'Car', 'Truck'],
       required: true
     },
+    bookingMode: {
+      type: String,
+      enum: ['NORMAL', 'INSTANT'],
+      default: 'NORMAL'
+    },
     pickupLocation: {
       type: String,
       required: true
@@ -254,5 +259,29 @@ bookingSchema.index({ bookingStatus: 1, createdAt: -1 });
 bookingSchema.index({ driverConfirmationStatus: 1 });
 bookingSchema.index({ 'customer.phone': 1 });
 bookingSchema.index({ paymentStatus: 1 });
+bookingSchema.index(
+  { driver: 1 },
+  {
+    unique: true,
+    name: 'one_active_instant_booking_per_driver',
+    partialFilterExpression: {
+      bookingMode: 'INSTANT',
+      driver: { $type: 'objectId' },
+      bookingStatus: {
+        $in: [
+          'Pending Admin Confirmation',
+          'PENDING_ADMIN_CONFIRMATION',
+          'Admin Confirmed',
+          'ADMIN_CONFIRMED',
+          'Pending',
+          'Pending Driver Confirmation',
+          'Awaiting Cash Collection',
+          'Confirmed',
+          'Ongoing'
+        ]
+      }
+    }
+  }
+);
 
 module.exports = mongoose.model('Booking', bookingSchema);

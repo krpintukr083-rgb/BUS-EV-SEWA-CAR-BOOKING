@@ -47,6 +47,26 @@ const ServiceControl = () => {
     }
   };
 
+  const handleInstantBookingToggle = async () => {
+    if (!controls) return;
+    setUpdating(true);
+    setMessage('');
+    try {
+      const res = await adminService.updateServiceControl({
+        ...controls,
+        instantBookingEnabled: controls.instantBookingEnabled !== true
+      });
+      if (res.success) {
+        setControls(res.data);
+        setMessage(res.message);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   if (loading) {
     return <div style={{ padding: '24px', color: '#64748b' }}>Loading service control state...</div>;
   }
@@ -195,6 +215,27 @@ const ServiceControl = () => {
               disabled={updating}
             >
               {controls?.carService === 'Active' ? 'Switch to Inactive' : 'Activate Car Service'}
+            </button>
+          </div>
+        </div>
+
+        <div className="content-card" style={{ marginBottom: 0 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: '700' }}>Optional Instant Booking</h3>
+                <StatusBadge status={controls?.instantBookingEnabled ? 'Active' : 'Inactive'} />
+              </div>
+              <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '4px' }}>
+                Allow customers to request immediate assignment for an eligible online driver on the selected route.
+              </p>
+            </div>
+            <button
+              onClick={handleInstantBookingToggle}
+              className={`btn ${controls?.instantBookingEnabled ? 'btn-outline' : 'btn-success'}`}
+              disabled={updating}
+            >
+              {controls?.instantBookingEnabled ? 'Disable Instant Booking' : 'Enable Instant Booking'}
             </button>
           </div>
         </div>

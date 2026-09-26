@@ -11,7 +11,10 @@ const Driver = require('../models/Driver');
 const User = require('../models/User');
 const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
 const driverBookingResponse = require('../utils/driverBookingResponse');
-const { notifyEligibleDriversForBusBooking } = require('../utils/notification');
+const {
+  notifyEligibleDriversForBusBooking,
+  vehicleMatchesBookingRoute
+} = require('../utils/notification');
 
 const getBookingQuery = (idOrCode) => {
   return mongoose.isValidObjectId(idOrCode)
@@ -35,8 +38,17 @@ exports.createBooking = async (req, res, next) => {
       fare,
       travelDate,
       scheduleId,
-      paymentMethod
+      paymentMethod,
+      bookingMode: requestedBookingMode
     } = req.body;
+
+    if (
+      requestedBookingMode !== undefined &&
+      !['NORMAL', 'INSTANT'].includes(requestedBookingMode)
+    ) {
+      return res.status(400).json({ success: false, message: 'Invalid booking mode' });
+    }
+    const bookingMode = requestedBookingMode || 'NORMAL';
 
     if (!vehicleId || !serviceType || !pickupLocation || !dropLocation) {
       return res.status(400).json({
@@ -47,6 +59,13 @@ exports.createBooking = async (req, res, next) => {
 
     // 1. Check Service Control status
     const serviceControl = await ServiceControl.findOne();
+    if (bookingMode === 'INSTANT' && !serviceControl?.instantBookingEnabled) {
+      return res.status(403).json({
+        success: false,
+        code: 'INSTANT_BOOKING_DISABLED',
+        message: 'Instant booking is currently unavailable.'
+      });
+    }
     if (serviceControl) {
       if (serviceType === 'Bus' && serviceControl.busService !== 'Active') {
         return res.status(400).json({
@@ -82,6 +101,9 @@ exports.createBooking = async (req, res, next) => {
         success: false,
         message: `Vehicle is ${vehicle.vehicleStatus.toLowerCase()} and cannot be booked`
       });
+    }
+    if (bookingMode === 'INSTANT' && vehicle.vehicleType !== serviceType) {
+      return res.status(400).json({ success: false, message: 'Selected vehicle does not match the requested service' });
     }
 
     let evPassengerCount = 1;
@@ -174,6 +196,61 @@ exports.createBooking = async (req, res, next) => {
       }
     }
 
+    let instantDriver = null;
+    if (bookingMode === 'INSTANT') {
+      const noDriverAvailable = () => res.status(409).json({
+        success: false,
+        code: 'INSTANT_BOOKING_UNAVAILABLE',
+        message: 'No driver is currently available for instant booking.'
+      });
+      const bookingRoute = { pickupLocation, dropLocation };
+      const routeMatches = vehicleMatchesBookingRoute(vehicle, bookingRoute);
+
+      if (
+        vehicle.vehicleSource === 'THIRD_PARTY' ||
+        !routeMatches
+      ) {
+        return noDriverAvailable();
+      }
+
+      const driverConditions = [{ assignedVehicle: vehicle._id }];
+      if (vehicle.assignedDriver) driverConditions.push({ _id: vehicle.assignedDriver });
+      const candidates = await Driver.find({
+        driverStatus: 'Active',
+        isOnline: true,
+        $or: driverConditions
+      }).populate('user', 'status').sort({ _id: 1 }).lean();
+      const eligibleDrivers = candidates.filter(driver => {
+        const driverVehicleId = driver.assignedVehicle ? String(driver.assignedVehicle) : null;
+        const vehicleDriverId = vehicle.assignedDriver ? String(vehicle.assignedDriver) : null;
+        return driver.user?.status !== 'Blocked'
+          && (!driverVehicleId || driverVehicleId === String(vehicle._id))
+          && (!vehicleDriverId || vehicleDriverId === String(driver._id));
+      });
+
+      if (eligibleDrivers.length === 0) return noDriverAvailable();
+
+      const activeDriverIds = await Booking.distinct('driver', {
+        driver: { $in: eligibleDrivers.map(driver => driver._id) },
+        bookingStatus: {
+          $in: [
+            'Pending Admin Confirmation',
+            'PENDING_ADMIN_CONFIRMATION',
+            'Admin Confirmed',
+            'ADMIN_CONFIRMED',
+            'Pending',
+            'Pending Driver Confirmation',
+            'Awaiting Cash Collection',
+            'Confirmed',
+            'Ongoing'
+          ]
+        }
+      });
+      const activeDriverSet = new Set(activeDriverIds.map(id => String(id)));
+      instantDriver = eligibleDrivers.find(driver => !activeDriverSet.has(String(driver._id))) || null;
+      if (!instantDriver) return noDriverAvailable();
+    }
+
     // 4. Calculate Server-Side Fare with Dynamic Admin Bus Offer Discount
     const fareUnitCount = serviceType === 'Bus' && selectedSeats && selectedSeats.length > 0
       ? selectedSeats.length
@@ -222,8 +299,11 @@ exports.createBooking = async (req, res, next) => {
       notes: vehicle.hireDetails?.notes || ''
     } : undefined;
 
-    const booking = await Booking.create({
+    let booking;
+    try {
+      booking = await Booking.create({
       bookingId,
+      bookingMode,
       user: req.user?._id,
       vehicleSource: isThirdParty ? 'THIRD_PARTY' : 'OWN',
       hiredVehicleDetails,
@@ -232,7 +312,7 @@ exports.createBooking = async (req, res, next) => {
         phone: req.user.phone,
         email: req.user.email
       },
-      driver: vehicle.assignedDriver || null,
+      driver: instantDriver?._id || vehicle.assignedDriver || null,
       vehicle: vehicle._id,
       scheduleId: activeSchedule?._id || null,
       serviceType,
@@ -256,13 +336,27 @@ exports.createBooking = async (req, res, next) => {
       confirmationOtpHash,
       confirmationOtpExpiresAt,
       customerViewOtp: rawOtp,
-      driverConfirmationStatus: 'Pending',
-      driverConfirmed: false,
-      driverConfirmedAt: null,
-      driverConfirmedBy: null,
+      driverConfirmationStatus: instantDriver ? 'Confirmed' : 'Pending',
+      driverConfirmed: Boolean(instantDriver),
+      driverConfirmedAt: instantDriver ? new Date() : null,
+      driverConfirmedBy: instantDriver?._id || null,
       travelDate: travelDate ? new Date(travelDate) : new Date(),
       busSeatNumbers: selectedSeats || []
     });
+    } catch (error) {
+      if (
+        bookingMode === 'INSTANT' &&
+        error.code === 11000 &&
+        error.message.includes('one_active_instant_booking_per_driver')
+      ) {
+        return res.status(409).json({
+          success: false,
+          code: 'INSTANT_BOOKING_UNAVAILABLE',
+          message: 'No driver is currently available for instant booking.'
+        });
+      }
+      throw error;
+    }
 
     // Create corresponding Payment record
     const payment = await Payment.create({
@@ -284,8 +378,12 @@ exports.createBooking = async (req, res, next) => {
 
     // Create Customer Notification
     await Notification.create({
-      title: isOfflineCash ? 'Booking Request Sent' : 'Booking Created',
-      message: isOfflineCash
+      title: bookingMode === 'INSTANT'
+        ? 'Instant Booking Assigned'
+        : isOfflineCash ? 'Booking Request Sent' : 'Booking Created',
+      message: bookingMode === 'INSTANT'
+        ? 'A driver has been assigned to your instant booking. Please complete payment.'
+        : isOfflineCash
         ? 'Your bus booking request has been sent to the assigned driver.'
         : 'Your booking has been created. Please complete payment.',
       recipient: `Customer: ${booking.customer.name}`,
@@ -295,7 +393,7 @@ exports.createBooking = async (req, res, next) => {
     });
 
     // Notify ALL eligible drivers on the same route if Bus booking
-    if (isBus) {
+    if (isBus && bookingMode !== 'INSTANT') {
       await notifyEligibleDriversForBusBooking(booking);
     }
 
@@ -587,9 +685,18 @@ exports.confirmOfflineCashBooking = async (req, res, next) => {
 
     booking.paymentMethod = 'Offline Cash';
     booking.paymentStatus = 'Pending Cash';
-    booking.bookingStatus = 'Pending Driver Confirmation';
-    booking.driverConfirmationStatus = 'Pending';
-    booking.driverConfirmed = false;
+    if (booking.bookingMode === 'INSTANT') {
+      booking.bookingStatus = 'Awaiting Cash Collection';
+      booking.driverConfirmationStatus = 'Confirmed';
+      booking.driverConfirmed = true;
+      booking.driverConfirmedAt = booking.driverConfirmedAt || new Date();
+      booking.driverConfirmedBy = booking.driverConfirmedBy || booking.driver;
+      if (booking.serviceType !== 'Bus') booking.rideStatus = 'Accepted';
+    } else {
+      booking.bookingStatus = 'Pending Driver Confirmation';
+      booking.driverConfirmationStatus = 'Pending';
+      booking.driverConfirmed = false;
+    }
     booking.cashCollected = false;
     await booking.save();
 
@@ -623,15 +730,17 @@ exports.confirmOfflineCashBooking = async (req, res, next) => {
 
     // Create Notification
     await Notification.create({
-      title: 'Booking Request Sent',
-      message: 'Your bus booking request has been sent to the assigned driver.',
+      title: booking.bookingMode === 'INSTANT' ? 'Instant Booking Assigned' : 'Booking Request Sent',
+      message: booking.bookingMode === 'INSTANT'
+        ? 'Your driver is assigned. Please pay the fare in cash upon boarding.'
+        : 'Your bus booking request has been sent to the assigned driver.',
       recipient: `Customer: ${booking.customer.name}`,
       recipientRole: 'customer',
       recipientId: req.user._id,
       status: 'Unread'
     });
 
-    if (booking.serviceType === 'Bus') {
+    if (booking.serviceType === 'Bus' && booking.bookingMode !== 'INSTANT') {
       await notifyEligibleDriversForBusBooking(booking);
     }
 

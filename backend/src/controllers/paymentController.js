@@ -340,8 +340,12 @@ exports.verifyRazorpayPayment = async (req, res, next) => {
 
     // Create Notification
     await Notification.create({
-      title: isBus ? 'Booking Request Sent' : 'Booking Confirmed!',
-      message: isBus
+      title: booking.bookingMode === 'INSTANT'
+        ? 'Instant Booking Assigned'
+        : isBus ? 'Booking Request Sent' : 'Booking Confirmed!',
+      message: booking.bookingMode === 'INSTANT'
+        ? 'Your instant booking has been assigned to a driver.'
+        : isBus
         ? 'Your bus booking request has been sent to the assigned driver.'
         : 'Your booking has been confirmed.',
       recipient: `Customer: ${booking.customer.name}`,
@@ -620,8 +624,12 @@ exports.testPaymentSuccess = async (req, res, next) => {
 
     // Create Notification
     await Notification.create({
-      title: isBus ? 'Booking Request Sent' : 'Booking Confirmed!',
-      message: isBus
+      title: booking.bookingMode === 'INSTANT'
+        ? 'Instant Booking Assigned'
+        : isBus ? 'Booking Request Sent' : 'Booking Confirmed!',
+      message: booking.bookingMode === 'INSTANT'
+        ? 'Your instant booking has been assigned to a driver.'
+        : isBus
         ? 'Your bus booking request has been sent to the assigned driver.'
         : 'Your booking has been confirmed.',
       recipient: `Customer: ${booking.customer.name}`,
@@ -734,4 +742,3 @@ exports.getPaymentByBookingId = async (req, res, next) => {
     next(error);
   }
 };
-

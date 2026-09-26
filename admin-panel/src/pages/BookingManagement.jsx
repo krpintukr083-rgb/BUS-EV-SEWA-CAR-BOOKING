@@ -226,6 +226,15 @@ const BookingManagement = () => {
                       <td>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
                           <span className="badge badge-pending" style={{ width: 'fit-content' }}>{b.serviceType}</span>
+                          {b.bookingMode === 'INSTANT' ? (
+                            <span style={{ fontSize: '0.68rem', fontWeight: '700', color: '#047857', backgroundColor: '#d1fae5', padding: '1px 5px', borderRadius: '3px', width: 'fit-content' }}>
+                              INSTANT
+                            </span>
+                          ) : (
+                            <span style={{ fontSize: '0.68rem', fontWeight: '700', color: '#475569', backgroundColor: '#f1f5f9', padding: '1px 5px', borderRadius: '3px', width: 'fit-content' }}>
+                              NORMAL
+                            </span>
+                          )}
                           {isThirdParty ? (
                             <span style={{ fontSize: '0.68rem', fontWeight: '700', color: '#c2410c', backgroundColor: '#ffedd5', padding: '1px 5px', borderRadius: '3px', width: 'fit-content' }}>
                               MARKET HIRED

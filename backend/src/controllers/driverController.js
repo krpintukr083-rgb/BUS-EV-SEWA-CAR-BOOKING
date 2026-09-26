@@ -181,7 +181,8 @@ exports.getDriverDashboard = async (req, res, next) => {
               cashCollected: { $ne: true },
               bookingStatus: {
                 $in: ['Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation', 'Admin Confirmed', 'ADMIN_CONFIRMED']
-              }
+              },
+              bookingMode: { $ne: 'INSTANT' }
             })
               .select('bookingId user customer serviceType pickupLocation dropLocation fare driverPaymentAmount paymentStatus bookingStatus rideStatus travelDate passengerDetails busSeatNumbers vehicle driver createdAt')
               .populate('user', 'phone')
@@ -1163,7 +1164,8 @@ exports.getBookingRequests = async (req, res, next) => {
       cashCollected: { $ne: true },
       bookingStatus: {
         $in: ['Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation', 'Admin Confirmed', 'ADMIN_CONFIRMED']
-      }
+      },
+      bookingMode: { $ne: 'INSTANT' }
     })
       .populate('user', 'phone')
       .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory fuelType fareRate route pickupDropDetails hireDetails')

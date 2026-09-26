@@ -5,6 +5,7 @@ const BookingContext = createContext();
 export const BookingProvider = ({ children }) => {
   const [bookingDraft, setBookingDraft] = useState({
     serviceType: 'Bus', // 'Bus' | 'EV-Sewa' | 'Car'
+    bookingMode: 'NORMAL',
     vehicle: null,
     pickupLocation: '',
     dropLocation: '',
@@ -29,6 +30,7 @@ export const BookingProvider = ({ children }) => {
   const resetDraft = () => {
     setBookingDraft({
       serviceType: 'Bus',
+      bookingMode: 'NORMAL',
       vehicle: null,
       pickupLocation: '',
       dropLocation: '',
