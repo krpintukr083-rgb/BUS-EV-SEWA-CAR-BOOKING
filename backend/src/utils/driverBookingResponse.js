@@ -15,8 +15,11 @@ const driverBookingResponse = (booking, canViewCustomerPhone) => {
     data.driver = driver;
   }
   if (canViewCustomerPhone) {
-    const phone = customer?.phone || data.customerPhone || data.passengerPhone || user?.phone;
-    if (customer && typeof customer === 'object') data.customer = customer;
+    const phone = user?.phone || customer?.phone || data.customerPhone || data.passengerPhone;
+    if (customer && typeof customer === 'object') {
+      if (phone) customer.phone = phone;
+      data.customer = customer;
+    }
     if (phone) data.customerPhone = phone;
     return data;
   }

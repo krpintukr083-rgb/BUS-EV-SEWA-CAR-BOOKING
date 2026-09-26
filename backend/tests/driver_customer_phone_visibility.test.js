@@ -10,8 +10,9 @@ const jwtConfig = require('../src/config/jwt');
 
 describe('Driver customer phone visibility', () => {
   const suffix = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-  const phoneNumber = '919876543210';
+  const phoneNumber = `919${suffix.slice(-7)}`;
   let admin;
+  let customerUser;
   let driverUser;
   let otherDriverUser;
   let thirdDriverUser;
@@ -37,6 +38,14 @@ describe('Driver customer phone visibility', () => {
       phone: `981${suffix.slice(-7)}`,
       password: 'AdminPassword123!',
       role: 'admin',
+      status: 'Active'
+    });
+    customerUser = await User.create({
+      name: 'Phone Visibility Customer',
+      email: `phone-visibility-customer-${suffix}@test.com`,
+      phone: phoneNumber,
+      password: 'CustomerPassword123!',
+      role: 'customer',
       status: 'Active'
     });
     driverUser = await User.create({
@@ -103,7 +112,8 @@ describe('Driver customer phone visibility', () => {
     await driver.save();
     booking = await Booking.create({
       bookingId: `PHONE-VIS-${suffix}`,
-      customer: { name: 'Phone Visibility Customer', phone: phoneNumber },
+      user: customerUser._id,
+      customer: { name: 'Phone Visibility Customer', phone: '910000000000' },
       vehicle: vehicle._id,
       serviceType: 'Bus',
       pickupLocation: 'Delhi',
@@ -168,6 +178,7 @@ describe('Driver customer phone visibility', () => {
     if (driverUser) await User.findByIdAndDelete(driverUser._id);
     if (otherDriverUser) await User.findByIdAndDelete(otherDriverUser._id);
     if (thirdDriverUser) await User.findByIdAndDelete(thirdDriverUser._id);
+    if (customerUser) await User.findByIdAndDelete(customerUser._id);
     if (admin) await User.findByIdAndDelete(admin._id);
     await closeTestDB();
   });
@@ -184,6 +195,7 @@ describe('Driver customer phone visibility', () => {
     expect(primaryHiddenRequest).toBeDefined();
     expect(primaryHiddenRequest).not.toHaveProperty('customerPhone');
     expect(primaryHiddenRequest.customer).not.toHaveProperty('phone');
+    expect(primaryHiddenRequest.user).not.toHaveProperty('phone');
 
     const otherDriverHidden = await request(app)
       .get('/api/driver/booking-requests')

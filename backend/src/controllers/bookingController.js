@@ -8,6 +8,7 @@ const Cancellation = require('../models/Cancellation');
 const Notification = require('../models/Notification');
 const Schedule = require('../models/Schedule');
 const Driver = require('../models/Driver');
+const User = require('../models/User');
 const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
 const driverBookingResponse = require('../utils/driverBookingResponse');
 const { notifyEligibleDriversForBusBooking } = require('../utils/notification');
@@ -379,8 +380,15 @@ exports.getBookingById = async (req, res, next) => {
 
     const payment = await Payment.findOne({ booking: booking._id });
 
+    let bookingForResponse = booking;
+    if (driver?.canViewCustomerPhone === true && booking.user) {
+      const registeredCustomer = await User.findById(booking.user).select('phone').lean();
+      if (registeredCustomer) {
+        bookingForResponse = { ...booking.toObject(), user: registeredCustomer };
+      }
+    }
     const obj = driver
-      ? driverBookingResponse(booking, driver.canViewCustomerPhone === true)
+      ? driverBookingResponse(bookingForResponse, driver.canViewCustomerPhone === true)
       : booking.toObject();
     if (req.user.role === 'customer') {
       obj.confirmationOtp = obj.customerViewOtp;
