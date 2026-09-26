@@ -108,9 +108,9 @@ const verifyDriverVehicleAccess = async (driver, booking) => {
     return false;
   }
 
-  if (booking.serviceType !== 'Any' && assignedVehicle.vehicleType !== booking.serviceType) return false;
+  if (booking.bookingMode !== 'INSTANT' && booking.serviceType !== 'Any' && assignedVehicle.vehicleType !== booking.serviceType) return false;
 
-  const isSelectedBusVehicle = (booking.serviceType === 'Bus' || booking.serviceType === 'Any')
+  const isSelectedBusVehicle = (booking.bookingMode === 'INSTANT' || booking.serviceType === 'Bus' || booking.serviceType === 'Any')
     && booking.vehicle && String(assignedVehicle._id) === String(booking.vehicle?._id || booking.vehicle);
   return vehicleMatchesBookingRoute(assignedVehicle, booking, {
     requireRouteMatch: !isSelectedBusVehicle
@@ -1136,7 +1136,11 @@ exports.getBookingRequests = async (req, res, next) => {
 
     // Fetch candidate pending bookings
     const candidateBookings = await Booking.find({
-      serviceType: assignedVehicle.vehicleType,
+      $or: [
+        { serviceType: assignedVehicle.vehicleType },
+        { bookingMode: 'INSTANT' },
+        { serviceType: 'Any' }
+      ],
       driverConfirmed: { $ne: true },
       driverConfirmationStatus: { $ne: 'Confirmed' },
       confirmationOtpVerifiedAt: null,
@@ -1163,8 +1167,8 @@ exports.getBookingRequests = async (req, res, next) => {
       if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(reqItem.bookingStatus)) {
         return false;
       }
-      // Bus or Any requests remain broadcast; non-Bus requests cannot be claimed by another assigned driver unless they are 'Any' broadcast.
-      if (reqItem.serviceType === 'Bus' || reqItem.serviceType === 'Any') {
+      // Bus, Any, or INSTANT requests remain broadcast; non-Bus requests cannot be claimed by another assigned driver unless they are 'Any' or 'INSTANT' broadcast.
+      if (reqItem.bookingMode === 'INSTANT' || reqItem.serviceType === 'Bus' || reqItem.serviceType === 'Any') {
         if (assignedVehicle) {
           const isSelectedBusVehicle = reqItem.vehicle && String(assignedVehicle._id) === String(reqItem.vehicle?._id || reqItem.vehicle);
           const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem, {

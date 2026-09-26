@@ -101,7 +101,7 @@ const notifyEligibleDriversForBooking = async (booking) => {
 
     // Step A: Only approved vehicles in the requested service category may receive requests.
     const vehicleQuery = { vehicleStatus: 'Active' };
-    if (serviceType !== 'Any') {
+    if (serviceType !== 'Any' && booking.bookingMode !== 'INSTANT') {
       vehicleQuery.vehicleType = serviceType;
     }
     const activeVehicles = await Vehicle.find(vehicleQuery)
