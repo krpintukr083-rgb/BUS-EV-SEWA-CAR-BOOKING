@@ -121,7 +121,7 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
   const [sourceOpen, setSourceOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [routeStops, setRouteStops] = useState([]);
-  const [finalSegmentFare, setFinalSegmentFare] = useState('');
+  const [destinationFareFromOrigin, setDestinationFareFromOrigin] = useState('');
   const [evValues, setEvValues] = useState({ batteryPercentage: '', estimatedRangeKm: '' });
   const [evValuesSaved, setEvValuesSaved] = useState(false);
   const [loadingVehicle, setLoadingVehicle] = useState(isEditing);
@@ -314,12 +314,16 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
       Alert.alert('Invalid route', 'Enter a unique name for each route stop.');
       return;
     }
-    const segmentFares = [
-      ...routeStops.map(stop => Number(stop.fareFromPrevious)),
-      ...(routeStops.length ? [Number(finalSegmentFare)] : [])
+    const cumulativeFares = [
+      ...routeStops.map(stop => Number(stop.fareFromOrigin)),
+      ...(routeStops.length ? [Number(destinationFareFromOrigin)] : [])
     ];
-    if (segmentFares.some(value => !Number.isFinite(value) || value <= 0)) {
-      Alert.alert('Invalid route fare', 'Enter a positive fare for every route segment.');
+    if (routeStops.length && cumulativeFares.some(value => !Number.isFinite(value) || value <= 0)) {
+      Alert.alert('Invalid route fare', 'Enter a positive customer fare from the origin for every stop and the destination.');
+      return;
+    }
+    if (cumulativeFares.some((value, index) => index > 0 && value < cumulativeFares[index - 1])) {
+      Alert.alert('Invalid route fare', 'Customer fare from origin must not decrease as the route moves forward.');
       return;
     }
     const flatFare = Number(form.fareRate);
@@ -368,13 +372,13 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
           ...(routeStops.length ? {
             stops: routeStops.map(stop => ({
               name: stop.name.trim(),
-              fareFromPrevious: Number(stop.fareFromPrevious)
+              fareFromOrigin: Number(stop.fareFromOrigin)
             })),
-            finalSegmentFare: Number(finalSegmentFare)
+            destinationFareFromOrigin: Number(destinationFareFromOrigin)
           } : {})
         },
         fareRate: routeStops.length
-          ? segmentFares.reduce((sum, value) => sum + value, 0)
+          ? Number(destinationFareFromOrigin)
           : flatFare
       };
 
@@ -415,7 +419,7 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
       setVehicleSource('');
       setForm(EMPTY_FORM);
       setRouteStops([]);
-      setFinalSegmentFare('');
+      setDestinationFareFromOrigin('');
       setEvValues({ batteryPercentage: '', estimatedRangeKm: '' });
       setEvValuesSaved(false);
       setPhotos({ front: null, back: null, left: null, right: null });
@@ -576,21 +580,21 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
         style={styles.input}
       />
       <Text style={styles.help}>
-        Add optional stops and the fare from the previous point. The full-route fare is calculated automatically.
+        Add optional stops and enter each fare from the origin. The full-route fare is calculated automatically.
       </Text>
       {routeStops.map((stop, index) => (
         <View key={`route-stop-${index}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <TextInput
             value={stop.name}
             onChangeText={value => updateRouteStop(index, 'name', value)}
-            placeholder={`Stop ${index + 1} name`}
+            placeholder={`Stop ${index + 1} location *`}
             placeholderTextColor={COLORS.textMuted}
             style={[styles.input, { flex: 1 }]}
           />
           <TextInput
-            value={stop.fareFromPrevious}
-            onChangeText={value => updateRouteStop(index, 'fareFromPrevious', value)}
-            placeholder="Fare from previous point (₹)"
+            value={stop.fareFromOrigin}
+            onChangeText={value => updateRouteStop(index, 'fareFromOrigin', value)}
+            placeholder="Customer Fare from Origin (₹)"
             placeholderTextColor={COLORS.textMuted}
             keyboardType="decimal-pad"
             style={[styles.input, { flex: 0.7 }]}
@@ -607,23 +611,37 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
       {routeStops.length > 0 && (
         <View>
           <TextInput
-            value={finalSegmentFare}
-            onChangeText={setFinalSegmentFare}
-            placeholder={`Fare from ${routeStops[routeStops.length - 1]?.name || 'last stop'} to destination ₹`}
+            value={destinationFareFromOrigin}
+            onChangeText={setDestinationFareFromOrigin}
+            placeholder="Customer Fare from Origin to Destination (₹) *"
             placeholderTextColor={COLORS.textMuted}
             keyboardType="decimal-pad"
             style={styles.input}
           />
           <Text style={styles.help}>
-            Full Route Fare: ₹{[
-              ...routeStops.map(stop => Number(stop.fareFromPrevious) || 0),
-              Number(finalSegmentFare) || 0
-            ].reduce((sum, value) => sum + value, 0)}
+            Full Route Fare: ₹{Number(destinationFareFromOrigin || form.fareRate) || 0}
           </Text>
         </View>
       )}
+      <View style={{ marginBottom: SPACING.s }}>
+        <Text style={styles.help}>
+          {form.origin.trim() || 'Origin'}
+          {routeStops.map(stop => ` → ${stop.name.trim() || 'Stop'}`)}
+          {` → ${form.destination.trim() || 'Destination'}`}
+        </Text>
+        {routeStops.map((stop, index) => (
+          <Text key={`route-preview-${index}`} style={styles.help}>
+            {stop.name.trim() || `Stop ${index + 1}`} — ₹{Number(stop.fareFromOrigin) || 0} from origin
+          </Text>
+        ))}
+        {routeStops.length > 0 && (
+          <Text style={styles.help}>
+            {form.destination.trim() || 'Destination'} — ₹{Number(destinationFareFromOrigin) || 0} from origin
+          </Text>
+        )}
+      </View>
       <TouchableOpacity
-        onPress={() => setRouteStops(current => [...current, { name: '', fareFromPrevious: '' }])}
+        onPress={() => setRouteStops(current => [...current, { name: '', fareFromOrigin: '' }])}
         style={[styles.button, { backgroundColor: COLORS.bgCard, borderWidth: 1, borderColor: COLORS.border }]}
       >
         <Text style={[styles.buttonText, { color: COLORS.primaryLight }]}>+ Add Stop</Text>
@@ -632,7 +650,7 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
         <TextInput
           value={form.fareRate}
           onChangeText={value => update('fareRate', value)}
-          placeholder="Full Route Fare (₹) *"
+          placeholder="Customer Fare from Origin (₹) *"
           placeholderTextColor={COLORS.textMuted}
           keyboardType="decimal-pad"
           style={styles.input}

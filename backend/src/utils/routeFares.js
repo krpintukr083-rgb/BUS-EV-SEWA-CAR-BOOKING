@@ -13,6 +13,23 @@ const getRoutePoints = route => {
   ];
 };
 
+const getRouteCumulativeFares = route => {
+  if (!Array.isArray(route?.stops) || route.stops.length === 0) return [];
+  if (
+    route.stops.every(stop => stop?.fareFromOrigin != null) &&
+    route.destinationFareFromOrigin != null
+  ) {
+    return [0, ...route.stops.map(stop => Number(stop.fareFromOrigin)), Number(route.destinationFareFromOrigin)];
+  }
+  return [0, ...[
+    ...route.stops.map(stop => Number(stop?.fareFromPrevious)),
+    Number(route.finalSegmentFare)
+  ].reduce((totals, fare) => {
+    totals.push((totals[totals.length - 1] || 0) + fare);
+    return totals;
+  }, [])];
+};
+
 const validateRoutePricing = route => {
   if (!Array.isArray(route?.stops) || route.stops.length === 0) {
     return { valid: true, totalFare: null };
@@ -27,17 +44,19 @@ const validateRoutePricing = route => {
     return { valid: false, message: 'Route stops must be named, ordered, and unique.' };
   }
 
-  const segmentFares = [
-    ...route.stops.map(stop => Number(stop?.fareFromPrevious)),
-    Number(route.finalSegmentFare)
-  ];
-  if (segmentFares.some(fare => !Number.isFinite(fare) || fare <= 0)) {
-    return { valid: false, message: 'Enter a positive fare for every route segment.' };
+  const cumulativeFares = getRouteCumulativeFares(route);
+
+  if (
+    cumulativeFares.slice(1).some(fare => !Number.isFinite(fare) || fare <= 0) ||
+    cumulativeFares.some((fare, index) => index > 0 && fare < cumulativeFares[index - 1])
+  ) {
+    return { valid: false, message: 'Cumulative fares must be positive and must not decrease along the route.' };
   }
 
   return {
     valid: true,
-    totalFare: segmentFares.reduce((total, fare) => total + fare, 0)
+    totalFare: cumulativeFares[cumulativeFares.length - 1],
+    cumulativeFares
   };
 };
 
@@ -56,11 +75,7 @@ const getRouteSegmentFare = (route, from, to) => {
   const endIndex = findLocationIndex(points, to);
   if (startIndex < 0 || endIndex <= startIndex) return null;
 
-  const segmentFares = [
-    ...route.stops.map(stop => Number(stop.fareFromPrevious)),
-    Number(route.finalSegmentFare)
-  ];
-  return segmentFares.slice(startIndex, endIndex).reduce((total, fare) => total + fare, 0);
+  return validation.cumulativeFares[endIndex] - validation.cumulativeFares[startIndex];
 };
 
 const isRouteSegmentWithin = (route, from, to, segmentFrom, segmentTo) => {
@@ -75,6 +90,7 @@ const isRouteSegmentWithin = (route, from, to, segmentFrom, segmentTo) => {
 
 module.exports = {
   getRoutePoints,
+  getRouteCumulativeFares,
   getRouteSegmentFare,
   isRouteSegmentWithin,
   normalizeLocation,

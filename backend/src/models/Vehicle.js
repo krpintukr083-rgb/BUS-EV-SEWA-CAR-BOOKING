@@ -141,8 +141,10 @@ const vehicleSchema = new mongoose.Schema(
       droppingPoints: [{ type: String }],
       stops: [{
         name: { type: String, required: true, trim: true },
-        fareFromPrevious: { type: Number, required: true, min: 0 }
+        fareFromOrigin: { type: Number, min: 0 },
+        fareFromPrevious: { type: Number, min: 0 }
       }],
+      destinationFareFromOrigin: { type: Number, min: 0, default: undefined },
       finalSegmentFare: { type: Number, min: 0, default: undefined }
     },
     pickupDropDetails: {

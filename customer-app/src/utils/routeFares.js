@@ -13,6 +13,23 @@ export const getRoutePoints = route => {
   ];
 };
 
+export const getRouteCumulativeFares = route => {
+  if (!Array.isArray(route?.stops) || route.stops.length === 0) return [];
+  if (
+    route.stops.every(stop => stop?.fareFromOrigin != null) &&
+    route.destinationFareFromOrigin != null
+  ) {
+    return [0, ...route.stops.map(stop => Number(stop.fareFromOrigin)), Number(route.destinationFareFromOrigin)];
+  }
+  return [0, ...[
+    ...route.stops.map(stop => Number(stop?.fareFromPrevious)),
+    Number(route.finalSegmentFare)
+  ].reduce((totals, fare) => {
+    totals.push((totals[totals.length - 1] || 0) + fare);
+    return totals;
+  }, [])];
+};
+
 export const getRouteSegmentFare = (route, from, to) => {
   if (!Array.isArray(route?.stops) || route.stops.length === 0) return null;
   const points = getRoutePoints(route);
@@ -21,10 +38,10 @@ export const getRouteSegmentFare = (route, from, to) => {
   const end = normalized.indexOf(normalizeLocation(to));
   if (normalized.some(point => !point) || start < 0 || end <= start) return null;
 
-  const fares = [
-    ...route.stops.map(stop => Number(stop?.fareFromPrevious)),
-    Number(route.finalSegmentFare)
-  ];
-  if (fares.some(fare => !Number.isFinite(fare) || fare <= 0)) return null;
-  return fares.slice(start, end).reduce((total, fare) => total + fare, 0);
+  const cumulativeFares = getRouteCumulativeFares(route);
+  if (
+    cumulativeFares.slice(1).some(fare => !Number.isFinite(fare) || fare <= 0) ||
+    cumulativeFares.some((fare, index) => index > 0 && fare < cumulativeFares[index - 1])
+  ) return null;
+  return cumulativeFares[end] - cumulativeFares[start];
 };

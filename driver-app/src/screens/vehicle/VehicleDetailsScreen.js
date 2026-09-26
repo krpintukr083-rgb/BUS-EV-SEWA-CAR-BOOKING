@@ -24,8 +24,8 @@ export default function VehicleDetailsScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [fare, setFare] = useState('');
-  const [segmentFares, setSegmentFares] = useState([]);
-  const [finalSegmentFare, setFinalSegmentFare] = useState('');
+  const [stopFaresFromOrigin, setStopFaresFromOrigin] = useState([]);
+  const [destinationFareFromOrigin, setDestinationFareFromOrigin] = useState('');
   const [savingFare, setSavingFare] = useState(false);
 
   useEffect(() => {
@@ -39,10 +39,19 @@ export default function VehicleDetailsScreen({ navigation, route }) {
       if (res?.data?.success && res.data.data) {
         setVehicle(res.data.data);
         setFare(res.data.data.fareRate ? res.data.data.fareRate.toString() : '');
-        setSegmentFares((res.data.data.route?.stops || []).map(stop => String(stop.fareFromPrevious ?? '')));
-        setFinalSegmentFare(
-          res.data.data.route?.finalSegmentFare == null ? '' : String(res.data.data.route.finalSegmentFare)
-        );
+        const stops = res.data.data.route?.stops || [];
+        const cumulativeStops = stops.every(stop => stop.fareFromOrigin != null)
+          ? stops.map(stop => Number(stop.fareFromOrigin))
+          : stops.reduce((totals, stop) => {
+            totals.push((totals[totals.length - 1] || 0) + Number(stop.fareFromPrevious || 0));
+            return totals;
+          }, []);
+        setStopFaresFromOrigin(cumulativeStops.map(String));
+        const finalFare = res.data.data.route?.destinationFareFromOrigin
+          ?? (stops.length
+            ? cumulativeStops[cumulativeStops.length - 1] + Number(res.data.data.route?.finalSegmentFare || 0)
+            : null);
+        setDestinationFareFromOrigin(finalFare == null ? '' : String(finalFare));
       } else {
         // null => shows "No vehicle assigned" empty state
         setVehicle(null);
@@ -63,22 +72,19 @@ export default function VehicleDetailsScreen({ navigation, route }) {
   };
 
   const hasRouteSegments = (vehicle?.route?.stops || []).length > 0;
-  const routeFareInputsValid = [
-    ...segmentFares.map(Number),
-    Number(finalSegmentFare)
-  ].every(value => Number.isFinite(value) && value > 0)
-    && segmentFares.length === vehicle?.route?.stops?.length;
-  const calculatedRouteFare = [
-    ...segmentFares.map(value => Number(value) || 0),
-    Number(finalSegmentFare) || 0
-  ].reduce((sum, value) => sum + value, 0);
+  const cumulativeFares = [...stopFaresFromOrigin.map(Number), Number(destinationFareFromOrigin)];
+  const routeFareInputsValid = cumulativeFares.every(value => Number.isFinite(value) && value >= 0)
+    && cumulativeFares[cumulativeFares.length - 1] > 0
+    && cumulativeFares.every((value, index) => index === 0 || value >= cumulativeFares[index - 1])
+    && stopFaresFromOrigin.length === vehicle?.route?.stops?.length;
+  const calculatedRouteFare = Number(destinationFareFromOrigin) || 0;
   const isFareValid = hasRouteSegments
     ? routeFareInputsValid
     : fare !== '' && !isNaN(fare) && Number(fare) > 0;
 
   const handleSaveFare = async () => {
     if (!isFareValid) {
-      Alert.alert('Invalid Fare', 'Please enter a valid numeric fare amount greater than 0.');
+      Alert.alert('Invalid Fare', 'Enter positive fares from origin in non-decreasing order.');
       return;
     }
     setSavingFare(true);
@@ -87,9 +93,11 @@ export default function VehicleDetailsScreen({ navigation, route }) {
         ...vehicle.route,
         stops: vehicle.route.stops.map((stop, index) => ({
           ...stop,
-          fareFromPrevious: Number(segmentFares[index])
+          fareFromOrigin: Number(stopFaresFromOrigin[index]),
+          fareFromPrevious: undefined
         })),
-        finalSegmentFare: Number(finalSegmentFare)
+        destinationFareFromOrigin: Number(destinationFareFromOrigin),
+        finalSegmentFare: undefined
       } : undefined;
       const res = await driverService.updateVehicleFare(
         hasRouteSegments ? calculatedRouteFare : fare,
@@ -270,12 +278,12 @@ export default function VehicleDetailsScreen({ navigation, route }) {
                     {vehicle.route.stops.map((stop, index) => (
                       <View key={`${stop.name}-${index}`}>
                         <Text style={styles.specLabel}>
-                          {index === 0 ? vehicle.route.origin : vehicle.route.stops[index - 1].name} → {stop.name}
+                          {stop.name} — Customer Fare from Origin
                         </Text>
                         <TextInput
                           style={styles.fareInput}
-                          value={segmentFares[index] || ''}
-                          onChangeText={value => setSegmentFares(current => current.map((fareValue, fareIndex) =>
+                          value={stopFaresFromOrigin[index] || ''}
+                          onChangeText={value => setStopFaresFromOrigin(current => current.map((fareValue, fareIndex) =>
                             fareIndex === index ? value : fareValue
                           ))}
                           keyboardType="decimal-pad"
@@ -286,14 +294,14 @@ export default function VehicleDetailsScreen({ navigation, route }) {
                     ))}
                     <View>
                       <Text style={styles.specLabel}>
-                        {vehicle.route.stops[vehicle.route.stops.length - 1].name} → {vehicle.route.destination}
+                        {vehicle.route.destination} — Customer Fare from Origin
                       </Text>
                       <TextInput
                         style={styles.fareInput}
-                        value={finalSegmentFare}
-                        onChangeText={setFinalSegmentFare}
+                        value={destinationFareFromOrigin}
+                        onChangeText={setDestinationFareFromOrigin}
                         keyboardType="decimal-pad"
-                        placeholder="Final segment fare"
+                        placeholder="Destination fare from origin"
                         placeholderTextColor={COLORS.textMuted}
                       />
                     </View>

@@ -12,7 +12,7 @@ const ServiceControl = require('../src/models/ServiceControl');
 const BusOffer = require('../src/models/BusOffer');
 const jwtConfig = require('../src/config/jwt');
 const { connectTestDB, closeTestDB } = require('./setup');
-const { getRouteSegmentFare } = require('../src/utils/routeFares');
+const { getRouteSegmentFare, validateRoutePricing } = require('../src/utils/routeFares');
 const { vehicleMatchesBookingRoute } = require('../src/utils/notification');
 
 describe('Optional route-stop fares', () => {
@@ -39,11 +39,11 @@ describe('Optional route-stop fares', () => {
     origin: 'Delhi',
     destination: 'Jaipur',
     stops: [
-      { name: 'Gurgaon', fareFromPrevious: 300 },
-      { name: 'Neemrana', fareFromPrevious: 200 },
-      { name: 'Behror', fareFromPrevious: 150 }
+      { name: 'Gurgaon', fareFromOrigin: 300 },
+      { name: 'Neemrana', fareFromOrigin: 500 },
+      { name: 'Behror', fareFromOrigin: 650 }
     ],
-    finalSegmentFare: 200
+    destinationFareFromOrigin: 850
   };
 
   beforeAll(async () => {
@@ -181,16 +181,16 @@ describe('Optional route-stop fares', () => {
       .set('Authorization', `Bearer ${adminToken}`);
     expect(approved.status).toBe(200);
     expect(approved.body.data.route.stops).toHaveLength(3);
-    expect(approved.body.data.route.finalSegmentFare).toBe(200);
+    expect(approved.body.data.route.destinationFareFromOrigin).toBe(850);
     expect((await Vehicle.findById(registeredVehicle._id)).fareRate).toBe(850);
 
     const updatedRoute = {
       ...route,
       stops: route.stops.map((stop, index) => ({
         ...stop,
-        fareFromPrevious: [310, 190, 160][index]
+        fareFromOrigin: [310, 510, 660][index]
       })),
-      finalSegmentFare: 210
+      destinationFareFromOrigin: 870
     };
     const fareUpdate = await request(app)
       .put('/api/driver/vehicle/fare')
@@ -198,7 +198,7 @@ describe('Optional route-stop fares', () => {
       .send({ vehicleId: registeredVehicle._id, route: updatedRoute });
     expect(fareUpdate.status).toBe(200);
     expect(fareUpdate.body.data.fareRate).toBe(870);
-    expect(fareUpdate.body.data.route.finalSegmentFare).toBe(210);
+    expect(fareUpdate.body.data.route.destinationFareFromOrigin).toBe(870);
 
     const scheduleSubmission = await request(app)
       .post('/api/driver/schedules')
@@ -223,10 +223,24 @@ describe('Optional route-stop fares', () => {
   });
 
   test('calculates forward route segments and multiplies selected-seat fare', async () => {
+    expect(validateRoutePricing(route)).toMatchObject({ valid: true, totalFare: 850 });
+    expect(validateRoutePricing({
+      ...route,
+      stops: [
+        { name: 'Gurgaon', fareFromOrigin: 500 },
+        { name: 'Neemrana', fareFromOrigin: 300 },
+        { name: 'Behror', fareFromOrigin: 650 }
+      ]
+    }).valid).toBe(false);
     expect(getRouteSegmentFare(route, 'Delhi', 'Gurgaon')).toBe(300);
     expect(getRouteSegmentFare(route, 'Delhi', 'Neemrana')).toBe(500);
     expect(getRouteSegmentFare(route, 'Gurgaon', 'Behror')).toBe(350);
     expect(getRouteSegmentFare(route, 'Neemrana', 'Jaipur')).toBe(350);
+    expect(getRouteSegmentFare(route, 'Delhi', 'Behror')).toBe(650);
+    expect(getRouteSegmentFare(route, 'Gurgaon', 'Neemrana')).toBe(200);
+    expect(getRouteSegmentFare(route, 'Gurgaon', 'Jaipur')).toBe(550);
+    expect(getRouteSegmentFare(route, 'Neemrana', 'Behror')).toBe(150);
+    expect(getRouteSegmentFare(route, 'Behror', 'Jaipur')).toBe(200);
     expect(getRouteSegmentFare(route, 'Delhi', 'Jaipur')).toBe(850);
     expect(getRouteSegmentFare(route, 'Jaipur', 'Delhi')).toBeNull();
     expect(vehicleMatchesBookingRoute(
@@ -241,6 +255,7 @@ describe('Optional route-stop fares', () => {
       .query({ from: 'Delhi', to: 'Neemrana', travelDate: date });
     expect(schedules.status).toBe(200);
     expect(schedules.body.data.some(item => String(item._id) === String(schedule._id))).toBe(true);
+    expect(schedules.body.data.find(item => String(item._id) === String(schedule._id)).vehicle.route.stops[1].fareFromOrigin).toBe(500);
 
     const response = await request(app)
       .post('/api/bookings')
@@ -276,6 +291,8 @@ describe('Optional route-stop fares', () => {
     expect(storedBooking.fare).toBe(900);
     expect(storedBooking.originalFare).toBe(1000);
     expect(storedPayment.bookingAmount).toBe(900);
+    const twoPassengersFullRouteFare = getRouteSegmentFare(route, 'Delhi', 'Jaipur') * 2;
+    expect(twoPassengersFullRouteFare).toBe(1700);
 
     const threePassenger = await request(app)
       .post('/api/bookings')
@@ -301,6 +318,42 @@ describe('Optional route-stop fares', () => {
     expect(threePassenger.body.payment.bookingAmount).toBe(945);
     expect(threePassenger.body.payment.paymentMethod).toBe('Online Razorpay');
     userBookings.push(threePassenger.body.data._id);
+
+    const fullRouteTwoPassengers = await request(app)
+      .post('/api/bookings')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        vehicleId: vehicle._id,
+        scheduleId: schedule._id,
+        serviceType: 'Bus',
+        pickupLocation: 'Delhi',
+        dropLocation: 'Jaipur',
+        selectedSeats: ['C1', 'C2'],
+        passengerDetails: [
+          { name: 'Passenger One', age: 30, gender: 'Male', seatNumber: 'C1' },
+          { name: 'Passenger Two', age: 28, gender: 'Female', seatNumber: 'C2' }
+        ],
+        travelDate: new Date().toISOString()
+      });
+    expect(fullRouteTwoPassengers.status).toBe(201);
+    expect(fullRouteTwoPassengers.body.data.originalFare).toBe(1700);
+    expect(fullRouteTwoPassengers.body.data.fare).toBe(1530);
+    userBookings.push(fullRouteTwoPassengers.body.data._id);
+
+    vehicle.route = {
+      origin: 'Delhi',
+      destination: 'Jaipur',
+      stops: [
+        { name: 'Gurgaon', fareFromOrigin: 350 },
+        { name: 'Neemrana', fareFromOrigin: 550 },
+        { name: 'Behror', fareFromOrigin: 700 }
+      ],
+      destinationFareFromOrigin: 900
+    };
+    vehicle.fareRate = 900;
+    await vehicle.save();
+    expect((await Booking.findById(response.body.data._id)).fare).toBe(900);
+    expect((await Booking.findById(fullRouteTwoPassengers.body.data._id)).originalFare).toBe(1700);
   });
 
   test('rejects invalid stop pairs and still uses flat fare for legacy vehicles', async () => {
