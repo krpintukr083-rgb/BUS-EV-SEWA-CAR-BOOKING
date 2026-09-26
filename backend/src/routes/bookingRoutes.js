@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   createBooking,
+  getInstantBookingAvailability,
   getMyBookings,
   getBookingById,
   cancelBooking,
@@ -13,6 +14,7 @@ const { verifyToken } = require('../middleware/auth');
 
 router.use(verifyToken);
 
+router.post('/instant/availability', getInstantBookingAvailability);
 router.post('/', createBooking);
 router.get('/', getMyBookings);
 router.get('/:id', getBookingById);

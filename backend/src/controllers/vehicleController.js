@@ -49,9 +49,7 @@ exports.getVehicles = async (req, res, next) => {
 
     const vehicles = await Vehicle.find(query).populate('assignedDriver').sort({ createdAt: -1 });
 
-    // Legacy vehicles without schedule records remain visible. Once a vehicle
-    // participates in the approval workflow, only vehicles with an active
-    // schedule can enter the customer catalogue.
+    // Vehicles without schedule records remain visible; scheduled buses require an active schedule.
     const scheduleAwareVehicles = vehicles.filter(vehicle => vehicle.vehicleType === 'Bus');
     const vehicleIds = scheduleAwareVehicles.map(vehicle => vehicle._id);
     const scheduledVehicleIds = await Schedule.distinct('vehicle', { vehicle: { $in: vehicleIds } });
@@ -61,11 +59,12 @@ exports.getVehicles = async (req, res, next) => {
     });
     const scheduledIds = new Set(scheduledVehicleIds.map(id => String(id)));
     const activeScheduledIds = new Set(activeScheduledVehicleIds.map(id => String(id)));
-    let filtered = vehicles.filter(vehicle => (
+    const filtered = vehicles.filter(vehicle => (
       !scheduledIds.has(String(vehicle._id)) || activeScheduledIds.has(String(vehicle._id))
     ));
+    let routeFiltered = filtered;
     if (from || to) {
-      filtered = vehicles.filter((v) => {
+      routeFiltered = filtered.filter((v) => {
         const originSearch = (from || '').toLowerCase().trim();
         const destSearch = (to || '').toLowerCase().trim();
 
@@ -96,7 +95,7 @@ exports.getVehicles = async (req, res, next) => {
       });
     }
 
-    const formattedVehicles = filtered.map(v => formatVehicle(v, req));
+    const formattedVehicles = routeFiltered.map(v => formatVehicle(v, req));
 
     res.json({
       success: true,

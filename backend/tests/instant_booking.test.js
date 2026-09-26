@@ -256,6 +256,11 @@ describe('Optional Instant Booking', () => {
     expect(response.body.data.driver.toString()).toBe(driver._id.toString());
     expect(response.body.data.driverConfirmed).toBe(true);
     expect(response.body.data.driverConfirmationStatus).toBe('Confirmed');
+    expect(response.body.data.scheduleId).toBeNull();
+    expect(await Notification.countDocuments({
+      recipientId: customer._id,
+      title: 'Instant Booking Assigned'
+    })).toBe(1);
     expect(await Notification.countDocuments({
       recipientRole: 'driver',
       recipientId: driver._id
@@ -338,6 +343,21 @@ describe('Optional Instant Booking', () => {
     for (const serviceVehicle of otherServiceVehicles) {
       driver.assignedVehicle = serviceVehicle._id;
       await driver.save();
+      const availability = await request(app)
+        .post('/api/bookings/instant/availability')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({
+          serviceType: serviceVehicle.vehicleType,
+          pickupLocation: 'Delhi',
+          dropLocation: 'Jaipur'
+        });
+      expect(availability.status).toBe(200);
+      expect(availability.body.data.some(item =>
+        item._id === serviceVehicle._id.toString() &&
+        item.vehicleType === serviceVehicle.vehicleType &&
+        item.instantDriver._id === driver._id.toString()
+      )).toBe(true);
+
       const response = await submitBooking(customerToken, 'INSTANT', {
         vehicleId: serviceVehicle._id,
         serviceType: serviceVehicle.vehicleType
@@ -348,6 +368,19 @@ describe('Optional Instant Booking', () => {
       expect(response.body.data.driver.toString()).toBe(driver._id.toString());
       await Booking.deleteOne({ _id: response.body.data._id });
       await Payment.deleteMany({ booking: response.body.data._id });
+
+      const scheduledMode = await submitBooking(customerToken, 'NORMAL', {
+        vehicleId: serviceVehicle._id,
+        serviceType: serviceVehicle.vehicleType
+      });
+      expect(scheduledMode.status).toBe(201);
+      expect(scheduledMode.body.data.bookingMode).toBe('NORMAL');
+      expect(scheduledMode.body.data.serviceType).toBe(serviceVehicle.vehicleType);
+      expect(scheduledMode.body.data.pickupLocation).toBe('Delhi');
+      expect(scheduledMode.body.data.dropLocation).toBe('Jaipur');
+      expect(scheduledMode.body.data.fare).toBe(500);
+      await Payment.deleteMany({ booking: scheduledMode.body.data._id });
+      await Booking.deleteOne({ _id: scheduledMode.body.data._id });
     }
   });
 

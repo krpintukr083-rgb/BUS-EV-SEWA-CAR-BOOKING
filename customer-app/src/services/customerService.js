@@ -124,6 +124,11 @@ export const customerService = {
     return res.data;
   },
 
+  getInstantBookingAvailability: async availability => {
+    const res = await api.post('/bookings/instant/availability', availability);
+    return res.data;
+  },
+
   confirmOfflineCashBooking: async bookingId => {
     const res = await api.post(`/bookings/${bookingId}/offline-cash`);
     return res.data;

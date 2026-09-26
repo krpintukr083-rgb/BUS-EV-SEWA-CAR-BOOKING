@@ -25,6 +25,8 @@ import CarDetailsScreen from '../screens/car/CarDetailsScreen';
 
 // Booking Funnel Screens
 import PickupDropScreen from '../screens/booking/PickupDropScreen';
+import BookingServiceSelectionScreen from '../screens/booking/BookingServiceSelectionScreen';
+import InstantBookingRouteScreen from '../screens/booking/InstantBookingRouteScreen';
 import PassengerDetailsScreen from '../screens/booking/PassengerDetailsScreen';
 import FareSummaryScreen from '../screens/booking/FareSummaryScreen';
 import PaymentScreen from '../screens/booking/PaymentScreen';
@@ -91,6 +93,8 @@ const AppNavigator = () => {
           <Stack.Screen name="CarDetails" component={CarDetailsScreen} />
 
           {/* Common Booking & Checkout Flow */}
+          <Stack.Screen name="BookingServiceSelection" component={BookingServiceSelectionScreen} />
+          <Stack.Screen name="InstantBookingRoute" component={InstantBookingRouteScreen} />
           <Stack.Screen name="PickupDrop" component={PickupDropScreen} />
           <Stack.Screen name="PassengerDetails" component={PassengerDetailsScreen} />
           <Stack.Screen name="FareSummary" component={FareSummaryScreen} />

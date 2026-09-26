@@ -143,28 +143,35 @@ const HomeScreen = ({ navigation }) => {
         Alert.alert('Service Inactive', 'Bus booking service is currently inactive.');
         return;
       }
-      updateDraft({ serviceType: 'Bus' });
+      updateDraft({ serviceType: 'Bus', bookingMode: 'NORMAL' });
       navigation.navigate('BusSearch');
     } else if (serviceType === 'EV-Sewa') {
       if (serviceControl.evSewaService !== 'Active') {
         Alert.alert('Service Inactive', 'EV-Sewa electric shuttle service is currently inactive.');
         return;
       }
-      updateDraft({ serviceType: 'EV-Sewa' });
+      updateDraft({ serviceType: 'EV-Sewa', bookingMode: 'NORMAL' });
       navigation.navigate('EvSewaListing');
     } else if (serviceType === 'Car') {
       if (serviceControl.carService !== 'Active') {
         Alert.alert('Service Inactive', 'Car booking service is currently inactive.');
         return;
       }
-      updateDraft({ serviceType: 'Car' });
+      updateDraft({ serviceType: 'Car', bookingMode: 'NORMAL' });
       navigation.navigate('CarListing');
     }
+  };
+
+  const startBooking = bookingMode => {
+    resetDraft();
+    updateDraft({ bookingMode });
+    navigation.getParent()?.navigate('BookingServiceSelection', { bookingMode });
   };
 
   const handleViewBus = (bus) => {
     updateDraft({
       serviceType: 'Bus',
+      bookingMode: 'NORMAL',
       vehicle: bus,
       baseFare: bus.fareRate,
       pickupLocation: bus.route?.origin || 'Delhi (Kashmere Gate ISBT)',
@@ -303,66 +310,41 @@ const HomeScreen = ({ navigation }) => {
           </View>
         )}
 
-        {/* Book Your Journey Section */}
+        {/* Booking Entry Choices */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Book Your Journey</Text>
-          <Text style={styles.sectionSubtitle}>Select your preferred mode of transportation</Text>
+          <Text style={styles.sectionTitle}>How do you want to book?</Text>
+          <Text style={styles.sectionSubtitle}>Choose a planned journey or find a vehicle available now.</Text>
         </View>
 
-        {/* 3 Main Service Cards matching reference image */}
-        <View style={styles.servicesGrid}>
-          {/* Bus Service */}
+        <View style={styles.bookingChoices}>
           <TouchableOpacity
-            style={[styles.serviceCard, styles.busCard]}
-            onPress={() => handleSelectService('Bus')}
+            style={[styles.bookingChoice, styles.scheduleChoice]}
+            onPress={() => startBooking('NORMAL')}
             activeOpacity={0.85}
           >
-            <View style={[styles.serviceIconCircle, { backgroundColor: '#eff6ff' }]}>
-              <Ionicons name="bus" size={26} color={COLORS.primary} />
+            <View style={[styles.bookingChoiceIcon, { backgroundColor: '#eff6ff' }]}>
+              <Ionicons name="calendar" size={23} color={COLORS.primary} />
             </View>
-            <Text style={styles.serviceTitle}>Bus Service</Text>
-            <Text style={styles.serviceDesc}>Intercity & Sleeper</Text>
-            {serviceControl.busService !== 'Active' && (
-              <View style={styles.inactiveBadge}>
-                <Text style={styles.inactiveBadgeText}>Inactive</Text>
-              </View>
-            )}
+            <View style={styles.bookingChoiceCopy}>
+              <Text style={styles.bookingChoiceTitle}>Schedule Booking</Text>
+              <Text style={styles.bookingChoiceSubtitle}>Plan your trip</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={COLORS.primary} />
           </TouchableOpacity>
 
-          {/* EV-Sewa Service */}
           <TouchableOpacity
-            style={[styles.serviceCard, styles.evCard]}
-            onPress={() => handleSelectService('EV-Sewa')}
+            style={[styles.bookingChoice, styles.instantChoice]}
+            onPress={() => startBooking('INSTANT')}
             activeOpacity={0.85}
           >
-            <View style={[styles.serviceIconCircle, { backgroundColor: '#ecfdf5' }]}>
-              <Ionicons name="flash" size={26} color={COLORS.success} />
+            <View style={[styles.bookingChoiceIcon, { backgroundColor: '#ecfdf5' }]}>
+              <Ionicons name="flash" size={23} color={COLORS.success} />
             </View>
-            <Text style={styles.serviceTitle}>EV-Sewa</Text>
-            <Text style={styles.serviceDesc}>Green City Shuttle</Text>
-            {serviceControl.evSewaService !== 'Active' && (
-              <View style={styles.inactiveBadge}>
-                <Text style={styles.inactiveBadgeText}>Inactive</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-
-          {/* Car Service */}
-          <TouchableOpacity
-            style={[styles.serviceCard, styles.carCard]}
-            onPress={() => handleSelectService('Car')}
-            activeOpacity={0.85}
-          >
-            <View style={[styles.serviceIconCircle, { backgroundColor: '#fff7ed' }]}>
-              <Ionicons name="car-sport" size={26} color="#ea580c" />
+            <View style={styles.bookingChoiceCopy}>
+              <Text style={styles.bookingChoiceTitle}>Instant Booking</Text>
+              <Text style={styles.bookingChoiceSubtitle}>Need a vehicle now?</Text>
             </View>
-            <Text style={styles.serviceTitle}>Car Service</Text>
-            <Text style={styles.serviceDesc}>Sedan & SUV Cab</Text>
-            {serviceControl.carService !== 'Active' && (
-              <View style={styles.inactiveBadge}>
-                <Text style={styles.inactiveBadgeText}>Inactive</Text>
-              </View>
-            )}
+            <Ionicons name="chevron-forward" size={20} color={COLORS.success} />
           </TouchableOpacity>
         </View>
 
@@ -741,6 +723,50 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textSecondary,
     marginTop: 2
+  },
+  bookingChoices: {
+    gap: 10,
+    marginBottom: 20
+  },
+  bookingChoice: {
+    minHeight: 76,
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center'
+  },
+  scheduleChoice: {
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.primary
+  },
+  instantChoice: {
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.success
+  },
+  bookingChoiceIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12
+  },
+  bookingChoiceCopy: {
+    flex: 1
+  },
+  bookingChoiceTitle: {
+    color: COLORS.darkNavy,
+    fontSize: 15,
+    fontWeight: '800'
+  },
+  bookingChoiceSubtitle: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    marginTop: 3
   },
   servicesGrid: {
     flexDirection: 'row',
