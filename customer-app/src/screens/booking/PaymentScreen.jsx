@@ -18,10 +18,14 @@ import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
 
 const PaymentScreen = ({ route, navigation }) => {
-  const { bookingId, bookingCode, amount } = route.params || {};
+  const { bookingId, bookingCode, bookingMode, amount } = route.params || {};
   const { bookingDraft, updateDraft } = useBooking();
 
-  const [selectedMethod, setSelectedMethod] = useState('Offline_Cash');
+  const isInstantBooking =
+    bookingMode === 'INSTANT' || bookingDraft.confirmedBooking?.bookingMode === 'INSTANT';
+  const [selectedMethod, setSelectedMethod] = useState(
+    isInstantBooking ? 'Razorpay_UPI' : 'Offline_Cash'
+  );
   const [paymentState, setPaymentState] = useState('idle'); // 'idle' | 'processing' | 'success' | 'failed'
   const [transactionId, setTransactionId] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
@@ -66,6 +70,11 @@ const PaymentScreen = ({ route, navigation }) => {
       isUpcoming: true
     }
   ];
+  const visiblePaymentOptions = isInstantBooking
+    ? paymentOptions
+        .filter(option => !option.isOffline)
+        .map(option => ({ ...option, isUpcoming: false }))
+    : paymentOptions;
 
   // Confirm Offline Cash Booking
   const handleConfirmOfflineCash = async () => {
@@ -752,7 +761,7 @@ const PaymentScreen = ({ route, navigation }) => {
         {/* Payment Methods */}
         <Text style={styles.sectionHeader}>Select Payment Method</Text>
 
-        {paymentOptions.map((option) => (
+        {visiblePaymentOptions.map((option) => (
           <TouchableOpacity
             key={option.id}
             style={[
@@ -783,10 +792,14 @@ const PaymentScreen = ({ route, navigation }) => {
                   <View style={styles.cashBadge}>
                     <Text style={styles.cashBadgeText}>POPULAR • ACTIVE</Text>
                   </View>
-                ) : (
+                ) : option.isUpcoming ? (
                   <View style={styles.upcomingBadge}>
                     <Ionicons name="time-outline" size={10} color="#b45309" />
                     <Text style={styles.upcomingBadgeText}>UPCOMING</Text>
+                  </View>
+                ) : (
+                  <View style={styles.cashBadge}>
+                    <Text style={styles.cashBadgeText}>RAZORPAY TEST</Text>
                   </View>
                 )}
               </View>
@@ -802,37 +815,53 @@ const PaymentScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         ))}
 
-        {/* Instructions / Guarantee Box */}
-        <View style={styles.offlineGuideBox}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <Ionicons name="cash" size={20} color="#059669" />
-            <Text style={styles.offlineGuideTitle}>Offline Cash Instructions</Text>
+        {isInstantBooking ? (
+          <View style={styles.offlineGuideBox}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <Ionicons name="shield-checkmark" size={20} color="#059669" />
+              <Text style={styles.offlineGuideTitle}>Razorpay Secure Payment</Text>
+            </View>
+            <Text style={styles.offlineGuideText}>
+              Your booking will be confirmed only after server-side Razorpay payment verification.
+            </Text>
           </View>
-          <Text style={styles.offlineGuideText}>
-            • No advance online payment is required.
-          </Text>
-          <Text style={styles.offlineGuideText}>
-            • Your booking request is directly sent to the assigned driver/conductor for instant reservation.
-          </Text>
-          <Text style={styles.offlineGuideText}>
-            • Pay the exact fare of <Text style={{ fontWeight: '800' }}>₹{finalPayable}</Text> in cash to the conductor or driver when boarding.
-          </Text>
-        </View>
+        ) : (
+          <>
+            {/* Instructions / Guarantee Box */}
+            <View style={styles.offlineGuideBox}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <Ionicons name="cash" size={20} color="#059669" />
+                <Text style={styles.offlineGuideTitle}>Offline Cash Instructions</Text>
+              </View>
+              <Text style={styles.offlineGuideText}>
+                • No advance online payment is required.
+              </Text>
+              <Text style={styles.offlineGuideText}>
+                • Your booking request is directly sent to the assigned driver/conductor for instant reservation.
+              </Text>
+              <Text style={styles.offlineGuideText}>
+                • Pay the exact fare of <Text style={{ fontWeight: '800' }}>₹{finalPayable}</Text> in cash to the conductor or driver when boarding.
+              </Text>
+            </View>
 
-        <View style={styles.upcomingNoticeBox}>
-          <Ionicons name="information-circle-outline" size={18} color="#b45309" />
-          <Text style={styles.upcomingNoticeText}>
-            Online digital payments (UPI QR, Cards, NetBanking) are currently upcoming. Cash on boarding is the primary verified payment method.
-          </Text>
-        </View>
+            <View style={styles.upcomingNoticeBox}>
+              <Ionicons name="information-circle-outline" size={18} color="#b45309" />
+              <Text style={styles.upcomingNoticeText}>
+                Online digital payments (UPI QR, Cards, NetBanking) are currently upcoming. Cash on boarding is the primary verified payment method.
+              </Text>
+            </View>
+          </>
+        )}
       </ScrollView>
 
       {/* Sticky Action Footer */}
       <View style={styles.footer}>
         <Button
-          title={`Confirm Booking (Offline Cash - ₹${finalPayable})`}
-          onPress={handleConfirmOfflineCash}
-          style={{ backgroundColor: '#059669' }}
+          title={isInstantBooking
+            ? `Pay Securely with Razorpay - ₹${finalPayable}`
+            : `Confirm Booking (Offline Cash - ₹${finalPayable})`}
+          onPress={isInstantBooking ? handleInitiateRazorpay : handleConfirmOfflineCash}
+          style={{ backgroundColor: isInstantBooking ? COLORS.primary : '#059669' }}
         />
       </View>
 

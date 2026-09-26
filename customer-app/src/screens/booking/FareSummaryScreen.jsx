@@ -127,6 +127,7 @@ const FareSummaryScreen = ({ navigation }) => {
         navigation.navigate('Payment', {
           bookingId: res.data._id,
           bookingCode: res.data.bookingId,
+          bookingMode: res.data.bookingMode,
           amount: res.data.fare || res.data.finalFare || totalPayable
         });
       } else {

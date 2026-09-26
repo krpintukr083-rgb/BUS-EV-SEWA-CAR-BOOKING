@@ -164,6 +164,7 @@ describe('driver-owned schedule and vehicle removal', () => {
     const historyOnlyVehicle = await createVehicle(driver, 8);
     await createSchedule(driver, historyOnlyVehicle, -10, 'Active');
     await createSchedule(driver, historyOnlyVehicle, 9, 'Cancelled');
+    await createSchedule(driver, historyOnlyVehicle, 10, 'Rejected');
     await createActiveBooking(historyOnlyVehicle, null, 3, {
       bookingStatus: 'Completed',
       rideStatus: 'Completed',

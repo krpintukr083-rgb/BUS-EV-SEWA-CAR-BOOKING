@@ -267,14 +267,38 @@ describe('Optional Instant Booking', () => {
     expect(requests.status).toBe(200);
     expect(requests.body.data).toEqual([]);
 
-    const onlinePayment = await request(app)
-      .post('/api/payments/test-success')
+    const createdOrder = await request(app)
+      .post('/api/payments/razorpay/create-order')
       .set('Authorization', `Bearer ${customerToken}`)
       .send({ bookingId: response.body.data._id });
-    expect(onlinePayment.status).toBe(200);
-    expect(onlinePayment.body.data.booking.bookingMode).toBe('INSTANT');
-    expect(onlinePayment.body.data.booking.paymentStatus).toBe('Paid');
-    expect(onlinePayment.body.data.booking.bookingStatus).toBe('Confirmed');
+    expect(createdOrder.status).toBe(200);
+    expect(createdOrder.body.data.orderId).toBeTruthy();
+
+    const authorizedPayment = await request(app)
+      .post('/api/payments/razorpay/test-pay')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        bookingId: response.body.data._id,
+        razorpayOrderId: createdOrder.body.data.orderId,
+        status: 'success',
+        method: 'UPI'
+      });
+    expect(authorizedPayment.status).toBe(200);
+
+    const verifiedPayment = await request(app)
+      .post('/api/payments/razorpay/verify-payment')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        bookingId: response.body.data._id,
+        razorpayOrderId: authorizedPayment.body.data.razorpayOrderId,
+        razorpayPaymentId: authorizedPayment.body.data.razorpayPaymentId,
+        razorpaySignature: authorizedPayment.body.data.razorpaySignature
+      });
+    expect(verifiedPayment.status).toBe(200);
+    expect(verifiedPayment.body.data.booking.bookingMode).toBe('INSTANT');
+    expect(verifiedPayment.body.data.booking.paymentStatus).toBe('Paid');
+    expect(verifiedPayment.body.data.booking.bookingStatus).toBe('Confirmed');
+    expect(await Payment.countDocuments({ booking: response.body.data._id })).toBe(1);
 
     const active = await request(app)
       .get('/api/driver/active-bookings')
