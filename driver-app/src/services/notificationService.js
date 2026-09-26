@@ -259,15 +259,17 @@ export const checkAndNotifyBookingRequests = async (requests, driverId) => {
       const origin = (item.pickupLocation || 'Pickup Point').split('(')[0].trim();
       const dest = (item.dropLocation || 'Destination').split('(')[0].trim();
       const bodyText = `${origin} → ${dest} booking request. Tap to view.`;
+      const serviceType = item.serviceType || 'Booking';
 
       // Trigger Android Top Heads-Up Notification
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: 'New Bus Booking Request',
+          title: `New ${serviceType} Booking Request`,
           body: bodyText,
           data: {
             bookingId: bId,
             bookingCode: item.bookingId || bId,
+            serviceType,
             screen: 'Requests'
           },
           sound: 'default',

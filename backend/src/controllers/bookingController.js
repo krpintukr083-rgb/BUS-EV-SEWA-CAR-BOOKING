@@ -12,7 +12,7 @@ const User = require('../models/User');
 const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
 const driverBookingResponse = require('../utils/driverBookingResponse');
 const {
-  notifyEligibleDriversForBusBooking,
+  notifyEligibleDriversForBooking,
   vehicleMatchesBookingRoute
 } = require('../utils/notification');
 const { getRouteSegmentFare, isRouteSegmentWithin } = require('../utils/routeFares');
@@ -328,7 +328,7 @@ exports.createBooking = async (req, res, next) => {
         phone: req.user.phone,
         email: req.user.email
       },
-      driver: instantDriver?._id || vehicle.assignedDriver || null,
+      driver: instantDriver?._id || (isBus ? vehicle.assignedDriver : null),
       vehicle: vehicle._id,
       scheduleId: activeSchedule?._id || null,
       serviceType,
@@ -408,9 +408,9 @@ exports.createBooking = async (req, res, next) => {
       status: 'Unread'
     });
 
-    // Notify ALL eligible drivers on the same route if Bus booking
-    if (isBus && bookingMode !== 'INSTANT') {
-      await notifyEligibleDriversForBusBooking(booking);
+    // Notify every matching online driver for normal Bus, EV-Sewa, and Car requests.
+    if (bookingMode !== 'INSTANT') {
+      await notifyEligibleDriversForBooking(booking);
     }
 
     const bookingObj = booking.toObject();
@@ -756,8 +756,8 @@ exports.confirmOfflineCashBooking = async (req, res, next) => {
       status: 'Unread'
     });
 
-    if (booking.serviceType === 'Bus' && booking.bookingMode !== 'INSTANT') {
-      await notifyEligibleDriversForBusBooking(booking);
+    if (booking.bookingMode !== 'INSTANT') {
+      await notifyEligibleDriversForBooking(booking);
     }
 
     res.json({

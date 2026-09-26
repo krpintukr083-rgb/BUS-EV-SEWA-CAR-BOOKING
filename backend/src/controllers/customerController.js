@@ -9,7 +9,7 @@ const Support = require('../models/Support');
 const Policy = require('../models/Policy');
 const ServiceControl = require('../models/ServiceControl');
 const User = require('../models/User');
-const { notifyEligibleDriversForBusBooking } = require('../utils/notification');
+const { notifyEligibleDriversForBooking } = require('../utils/notification');
 
 const getBookingQuery = (idOrCode) => {
   return mongoose.isValidObjectId(idOrCode)
@@ -243,7 +243,7 @@ exports.createBooking = async (req, res, next) => {
         phone: req.user.phone,
         email: req.user.email
       },
-      driver: req.body.driver || req.body.driverId || null,
+      driver: serviceType === 'Bus' ? (req.body.driver || req.body.driverId || vehicle.assignedDriver || null) : null,
       vehicle: vehicle._id,
       serviceType,
       pickupLocation,
@@ -276,7 +276,9 @@ exports.createBooking = async (req, res, next) => {
     });
 
     // Notify all eligible same-route drivers asynchronously
-    notifyEligibleDriversForBusBooking(booking).catch(() => {});
+    notifyEligibleDriversForBooking(booking).catch(error => {
+      console.error('Failed to notify eligible booking drivers:', error.message || error);
+    });
 
     const bookingObj = booking.toObject();
     bookingObj.confirmationOtp = rawOtp;

@@ -1,4 +1,3 @@
-const mongoose = require('mongoose');
 const Notification = require('../models/Notification');
 const Vehicle = require('../models/Vehicle');
 const Driver = require('../models/Driver');
@@ -28,11 +27,11 @@ const isLocationMatch = (loc1, loc2) => {
 /**
  * Determines if a vehicle operates on the exact origin -> destination route of a booking.
  */
-const vehicleMatchesBookingRoute = (vehicle, booking) => {
+const vehicleMatchesBookingRoute = (vehicle, booking, { requireRouteMatch = false } = {}) => {
   if (!vehicle || !booking) return false;
 
   // Direct vehicle match if booking explicitly bound to this vehicle
-  if (booking.vehicle) {
+  if (!requireRouteMatch && booking.vehicle) {
     const bVehId = (booking.vehicle._id || booking.vehicle).toString();
     const vehId = (vehicle._id || vehicle).toString();
     if (bVehId === vehId) return true;
@@ -58,7 +57,7 @@ const vehicleMatchesBookingRoute = (vehicle, booking) => {
 };
 
 /**
- * HIGH-SPEED DYNAMIC NOTIFICATION BROADCAST ENGINE FOR BUS BOOKINGS
+ * Broadcasts a normal booking request to eligible drivers for its service and route.
  * 
  * Performance Optimizations:
  * 1. 2-Step Indexed Query: Discovers ALL eligible vehicles & drivers in 2 single DB operations (O(1) queries instead of N sequential lookups).
@@ -68,14 +67,12 @@ const vehicleMatchesBookingRoute = (vehicle, booking) => {
  * 5. Non-Blocking Receipts & Logging: Push receipts and DB notification inserts run asynchronously in the background without holding up dispatch.
  * 6. Dynamic Scaling: Supports 1, 3, 10, 50, 100+ drivers with NO hardcoded limits or counts.
  */
-const notifyEligibleDriversForBusBooking = async (booking) => {
+const notifyEligibleDriversForBooking = async (booking) => {
   try {
     if (!booking) return;
 
-    const serviceType = String(booking.serviceType || '').toLowerCase();
-    if (serviceType !== 'bus') {
-      return; // Only process Bus bookings
-    }
+    const serviceType = booking.serviceType;
+    if (!['Bus', 'EV-Sewa', 'Car'].includes(serviceType) || booking.bookingMode === 'INSTANT') return;
 
     const bookingOrigin = booking.pickupLocation || booking.route?.origin || '';
     const bookingDest = booking.dropLocation || booking.route?.destination || '';
@@ -92,35 +89,37 @@ const notifyEligibleDriversForBusBooking = async (booking) => {
     }
 
     const routeText = `${bookingOrigin.split('(')[0].trim()} → ${bookingDest.split('(')[0].trim()}`;
-    const notifTitle = 'New Bus Booking Request';
+    const notifTitle = `New ${serviceType} Booking Request`;
     const notifBody = `${routeText} booking request. Tap to view.`;
 
     console.log(`[NOTIFY] booking: ${bookingIdStr}`);
     console.log(`[NOTIFY] route: ${routeText}`);
 
-    // 1. Measure and Execute Fast 2-Step MongoDB Query
+    // 1. Discover matching vehicles and their active, online drivers.
     console.log('[NOTIFY] eligible driver query start');
     const tQueryStart = Date.now();
 
-    // Step A: Fetch all active buses in one indexed query
-    const activeBuses = await Vehicle.find({
-      vehicleType: 'Bus',
+    // Step A: Only approved vehicles in the requested service category may receive requests.
+    const activeVehicles = await Vehicle.find({
+      vehicleType: serviceType,
       vehicleStatus: 'Active'
     })
       .select('_id vehicleNumber vehicleName vehicleType vehicleStatus route pickupDropDetails hireDetails assignedDriver')
       .lean();
 
-    // Step B: Filter buses matching the exact origin -> destination route
-    const matchingBuses = activeBuses.filter(v => vehicleMatchesBookingRoute(v, booking));
-    const matchingBusIds = matchingBuses.map(v => v._id);
-    const assignedDriverIds = matchingBuses.map(v => v.assignedDriver).filter(Boolean);
+    // Step B: Filter route matches directionally, including configured intermediate-stop segments.
+    const matchingVehicles = activeVehicles.filter(v =>
+      vehicleMatchesBookingRoute(v, booking, { requireRouteMatch: true })
+    );
+    const matchingVehicleIds = matchingVehicles.map(v => v._id);
+    const assignedDriverIds = matchingVehicles.map(v => v.assignedDriver).filter(Boolean);
 
-    // Step C: Discover ALL Active + Approved drivers in ONE single query (Bi-directional lookup)
+    // Step C: Discover active/approved drivers in one query (bidirectional vehicle linkage).
     let eligibleDrivers = [];
-    if (matchingBusIds.length > 0 || assignedDriverIds.length > 0) {
+    if (matchingVehicleIds.length > 0 || assignedDriverIds.length > 0) {
       const orConditions = [];
-      if (matchingBusIds.length > 0) {
-        orConditions.push({ assignedVehicle: { $in: matchingBusIds } });
+      if (matchingVehicleIds.length > 0) {
+        orConditions.push({ assignedVehicle: { $in: matchingVehicleIds } });
       }
       if (assignedDriverIds.length > 0) {
         orConditions.push({ _id: { $in: assignedDriverIds } });
@@ -128,12 +127,21 @@ const notifyEligibleDriversForBusBooking = async (booking) => {
 
       eligibleDrivers = await Driver.find({
         driverStatus: { $in: ['Active', 'Approved'] },
+        isOnline: true,
         $or: orConditions
       })
         .select('_id name mobileNumber driverStatus isOnline assignedVehicle pushToken fcmToken user')
-        .populate('user', '_id name phone')
+        .populate('user', '_id name phone status')
         .lean();
     }
+
+    const matchingVehicleIdSet = new Set(matchingVehicleIds.map(id => String(id)));
+    const matchingDriverIdSet = new Set(assignedDriverIds.map(id => String(id)));
+    eligibleDrivers = eligibleDrivers.filter(driver => {
+      if (!driver.user || driver.user.status === 'Blocked') return false;
+      if (driver.assignedVehicle) return matchingVehicleIdSet.has(String(driver.assignedVehicle));
+      return matchingDriverIdSet.has(String(driver._id));
+    });
 
     const tQueryEnd = Date.now();
     console.log(`[NOTIFY] eligible driver query completed: ${tQueryEnd - tQueryStart} ms`);
@@ -144,13 +152,36 @@ const notifyEligibleDriversForBusBooking = async (booking) => {
       return;
     }
 
-    // Build fast in-memory vehicle index to pair each driver with their matching bus
-    const busById = new Map();
-    const busByDriverId = new Map();
-    for (const b of matchingBuses) {
-      busById.set(b._id.toString(), b);
-      if (b.assignedDriver) {
-        busByDriverId.set(b.assignedDriver.toString(), b);
+    // Persist one typed request per driver/booking; only newly inserted requests are pushed.
+    const newRequestDrivers = [];
+    for (const driver of eligibleDrivers) {
+      const recipientId = driver.user._id || driver.user;
+      try {
+        const result = await Notification.updateOne(
+          {
+            recipientRole: 'driver',
+            recipientId,
+            entityId: booking._id,
+            eventType: 'BOOKING_REQUEST'
+          },
+          {
+            $setOnInsert: {
+              title: notifTitle,
+              message: `${notifTitle} ${bookingIdStr}: ${routeText}`,
+              recipient: `Driver: ${driver.name || 'Driver'}`,
+              recipientRole: 'driver',
+              recipientId,
+              eventType: 'BOOKING_REQUEST',
+              entityType: 'Booking',
+              entityId: booking._id,
+              status: 'Unread'
+            }
+          },
+          { upsert: true }
+        );
+        if (result.upsertedCount === 1) newRequestDrivers.push(driver);
+      } catch (error) {
+        if (error.code !== 11000) throw error;
       }
     }
 
@@ -160,14 +191,11 @@ const notifyEligibleDriversForBusBooking = async (booking) => {
 
     const messages = [];
     const messageDriverMap = [];
-    const driverLogResults = new Array(eligibleDrivers.length);
+    const driverLogResults = new Array(newRequestDrivers.length);
 
-    for (let i = 0; i < eligibleDrivers.length; i++) {
-      const driver = eligibleDrivers[i];
+    for (let i = 0; i < newRequestDrivers.length; i++) {
+      const driver = newRequestDrivers[i];
       const token = (driver.pushToken || driver.fcmToken || '').trim();
-      const driverBus = (driver.assignedVehicle && busById.get(driver.assignedVehicle.toString()))
-        || busByDriverId.get(driver._id.toString())
-        || {};
 
       if (token) {
         messages.push({
@@ -176,17 +204,18 @@ const notifyEligibleDriversForBusBooking = async (booking) => {
           body: notifBody,
           data: {
             bookingId: bookingIdStr,
+            eventType: 'BOOKING_REQUEST',
+            serviceType,
             screen: 'Requests'
           },
           sound: 'default',
           priority: 'high',
           channelId: 'driver-booking-requests'
         });
-        messageDriverMap.push({ driver, token, driverBus, originalIndex: i });
+        messageDriverMap.push({ driver, token, originalIndex: i });
       } else {
         driverLogResults[i] = {
           driver,
-          driverBus,
           token: null,
           status: 'SKIPPED (No Token)',
           ticketId: 'N/A',
@@ -227,7 +256,7 @@ const notifyEligibleDriversForBusBooking = async (booking) => {
             body: JSON.stringify(chunk)
           });
 
-          const pushResult = await pushResponse.json().catch(() => ({}));
+          const pushResult = await pushResponse.json();
           const tickets = (pushResult && Array.isArray(pushResult.data)) ? pushResult.data : [];
 
           driversInChunk.forEach((entry, idx) => {
@@ -248,7 +277,6 @@ const notifyEligibleDriversForBusBooking = async (booking) => {
 
             driverLogResults[entry.originalIndex] = {
               driver: entry.driver,
-              driverBus: entry.driverBus,
               token: entry.token,
               status: isOk ? 'SENT' : `FAILED (${errorMsg || 'Error'})`,
               ticketId: ticket?.id || (isOk ? 'OK' : 'N/A'),
@@ -259,7 +287,6 @@ const notifyEligibleDriversForBusBooking = async (booking) => {
           driversInChunk.forEach((entry) => {
             driverLogResults[entry.originalIndex] = {
               driver: entry.driver,
-              driverBus: entry.driverBus,
               token: entry.token,
               status: `FAILED (${fetchErr.message})`,
               ticketId: 'N/A',
@@ -310,24 +337,9 @@ const notifyEligibleDriversForBusBooking = async (booking) => {
       }, 15000);
     }
 
-    // 5. In-App Notification Records (Bulk Asynchronous Insert - Non-blocking)
-    (async () => {
-      try {
-        const notifDocs = eligibleDrivers.map(d => ({
-          title: notifTitle,
-          message: `${notifTitle} ${bookingIdStr}: ${routeText}`,
-          recipient: `Driver: ${d.name || 'Driver'}`,
-          recipientRole: 'driver',
-          recipientId: d.user?._id || d.user || d._id,
-          status: 'Unread'
-        }));
-        await Notification.insertMany(notifDocs, { ordered: false }).catch(() => {});
-      } catch (e) {}
-    })();
-
-    // 6. Structured Console Audit Output
+    // 5. Structured Console Audit Output
     console.log('\n================================================================');
-    console.log(`🔔 BUS BOOKING NOTIFICATION BROADCAST DISPATCH`);
+    console.log(`🔔 ${serviceType.toUpperCase()} BOOKING REQUEST BROADCAST`);
     console.log(`Booking: ${bookingIdStr}`);
     console.log(`Route: ${routeText}`);
     console.log(`Eligible drivers found: ${eligibleDrivers.length}\n`);
@@ -335,12 +347,11 @@ const notifyEligibleDriversForBusBooking = async (booking) => {
     let successfulCount = 0;
     let failedCount = 0;
 
-    for (let i = 0; i < eligibleDrivers.length; i++) {
+    for (let i = 0; i < newRequestDrivers.length; i++) {
       const res = driverLogResults[i] || {};
-      const d = res.driver || eligibleDrivers[i];
+      const d = res.driver || newRequestDrivers[i];
       const dName = d.name || 'Driver';
       const maskedName = dName.length > 2 ? `${dName.substring(0, 2)}***` : dName;
-      const bus = res.driverBus || {};
       const isSent = (res.status === 'SENT');
 
       if (isSent) successfulCount++;
@@ -348,7 +359,7 @@ const notifyEligibleDriversForBusBooking = async (booking) => {
 
       console.log(`${i + 1}. ${dName} (${maskedName})`);
       console.log(`   driverId: ${d._id}`);
-      console.log(`   assignedBus: ${bus.vehicleName || 'Bus'} (${bus.vehicleNumber || 'N/A'})`);
+      console.log(`   serviceType: ${serviceType}`);
       console.log(`   token: ${res.token ? 'PRESENT' : 'NONE'}`);
       console.log(`   notification: ${res.status}`);
       if (res.ticketId && res.ticketId !== 'N/A') console.log(`   ticketId: ${res.ticketId}`);
@@ -357,13 +368,13 @@ const notifyEligibleDriversForBusBooking = async (booking) => {
 
     console.log('\n----------------------------------------------------------------');
     console.log(`Broadcast Summary for Booking ${bookingIdStr}:`);
-    console.log(`Total Eligible: ${eligibleDrivers.length} | Attempted: ${eligibleDrivers.length}`);
+    console.log(`Total Eligible: ${eligibleDrivers.length} | Newly notified: ${newRequestDrivers.length}`);
     console.log(`Successful: ${successfulCount} | Failed: ${failedCount}`);
     console.log(`Latency - Query: ${tQueryEnd - tQueryStart}ms | Dispatch: ${tDispatchEnd - tDispatchStart}ms`);
     console.log('================================================================\n');
 
   } catch (error) {
-    console.error('Error in notifyEligibleDriversForBusBooking:', error.message || error);
+    console.error('Error in notifyEligibleDriversForBooking:', error.message || error);
   }
 };
 
@@ -371,5 +382,6 @@ module.exports = {
   normalizeLoc,
   isLocationMatch,
   vehicleMatchesBookingRoute,
-  notifyEligibleDriversForBusBooking
+  notifyEligibleDriversForBooking,
+  notifyEligibleDriversForBusBooking: notifyEligibleDriversForBooking
 };

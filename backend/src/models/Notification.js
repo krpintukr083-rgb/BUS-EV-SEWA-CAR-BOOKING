@@ -29,13 +29,14 @@ const notificationSchema = new mongoose.Schema(
       type: String,
       enum: [
         'GENERAL',
+        'BOOKING_REQUEST',
         'VEHICLE_SUBMITTED', 'VEHICLE_APPROVED', 'VEHICLE_REJECTED',
         'SCHEDULE_SUBMITTED', 'SCHEDULE_APPROVED', 'SCHEDULE_REJECTED'
       ],
       default: 'GENERAL',
       index: true
     },
-    entityType: { type: String, enum: ['Vehicle', 'Schedule'], default: null },
+    entityType: { type: String, enum: ['Vehicle', 'Schedule', 'Booking'], default: null },
     entityId: { type: mongoose.Schema.Types.ObjectId, default: null },
     status: {
       type: String,
@@ -49,6 +50,18 @@ const notificationSchema = new mongoose.Schema(
   },
   {
     timestamps: true
+  }
+);
+
+notificationSchema.index(
+  { recipientId: 1, entityId: 1, eventType: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      eventType: 'BOOKING_REQUEST',
+      entityId: { $type: 'objectId' },
+      recipientId: { $type: 'objectId' }
+    }
   }
 );
 

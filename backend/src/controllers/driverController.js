@@ -13,6 +13,7 @@ const { dashboardCache } = require('../utils/cache');
 const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
 const { validateRoutePricing } = require('../utils/routeFares');
 const driverBookingResponse = require('../utils/driverBookingResponse');
+const { vehicleMatchesBookingRoute } = require('../utils/notification');
 
 const getBookingQuery = (idOrCode) => {
   return mongoose.isValidObjectId(idOrCode)
@@ -40,52 +41,12 @@ const getValidRecipientId = async (booking) => {
   return null;
 };
 
-const normalizeLoc = (loc) => {
-  if (!loc) return '';
-  return String(loc).split('(')[0].toLowerCase().replace(/[^a-z0-9]/g, '').trim();
-};
-
-const isLocationMatch = (loc1, loc2) => {
-  const n1 = normalizeLoc(loc1);
-  const n2 = normalizeLoc(loc2);
-  if (!n1 || !n2) return false;
-  return n1 === n2 || n1.includes(n2) || n2.includes(n1);
-};
-
-const vehicleMatchesBookingRoute = (vehicle, booking) => {
-  if (!vehicle || !booking) return false;
-
-  // Direct vehicle ID match if booking explicitly bound to this vehicle
-  if (booking.vehicle) {
-    const bVehId = (booking.vehicle._id || booking.vehicle).toString();
-    const vehId = (vehicle._id || vehicle).toString();
-    if (bVehId === vehId) return true;
-  }
-
-  // Extract vehicle origin & destination
-  const vOrigin = vehicle.route?.origin || vehicle.pickupDropDetails?.pickupLocation || vehicle.hireDetails?.pickup || '';
-  const vDest = vehicle.route?.destination || vehicle.pickupDropDetails?.dropLocation || vehicle.hireDetails?.destination || '';
-
-  const bOrigin = booking.pickupLocation || '';
-  const bDest = booking.dropLocation || '';
-
-  if (vOrigin && vDest && bOrigin && bDest) {
-    const originMatches = isLocationMatch(vOrigin, bOrigin);
-    const destMatches = isLocationMatch(vDest, bDest);
-    if (originMatches && destMatches) {
-      return true;
-    }
-  }
-
-  return false;
-};
-
 // Helper to check Driver data isolation / vehicle authorization & route eligibility
 const verifyDriverVehicleAccess = async (driver, booking) => {
   if (!booking || !driver) return false;
 
   // Driver eligibility: must be Active
-  if (driver.driverStatus && driver.driverStatus !== 'Active') {
+  if (driver.driverStatus && !['Active', 'Approved'].includes(driver.driverStatus)) {
     return false;
   }
 
@@ -140,8 +101,9 @@ const verifyDriverVehicleAccess = async (driver, booking) => {
     return false;
   }
 
-  // Check route match between driver's assigned vehicle and booking
-  return vehicleMatchesBookingRoute(assignedVehicle, booking);
+  if (assignedVehicle.vehicleType !== booking.serviceType) return false;
+
+  return vehicleMatchesBookingRoute(assignedVehicle, booking, { requireRouteMatch: true });
 };
 
 // @desc    Get Driver Dashboard Summary
@@ -171,15 +133,16 @@ exports.getDriverDashboard = async (req, res, next) => {
     ] = await Promise.all([
       assignedVehicleId ? Vehicle.findById(assignedVehicleId).lean() : Promise.resolve(null),
       // Booking requests (eligible when driver is online)
-      driver.isOnline
+      driver.isOnline && ['Active', 'Approved'].includes(driver.driverStatus)
         ? (async () => {
             const candidates = await Booking.find({
-              serviceType: 'Bus',
+              serviceType: { $in: ['Bus', 'EV-Sewa', 'Car'] },
               driverConfirmed: { $ne: true },
               driverConfirmationStatus: { $ne: 'Confirmed' },
               confirmationOtpVerifiedAt: null,
               otpVerified: { $ne: true },
               cashCollected: { $ne: true },
+              rideStatus: { $ne: 'Accepted' },
               bookingStatus: {
                 $in: ['Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation', 'Admin Confirmed', 'ADMIN_CONFIRMED']
               },
@@ -195,15 +158,11 @@ exports.getDriverDashboard = async (req, res, next) => {
             const driverVeh = assignedVehicleId ? await Vehicle.findById(assignedVehicleId).lean() : null;
 
             return candidates.filter(b => {
-              if (b.driverConfirmed || b.driverConfirmationStatus === 'Confirmed' || b.confirmationOtpVerifiedAt || b.otpVerified || b.cashCollected) return false;
+              if (b.driverConfirmed || b.driverConfirmationStatus === 'Confirmed' || b.confirmationOtpVerifiedAt || b.otpVerified || b.cashCollected || b.rideStatus === 'Accepted') return false;
               if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus)) return false;
-              // For Bus service: all eligible same-route drivers see the pending unconfirmed request
-              if (b.serviceType === 'Bus') {
-                if (driverVeh) return vehicleMatchesBookingRoute(driverVeh, b);
-                return false;
-              }
-              if (b.driver && (b.driver._id || b.driver).toString() !== driver._id.toString()) return false;
-              if (driverVeh) return vehicleMatchesBookingRoute(driverVeh, b);
+              if (b.serviceType !== driverVeh?.vehicleType) return false;
+              if (b.serviceType !== 'Bus' && b.driver && (b.driver._id || b.driver).toString() !== driver._id.toString()) return false;
+              if (driverVeh) return vehicleMatchesBookingRoute(driverVeh, b, { requireRouteMatch: true });
               return false;
             }).slice(0, 10);
           })()
@@ -1115,7 +1074,7 @@ exports.getBookingRequests = async (req, res, next) => {
     const driver = req.driver;
 
     // Driver eligibility check: must be Active and Online
-    if (!driver || driver.driverStatus !== 'Active') {
+    if (!driver || !['Active', 'Approved'].includes(driver.driverStatus)) {
       return res.json({ success: true, count: 0, data: [], reason: 'DRIVER_NOT_ACTIVE', driverStatus: driver ? driver.driverStatus : null });
     }
 
@@ -1154,15 +1113,19 @@ exports.getBookingRequests = async (req, res, next) => {
     if (!assignedVehicle || (assignedVehicle.vehicleStatus && assignedVehicle.vehicleStatus !== 'Active')) {
       return res.json({ success: true, count: 0, data: [], reason: 'NO_ACTIVE_ASSIGNED_VEHICLE', assignedVehicle, driverId: driver._id });
     }
+    if (!['Bus', 'EV-Sewa', 'Car'].includes(assignedVehicle.vehicleType)) {
+      return res.json({ success: true, count: 0, data: [], reason: 'UNSUPPORTED_VEHICLE_TYPE' });
+    }
 
     // Fetch candidate pending bookings
     const candidateBookings = await Booking.find({
-      serviceType: 'Bus',
+      serviceType: assignedVehicle.vehicleType,
       driverConfirmed: { $ne: true },
       driverConfirmationStatus: { $ne: 'Confirmed' },
       confirmationOtpVerifiedAt: null,
       otpVerified: { $ne: true },
       cashCollected: { $ne: true },
+      rideStatus: { $ne: 'Accepted' },
       bookingStatus: {
         $in: ['Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation', 'Admin Confirmed', 'ADMIN_CONFIRMED']
       },
@@ -1178,16 +1141,16 @@ exports.getBookingRequests = async (req, res, next) => {
     // Filter candidate bookings by route match & eligibility
     const requests = candidateBookings.filter(reqItem => {
       // Direct canonical exclusion check
-      if (reqItem.driverConfirmed || reqItem.driverConfirmationStatus === 'Confirmed' || reqItem.confirmationOtpVerifiedAt || reqItem.otpVerified || reqItem.cashCollected) {
+      if (reqItem.driverConfirmed || reqItem.driverConfirmationStatus === 'Confirmed' || reqItem.confirmationOtpVerifiedAt || reqItem.otpVerified || reqItem.cashCollected || reqItem.rideStatus === 'Accepted') {
         return false;
       }
       if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(reqItem.bookingStatus)) {
         return false;
       }
-      // For Bus service: all eligible drivers operating on the same route can see & accept pending requests
+      // Bus requests remain broadcast; non-Bus requests cannot be claimed by another assigned driver.
       if (reqItem.serviceType === 'Bus') {
         if (assignedVehicle) {
-          const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem);
+          const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem, { requireRouteMatch: true });
           console.log(`[getBookingRequests Debug] Driver ${driver.name} vehicle ${assignedVehicle.vehicleNumber} (${assignedVehicle.route?.origin}->${assignedVehicle.route?.destination}) matches booking ${reqItem.bookingId} (${reqItem.pickupLocation}->${reqItem.dropLocation}): ${matches}`);
           return matches;
         }
@@ -1199,7 +1162,7 @@ exports.getBookingRequests = async (req, res, next) => {
       }
       // If pending/unconfirmed request, check route match between driver's assigned vehicle and booking
       if (assignedVehicle) {
-        const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem);
+        const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem, { requireRouteMatch: true });
         console.log(`[getBookingRequests Debug] Driver ${driver.name} vehicle ${assignedVehicle.vehicleNumber} (${assignedVehicle.route?.origin}->${assignedVehicle.route?.destination}) matches booking ${reqItem.bookingId} (${reqItem.pickupLocation}->${reqItem.dropLocation}): ${matches}`);
         return matches;
       }
@@ -1298,7 +1261,7 @@ exports.acceptBookingRequest = async (req, res, next) => {
     }
 
     // Prevent accepting already accepted/confirmed bookings
-    if (['Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(booking.bookingStatus) || booking.driverConfirmed || booking.confirmationOtpVerifiedAt) {
+    if (['Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(booking.bookingStatus) || booking.driverConfirmed || booking.confirmationOtpVerifiedAt || booking.rideStatus === 'Accepted') {
       return res.status(400).json({
         success: false,
         message: `Booking is already in '${booking.bookingStatus}' status and cannot be accepted again.`
@@ -1306,28 +1269,54 @@ exports.acceptBookingRequest = async (req, res, next) => {
     }
 
     // Assign driver if unassigned (pending OTP verification)
-    booking.driver = driver._id;
-    booking.assignedDriverId = driver._id;
-    booking.driverConfirmationStatus = 'Pending';
-    booking.driverConfirmed = false;
-    booking.rideStatus = 'Accepted';
-
     const isBus = booking.serviceType === 'Bus';
     const isOfflineCash = booking.paymentMethod === 'Offline Cash' || booking.paymentMethod === 'Cash';
     const isPaid = booking.paymentStatus === 'Paid' || booking.paymentStatus === 'Successful';
 
+    let nextBookingStatus;
     if (isBus) {
       if (isPaid) {
-        booking.bookingStatus = 'Confirmed';
+        nextBookingStatus = 'Confirmed';
       } else {
-        booking.bookingStatus = 'Pending Driver Confirmation';
+        nextBookingStatus = 'Pending Driver Confirmation';
       }
     } else {
       // Car / EV-Sewa ride flow
-      booking.bookingStatus = 'Ongoing';
+      nextBookingStatus = 'Ongoing';
     }
 
-    await booking.save();
+    const claimedBooking = await Booking.findOneAndUpdate(
+      {
+        _id: booking._id,
+        driverConfirmed: { $ne: true },
+        driverConfirmationStatus: { $ne: 'Confirmed' },
+        confirmationOtpVerifiedAt: null,
+        otpVerified: { $ne: true },
+        cashCollected: { $ne: true },
+        rideStatus: { $ne: 'Accepted' },
+        bookingStatus: {
+          $in: ['Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation', 'Admin Confirmed', 'ADMIN_CONFIRMED']
+        }
+      },
+      {
+        $set: {
+          driver: driver._id,
+          assignedDriverId: driver._id,
+          driverConfirmationStatus: 'Pending',
+          driverConfirmed: false,
+          rideStatus: 'Accepted',
+          bookingStatus: nextBookingStatus
+        }
+      },
+      { new: true }
+    );
+    if (!claimedBooking) {
+      return res.status(409).json({
+        success: false,
+        message: 'This booking request has already been accepted by another driver.'
+      });
+    }
+    booking.set(claimedBooking.toObject());
 
     // Create customer notification
     const customerId = await getValidRecipientId(booking);
