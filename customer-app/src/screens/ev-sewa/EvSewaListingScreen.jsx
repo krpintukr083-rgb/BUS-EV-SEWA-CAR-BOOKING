@@ -15,6 +15,7 @@ import { useBooking } from '../../context/BookingContext';
 import Header from '../../components/Header';
 import { COLORS } from '../../constants/colors';
 import { getPrimaryVehicleImage } from '../../utils/imageUrl';
+import { formatBatteryCapacity } from '../../utils/vehicleFormatting';
 
 const EvSewaListingScreen = ({ navigation }) => {
   const { updateDraft } = useBooking();
@@ -48,7 +49,8 @@ const EvSewaListingScreen = ({ navigation }) => {
       totalFare: ev.fareRate,
       pickupLocation: ev.pickupDropDetails?.pickupLocation || ev.route?.origin || 'Connaught Place, New Delhi',
       dropLocation: ev.pickupDropDetails?.dropLocation || ev.route?.destination || 'Sector 62 Electronic City, Noida',
-      selectedSeats: [1],
+      passengerCount: 1,
+      selectedSeats: [],
       passengerDetails: [{ name: '', phone: '', age: '', gender: 'Male' }]
     });
     navigation.navigate('EvSewaDetails', { evId: ev._id });
@@ -151,7 +153,7 @@ const EvSewaListingScreen = ({ navigation }) => {
                     <View style={styles.specBadge}>
                       <Ionicons name="battery-charging" size={13} color="#065f46" />
                       <Text style={styles.specText}>
-                        {item.evDetails?.batteryCapacity || '72 kWh'}
+                        {formatBatteryCapacity(item.evDetails?.batteryCapacity)}
                       </Text>
                     </View>
                     <View style={styles.specBadge}>
@@ -439,4 +441,3 @@ const styles = StyleSheet.create({
 });
 
 export default EvSewaListingScreen;
-

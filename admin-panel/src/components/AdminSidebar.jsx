@@ -102,6 +102,10 @@ const AdminSidebar = ({ onOpenLogout, isOpen, onClose }) => {
           <CreditCard size={17} />
           <span>Payment Management</span>
         </NavLink>
+        <NavLink to="/withdrawals" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+          <CreditCard size={17} />
+          <span>Driver Withdrawals</span>
+        </NavLink>
         <NavLink to="/cancellations" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <XOctagon size={17} />
           <span>Cancellation Records</span>

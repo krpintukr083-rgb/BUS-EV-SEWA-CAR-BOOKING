@@ -208,6 +208,9 @@ export const adminService = {
     const res = await api.get('/admin/payments');
     return res.data;
   },
+  getWithdrawals: async () => (await api.get('/admin/withdrawals')).data,
+  approveWithdrawal: async id => (await api.patch(`/admin/withdrawals/${id}/approve`)).data,
+  rejectWithdrawal: async (id, reason) => (await api.patch(`/admin/withdrawals/${id}/reject`, { reason })).data,
 
   // 10. Cancellation Management
   getCancellations: async () => {

@@ -743,7 +743,7 @@ exports.addVehicle = async (req, res, next) => {
     const parsedRoute = parseJsonIfString(route, { origin: '', destination: '', boardingPoints: [], droppingPoints: [] });
     const parsedPickupDrop = parseJsonIfString(pickupDropDetails, { pickupLocation: '', dropLocation: '' });
     const parsedBusDetails = parseJsonIfString(busDetails, { busType: 'AC Sleeper', seatLayout: '2+1 Luxury Sleeper', availableSeats: seatingCapacity || 36 });
-    const parsedEvDetails = parseJsonIfString(evDetails, { batteryCapacity: '72 kWh', rangeKm: 280 });
+    const parsedEvDetails = parseJsonIfString(evDetails, { rangeKm: 280 });
     const parsedCarDetails = parseJsonIfString(carDetails, { ac: true, fuelType: 'Electric / Hybrid' });
     const parsedTruckDetails = parseJsonIfString(truckDetails, { cargoType: 'General Freight', grossVehicleWeight: '16 Tonnes', axleCount: 2 });
 
@@ -1711,6 +1711,97 @@ exports.getPayments = async (req, res, next) => {
       },
       data: payments
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getWithdrawals = async (req, res, next) => {
+  try {
+    const withdrawals = await Withdrawal.find()
+      .populate({
+        path: 'driver',
+        select: 'name mobileNumber walletBalance'
+      })
+      .populate('user', 'name phone')
+      .sort({ createdAt: -1 })
+      .lean();
+    res.json({ success: true, count: withdrawals.length, data: withdrawals });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.approveWithdrawal = async (req, res, next) => {
+  try {
+    const withdrawal = await Withdrawal.findOneAndUpdate(
+      { _id: req.params.id, status: 'Pending' },
+      { $set: { status: 'Processing', processedAt: new Date(), adminNotes: 'Approved for processing.' } },
+      { new: true }
+    )
+      .populate({ path: 'driver', select: 'name mobileNumber walletBalance' })
+      .populate('user', 'name phone');
+
+    if (!withdrawal) {
+      const exists = await Withdrawal.exists({ _id: req.params.id });
+      return res.status(exists ? 409 : 404).json({
+        success: false,
+        message: exists ? 'Withdrawal request is no longer pending' : 'Withdrawal request not found'
+      });
+    }
+
+    res.json({ success: true, message: 'Withdrawal approved and marked for processing', data: withdrawal });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.rejectWithdrawal = async (req, res, next) => {
+  try {
+    const reason = String(req.body?.reason || '').trim();
+    if (!reason) {
+      return res.status(400).json({ success: false, message: 'Rejection reason is required' });
+    }
+
+    const withdrawal = await Withdrawal.findOneAndUpdate(
+      { _id: req.params.id, status: 'Pending' },
+      { $set: { status: 'Rejected', processedAt: new Date(), adminNotes: reason } },
+      { new: true }
+    );
+
+    if (!withdrawal) {
+      const exists = await Withdrawal.exists({ _id: req.params.id });
+      return res.status(exists ? 409 : 404).json({
+        success: false,
+        message: exists ? 'Withdrawal request is no longer pending' : 'Withdrawal request not found'
+      });
+    }
+
+    let driver;
+    try {
+      driver = await Driver.findByIdAndUpdate(
+        withdrawal.driver,
+        { $inc: { walletBalance: withdrawal.amount, totalWithdrawn: -withdrawal.amount } },
+        { new: true }
+      );
+    } catch (error) {
+      await Withdrawal.updateOne(
+        { _id: withdrawal._id, status: 'Rejected' },
+        { $set: { status: 'Pending', processedAt: null, adminNotes: 'Wallet refund failed; request returned to Pending.' } }
+      );
+      throw error;
+    }
+    if (!driver) {
+      await Withdrawal.findByIdAndUpdate(withdrawal._id, {
+        $set: { status: 'Pending', processedAt: null, adminNotes: 'Wallet refund failed; request returned to Pending.' }
+      });
+      return res.status(404).json({ success: false, message: 'Driver wallet not found; withdrawal remains pending' });
+    }
+
+    const updated = await Withdrawal.findById(withdrawal._id)
+      .populate({ path: 'driver', select: 'name mobileNumber walletBalance' })
+      .populate('user', 'name phone');
+    res.json({ success: true, message: 'Withdrawal rejected and amount returned to driver wallet', data: updated });
   } catch (error) {
     next(error);
   }

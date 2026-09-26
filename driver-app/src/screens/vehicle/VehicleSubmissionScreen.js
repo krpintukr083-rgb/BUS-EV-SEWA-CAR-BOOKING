@@ -40,6 +40,7 @@ const EMPTY_FORM = {
   origin: '',
   destination: '',
   hireAmount: '',
+  batteryCapacity: '',
   batteryPercentage: '',
   estimatedRangeKm: ''
 };
@@ -308,6 +309,17 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
       Alert.alert('Save EV details', 'Enter the battery charge and estimated range, then tap Save.');
       return;
     }
+    if (category === 'EV-Sewa') {
+      const batteryCapacity = Number(form.batteryCapacity);
+      if (
+        form.batteryCapacity.trim() === '' ||
+        !Number.isFinite(batteryCapacity) ||
+        batteryCapacity <= 0
+      ) {
+        Alert.alert('Invalid battery capacity', 'Enter a valid battery capacity in kWh.');
+        return;
+      }
+    }
     if (!photos.front || !photos.back || !photos.left || !photos.right) {
       Alert.alert('Vehicle photos required', 'Upload all 4 vehicle photos (Front, Back, Left, Right).');
       return;
@@ -336,6 +348,7 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
 
       if (category === 'EV-Sewa') {
         payload.evDetails = {
+          batteryCapacity: Number(form.batteryCapacity),
           batteryPercentage: Number(form.batteryPercentage),
           rangeKm: Number(form.estimatedRangeKm)
         };
@@ -462,12 +475,22 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
       ))}
 
       {category === 'EV-Sewa' && (
-        <EVBatteryRangeCard
-          values={evValues}
-          onChange={updateEVValue}
-          onSave={saveEVValues}
-          saved={evValuesSaved}
-        />
+        <>
+          <TextInput
+            value={form.batteryCapacity}
+            onChangeText={value => update('batteryCapacity', value)}
+            placeholder="Battery Capacity (kWh) *"
+            placeholderTextColor={COLORS.textMuted}
+            keyboardType="decimal-pad"
+            style={styles.input}
+          />
+          <EVBatteryRangeCard
+            values={evValues}
+            onChange={updateEVValue}
+            onSave={saveEVValues}
+            saved={evValuesSaved}
+          />
+        </>
       )}
 
       <Text style={styles.sectionTitle}>Vehicle Photos *</Text>

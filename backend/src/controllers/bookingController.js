@@ -30,6 +30,7 @@ exports.createBooking = async (req, res, next) => {
       pickupLocation,
       dropLocation,
       passengerDetails,
+      passengerCount,
       selectedSeats,
       fare,
       travelDate,
@@ -81,6 +82,39 @@ exports.createBooking = async (req, res, next) => {
         success: false,
         message: `Vehicle is ${vehicle.vehicleStatus.toLowerCase()} and cannot be booked`
       });
+    }
+
+    let evPassengerCount = 1;
+    if (serviceType === 'EV-Sewa') {
+      if (vehicle.vehicleType !== 'EV-Sewa') {
+        return res.status(400).json({ success: false, message: 'Selected vehicle is not an EV-Sewa vehicle' });
+      }
+
+      const capacity = Number(vehicle.seatingCapacity);
+      const submittedPassengers = Array.isArray(passengerDetails) ? passengerDetails : [];
+      const requestedCount = passengerCount == null
+        ? (submittedPassengers.length || 1)
+        : Number(passengerCount);
+
+      if (!Number.isInteger(capacity) || capacity < 1) {
+        return res.status(400).json({ success: false, message: 'EV-Sewa passenger capacity is unavailable' });
+      }
+      if (!Number.isInteger(requestedCount) || requestedCount < 1) {
+        return res.status(400).json({ success: false, message: 'EV-Sewa passenger count must be at least 1' });
+      }
+      if (
+        submittedPassengers.length !== requestedCount &&
+        (passengerCount != null || submittedPassengers.length > 0)
+      ) {
+        return res.status(400).json({ success: false, message: 'Passenger details must match the selected passenger count' });
+      }
+      if (requestedCount > capacity) {
+        return res.status(400).json({
+          success: false,
+          message: `Passenger count exceeds this vehicle's capacity of ${capacity}`
+        });
+      }
+      evPassengerCount = requestedCount;
     }
 
     // Bind bus bookings to an approved schedule when schedules exist for the vehicle.
@@ -141,8 +175,12 @@ exports.createBooking = async (req, res, next) => {
     }
 
     // 4. Calculate Server-Side Fare with Dynamic Admin Bus Offer Discount
-    const seatCount = (serviceType === 'Bus' && selectedSeats && selectedSeats.length > 0) ? selectedSeats.length : 1;
-    const computedBaseFare = (vehicle.fareRate || vehicle.fare || 0) * seatCount;
+    const fareUnitCount = serviceType === 'Bus' && selectedSeats && selectedSeats.length > 0
+      ? selectedSeats.length
+      : serviceType === 'EV-Sewa'
+      ? evPassengerCount
+      : 1;
+    const computedBaseFare = (vehicle.fareRate || vehicle.fare || 0) * fareUnitCount;
     let originalFare = computedBaseFare;
     let discountPercentage = 0;
     let discountAmount = 0;

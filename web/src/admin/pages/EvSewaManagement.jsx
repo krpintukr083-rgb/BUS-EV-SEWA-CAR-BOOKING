@@ -146,7 +146,7 @@ const EvSewaManagement = () => {
               <div style={{ padding: '12px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
                 <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Battery & Range</span>
                 <div style={{ fontWeight: '700', color: '#0f172a' }}>
-                  {ev.evDetails?.batteryCapacity || '72 kWh'} ({ev.evDetails?.rangeKm || 280} km Range)
+                  {ev.evDetails?.batteryCapacity || 'Not Available'} ({ev.evDetails?.rangeKm || 280} km Range)
                 </div>
               </div>
 

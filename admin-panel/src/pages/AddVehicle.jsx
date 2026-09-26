@@ -69,7 +69,7 @@ const AddVehicle = () => {
   const [seatLayout, setSeatLayout] = useState('2+1 Luxury Sleeper');
 
   // EV specifics
-  const [batteryCapacity, setBatteryCapacity] = useState('72 kWh');
+  const [batteryCapacity, setBatteryCapacity] = useState('');
   const [rangeKm, setRangeKm] = useState(280);
 
   // Car specifics

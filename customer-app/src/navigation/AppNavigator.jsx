@@ -17,6 +17,7 @@ import BusSeatSelectionScreen from '../screens/bus/BusSeatSelectionScreen';
 // EV-Sewa Screens
 import EvSewaListingScreen from '../screens/ev-sewa/EvSewaListingScreen';
 import EvSewaDetailsScreen from '../screens/ev-sewa/EvSewaDetailsScreen';
+import EvSewaPassengerSelectionScreen from '../screens/ev-sewa/EvSewaPassengerSelectionScreen';
 
 // Car Screens
 import CarListingScreen from '../screens/car/CarListingScreen';
@@ -83,6 +84,7 @@ const AppNavigator = () => {
           {/* EV-Sewa Service Flow */}
           <Stack.Screen name="EvSewaListing" component={EvSewaListingScreen} />
           <Stack.Screen name="EvSewaDetails" component={EvSewaDetailsScreen} />
+          <Stack.Screen name="EvSewaPassengerSelection" component={EvSewaPassengerSelectionScreen} />
 
           {/* Car Service Flow */}
           <Stack.Screen name="CarListing" component={CarListingScreen} />

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -19,27 +19,30 @@ import { COLORS } from '../../constants/colors';
 const PassengerDetailsScreen = ({ navigation }) => {
   const { bookingDraft, updateDraft } = useBooking();
 
-  const seatCount = bookingDraft.selectedSeats && bookingDraft.selectedSeats.length > 0
+  const passengerCount = bookingDraft.serviceType === 'EV-Sewa'
+    ? Math.max(1, Number(bookingDraft.passengerCount) || 1)
+    : bookingDraft.selectedSeats && bookingDraft.selectedSeats.length > 0
     ? bookingDraft.selectedSeats.length
     : 1;
 
-  // Initialize passengers array
-  const [passengers, setPassengers] = useState(() => {
-    if (bookingDraft.passengerDetails && bookingDraft.passengerDetails.length >= seatCount) {
-      return bookingDraft.passengerDetails;
-    }
-    const initialList = [];
-    for (let i = 0; i < seatCount; i++) {
-      initialList.push({
-        name: '',
-        phone: '',
-        age: '',
-        gender: 'Male',
-        seatNumber: bookingDraft.selectedSeats ? bookingDraft.selectedSeats[i] : null
-      });
-    }
-    return initialList;
-  });
+  const buildPassengers = count => Array.from({ length: count }, (_, index) => ({
+    name: bookingDraft.passengerDetails?.[index]?.name || '',
+    phone: bookingDraft.passengerDetails?.[index]?.phone || '',
+    age: bookingDraft.passengerDetails?.[index]?.age || '',
+    gender: bookingDraft.passengerDetails?.[index]?.gender || 'Male',
+    ...(bookingDraft.selectedSeats?.[index] ? { seatNumber: bookingDraft.selectedSeats[index] } : {})
+  }));
+  const [passengers, setPassengers] = useState(() => buildPassengers(passengerCount));
+
+  useEffect(() => {
+    setPassengers(current => Array.from({ length: passengerCount }, (_, index) => ({
+      name: current[index]?.name ?? bookingDraft.passengerDetails?.[index]?.name ?? '',
+      phone: current[index]?.phone ?? bookingDraft.passengerDetails?.[index]?.phone ?? '',
+      age: current[index]?.age ?? bookingDraft.passengerDetails?.[index]?.age ?? '',
+      gender: current[index]?.gender ?? bookingDraft.passengerDetails?.[index]?.gender ?? 'Male',
+      ...(bookingDraft.selectedSeats?.[index] ? { seatNumber: bookingDraft.selectedSeats[index] } : {})
+    })));
+  }, [passengerCount]);
 
   const [errors, setErrors] = useState({});
 
@@ -76,7 +79,8 @@ const PassengerDetailsScreen = ({ navigation }) => {
     }
 
     updateDraft({
-      passengerDetails: passengers
+      passengerDetails: passengers,
+      ...(bookingDraft.serviceType === 'EV-Sewa' ? { passengerCount: passengers.length } : {})
     });
 
     navigation.navigate('FareSummary');

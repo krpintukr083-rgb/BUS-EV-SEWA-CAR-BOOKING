@@ -35,8 +35,16 @@ exports.registerVehicle = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'vehicleNumber and vehicleType are required' });
     }
     if (body.vehicleType === 'EV-Sewa') {
+      const batteryCapacity = Number(body.evDetails && body.evDetails.batteryCapacity);
       const batteryPercentage = Number(body.evDetails && body.evDetails.batteryPercentage);
       const rangeKm = Number(body.evDetails && body.evDetails.rangeKm);
+      if (
+        isMissingNumericValue(body.evDetails?.batteryCapacity) ||
+        !Number.isFinite(batteryCapacity) ||
+        batteryCapacity <= 0
+      ) {
+        return res.status(400).json({ success: false, message: 'EV battery capacity must be a valid positive number in kWh' });
+      }
       if (
         isMissingNumericValue(body.evDetails?.batteryPercentage) ||
         !Number.isFinite(batteryPercentage) ||
@@ -52,7 +60,7 @@ exports.registerVehicle = async (req, res, next) => {
       ) {
         return res.status(400).json({ success: false, message: 'EV estimated range must be a valid non-negative number' });
       }
-      body.evDetails = { ...body.evDetails, batteryPercentage, rangeKm };
+      body.evDetails = { ...body.evDetails, batteryCapacity, batteryPercentage, rangeKm };
     }
     const vehicleNumber = String(body.vehicleNumber).trim().toUpperCase();
     if (await Vehicle.exists({ vehicleNumber })) {

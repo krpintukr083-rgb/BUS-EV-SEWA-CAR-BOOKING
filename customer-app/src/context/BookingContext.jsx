@@ -9,6 +9,7 @@ export const BookingProvider = ({ children }) => {
     pickupLocation: '',
     dropLocation: '',
     selectedSeats: [],
+    passengerCount: 1,
     passengerDetails: [
       { name: '', phone: '', age: '', gender: 'Male' }
     ],
@@ -32,6 +33,7 @@ export const BookingProvider = ({ children }) => {
       pickupLocation: '',
       dropLocation: '',
       selectedSeats: [],
+      passengerCount: 1,
       passengerDetails: [{ name: '', phone: '', age: '', gender: 'Male' }],
       baseFare: 0,
       totalFare: 0,

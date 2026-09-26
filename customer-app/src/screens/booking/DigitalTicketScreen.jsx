@@ -119,9 +119,11 @@ const DigitalTicketScreen = ({ route, navigation }) => {
             {/* Passenger & Date info */}
             <View style={styles.twoCol}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.fieldLabel}>PASSENGER</Text>
+                <Text style={styles.fieldLabel}>{booking.serviceType === 'EV-Sewa' ? 'PASSENGERS' : 'PASSENGER'}</Text>
                 <Text style={styles.fieldVal}>
-                  {booking.passengerDetails?.[0]?.name || booking.customer?.name || 'Primary Traveler'}
+                  {booking.serviceType === 'EV-Sewa'
+                    ? booking.passengerDetails?.length || 1
+                    : booking.passengerDetails?.[0]?.name || booking.customer?.name || 'Primary Traveler'}
                 </Text>
                 <Text style={styles.fieldSub}>
                   {booking.passengerDetails?.[0]?.gender || 'Adult'}, Age {booking.passengerDetails?.[0]?.age || '25'}

@@ -14,6 +14,7 @@ import Header from '../../components/Header';
 import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
 import VehicleImageSlider from '../../components/VehicleImageSlider';
+import { formatBatteryCapacity } from '../../utils/vehicleFormatting';
 
 const EvSewaDetailsScreen = ({ navigation, route }) => {
   const { evId } = route.params || {};
@@ -40,7 +41,8 @@ const EvSewaDetailsScreen = ({ navigation, route }) => {
               res.data.pickupDropDetails?.dropLocation ||
               res.data.route?.destination ||
               'Sector 62 Electronic City, Noida',
-            selectedSeats: [1],
+            selectedSeats: [],
+            passengerCount: 1,
             passengerDetails: [{ name: '', phone: '', age: '', gender: 'Male' }]
           });
         }
@@ -98,10 +100,11 @@ const EvSewaDetailsScreen = ({ navigation, route }) => {
         ev.pickupDropDetails?.dropLocation ||
         ev.route?.destination ||
         'Sector 62 Electronic City, Noida',
-      selectedSeats: [1],
+      passengerCount: 1,
+      selectedSeats: [],
       passengerDetails: [{ name: '', phone: '', age: '', gender: 'Male' }]
     });
-    navigation.navigate('PickupDrop');
+    navigation.navigate('EvSewaPassengerSelection');
   };
 
   return (
@@ -186,7 +189,7 @@ const EvSewaDetailsScreen = ({ navigation, route }) => {
             <View style={styles.specBox}>
               <Text style={styles.specLabel}>Battery Capacity</Text>
               <Text style={styles.specVal}>
-                {ev.evDetails?.batteryCapacity || '72 kWh Lithium-Ion'}
+                {formatBatteryCapacity(ev.evDetails?.batteryCapacity)}
               </Text>
             </View>
 

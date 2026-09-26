@@ -22,8 +22,9 @@ export default function WalletScreen({ navigation }) {
   const insets = useSafeAreaInsets();
   const { t } = useLanguage();
 
-  const [wallet, setWallet] = useState({ balance: 0, totalEarned: 0, pendingPayouts: 0 });
+  const [wallet, setWallet] = useState({ walletBalance: 0, totalEarnings: 0, pendingPayouts: 0 });
   const [transactions, setTransactions] = useState([]);
+  const [withdrawals, setWithdrawals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -42,16 +43,18 @@ export default function WalletScreen({ navigation }) {
 
   const fetchWalletData = async () => {
     try {
-      const [walletRes, transRes] = await Promise.all([
-        driverService.getWallet(),
-        driverService.getWalletTransactions(),
-      ]);
+      const walletRes = await driverService.getWallet();
 
-      if (walletRes.success && walletRes.data) {
-        setWallet(walletRes.data);
-      }
-      if (transRes.success && transRes.data) {
-        setTransactions(transRes.data);
+      if (walletRes.data?.success && walletRes.data.data) {
+        const walletData = walletRes.data.data;
+        setWallet({
+          ...walletData,
+          pendingPayouts: (walletData.recentWithdrawals || [])
+            .filter(item => ['Pending', 'Processing'].includes(item.status))
+            .reduce((total, item) => total + Number(item.amount || 0), 0)
+        });
+        setTransactions(walletData.ledger || []);
+        setWithdrawals(walletData.recentWithdrawals || []);
       }
     } catch (err) {
       console.log('Error loading wallet:', err);
@@ -72,8 +75,9 @@ export default function WalletScreen({ navigation }) {
       Alert.alert(t('error'), 'Please enter a valid withdrawal amount');
       return;
     }
-    if (amountNum > (wallet.balance || 0)) {
-      Alert.alert(t('error'), `Withdrawal amount cannot exceed available balance (₹${wallet.balance})`);
+    const availableBalance = Number(wallet.walletBalance) || 0;
+    if (amountNum > availableBalance) {
+      Alert.alert(t('error'), `Withdrawal amount cannot exceed available balance (₹${availableBalance})`);
       return;
     }
     if (amountNum < 100) {
@@ -90,14 +94,16 @@ export default function WalletScreen({ navigation }) {
       const payoutPayload = {
         amount: amountNum,
         payoutMethod,
-        accountNumber,
-        accountHolderName: accountHolder,
-        bankName: ifscOrBank,
+        payoutDetails: payoutMethod === 'BANK'
+          ? { accountNumber, accountHolderName: accountHolder, bankName: ifscOrBank }
+          : payoutMethod === 'ESEWA'
+          ? { esewaId: accountNumber, accountHolderName: accountHolder }
+          : { khaltiId: accountNumber, accountHolderName: accountHolder }
       };
 
-      const res = await driverService.requestPayout(payoutPayload);
-      if (res.success) {
-        Alert.alert(t('success'), 'Payout request submitted successfully! Admin will process within 24 hours.');
+      const res = await driverService.requestWithdrawal(payoutPayload);
+      if (res.data?.success) {
+        Alert.alert(t('success'), 'Withdrawal request submitted successfully.');
         setPayoutModalVisible(false);
         setPayoutAmount('');
         setAccountNumber('');
@@ -105,10 +111,10 @@ export default function WalletScreen({ navigation }) {
         setIfscOrBank('');
         fetchWalletData();
       } else {
-        Alert.alert(t('error'), res.message || 'Failed to submit payout request');
+        Alert.alert(t('error'), res.data?.message || 'Failed to submit withdrawal request');
       }
     } catch (err) {
-      Alert.alert(t('error'), err.response?.data?.message || 'Payout request failed');
+      Alert.alert(t('error'), err.response?.data?.message || 'Withdrawal request failed');
     } finally {
       setSubmittingPayout(false);
     }
@@ -191,7 +197,7 @@ export default function WalletScreen({ navigation }) {
         {/* Wallet Balance Card */}
         <View style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>{t('availableBalance')}</Text>
-          <Text style={styles.balanceAmount}>₹{wallet.balance?.toFixed(2) || '0.00'}</Text>
+          <Text style={styles.balanceAmount}>₹{Number(wallet.walletBalance || 0).toFixed(2)}</Text>
           <Text style={styles.commissionNote}>
             * Net earnings after 20% platform commission fee
           </Text>
@@ -199,7 +205,7 @@ export default function WalletScreen({ navigation }) {
           <View style={styles.balanceStatsRow}>
             <View style={styles.balanceStat}>
               <Text style={styles.balanceStatLabel}>{t('totalEarned')}</Text>
-              <Text style={styles.balanceStatValue}>₹{wallet.totalEarned || 0}</Text>
+              <Text style={styles.balanceStatValue}>₹{wallet.totalEarnings || 0}</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.balanceStat}>
@@ -237,6 +243,35 @@ export default function WalletScreen({ navigation }) {
             </React.Fragment>
           ))
         )}
+
+        <View style={styles.transactionsHeader}>
+          <Text style={styles.sectionTitle}>Withdrawal Requests</Text>
+          <Text style={styles.txCount}>{withdrawals.length} requests</Text>
+        </View>
+        {withdrawals.length === 0 ? (
+          <View style={styles.emptyTrans}>
+            <Text style={styles.emptyTransText}>No withdrawal requests yet.</Text>
+          </View>
+        ) : withdrawals.map(withdrawal => (
+          <View key={withdrawal._id} style={styles.withdrawalCard}>
+            <View style={styles.withdrawalTopRow}>
+              <Text style={styles.withdrawalAmount}>₹{Number(withdrawal.amount).toFixed(2)}</Text>
+              <Text style={[
+                styles.withdrawalStatus,
+                withdrawal.status === 'Rejected' && styles.withdrawalRejected,
+                withdrawal.status === 'Processing' && styles.withdrawalProcessing
+              ]}>
+                {withdrawal.status}
+              </Text>
+            </View>
+            <Text style={styles.transDate}>
+              {withdrawal.referenceId} · {withdrawal.createdAt ? new Date(withdrawal.createdAt).toLocaleDateString() : ''}
+            </Text>
+            {withdrawal.status === 'Rejected' && withdrawal.adminNotes ? (
+              <Text style={styles.rejectionReason}>Reason: {withdrawal.adminNotes}</Text>
+            ) : null}
+          </View>
+        ))}
       </ScrollView>
 
       {/* Payout Request Modal */}
@@ -507,6 +542,41 @@ const styles = StyleSheet.create({
   transAmount: {
     fontSize: 15,
     fontWeight: '700',
+  },
+  withdrawalCard: {
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.m,
+    padding: SPACING.m,
+    marginBottom: SPACING.s,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  withdrawalTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  withdrawalAmount: {
+    color: COLORS.textPrimary,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  withdrawalStatus: {
+    color: COLORS.warning,
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  withdrawalRejected: {
+    color: COLORS.danger,
+  },
+  withdrawalProcessing: {
+    color: COLORS.success,
+  },
+  rejectionReason: {
+    color: COLORS.danger,
+    fontSize: 12,
+    marginTop: 6,
   },
   emptyTrans: {
     alignItems: 'center',

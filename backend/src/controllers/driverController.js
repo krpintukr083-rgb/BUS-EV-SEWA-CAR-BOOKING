@@ -2044,6 +2044,9 @@ exports.getEarnings = async (req, res, next) => {
 exports.getDriverWallet = async (req, res, next) => {
   try {
     const driver = await Driver.findById(req.driver._id).lean();
+    if (!driver) {
+      return res.status(404).json({ success: false, message: 'Driver profile not found' });
+    }
     const withdrawals = await Withdrawal.find({ driver: driver._id }).sort({ createdAt: -1 }).limit(10).lean();
 
     const recentPayments = await Payment.find({ driver: driver._id, paymentStatus: 'Paid' })
@@ -2085,6 +2088,9 @@ exports.getDriverWallet = async (req, res, next) => {
 exports.requestWithdrawal = async (req, res, next) => {
   try {
     const driver = await Driver.findById(req.driver._id);
+    if (!driver) {
+      return res.status(404).json({ success: false, message: 'Driver profile not found' });
+    }
     const { amount, payoutDetails, accountDetails } = req.body;
     const methodInput = req.body.payoutMethod || req.body.method || '';
 
@@ -2096,10 +2102,11 @@ exports.requestWithdrawal = async (req, res, next) => {
       });
     }
 
-    if ((driver.walletBalance || 0) < withdrawAmount) {
+    const availableBalance = driver.walletBalance || 0;
+    if (availableBalance < withdrawAmount) {
       return res.status(400).json({
         success: false,
-        message: `Insufficient wallet balance. Current balance: ₹${driver.walletBalance || 0}`
+        message: `Insufficient wallet balance. Current balance: ₹${availableBalance}`
       });
     }
 
@@ -2116,45 +2123,53 @@ exports.requestWithdrawal = async (req, res, next) => {
       });
     }
 
-    // Check if eSewa / Khalti sandbox/live API is configured
-    const isEsewaLiveConfigured = Boolean(process.env.ESEWA_MERCHANT_CODE);
-    const isKhaltiLiveConfigured = Boolean(process.env.KHALTI_SECRET_KEY);
-
-    let withdrawalStatus = 'Pending';
-    let configurationNotice = null;
-
-    if (payoutMethod === 'eSewa' && !isEsewaLiveConfigured) {
-      configurationNotice = 'BLOCKED — PAYMENT PROVIDER CONFIGURATION REQUIRED (eSewa merchant credentials missing)';
-    } else if (payoutMethod === 'Khalti' && !isKhaltiLiveConfigured) {
-      configurationNotice = 'BLOCKED — PAYMENT PROVIDER CONFIGURATION REQUIRED (Khalti merchant secret key missing)';
+    const updatedDriver = await Driver.findOneAndUpdate(
+      { _id: driver._id, walletBalance: { $gte: withdrawAmount } },
+      { $inc: { walletBalance: -withdrawAmount, totalWithdrawn: withdrawAmount } },
+      { new: true }
+    );
+    if (!updatedDriver) {
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient wallet balance. Current balance: ₹${driver.walletBalance || 0}`
+      });
     }
 
-    // Deduct balance and record withdrawal
-    driver.walletBalance -= withdrawAmount;
-    driver.totalWithdrawn = (driver.totalWithdrawn || 0) + withdrawAmount;
-    await driver.save();
+    const isEsewaConfigured = Boolean(process.env.ESEWA_MERCHANT_CODE);
+    const isKhaltiConfigured = Boolean(process.env.KHALTI_SECRET_KEY);
+    const gatewayStatus = payoutMethod === 'eSewa' && !isEsewaConfigured
+      ? 'BLOCKED — PAYMENT PROVIDER CONFIGURATION REQUIRED (eSewa merchant credentials missing)'
+      : payoutMethod === 'Khalti' && !isKhaltiConfigured
+      ? 'BLOCKED — PAYMENT PROVIDER CONFIGURATION REQUIRED (Khalti merchant secret key missing)'
+      : 'READY';
 
-    const withdrawal = await Withdrawal.create({
-      driver: driver._id,
-      user: driver.user,
-      amount: withdrawAmount,
-      payoutMethod,
-      payoutDetails: payoutDetails || accountDetails || driver.payoutMethods,
-      status: withdrawalStatus,
-      adminNotes: configurationNotice || 'Withdrawal request logged.'
-    });
+    let withdrawal;
+    try {
+      withdrawal = await Withdrawal.create({
+        driver: driver._id,
+        user: driver.user,
+        amount: withdrawAmount,
+        payoutMethod,
+        payoutDetails: payoutDetails || accountDetails || driver.payoutMethods,
+        status: 'Pending',
+        adminNotes: gatewayStatus === 'READY' ? 'Withdrawal request logged.' : gatewayStatus
+      });
+    } catch (error) {
+      await Driver.findByIdAndUpdate(driver._id, {
+        $inc: { walletBalance: withdrawAmount, totalWithdrawn: -withdrawAmount }
+      });
+      throw error;
+    }
 
     res.json({
       success: true,
-      message: configurationNotice
-        ? `Withdrawal requested. Status: ${configurationNotice}`
-        : 'Withdrawal request submitted successfully.',
+      message: 'Withdrawal request submitted successfully.',
       data: {
         ...withdrawal.toObject(),
         status: withdrawal.status.toLowerCase(),
-        gatewayStatus: configurationNotice || 'READY'
+        gatewayStatus
       },
-      newWalletBalance: driver.walletBalance
+      newWalletBalance: updatedDriver.walletBalance
     });
   } catch (error) {
     next(error);

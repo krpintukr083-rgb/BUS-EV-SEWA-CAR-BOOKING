@@ -116,9 +116,11 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
           )}
 
           <View style={styles.row}>
-            <Text style={styles.rowLabel}>Passenger</Text>
+            <Text style={styles.rowLabel}>{booking?.serviceType === 'EV-Sewa' ? 'Passengers' : 'Passenger'}</Text>
             <Text style={styles.rowValue}>
-              {booking?.passengerDetails?.[0]?.name || booking?.customer?.name || 'Primary Passenger'}
+              {booking?.serviceType === 'EV-Sewa'
+                ? booking?.passengerDetails?.length || 1
+                : booking?.passengerDetails?.[0]?.name || booking?.customer?.name || 'Primary Passenger'}
             </Text>
           </View>
 

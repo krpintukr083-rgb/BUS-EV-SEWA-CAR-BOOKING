@@ -20,6 +20,7 @@ const titlesMap = {
   '/document-records': 'Official Compliance & Document Records',
   '/bookings': 'Unified Booking Management (Bus, EV, Car)',
   '/payments': 'Financial Records & Payment Transactions',
+  '/withdrawals': 'Driver Withdrawal Requests',
   '/cancellations': 'Cancellation Records & Refund Operations',
   '/banner-management': 'Promotional Banner & Bus Discount Management',
   '/insurance': 'Transit Accident Insurance Records (Max ₹5,00,000 Disclaimer)',

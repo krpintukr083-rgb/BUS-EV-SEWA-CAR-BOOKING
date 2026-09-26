@@ -29,6 +29,9 @@ const {
   deleteBooking,
   clearBookingRequests,
   getPayments,
+  getWithdrawals,
+  approveWithdrawal,
+  rejectWithdrawal,
   getCancellations,
   processCancellationRefund,
   getCompensations,
@@ -131,6 +134,9 @@ router.put('/bookings/:id/status', updateBookingStatus);
 
 // 9. Payment Management
 router.get('/payments', getPayments);
+router.get('/withdrawals', getWithdrawals);
+router.patch('/withdrawals/:id/approve', approveWithdrawal);
+router.patch('/withdrawals/:id/reject', rejectWithdrawal);
 
 // 10. Cancellation Management
 router.get('/cancellations', getCancellations);

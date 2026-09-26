@@ -48,14 +48,28 @@ describe('Driver vehicle and schedule approval workflow', () => {
       .send({
         vehicleNumber,
         vehicleType: 'EV-Sewa',
-        evDetails: { batteryPercentage: 78, rangeKm: 185 }
+        evDetails: { batteryCapacity: 72, batteryPercentage: 78, rangeKm: 185 }
       });
 
     expect(response.status).toBe(201);
+    expect(response.body.data.evDetails.batteryCapacity).toBe(72);
     expect(response.body.data.evDetails.batteryPercentage).toBe(78);
     expect(response.body.data.evDetails.rangeKm).toBe(185);
     expect(response.body.data.vehicleStatus).toBe('Pending');
     const evId = response.body.data._id;
+    expect((await Vehicle.findById(evId)).evDetails.batteryCapacity).toBe(72);
+
+    const secondEV = await request(app)
+      .post('/api/driver/vehicles')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        vehicleNumber: `${vehicleNumber}-85`,
+        vehicleType: 'EV-Sewa',
+        evDetails: { batteryCapacity: 85, batteryPercentage: 78, rangeKm: 185 }
+      });
+    expect(secondEV.status).toBe(201);
+    expect(secondEV.body.data.evDetails.batteryCapacity).toBe(85);
+    expect((await Vehicle.findById(secondEV.body.data._id)).evDetails.batteryCapacity).toBe(85);
 
     const updated = await request(app)
       .put(`/api/driver/vehicles/${evId}/ev-details`)
@@ -146,6 +160,30 @@ describe('Driver vehicle and schedule approval workflow', () => {
         evDetails: { batteryPercentage: 78, rangeKm: -1 }
       });
     expect(invalidRange.status).toBe(400);
+
+    const missingCapacity = await request(app)
+      .post('/api/driver/vehicles')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        vehicleNumber: `${vehicleNumber}-NO-CAPACITY`,
+        vehicleType: 'EV-Sewa',
+        evDetails: { batteryPercentage: 78, rangeKm: 185 }
+      });
+    expect(missingCapacity.status).toBe(400);
+
+    await Vehicle.updateMany(
+      { _id: { $in: [evId, secondEV.body.data._id] } },
+      { vehicleStatus: 'Active' }
+    );
+    const customerEVs = await request(app).get('/api/customer/ev-sewa');
+    expect(customerEVs.status).toBe(200);
+    expect(customerEVs.body.data.find(item => String(item._id) === String(evId)).evDetails.batteryCapacity).toBe(72);
+    expect(customerEVs.body.data.find(item => String(item._id) === String(secondEV.body.data._id)).evDetails.batteryCapacity).toBe(85);
+
+    const customerDetails72 = await request(app).get(`/api/vehicles/${evId}`);
+    const customerDetails85 = await request(app).get(`/api/vehicles/${secondEV.body.data._id}`);
+    expect(customerDetails72.body.data.evDetails.batteryCapacity).toBe(72);
+    expect(customerDetails85.body.data.evDetails.batteryCapacity).toBe(85);
   });
 
   test('admin approval enables schedule submission and customer visibility', async () => {

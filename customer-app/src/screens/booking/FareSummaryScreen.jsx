@@ -44,11 +44,13 @@ const FareSummaryScreen = ({ navigation }) => {
 
   const serviceColor = getServiceColor();
 
-  const seatCount = (bookingDraft.serviceType === 'Bus' && bookingDraft.selectedSeats && bookingDraft.selectedSeats.length > 0)
-    ? bookingDraft.selectedSeats.length
+  const fareUnitCount = bookingDraft.serviceType === 'Bus'
+    ? (bookingDraft.selectedSeats?.length || 1)
+    : bookingDraft.serviceType === 'EV-Sewa'
+    ? (Number(bookingDraft.passengerCount) || bookingDraft.passengerDetails?.length || 1)
     : 1;
   const baseSeatRate = bookingDraft.vehicle?.fareRate || bookingDraft.vehicle?.fare || bookingDraft.baseFare || 0;
-  const originalFare = baseSeatRate * seatCount;
+  const originalFare = baseSeatRate * fareUnitCount;
 
   let discountPct = 0;
   let discountAmt = 0;
@@ -76,6 +78,7 @@ const FareSummaryScreen = ({ navigation }) => {
         dropLocation: bookingDraft.dropLocation,
         passengerDetails: bookingDraft.passengerDetails,
         selectedSeats: bookingDraft.selectedSeats,
+        ...(bookingDraft.serviceType === 'EV-Sewa' ? { passengerCount: fareUnitCount } : {}),
         fare: totalPayable,
         travelDate: bookingDraft.travelDate
       };
@@ -174,6 +177,12 @@ const FareSummaryScreen = ({ navigation }) => {
               </View>
             </View>
           )}
+          {bookingDraft.serviceType === 'EV-Sewa' && (
+            <View style={styles.seatRow}>
+              <Text style={styles.seatLabel}>Passengers:</Text>
+              <Text style={styles.billVal}>{fareUnitCount}</Text>
+            </View>
+          )}
         </View>
 
         {/* Passenger Summary */}
@@ -214,10 +223,12 @@ const FareSummaryScreen = ({ navigation }) => {
             </View>
           )}
 
-          {bookingDraft.serviceType === 'Bus' && seatCount > 1 && (
+          {(bookingDraft.serviceType === 'Bus' || bookingDraft.serviceType === 'EV-Sewa') && fareUnitCount > 1 && (
             <View style={styles.billRow}>
               <Text style={styles.billLabel}>
-                Seat Multiplier ({seatCount} seats × ₹{baseSeatRate})
+                {bookingDraft.serviceType === 'Bus'
+                  ? `Seat Multiplier (${fareUnitCount} seats × ₹${baseSeatRate})`
+                  : `Passenger Multiplier (${fareUnitCount} × ₹${baseSeatRate})`}
               </Text>
               <Text style={styles.billVal}>₹{originalFare}</Text>
             </View>

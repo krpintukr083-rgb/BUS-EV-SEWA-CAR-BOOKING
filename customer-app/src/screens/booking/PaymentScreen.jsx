@@ -729,6 +729,12 @@ const PaymentScreen = ({ route, navigation }) => {
               <Text style={styles.summaryVal}>{bookingDraft.passengerDetails[0].name}</Text>
             </View>
           ) : null}
+          {bookingDraft.serviceType === 'EV-Sewa' && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Passengers</Text>
+              <Text style={styles.summaryVal}>{bookingDraft.passengerCount || bookingDraft.passengerDetails?.length || 1}</Text>
+            </View>
+          )}
         </View>
 
         {/* Failed Error Banner */}
@@ -1298,4 +1304,3 @@ const styles = StyleSheet.create({
 });
 
 export default PaymentScreen;
-

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Alert,
   Dimensions
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCustomerAuth } from '../../context/CustomerAuthContext';
 import { useBooking } from '../../context/BookingContext';
@@ -17,6 +18,7 @@ import { customerService } from '../../services/customerService';
 import StatusBadge from '../../components/StatusBadge';
 import { COLORS } from '../../constants/colors';
 import { getFullImageUrl, getPrimaryVehicleImage } from '../../utils/imageUrl';
+import { filterBookingsForLocalDate, formatBookingDate } from '../../utils/bookingDate';
 
 const HomeScreen = ({ navigation }) => {
   const { user } = useCustomerAuth();
@@ -25,6 +27,8 @@ const HomeScreen = ({ navigation }) => {
   const [popularBuses, setPopularBuses] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [recentBooking, setRecentBooking] = useState(null);
+  const [todayBookings, setTodayBookings] = useState([]);
+  const [todayBookingsError, setTodayBookingsError] = useState('');
   const [busOffer, setBusOffer] = useState(null);
   const [banners, setBanners] = useState([]);
   const [activeBannerIndex, setActiveBannerIndex] = useState(0);
@@ -46,7 +50,7 @@ const HomeScreen = ({ navigation }) => {
     return () => clearInterval(timer);
   }, [banners, bannerWidth]);
 
-  const fetchHomeData = async () => {
+  const fetchHomeData = useCallback(async () => {
     try {
       // 1. Fetch Popular Buses (Public API)
       try {
@@ -70,11 +74,21 @@ const HomeScreen = ({ navigation }) => {
       // 3. Fetch Recent Bookings
       try {
         const bRes = await customerService.getMyBookings();
-        if (bRes && bRes.success && bRes.data?.all?.length > 0) {
-          setRecentBooking(bRes.data.all[0]);
+        if (bRes && bRes.success) {
+          const bookings = Array.isArray(bRes.data?.all) ? bRes.data.all : [];
+          if (bookings.length > 0) {
+            setRecentBooking(bookings[0]);
+          } else {
+            setRecentBooking(null);
+          }
+          setTodayBookings(filterBookingsForLocalDate(bookings));
+          setTodayBookingsError('');
+        } else {
+          setTodayBookingsError('Unable to load today’s bookings.');
         }
       } catch (err) {
         console.log('Error fetching my bookings on Home:', err);
+        setTodayBookingsError('Unable to load today’s bookings.');
       }
 
       // 4. Fetch Bus Offer Configuration (Dynamic Admin-Controlled Discount % — UNTOUCHED)
@@ -115,11 +129,11 @@ const HomeScreen = ({ navigation }) => {
     } finally {
       setRefreshing(false);
     }
-  };
-
-  useEffect(() => {
-    fetchHomeData();
   }, []);
+
+  useFocusEffect(useCallback(() => {
+    fetchHomeData();
+  }, [fetchHomeData]));
 
   const handleSelectService = (serviceType) => {
     resetDraft();
@@ -371,6 +385,65 @@ const HomeScreen = ({ navigation }) => {
           </View>
           <Ionicons name="chevron-forward" size={20} color={COLORS.textSecondary} />
         </TouchableOpacity>
+
+        <View style={styles.todayBookingsSection}>
+          <Text style={styles.todayBookingsTitle}>Today&apos;s Bookings</Text>
+          {todayBookingsError ? (
+            <View style={styles.todayBookingsEmpty}>
+              <Text style={styles.todayBookingsEmptyText}>{todayBookingsError}</Text>
+            </View>
+          ) : todayBookings.length === 0 ? (
+            <View style={styles.todayBookingsEmpty}>
+              <Ionicons name="calendar-outline" size={22} color={COLORS.textSecondary} />
+              <Text style={styles.todayBookingsEmptyText}>No bookings for today</Text>
+            </View>
+          ) : (
+            todayBookings.map(booking => (
+              <View key={booking._id || booking.bookingId} style={styles.todayBookingCard}>
+                <View style={styles.todayBookingHeader}>
+                  <View style={styles.todayBookingHeaderText}>
+                    <Text style={styles.todayBookingId}>{booking.bookingId}</Text>
+                    <Text style={styles.todayBookingService}>{booking.serviceType}</Text>
+                  </View>
+                  <StatusBadge status={booking.bookingStatus} />
+                </View>
+
+                <View style={styles.todayBookingRouteRow}>
+                  <Ionicons name="radio-button-on" size={14} color={COLORS.primary} />
+                  <Text style={styles.todayBookingRouteText} numberOfLines={1}>
+                    From: {booking.pickupLocation || '—'}
+                  </Text>
+                </View>
+                <View style={styles.todayBookingRouteRow}>
+                  <Ionicons name="location" size={14} color="#ef4444" />
+                  <Text style={styles.todayBookingRouteText} numberOfLines={1}>
+                    To: {booking.dropLocation || '—'}
+                  </Text>
+                </View>
+
+                <View style={styles.todayBookingFooter}>
+                  <View>
+                    <Text style={styles.todayBookingDateLabel}>Travel date</Text>
+                    <Text style={styles.todayBookingDate}>{formatBookingDate(booking.travelDate)}</Text>
+                  </View>
+                  <View style={styles.todayBookingFareContainer}>
+                    <Text style={styles.todayBookingDateLabel}>Fare</Text>
+                    <Text style={styles.todayBookingFare}>₹{booking.fare ?? booking.finalFare ?? 0}</Text>
+                  </View>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.todayBookingAction}
+                  onPress={() => navigation.navigate('BookingDetails', { bookingId: booking._id || booking.bookingId })}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.todayBookingActionText}>View Booking</Text>
+                  <Ionicons name="chevron-forward" size={15} color={COLORS.primary} />
+                </TouchableOpacity>
+              </View>
+            ))
+          )}
+        </View>
 
         {/* Recent Booking Snippet if available */}
         {recentBooking && (
@@ -750,6 +823,117 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
     marginBottom: 20
+  },
+  todayBookingsSection: {
+    marginTop: -4,
+    marginBottom: 20
+  },
+  todayBookingsTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.darkNavy,
+    marginBottom: 12
+  },
+  todayBookingsEmpty: {
+    minHeight: 72,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8
+  },
+  todayBookingsEmptyText: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    fontWeight: '600'
+  },
+  todayBookingCard: {
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2
+  },
+  todayBookingHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+    gap: 8
+  },
+  todayBookingHeaderText: {
+    flex: 1
+  },
+  todayBookingId: {
+    color: COLORS.primary,
+    fontSize: 13,
+    fontWeight: '800'
+  },
+  todayBookingService: {
+    color: COLORS.textSecondary,
+    fontSize: 11,
+    marginTop: 3
+  },
+  todayBookingRouteRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginVertical: 3
+  },
+  todayBookingRouteText: {
+    flex: 1,
+    color: COLORS.darkNavy,
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  todayBookingFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border
+  },
+  todayBookingDateLabel: {
+    color: COLORS.textSecondary,
+    fontSize: 10
+  },
+  todayBookingDate: {
+    color: COLORS.darkNavy,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 2
+  },
+  todayBookingFareContainer: {
+    alignItems: 'flex-end'
+  },
+  todayBookingFare: {
+    color: COLORS.darkNavy,
+    fontSize: 15,
+    fontWeight: '800',
+    marginTop: 2
+  },
+  todayBookingAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-end',
+    marginTop: 10,
+    gap: 4
+  },
+  todayBookingActionText: {
+    color: COLORS.primary,
+    fontSize: 12,
+    fontWeight: '700'
   },
   myBookingsLeft: {
     flexDirection: 'row',

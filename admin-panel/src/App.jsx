@@ -17,6 +17,7 @@ import DriverAssignment from './pages/DriverAssignment';
 import DocumentRecords from './pages/DocumentRecords';
 import BookingManagement from './pages/BookingManagement';
 import PaymentManagement from './pages/PaymentManagement';
+import WithdrawalManagement from './pages/WithdrawalManagement';
 import CancellationManagement from './pages/CancellationManagement';
 import AccidentInsurance from './pages/AccidentInsurance';
 import Notifications from './pages/Notifications';
@@ -70,6 +71,7 @@ function AppRoutes() {
         <Route path="document-records" element={<DocumentRecords />} />
         <Route path="bookings" element={<BookingManagement />} />
         <Route path="payments" element={<PaymentManagement />} />
+        <Route path="withdrawals" element={<WithdrawalManagement />} />
         <Route path="cancellations" element={<CancellationManagement />} />
         <Route path="banner-management" element={<BannerManagement />} />
         <Route path="compensation" element={<BannerManagement />} />
