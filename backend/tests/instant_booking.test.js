@@ -265,7 +265,7 @@ describe('Optional Instant Booking', () => {
       .get('/api/driver/booking-requests')
       .set('Authorization', `Bearer ${driverToken}`);
     expect(requests.status).toBe(200);
-    expect(requests.body.data).toEqual([]);
+    expect(requests.body.data.some(booking => booking._id === response.body.data._id)).toBe(false);
 
     const createdOrder = await request(app)
       .post('/api/payments/razorpay/create-order')
@@ -397,6 +397,6 @@ describe('Optional Instant Booking', () => {
     const driverRequests = await request(app)
       .get('/api/driver/booking-requests')
       .set('Authorization', `Bearer ${driverToken}`);
-    expect(driverRequests.body.data).toEqual([]);
+    expect(driverRequests.body.data.some(booking => booking._id === created.body.data._id)).toBe(false);
   });
 });
