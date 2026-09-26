@@ -139,8 +139,8 @@ const notifyEligibleDriversForBooking = async (booking) => {
     const matchingDriverIdSet = new Set(assignedDriverIds.map(id => String(id)));
     eligibleDrivers = eligibleDrivers.filter(driver => {
       if (!driver.user || driver.user.status === 'Blocked') return false;
-      if (driver.assignedVehicle) return matchingVehicleIdSet.has(String(driver.assignedVehicle));
-      return matchingDriverIdSet.has(String(driver._id));
+      return (driver.assignedVehicle && matchingVehicleIdSet.has(String(driver.assignedVehicle)))
+        || matchingDriverIdSet.has(String(driver._id));
     });
 
     const tQueryEnd = Date.now();

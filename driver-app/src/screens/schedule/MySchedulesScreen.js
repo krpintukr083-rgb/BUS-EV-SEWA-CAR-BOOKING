@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING } from '../../constants/theme';
 import { driverService } from '../../services/driverService';
@@ -8,6 +8,7 @@ export default function MySchedulesScreen({ navigation }) {
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [removingScheduleId, setRemovingScheduleId] = useState(null);
 
   const fetchSchedules = async () => {
     try {
@@ -30,6 +31,35 @@ export default function MySchedulesScreen({ navigation }) {
   const onRefresh = () => {
     setRefreshing(true);
     fetchSchedules();
+  };
+
+  const removeSchedule = (schedule) => {
+    Alert.alert(
+      'Remove Schedule?',
+      'Are you sure you want to remove this schedule?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            setRemovingScheduleId(schedule._id);
+            try {
+              await driverService.removeSchedule(schedule._id);
+              await fetchSchedules();
+              Alert.alert('Success', 'Schedule removed successfully.');
+            } catch (error) {
+              Alert.alert(
+                'Unable to remove schedule',
+                error.response?.data?.message || error.message || 'Please try again.'
+              );
+            } finally {
+              setRemovingScheduleId(null);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const getStatusColor = (status) => {
@@ -72,6 +102,18 @@ export default function MySchedulesScreen({ navigation }) {
         {item.status === 'Rejected' && item.rejectionReason ? (
           <Text style={styles.rejectionReason}>Reason: {item.rejectionReason}</Text>
         ) : null}
+        <TouchableOpacity
+          style={styles.removeButton}
+          onPress={() => removeSchedule(item)}
+          disabled={removingScheduleId === item._id}
+          accessibilityRole="button"
+          accessibilityLabel={`Remove schedule ${item.origin} to ${item.destination}`}
+        >
+          <Ionicons name="trash-outline" size={16} color={COLORS.danger} />
+          <Text style={styles.removeButtonText}>
+            {removingScheduleId === item._id ? 'Removing...' : 'Remove'}
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -146,5 +188,19 @@ const styles = StyleSheet.create({
   timeContainer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: SPACING.md },
   timeItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   timeText: { fontSize: 13, color: COLORS.textSecondary },
-  rejectionReason: { fontSize: 12, color: COLORS.danger, marginTop: SPACING.sm, fontStyle: 'italic' }
+  rejectionReason: { fontSize: 12, color: COLORS.danger, marginTop: SPACING.sm, fontStyle: 'italic' },
+  removeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'flex-end',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: COLORS.danger,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: SPACING.md
+  },
+  removeButtonText: { color: COLORS.danger, fontSize: 13, fontWeight: '700' }
 });

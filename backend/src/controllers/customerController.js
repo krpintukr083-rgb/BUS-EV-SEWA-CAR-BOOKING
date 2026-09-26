@@ -243,7 +243,9 @@ exports.createBooking = async (req, res, next) => {
         phone: req.user.phone,
         email: req.user.email
       },
-      driver: serviceType === 'Bus' ? (req.body.driver || req.body.driverId || vehicle.assignedDriver || null) : null,
+      driver: ['Bus', 'Truck'].includes(serviceType)
+        ? (req.body.driver || req.body.driverId || vehicle.assignedDriver || null)
+        : null,
       vehicle: vehicle._id,
       serviceType,
       pickupLocation,

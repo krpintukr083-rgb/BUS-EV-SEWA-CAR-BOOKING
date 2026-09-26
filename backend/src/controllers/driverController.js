@@ -64,6 +64,13 @@ const verifyDriverVehicleAccess = async (driver, booking) => {
     }
   }
 
+  if (booking.driver && booking.serviceType !== 'Bus') {
+    const bookingDriverStr = (booking.driver._id || booking.driver).toString();
+    if (bookingDriverStr !== driverIdStr && (!userIdStr || bookingDriverStr !== userIdStr)) {
+      return false;
+    }
+  }
+
   if (booking.driverAssigned && (booking.driverConfirmationStatus === 'Confirmed' || booking.driverConfirmed)) {
     const bookingAssignedStr = (booking.driverAssigned._id || booking.driverAssigned).toString();
     if (bookingAssignedStr === driverIdStr || (userIdStr && bookingAssignedStr === userIdStr)) {
@@ -103,7 +110,11 @@ const verifyDriverVehicleAccess = async (driver, booking) => {
 
   if (assignedVehicle.vehicleType !== booking.serviceType) return false;
 
-  return vehicleMatchesBookingRoute(assignedVehicle, booking, { requireRouteMatch: true });
+  const isSelectedBusVehicle = booking.serviceType === 'Bus'
+    && String(assignedVehicle._id) === String(booking.vehicle?._id || booking.vehicle);
+  return vehicleMatchesBookingRoute(assignedVehicle, booking, {
+    requireRouteMatch: !isSelectedBusVehicle
+  });
 };
 
 // @desc    Get Driver Dashboard Summary
@@ -162,7 +173,13 @@ exports.getDriverDashboard = async (req, res, next) => {
               if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus)) return false;
               if (b.serviceType !== driverVeh?.vehicleType) return false;
               if (b.serviceType !== 'Bus' && b.driver && (b.driver._id || b.driver).toString() !== driver._id.toString()) return false;
-              if (driverVeh) return vehicleMatchesBookingRoute(driverVeh, b, { requireRouteMatch: true });
+              if (driverVeh) {
+                const isSelectedBusVehicle = b.serviceType === 'Bus'
+                  && String(driverVeh._id) === String(b.vehicle?._id || b.vehicle);
+                return vehicleMatchesBookingRoute(driverVeh, b, {
+                  requireRouteMatch: !isSelectedBusVehicle
+                });
+              }
               return false;
             }).slice(0, 10);
           })()
@@ -1150,7 +1167,10 @@ exports.getBookingRequests = async (req, res, next) => {
       // Bus requests remain broadcast; non-Bus requests cannot be claimed by another assigned driver.
       if (reqItem.serviceType === 'Bus') {
         if (assignedVehicle) {
-          const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem, { requireRouteMatch: true });
+          const isSelectedBusVehicle = String(assignedVehicle._id) === String(reqItem.vehicle?._id || reqItem.vehicle);
+          const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem, {
+            requireRouteMatch: !isSelectedBusVehicle
+          });
           console.log(`[getBookingRequests Debug] Driver ${driver.name} vehicle ${assignedVehicle.vehicleNumber} (${assignedVehicle.route?.origin}->${assignedVehicle.route?.destination}) matches booking ${reqItem.bookingId} (${reqItem.pickupLocation}->${reqItem.dropLocation}): ${matches}`);
           return matches;
         }

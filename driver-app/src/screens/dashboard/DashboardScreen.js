@@ -79,6 +79,32 @@ const DashboardScreen = ({ navigation }) => {
     }
   };
 
+  const removeVehicle = (vehicle) => {
+    Alert.alert(
+      'Remove Vehicle?',
+      'Are you sure you want to remove this vehicle?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await driverService.removeVehicle(vehicle._id);
+              await loadVehicles();
+              Alert.alert('Success', 'Vehicle removed successfully.');
+            } catch (error) {
+              Alert.alert(
+                'Unable to remove vehicle',
+                error.response?.data?.message || error.message || 'Please try again.'
+              );
+            }
+          }
+        }
+      ]
+    );
+  };
+
   useFocusEffect(
     useCallback(() => {
       loadDashboard();
@@ -332,14 +358,26 @@ const DashboardScreen = ({ navigation }) => {
                   <Text style={[styles.vehicleStatus, { color: statusColor }]}>
                     Status: {vehicle.vehicleStatus}
                   </Text>
-                  <TouchableOpacity
-                    style={styles.viewVehicleButton}
-                    onPress={() => navigation.navigate('VehicleDetails', { vehicleId: vehicle._id })}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={styles.viewVehicleText}>View Vehicle</Text>
-                    <Ionicons name="chevron-forward" size={16} color={COLORS.primaryLight} />
-                  </TouchableOpacity>
+                  <View style={styles.vehicleActions}>
+                    <TouchableOpacity
+                      style={styles.viewVehicleButton}
+                      onPress={() => navigation.navigate('VehicleDetails', { vehicleId: vehicle._id })}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={styles.viewVehicleText}>View Vehicle</Text>
+                      <Ionicons name="chevron-forward" size={16} color={COLORS.primaryLight} />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.removeVehicleButton}
+                      onPress={() => removeVehicle(vehicle)}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remove vehicle ${vehicle.vehicleName || vehicle.vehicleNumber}`}
+                    >
+                      <Ionicons name="trash-outline" size={15} color={COLORS.danger} />
+                      <Text style={styles.removeVehicleText}>Remove</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             );
@@ -672,7 +710,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: 4,
-    marginTop: SPACING.sm
+    marginTop: SPACING.sm,
+    minHeight: 32
+  },
+  vehicleActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: SPACING.sm,
+    marginTop: SPACING.xs
+  },
+  removeVehicleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderColor: COLORS.danger,
+    borderRadius: 7,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minHeight: 32
+  },
+  removeVehicleText: {
+    fontSize: 12,
+    color: COLORS.danger,
+    fontWeight: '800'
   },
   viewVehicleText: {
     fontSize: 12,

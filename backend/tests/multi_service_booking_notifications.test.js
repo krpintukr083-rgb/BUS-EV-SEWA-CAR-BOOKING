@@ -88,6 +88,7 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
 
   beforeAll(async () => {
     await connectTestDB();
+    jest.spyOn(console, 'log').mockImplementation(() => {});
     customer = await User.create({
       name: 'Route Request Customer',
       email: `route-request-customer-${suffix}@test.com`,
@@ -181,6 +182,7 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
     expect(fetchBodies.flat().filter(message => message.data.bookingId === eligibleEvBooking.bookingId)).toHaveLength(2);
     expect(fetchBodies.flat().filter(message => message.data.bookingId === eligibleCarBooking.bookingId)).toHaveLength(1);
     expect(fetchBodies.flat().every(message => ['Bus', 'EV-Sewa', 'Car'].includes(message.data.serviceType))).toBe(true);
+    expect(fetchBodies.flat().every(message => message.title === `New ${message.data.serviceType} Booking Request`)).toBe(true);
 
     const busRequestNotifications = await Notification.find({
       eventType: 'BOOKING_REQUEST',
@@ -201,6 +203,7 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
       User.deleteMany({ _id: { $in: testUsers } })
     ]);
     await closeTestDB();
+    jest.restoreAllMocks();
   });
 
   test('driver request list is category-specific and includes forward route-stop requests', async () => {
@@ -218,6 +221,13 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
     expect(response.body.data.some(item => item.pickupLocation === 'Gurgaon' && item.dropLocation === 'Delhi')).toBe(false);
     expect(response.body.data.some(item => item.serviceType === 'Bus')).toBe(false);
     expect(response.body.data.find(item => item._id === String(forwardBooking._id)).serviceType).toBe('EV-Sewa');
+
+    const matchingDriverToken = jwt.sign({ id: secondEvDriver.user, role: 'driver' }, jwtConfig.secret, { expiresIn: '1h' });
+    const matchingDriverRequests = await request(app)
+      .get('/api/driver/booking-requests')
+      .set('Authorization', `Bearer ${matchingDriverToken}`)
+      .expect(200);
+    expect(matchingDriverRequests.body.data.map(item => item._id)).toContain(String(forwardBooking._id));
   });
 
   test('only one matching driver can claim a request', async () => {
@@ -229,12 +239,14 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
       .post(`/api/driver/booking-requests/${booking._id}/accept`)
       .set('Authorization', `Bearer ${firstToken}`)
       .expect(200);
-    expect(String(firstAccept.body.data.driver)).toBe(String(evDriver._id));
+    expect(firstAccept.body.success).toBe(true);
+    const firstClaim = await Booking.findById(booking._id).lean();
+    expect(String(firstClaim.driver)).toBe(String(evDriver._id));
 
     await request(app)
       .post(`/api/driver/booking-requests/${booking._id}/accept`)
       .set('Authorization', `Bearer ${secondToken}`)
-      .expect(400);
+      .expect(403);
 
     const storedBooking = await Booking.findById(booking._id).lean();
     expect(String(storedBooking.driver)).toBe(String(evDriver._id));

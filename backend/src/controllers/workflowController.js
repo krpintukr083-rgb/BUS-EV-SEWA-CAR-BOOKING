@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const Vehicle = require('../models/Vehicle');
 const Schedule = require('../models/Schedule');
+const Booking = require('../models/Booking');
 const Notification = require('../models/Notification');
 const Driver = require('../models/Driver');
 const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
@@ -108,6 +109,42 @@ exports.getDriverVehicles = async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+exports.deleteDriverVehicle = async (req, res, next) => {
+  try {
+    const { vehicleId } = req.params;
+    if (!mongoose.isValidObjectId(vehicleId)) {
+      return res.status(400).json({ success: false, message: 'Invalid vehicleId' });
+    }
+
+    const vehicle = await Vehicle.findOne({
+      _id: vehicleId,
+      ...getDriverVehicleOwnershipQuery(req.driver)
+    });
+    if (!vehicle) {
+      return res.status(404).json({ success: false, message: 'Vehicle not found or you are not authorized to remove it.' });
+    }
+
+    const activeSchedule = await Schedule.exists({ vehicle: vehicle._id, status: 'Active' });
+    const activeBooking = await Booking.exists({
+      vehicle: vehicle._id,
+      $or: [
+        { bookingStatus: { $in: ['Pending Admin Confirmation', 'Pending', 'Pending Driver Confirmation', 'Confirmed', 'In Transit', 'Active', 'Pending Cash', 'Awaiting Cash Collection', 'Ongoing'] } },
+        { rideStatus: { $in: ['Accepted', 'Arrived', 'Started'] } }
+      ]
+    });
+    if (activeSchedule || activeBooking) {
+      return res.status(400).json({
+        success: false,
+        message: 'This vehicle cannot be removed because it is currently in use.'
+      });
+    }
+
+    await Vehicle.deleteOne({ _id: vehicle._id });
+    await Driver.updateMany({ assignedVehicle: vehicle._id }, { $set: { assignedVehicle: null } });
+    res.json({ success: true, message: 'Vehicle removed successfully.' });
+  } catch (error) { next(error); }
+};
+
 exports.updateDriverVehicleEVDetails = async (req, res, next) => {
   try {
     const { vehicleId } = req.params;
@@ -194,6 +231,51 @@ exports.getDriverSchedules = async (req, res, next) => {
   try {
     const data = await Schedule.find({ driver: driverId(req) }).populate('vehicle').sort({ travelDate: 1 }).lean();
     res.json({ success: true, count: data.length, data });
+  } catch (error) { next(error); }
+};
+
+exports.deleteDriverSchedule = async (req, res, next) => {
+  try {
+    const { scheduleId } = req.params;
+    if (!mongoose.isValidObjectId(scheduleId)) {
+      return res.status(400).json({ success: false, message: 'Invalid scheduleId' });
+    }
+
+    const schedule = await Schedule.findOne({ _id: scheduleId, driver: req.driver._id });
+    if (!schedule) {
+      return res.status(404).json({ success: false, message: 'Schedule not found or you are not authorized to remove it.' });
+    }
+
+    const scheduleDate = new Date(schedule.travelDate);
+    const startOfDay = new Date(scheduleDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(scheduleDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    const activeBooking = await Booking.exists({
+      $and: [
+        {
+          $or: [
+            { scheduleId: schedule._id },
+            { vehicle: schedule.vehicle, travelDate: { $gte: startOfDay, $lte: endOfDay } }
+          ]
+        },
+        {
+          $or: [
+            { bookingStatus: { $in: ['Pending Admin Confirmation', 'Pending', 'Pending Driver Confirmation', 'Confirmed', 'In Transit', 'Active', 'Pending Cash', 'Awaiting Cash Collection', 'Ongoing'] } },
+            { rideStatus: { $in: ['Accepted', 'Arrived', 'Started'] } }
+          ]
+        }
+      ]
+    });
+    if (activeBooking) {
+      return res.status(400).json({
+        success: false,
+        message: 'This schedule cannot be removed because it has an active booking.'
+      });
+    }
+
+    await Schedule.deleteOne({ _id: schedule._id, driver: req.driver._id });
+    res.json({ success: true, message: 'Schedule removed successfully.' });
   } catch (error) { next(error); }
 };
 
