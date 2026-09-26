@@ -202,7 +202,7 @@ const BusManagement = () => {
                   <Clock size={14} /> Bus Timings & Schedule
                 </div>
                 <div style={{ fontWeight: '700', color: '#0f172a', fontSize: '0.95rem', marginTop: '4px' }}>
-                  {bus.route?.departureTime || '06:00 AM'} → {bus.route?.arrivalTime || '11:30 AM'}
+                  {bus.route?.departureTime || '—'}{bus.route?.arrivalTime ? ` → ${bus.route.arrivalTime}` : ''}
                 </div>
                 <div style={{ fontSize: '0.775rem', color: '#15803d', marginTop: '2px' }}>
                   Duration: {bus.route?.duration || '5h 30m'}

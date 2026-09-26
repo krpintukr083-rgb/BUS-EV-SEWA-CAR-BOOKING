@@ -14,6 +14,8 @@ const ServiceControl = require('../models/ServiceControl');
 const Expense = require('../models/Expense');
 const Withdrawal = require('../models/Withdrawal');
 const Incentive = require('../models/Incentive');
+const Schedule = require('../models/Schedule');
+const { normalizeScheduleTime } = require('../utils/timeFormat');
 const { dashboardCache } = require('../utils/cache');
 
 const getBookingQuery = (id) => {
@@ -741,6 +743,8 @@ exports.addVehicle = async (req, res, next) => {
       notes: ''
     });
     const parsedRoute = parseJsonIfString(route, { origin: '', destination: '', boardingPoints: [], droppingPoints: [] });
+    if (parsedRoute.departureTime) parsedRoute.departureTime = normalizeScheduleTime(parsedRoute.departureTime);
+    if (parsedRoute.arrivalTime) parsedRoute.arrivalTime = normalizeScheduleTime(parsedRoute.arrivalTime);
     const parsedPickupDrop = parseJsonIfString(pickupDropDetails, { pickupLocation: '', dropLocation: '' });
     const parsedBusDetails = parseJsonIfString(busDetails, { busType: 'AC Sleeper', seatLayout: '2+1 Luxury Sleeper', availableSeats: seatingCapacity || 36 });
     const parsedEvDetails = parseJsonIfString(evDetails, { rangeKm: 280 });
@@ -878,6 +882,8 @@ exports.updateVehicle = async (req, res, next) => {
     }
     if (updatePayload.route) {
       const parsedR = parseJsonIfString(updatePayload.route, updatePayload.route);
+      if (parsedR.departureTime) parsedR.departureTime = normalizeScheduleTime(parsedR.departureTime);
+      if (parsedR.arrivalTime) parsedR.arrivalTime = normalizeScheduleTime(parsedR.arrivalTime);
       updatePayload.route = {
         ...(existingVehicleObj.route ? existingVehicleObj.route.toObject() : {}),
         ...parsedR
@@ -1171,8 +1177,23 @@ exports.getBuses = async (req, res, next) => {
         const passengersCount = bookings.reduce((sum, b) => sum + (b.passengerDetails ? b.passengerDetails.length : 0), 0);
         const cancellationsCount = await Cancellation.countDocuments({ booking: { $in: bookings.map(b => b._id) } });
 
+        const latestSchedule = await Schedule.findOne({ vehicle: bus._id, status: 'Active' })
+          .sort({ travelDate: -1, createdAt: -1 });
+
+        const busObj = bus.toObject();
+        if (latestSchedule) {
+          if (!busObj.route) busObj.route = {};
+          if (latestSchedule.departureTime) busObj.route.departureTime = normalizeScheduleTime(latestSchedule.departureTime);
+          if (latestSchedule.arrivalTime) busObj.route.arrivalTime = normalizeScheduleTime(latestSchedule.arrivalTime);
+          if (latestSchedule.origin) busObj.route.origin = latestSchedule.origin;
+          if (latestSchedule.destination) busObj.route.destination = latestSchedule.destination;
+        } else if (busObj.route?.departureTime) {
+          busObj.route.departureTime = normalizeScheduleTime(busObj.route.departureTime);
+          if (busObj.route?.arrivalTime) busObj.route.arrivalTime = normalizeScheduleTime(busObj.route.arrivalTime);
+        }
+
         return {
-          ...bus.toObject(),
+          ...busObj,
           totalBookingsCount: bookings.length,
           totalPassengersServed: passengersCount,
           cancellationsCount,

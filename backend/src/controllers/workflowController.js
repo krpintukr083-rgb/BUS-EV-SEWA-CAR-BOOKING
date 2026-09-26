@@ -6,6 +6,7 @@ const Notification = require('../models/Notification');
 const Driver = require('../models/Driver');
 const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
 const { validateRoutePricing } = require('../utils/routeFares');
+const { normalizeScheduleTime, validateScheduleTime } = require('../utils/timeFormat');
 
 const notifyDriver = async (driver, title, message, eventType, entityType, entityId) => {
   if (!driver) return;
@@ -221,9 +222,19 @@ exports.updateDriverVehicleEVDetails = async (req, res, next) => {
 exports.createSchedule = async (req, res, next) => {
   try {
     const body = req.body || {};
-    if (!body.vehicle || !body.origin || !body.destination || !body.travelDate || !body.departureTime || !body.arrivalTime) {
-      return res.status(400).json({ success: false, message: 'vehicle, origin, destination, travelDate, departureTime, and arrivalTime are required' });
+    if (!body.vehicle || !body.origin || !body.destination || !body.travelDate || !body.departureTime) {
+      return res.status(400).json({ success: false, message: 'vehicle, origin, destination, travelDate, and departureTime are required' });
     }
+
+    const departureTime = normalizeScheduleTime(body.departureTime);
+    const arrivalTime = body.arrivalTime ? normalizeScheduleTime(body.arrivalTime) : '';
+    if (!validateScheduleTime(departureTime)) {
+      return res.status(400).json({ success: false, message: 'departureTime must be a valid time (e.g. 06:00 PM)' });
+    }
+    if (arrivalTime && !validateScheduleTime(arrivalTime)) {
+      return res.status(400).json({ success: false, message: 'arrivalTime must be a valid time (e.g. 11:00 PM)' });
+    }
+
     const vehicle = await Vehicle.findOne({ _id: body.vehicle, assignedDriver: req.driver._id });
     if (!vehicle) return res.status(404).json({ success: false, message: 'Vehicle is not assigned to this driver' });
     if (vehicle.vehicleStatus !== 'Active') {
@@ -237,7 +248,7 @@ exports.createSchedule = async (req, res, next) => {
 
     const duplicate = await Schedule.findOne({
       vehicle: vehicle._id,
-      departureTime: body.departureTime,
+      departureTime,
       travelDate: { $gte: startOfDay, $lte: endOfDay }
     });
 
@@ -246,7 +257,11 @@ exports.createSchedule = async (req, res, next) => {
     }
 
     const schedule = await Schedule.create({
-      ...body, driver: req.driver._id, status: 'Pending',
+      ...body,
+      departureTime,
+      arrivalTime,
+      driver: req.driver._id,
+      status: 'Pending',
       fareRate: Number(body.fareRate) || vehicle.fareRate || 0
     });
     await notifyAdmins(
@@ -363,6 +378,15 @@ const review = (kind, status) => async (req, res, next) => {
     await doc.save();
     if (kind === 'vehicle' && status === 'Active') {
       await Driver.findByIdAndUpdate(doc.assignedDriver, { assignedVehicle: doc._id });
+    }
+    if (kind === 'schedule' && status === 'Active') {
+      const vehicleUpdate = {};
+      if (doc.departureTime) vehicleUpdate['route.departureTime'] = doc.departureTime;
+      if (doc.arrivalTime) vehicleUpdate['route.arrivalTime'] = doc.arrivalTime;
+      if (doc.origin) vehicleUpdate['route.origin'] = doc.origin;
+      if (doc.destination) vehicleUpdate['route.destination'] = doc.destination;
+      if (doc.fareRate) vehicleUpdate['fareRate'] = doc.fareRate;
+      await Vehicle.findByIdAndUpdate(doc.vehicle, vehicleUpdate);
     }
     const driver = kind === 'vehicle' ? doc.submission.submittedByDriver : doc.driver;
     const eventType = `${kind.toUpperCase()}_${status === 'Active' ? 'APPROVED' : 'REJECTED'}`;

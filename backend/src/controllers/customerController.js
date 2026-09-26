@@ -9,6 +9,8 @@ const Support = require('../models/Support');
 const Policy = require('../models/Policy');
 const ServiceControl = require('../models/ServiceControl');
 const User = require('../models/User');
+const Schedule = require('../models/Schedule');
+const { normalizeScheduleTime } = require('../utils/timeFormat');
 const { notifyEligibleDriversForBooking } = require('../utils/notification');
 
 const getBookingQuery = (idOrCode) => {
@@ -45,9 +47,28 @@ exports.getBuses = async (req, res, next) => {
 
     const buses = await Vehicle.find(query).populate('assignedDriver').sort({ createdAt: -1 });
 
-    let filtered = buses;
+    const busesWithSchedule = await Promise.all(
+      buses.map(async bus => {
+        const latestSchedule = await Schedule.findOne({ vehicle: bus._id, status: 'Active' })
+          .sort({ travelDate: -1, createdAt: -1 });
+        const busObj = bus.toObject();
+        if (latestSchedule) {
+          if (!busObj.route) busObj.route = {};
+          if (latestSchedule.departureTime) busObj.route.departureTime = normalizeScheduleTime(latestSchedule.departureTime);
+          if (latestSchedule.arrivalTime) busObj.route.arrivalTime = normalizeScheduleTime(latestSchedule.arrivalTime);
+          if (latestSchedule.origin) busObj.route.origin = latestSchedule.origin;
+          if (latestSchedule.destination) busObj.route.destination = latestSchedule.destination;
+        } else if (busObj.route?.departureTime) {
+          busObj.route.departureTime = normalizeScheduleTime(busObj.route.departureTime);
+          if (busObj.route?.arrivalTime) busObj.route.arrivalTime = normalizeScheduleTime(busObj.route.arrivalTime);
+        }
+        return busObj;
+      })
+    );
+
+    let filtered = busesWithSchedule;
     if (from || to) {
-      filtered = buses.filter(b => {
+      filtered = busesWithSchedule.filter(b => {
         const originMatch = !from || (b.route?.origin && b.route.origin.toLowerCase().includes(from.toLowerCase()));
         const destMatch = !to || (b.route?.destination && b.route.destination.toLowerCase().includes(to.toLowerCase()));
         return originMatch && destMatch;
@@ -87,10 +108,24 @@ exports.getBusDetails = async (req, res, next) => {
       }
     });
 
+    const latestSchedule = await Schedule.findOne({ vehicle: bus._id, status: 'Active' })
+      .sort({ travelDate: -1, createdAt: -1 });
+    const busObj = bus.toObject();
+    if (latestSchedule) {
+      if (!busObj.route) busObj.route = {};
+      if (latestSchedule.departureTime) busObj.route.departureTime = normalizeScheduleTime(latestSchedule.departureTime);
+      if (latestSchedule.arrivalTime) busObj.route.arrivalTime = normalizeScheduleTime(latestSchedule.arrivalTime);
+      if (latestSchedule.origin) busObj.route.origin = latestSchedule.origin;
+      if (latestSchedule.destination) busObj.route.destination = latestSchedule.destination;
+    } else if (busObj.route?.departureTime) {
+      busObj.route.departureTime = normalizeScheduleTime(busObj.route.departureTime);
+      if (busObj.route?.arrivalTime) busObj.route.arrivalTime = normalizeScheduleTime(busObj.route.arrivalTime);
+    }
+
     res.json({
       success: true,
       data: {
-        ...bus.toObject(),
+        ...busObj,
         bookedSeats: Array.from(new Set(bookedSeats))
       }
     });

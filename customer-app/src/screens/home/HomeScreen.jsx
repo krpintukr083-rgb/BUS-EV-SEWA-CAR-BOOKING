@@ -509,7 +509,7 @@ const HomeScreen = ({ navigation }) => {
                         <View style={styles.timeItem}>
                           <Ionicons name="time-outline" size={13} color={COLORS.textSecondary} />
                           <Text style={styles.timeText}>
-                            {bus.route?.departureTime || '06:00 AM'} → {bus.route?.arrivalTime || '11:30 AM'}
+                            {bus.route?.departureTime || 'Scheduled'}{bus.route?.arrivalTime ? ` → ${bus.route.arrivalTime}` : ''}
                           </Text>
                         </View>
                         <View style={styles.durationBadge}>

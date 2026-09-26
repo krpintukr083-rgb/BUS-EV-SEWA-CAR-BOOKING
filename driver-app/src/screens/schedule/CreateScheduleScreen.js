@@ -56,10 +56,38 @@ export default function CreateScheduleScreen({ navigation }) {
     return date >= today;
   };
 
+  const normalizeScheduleTime = (timeStr) => {
+    if (!timeStr || typeof timeStr !== 'string') return '';
+    const trimmed = timeStr.trim();
+    if (!trimmed) return '';
+
+    // Matches 12-hour format: e.g. "06:00 PM", "6:00 PM", "06:00pm", "12:00 AM"
+    const match12 = trimmed.match(/^(0?[1-9]|1[0-2]):([0-5][0-9])\s*([APap][mM])$/);
+    if (match12) {
+      const hours = match12[1].padStart(2, '0');
+      const minutes = match12[2];
+      const meridiem = match12[3].toUpperCase();
+      return `${hours}:${minutes} ${meridiem}`;
+    }
+
+    // Matches 24-hour format: e.g. "18:00", "06:00", "00:00", "12:00", "23:59"
+    const match24 = trimmed.match(/^([01]?[0-9]|2[0-3]):([0-5][0-9])(?::[0-5][0-9])?$/);
+    if (match24) {
+      let hours24 = parseInt(match24[1], 10);
+      const minutes = match24[2];
+      const meridiem = hours24 >= 12 ? 'PM' : 'AM';
+      let hours12 = hours24 % 12;
+      if (hours12 === 0) hours12 = 12;
+      return `${String(hours12).padStart(2, '0')}:${minutes} ${meridiem}`;
+    }
+
+    return trimmed;
+  };
+
   const validateTime = (timeString) => {
-    // Basic HH:MM AM/PM validation
-    const regex = /^(0?[1-9]|1[0-2]):[0-5][0-9] [APap][mM]$/;
-    return regex.test(timeString);
+    if (!timeString || typeof timeString !== 'string') return false;
+    const normalized = normalizeScheduleTime(timeString);
+    return /^(0[1-9]|1[0-2]):[0-5][0-9] (AM|PM)$/.test(normalized);
   };
 
   const handleSubmit = async () => {
@@ -76,23 +104,26 @@ export default function CreateScheduleScreen({ navigation }) {
       return;
     }
     if (!departureTime || !validateTime(departureTime)) {
-      Alert.alert('Error', 'Please enter a valid Departure Time (e.g. 06:00 AM).');
+      Alert.alert('Error', 'Please enter a valid Departure Time (e.g. 06:00 PM).');
       return;
     }
     if (!arrivalTime || !validateTime(arrivalTime)) {
-      Alert.alert('Error', 'Please enter a valid Arrival Time (e.g. 11:30 AM).');
+      Alert.alert('Error', 'Please enter a valid Arrival Time (e.g. 11:00 PM).');
       return;
     }
 
     setSubmitting(true);
     try {
+      const normalizedDeparture = normalizeScheduleTime(departureTime);
+      const normalizedArrival = normalizeScheduleTime(arrivalTime);
+
       const payload = {
         vehicle: selectedVehicleId,
         origin,
         destination,
         travelDate,
-        departureTime: departureTime.toUpperCase(),
-        arrivalTime: arrivalTime.toUpperCase()
+        departureTime: normalizedDeparture,
+        arrivalTime: normalizedArrival
       };
       
       const res = await driverService.createSchedule(payload);
