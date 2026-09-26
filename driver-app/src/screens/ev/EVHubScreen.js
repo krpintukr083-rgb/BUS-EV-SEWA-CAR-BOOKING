@@ -185,7 +185,7 @@ export default function EVHubScreen({ navigation, route }) {
         <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={COLORS.textPrimary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t('evHub')}</Text>
+        <Text style={styles.headerTitle}>EV Charging Station</Text>
       </View>
 
       <ScrollView
@@ -199,80 +199,6 @@ export default function EVHubScreen({ navigation, route }) {
           />
         }
       >
-        {/* Battery & Telemetry Dashboard Card */}
-        <View style={styles.socCard}>
-          <View style={styles.socTopRow}>
-            <View>
-              <Text style={styles.socSubtitle}>{t('currentCharge')}</Text>
-              <View style={styles.socMainRow}>
-                <Text style={[styles.socPercentage, { color: getBatteryColor(evStats.batteryPercentage) }]}>
-                  {evStats.batteryPercentage == null ? '--' : `${evStats.batteryPercentage}%`}
-                </Text>
-                <MaterialCommunityIcons
-                  name={evStats.batteryPercentage > 20 ? 'battery-charging-80' : 'battery-alert'}
-                  size={32}
-                  color={getBatteryColor(evStats.batteryPercentage)}
-                />
-              </View>
-            </View>
-
-            <View style={styles.rangeBox}>
-              <Text style={styles.rangeLabel}>{t('estRange')}</Text>
-              <Text style={styles.rangeValue}>
-                {evStats.estimatedRangeKm == null ? '--' : `${evStats.estimatedRangeKm} km`}
-              </Text>
-            </View>
-          </View>
-
-          {/* Battery Level Progress Bar */}
-          <View style={styles.batteryTrack}>
-            <View
-              style={[
-                styles.batteryFill,
-                {
-                  width: `${Math.min(100, Math.max(0, Number(evStats.batteryPercentage) || 0))}%`,
-                  backgroundColor: getBatteryColor(evStats.batteryPercentage),
-                },
-              ]}
-            />
-          </View>
-
-          {/* Manual SOC Update Section (Zero GPS Telemetry) */}
-          <View style={styles.socUpdateRow}>
-            <View style={styles.socInputGroup}>
-              <Text style={styles.socUpdateLabel}>{t('updateBatteryPct')}</Text>
-              <TextInput
-                style={styles.socInput}
-                keyboardType="number-pad"
-                maxLength={3}
-                value={newSocInput}
-                onChangeText={setNewSocInput}
-              />
-            </View>
-            <View style={styles.socInputGroup}>
-              <Text style={styles.socUpdateLabel}>{t('estRange')}</Text>
-              <TextInput
-                style={styles.rangeInput}
-                keyboardType="number-pad"
-                value={newRangeInput}
-                onChangeText={setNewRangeInput}
-              />
-            </View>
-            <TouchableOpacity
-              style={[styles.socUpdateBtn, (updatingSoc || loading || !vehicle) && styles.socUpdateBtnDisabled]}
-              disabled={updatingSoc || loading || !vehicle}
-              onPress={handleUpdateBattery}
-              activeOpacity={0.75}
-            >
-              {updatingSoc ? (
-                <ActivityIndicator color={COLORS.white} size="small" />
-              ) : (
-                <Text style={styles.socUpdateBtnText}>{t('save')}</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {/* Charging Stations Section */}
         <View style={styles.stationHeaderRow}>
           <Text style={styles.sectionTitle}>{t('chargingStations')}</Text>
