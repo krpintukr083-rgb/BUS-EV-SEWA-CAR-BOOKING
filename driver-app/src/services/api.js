@@ -91,6 +91,9 @@ apiClient.interceptors.request.use(
       config.headers['bypass-tunnel-reminder'] = 'true';
       config.headers['Bypass-Tunnel-Reminder'] = 'true';
       config.headers['ngrok-skip-browser-warning'] = 'true';
+      config.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+      config.headers['Pragma'] = 'no-cache';
+      config.headers['Expires'] = '0';
 
       const token = await AsyncStorage.getItem('@driver_jwt_token');
       if (token) {

@@ -31,6 +31,7 @@ export default function BusConfirmationScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState(false);
+  const [highlightNotFound, setHighlightNotFound] = useState(false);
   const [activeTab, setActiveTab] = useState('PENDING'); // 'PENDING', 'CONFIRMED', 'ALL'
   const fetchRequestId = useRef(0);
 
@@ -50,12 +51,36 @@ export default function BusConfirmationScreen({ navigation, route }) {
       // axios wraps response: actual JSON is at res.data
       if (requestId !== fetchRequestId.current) return;
       if (res?.data?.success && Array.isArray(res.data.data)) {
-        const newestFirst = [...res.data.data].sort((left, right) => {
-          const leftCreatedAt = Date.parse(left.createdAt || '') || 0;
-          const rightCreatedAt = Date.parse(right.createdAt || '') || 0;
-          return rightCreatedAt - leftCreatedAt;
-        });
-        setBookings(newestFirst);
+        const rawList = res.data.data;
+        if (highlightBookingId) {
+          const targetIndex = rawList.findIndex(
+            (b) => b._id === highlightBookingId || b.bookingId === highlightBookingId
+          );
+          if (targetIndex !== -1) {
+            const target = rawList[targetIndex];
+            const remaining = rawList.filter((_, idx) => idx !== targetIndex);
+            remaining.sort((left, right) => {
+              const leftCreatedAt = Date.parse(left.createdAt || '') || 0;
+              const rightCreatedAt = Date.parse(right.createdAt || '') || 0;
+              return rightCreatedAt - leftCreatedAt;
+            });
+            setBookings([target, ...remaining]);
+            setHighlightNotFound(false);
+          } else {
+            // Target was specified by route.params.bookingId but could not be found!
+            // Do NOT silently fall back to an old booking
+            setHighlightNotFound(true);
+            setBookings([]);
+          }
+        } else {
+          const newestFirst = [...rawList].sort((left, right) => {
+            const leftCreatedAt = Date.parse(left.createdAt || '') || 0;
+            const rightCreatedAt = Date.parse(right.createdAt || '') || 0;
+            return rightCreatedAt - leftCreatedAt;
+          });
+          setBookings(newestFirst);
+          setHighlightNotFound(false);
+        }
         setRefreshError(false);
       } else {
         setRefreshError(true);
@@ -71,7 +96,7 @@ export default function BusConfirmationScreen({ navigation, route }) {
         setRefreshing(false);
       }
     }
-  }, []);
+  }, [highlightBookingId]);
 
   useFocusEffect(
     useCallback(() => {
@@ -443,6 +468,16 @@ export default function BusConfirmationScreen({ navigation, route }) {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {highlightNotFound && (
+        <View style={styles.notFoundCard}>
+          <MaterialCommunityIcons name="alert-circle-outline" size={32} color={COLORS.danger} />
+          <Text style={styles.notFoundTitle}>Accepted booking could not be loaded</Text>
+          <Text style={styles.notFoundSubtitle}>
+            Booking #{highlightBookingId} could not be loaded from your assigned trips. Pull down to refresh.
+          </Text>
+        </View>
+      )}
 
       {refreshError && (
         <Text style={styles.refreshError} accessibilityRole="alert">
@@ -880,5 +915,28 @@ const styles = StyleSheet.create({
   modalConfirmRejectText: {
     color: COLORS.white,
     fontWeight: '700',
+  },
+  notFoundCard: {
+    backgroundColor: COLORS.danger + '15',
+    borderColor: COLORS.danger,
+    borderWidth: 1,
+    borderRadius: RADIUS.m,
+    padding: SPACING.l,
+    marginHorizontal: SPACING.l,
+    marginVertical: SPACING.m,
+    alignItems: 'center',
+  },
+  notFoundTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: COLORS.danger,
+    marginTop: SPACING.s,
+    textAlign: 'center',
+  },
+  notFoundSubtitle: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginTop: 4,
+    textAlign: 'center',
   },
 });
