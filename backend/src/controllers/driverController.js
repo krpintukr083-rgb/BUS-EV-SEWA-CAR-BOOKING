@@ -1160,10 +1160,35 @@ exports.getBookingRequests = async (req, res, next) => {
 
     console.log(`[getBookingRequests Debug] Driver ${driver.name} candidateBookings count: ${candidateBookings.length}`);
 
+    // Check if this driver currently has an active Instant Booking
+    const hasActiveInstantBooking = Boolean(await Booking.exists({
+      driver: driver._id,
+      bookingMode: 'INSTANT',
+      rideStatus: { $ne: 'Completed' },
+      bookingStatus: {
+        $in: [
+          'Pending Admin Confirmation',
+          'PENDING_ADMIN_CONFIRMATION',
+          'Admin Confirmed',
+          'ADMIN_CONFIRMED',
+          'Pending',
+          'Pending Driver Confirmation',
+          'Awaiting Cash Collection',
+          'Confirmed',
+          'Ongoing'
+        ]
+      }
+    }));
+
     // Filter candidate bookings by route match & eligibility
     const requests = candidateBookings.filter(reqItem => {
       // Direct canonical exclusion check
       if (reqItem.driverConfirmed || reqItem.driverConfirmationStatus === 'Confirmed' || reqItem.confirmationOtpVerifiedAt || reqItem.otpVerified || reqItem.cashCollected || reqItem.rideStatus === 'Accepted') {
+        return false;
+      }
+
+      // If driver already has an active instant booking, do not offer more instant booking requests
+      if (hasActiveInstantBooking && reqItem.bookingMode === 'INSTANT') {
         return false;
       }
       
@@ -1302,10 +1327,63 @@ exports.acceptBookingRequest = async (req, res, next) => {
 
     // Prevent accepting already accepted/confirmed bookings
     if (['Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(booking.bookingStatus) || booking.driverConfirmed || booking.confirmationOtpVerifiedAt || booking.rideStatus === 'Accepted') {
+      if (booking.driver && booking.driver.toString() === driver._id.toString()) {
+        return res.json({
+          success: true,
+          message: 'Booking already accepted by this driver',
+          data: driverBookingResponse(booking, driver.canViewCustomerPhone === true)
+        });
+      }
       return res.status(400).json({
         success: false,
         message: `Booking is already in '${booking.bookingStatus}' status and cannot be accepted again.`
       });
+    }
+
+    // Explicit bookingMode branching for active conflict evaluation
+    const isInstant = booking.bookingMode === 'INSTANT';
+
+    if (isInstant) {
+      // INSTANT BOOKING CONFLICT RULE:
+      // A driver cannot accept multiple simultaneous active instant bookings.
+      const activeInstantBooking = await Booking.findOne({
+        _id: { $ne: booking._id },
+        driver: driver._id,
+        bookingMode: 'INSTANT',
+        rideStatus: { $ne: 'Completed' },
+        bookingStatus: {
+          $in: [
+            'Pending Admin Confirmation',
+            'PENDING_ADMIN_CONFIRMATION',
+            'Admin Confirmed',
+            'ADMIN_CONFIRMED',
+            'Pending',
+            'Pending Driver Confirmation',
+            'Awaiting Cash Collection',
+            'Confirmed',
+            'Ongoing'
+          ]
+        }
+      }).select('bookingId bookingStatus rideStatus').lean();
+
+      if (activeInstantBooking) {
+        return res.status(409).json({
+          success: false,
+          code: 'DRIVER_HAS_ACTIVE_INSTANT_BOOKING',
+          message: 'This driver has already accepted another instant booking.'
+        });
+      }
+    } else {
+      // SCHEDULE BOOKING CONFLICT RULE:
+      // Schedule bookings are NOT blocked by active instant bookings.
+      // Schedule bookings are evaluated using their own booking mode, travel date/time,
+      // assigned vehicle/driver, and existing schedule availability rules.
+      if (booking.driver && booking.driver.toString() !== driver._id.toString()) {
+        return res.status(409).json({
+          success: false,
+          message: 'This schedule booking request has already been assigned to another driver.'
+        });
+      }
     }
 
     let assignedVehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
@@ -1404,6 +1482,14 @@ exports.acceptBookingRequest = async (req, res, next) => {
       throw error;
     }
     if (!claimedBooking) {
+      const freshBooking = await Booking.findById(booking._id).lean();
+      if (freshBooking && freshBooking.driver && freshBooking.driver.toString() === driver._id.toString()) {
+        return res.json({
+          success: true,
+          message: 'Booking already accepted by this driver',
+          data: driverBookingResponse(freshBooking, driver.canViewCustomerPhone === true)
+        });
+      }
       return res.status(409).json({
         success: false,
         message: 'This booking request has already been accepted by another driver.'
