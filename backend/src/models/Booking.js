@@ -267,6 +267,7 @@ bookingSchema.index(
     partialFilterExpression: {
       bookingMode: 'INSTANT',
       driver: { $type: 'objectId' },
+      rideStatus: { $in: ['Accepted', 'Arrived', 'Started', 'Ongoing'] },
       bookingStatus: {
         $in: [
           'Pending Admin Confirmation',

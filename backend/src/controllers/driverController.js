@@ -1164,7 +1164,7 @@ exports.getBookingRequests = async (req, res, next) => {
     const hasActiveInstantBooking = Boolean(await Booking.exists({
       driver: driver._id,
       bookingMode: 'INSTANT',
-      rideStatus: { $ne: 'Completed' },
+      rideStatus: { $in: ['Accepted', 'Arrived', 'Started', 'Ongoing'] },
       bookingStatus: {
         $in: [
           'Pending Admin Confirmation',
@@ -1350,7 +1350,7 @@ exports.acceptBookingRequest = async (req, res, next) => {
         _id: { $ne: booking._id },
         driver: driver._id,
         bookingMode: 'INSTANT',
-        rideStatus: { $ne: 'Completed' },
+        rideStatus: { $in: ['Accepted', 'Arrived', 'Started', 'Ongoing'] },
         bookingStatus: {
           $in: [
             'Pending Admin Confirmation',
