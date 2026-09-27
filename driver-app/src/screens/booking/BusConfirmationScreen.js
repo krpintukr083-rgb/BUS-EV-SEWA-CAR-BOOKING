@@ -20,6 +20,47 @@ import { useLanguage } from '../../state/LanguageContext';
 import CustomerOtpVerificationCard from '../../components/CustomerOtpVerificationCard';
 import { driverService } from '../../services/driverService';
 
+const isBookingCompletedOrCancelled = (b) => {
+  if (!b) return true;
+  if (['Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus)) return true;
+  if (['Completed', 'Cancelled'].includes(b.rideStatus)) return true;
+  return false;
+};
+
+const isBookingPaid = (b) => {
+  if (!b) return false;
+  if (b.cashCollected) return true;
+  if (/^paid$/i.test(b.paymentStatus || '') || /^successful$/i.test(b.paymentStatus || '')) return true;
+  const isOnline = Boolean(b.paymentMethod && /esewa|khalti|razorpay|card|netbanking|online/i.test(b.paymentMethod));
+  if (isOnline && b.paymentStatus !== 'Pending Cash' && b.bookingStatus !== 'Awaiting Cash Collection') return true;
+  return false;
+};
+
+const isBookingPendingOtp = (b) => {
+  if (!b || isBookingCompletedOrCancelled(b)) return false;
+  return !b.confirmationOtpVerifiedAt && !b.otpVerified;
+};
+
+const isBookingAwaitingCash = (b) => {
+  if (!b || isBookingCompletedOrCancelled(b)) return false;
+  if (b.bookingStatus === 'Awaiting Cash Collection') return true;
+  if (b.paymentStatus === 'Pending Cash' && !b.cashCollected && !Boolean(b.paymentMethod && /esewa|khalti|razorpay|card|netbanking|online/i.test(b.paymentMethod))) {
+    return true;
+  }
+  return false;
+};
+
+const isBookingPending = (b) => {
+  if (!b || isBookingCompletedOrCancelled(b)) return false;
+  return isBookingPendingOtp(b) || isBookingAwaitingCash(b) || b.bookingStatus === 'Pending Driver Confirmation';
+};
+
+const isBookingConfirmed = (b) => {
+  if (!b || isBookingCompletedOrCancelled(b)) return false;
+  if (isBookingPending(b)) return false;
+  return b.bookingStatus === 'Confirmed' || isBookingPaid(b);
+};
+
 export default function BusConfirmationScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { t } = useLanguage();
@@ -66,6 +107,11 @@ export default function BusConfirmationScreen({ navigation, route }) {
             });
             setBookings([target, ...remaining]);
             setHighlightNotFound(false);
+            if (isBookingPending(target)) {
+              setActiveTab('PENDING');
+            } else if (isBookingConfirmed(target)) {
+              setActiveTab('CONFIRMED');
+            }
           } else {
             // Target was specified by route.params.bookingId but could not be found!
             // Do NOT silently fall back to an old booking
@@ -136,7 +182,15 @@ export default function BusConfirmationScreen({ navigation, route }) {
       const res = await driverService.verifyBookingOtp(bookingId, otpVal);
       if (res?.data?.success || res?.data?.status === 'success' || res?.success) {
         Alert.alert(t('success') || 'Success', 'Customer OTP verified successfully. Booking confirmed!');
-        setActiveTab('CONFIRMED');
+        const updatedBooking = res?.data?.data;
+        const needsCash = updatedBooking?.bookingStatus === 'Awaiting Cash Collection' ||
+                          updatedBooking?.paymentStatus === 'Pending Cash' ||
+                          (!updatedBooking?.cashCollected && !/online|razorpay|esewa|khalti|card/i.test(updatedBooking?.paymentMethod || ''));
+        if (needsCash) {
+          setActiveTab('PENDING');
+        } else {
+          setActiveTab('CONFIRMED');
+        }
         fetchBusBookings();
       } else {
         Alert.alert(t('error') || 'Verification Failed', res?.data?.message || 'Invalid OTP');
@@ -258,20 +312,11 @@ export default function BusConfirmationScreen({ navigation, route }) {
     }
   };
 
-  const isBookingPendingOtp = (b) => {
-    if (!b) return false;
-    // If OTP is already verified or booking is finished/cancelled, not pending OTP
-    if (b.confirmationOtpVerifiedAt || b.otpVerified) return false;
-    if (['Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus) || ['Completed', 'Cancelled'].includes(b.rideStatus)) return false;
-    // Any assigned or accepted booking awaiting OTP verification is PENDING
-    return true;
-  };
 
   let filteredBookings = bookings.filter((b) => {
-    const isPending = isBookingPendingOtp(b);
-    if (activeTab === 'PENDING') return isPending;
-    if (activeTab === 'CONFIRMED') return !isPending && b.bookingStatus !== 'Cancelled';
-    return true;
+    if (activeTab === 'PENDING') return isBookingPending(b);
+    if (activeTab === 'CONFIRMED') return isBookingConfirmed(b);
+    return b.bookingStatus !== 'Cancelled' && b.bookingStatus !== 'Rejected';
   });
 
   if (highlightBookingId) {
@@ -283,13 +328,14 @@ export default function BusConfirmationScreen({ navigation, route }) {
   }
 
   const renderBookingItem = ({ item }) => {
-    const isPendingConfirmation = isBookingPendingOtp(item);
-
+    const isPendingOtp = isBookingPendingOtp(item);
+    const isAwaitingCash = isBookingAwaitingCash(item);
     const isCompleted = item.bookingStatus === 'Completed' || item.rideStatus === 'Completed';
-    const isPaid = Boolean(item.cashCollected) || /^paid$/i.test(item.paymentStatus || '') || /^successful$/i.test(item.paymentStatus || '');
+    const isPaid = isBookingPaid(item);
     const isOnlinePayment = Boolean(item.paymentMethod && /esewa|khalti|razorpay|card|netbanking|online/i.test(item.paymentMethod));
     const showCollectCashBtn = !isPaid && !isOnlinePayment && !isCompleted;
     const isLoading = actionLoadingId === item._id || actionLoadingId === item.bookingId;
+    const itemFare = item.totalFare || item.fare || item.finalFare || 0;
 
     return (
       <View style={styles.card}>
@@ -304,15 +350,21 @@ export default function BusConfirmationScreen({ navigation, route }) {
           <View style={styles.badgeCol}>
             <View style={[
               styles.statusBadge,
-              isPendingConfirmation
+              isPendingOtp
+                ? { backgroundColor: COLORS.warning + '20', borderColor: COLORS.warning }
+                : isAwaitingCash
                 ? { backgroundColor: COLORS.warning + '20', borderColor: COLORS.warning }
                 : { backgroundColor: COLORS.success + '20', borderColor: COLORS.success }
             ]}>
               <Text style={[
                 styles.statusBadgeText,
-                { color: isPendingConfirmation ? COLORS.warning : COLORS.success }
+                { color: (isPendingOtp || isAwaitingCash) ? COLORS.warning : COLORS.success }
               ]}>
-                {isPendingConfirmation ? t('pendingConfirmation') : t('confirmed')}
+                {isPendingOtp
+                  ? (t('pendingConfirmation') || 'Pending Confirmation')
+                  : isAwaitingCash
+                  ? (t('awaitingCash') || 'Awaiting Cash Collection')
+                  : (t('confirmed') || 'Confirmed')}
               </Text>
             </View>
 
@@ -366,11 +418,11 @@ export default function BusConfirmationScreen({ navigation, route }) {
         {/* Fare Details */}
         <View style={styles.fareRow}>
           <Text style={styles.fareLabel}>{t('totalFare')}:</Text>
-          <Text style={styles.fareAmount}>₹{item.totalFare || 0}</Text>
+          <Text style={styles.fareAmount}>₹{itemFare}</Text>
         </View>
 
         {/* Action Buttons */}
-        {isPendingConfirmation ? (
+        {isPendingOtp ? (
           <CustomerOtpVerificationCard
             booking={item}
             onVerified={fetchBusBookings}
@@ -385,7 +437,7 @@ export default function BusConfirmationScreen({ navigation, route }) {
             {showCollectCashBtn && (
               <TouchableOpacity
                 style={[styles.cashBtn, isLoading && { opacity: 0.6 }]}
-                onPress={() => handleCollectCash(item._id, item.totalFare || 0)}
+                onPress={() => handleCollectCash(item._id, itemFare)}
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -394,7 +446,7 @@ export default function BusConfirmationScreen({ navigation, route }) {
                   <>
                     <MaterialCommunityIcons name="cash-register" size={16} color={COLORS.bgDark} />
                     <Text style={styles.cashBtnText}>
-                      {t('collectCash')} (₹{item.totalFare || 0})
+                      {t('collectCash')} (₹{itemFare})
                     </Text>
                   </>
                 )}
@@ -446,7 +498,7 @@ export default function BusConfirmationScreen({ navigation, route }) {
           onPress={() => setActiveTab('PENDING')}
         >
           <Text style={[styles.tabText, activeTab === 'PENDING' && styles.tabTextActive]}>
-            {t('pending')} ({bookings.filter(isBookingPendingOtp).length})
+            {t('pending') || 'Pending'} ({bookings.filter(isBookingPending).length})
           </Text>
         </TouchableOpacity>
 
@@ -455,7 +507,7 @@ export default function BusConfirmationScreen({ navigation, route }) {
           onPress={() => setActiveTab('CONFIRMED')}
         >
           <Text style={[styles.tabText, activeTab === 'CONFIRMED' && styles.tabTextActive]}>
-            {t('confirmed')} ({bookings.filter((b) => !isBookingPendingOtp(b) && b.bookingStatus !== 'Cancelled').length})
+            {t('confirmed') || 'Confirmed'} ({bookings.filter(isBookingConfirmed).length})
           </Text>
         </TouchableOpacity>
 
@@ -464,7 +516,7 @@ export default function BusConfirmationScreen({ navigation, route }) {
           onPress={() => setActiveTab('ALL')}
         >
           <Text style={[styles.tabText, activeTab === 'ALL' && styles.tabTextActive]}>
-            {t('all')} ({bookings.length})
+            {t('all') || 'All'} ({bookings.length})
           </Text>
         </TouchableOpacity>
       </View>

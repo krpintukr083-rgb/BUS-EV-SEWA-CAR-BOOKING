@@ -1251,7 +1251,8 @@ exports.getActiveBookingsForDriver = async (req, res, next) => {
     const query = {
       $or: [
         { driver: driver._id },
-        ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
+        { assignedDriverId: driver._id },
+        ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }, { assignedVehicleId }] : [])
       ],
       bookingStatus: { $nin: ['Cancelled', 'Rejected'] }
     };
