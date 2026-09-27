@@ -99,7 +99,9 @@ const RideRequestCard = ({ request, onAccept, onReject }) => {
           activeOpacity={0.8}
         >
           <Ionicons name="checkmark-circle" size={18} color="#FFF" />
-          <Text style={styles.acceptBtnText}>Accept Ride</Text>
+          <Text style={styles.acceptBtnText}>
+            {request.rideStatus === 'Accepted' || request.driverConfirmed ? 'View Trip' : 'Accept Ride'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
