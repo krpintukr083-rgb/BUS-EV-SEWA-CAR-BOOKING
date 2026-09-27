@@ -1537,12 +1537,18 @@ exports.verifyRideOtp = async (req, res, next) => {
     }
 
     // 3. Check if OTP has expired
-    if (booking.confirmationOtpExpiresAt && new Date(booking.confirmationOtpExpiresAt) < new Date()) {
+    const now = new Date();
+    const otpExpiresAt = booking.confirmationOtpExpiresAt ? new Date(booking.confirmationOtpExpiresAt) : null;
+    const remainingMs = otpExpiresAt ? (otpExpiresAt - now) : null;
+    console.log(`[OTP DEBUG] bookingId: ${booking.bookingId} | generatedAt: ${booking.createdAt} | expiresAt: ${otpExpiresAt} | now: ${now} | remainingMs: ${remainingMs} | remainingHours: ${remainingMs != null ? (remainingMs / 3600000).toFixed(2) : 'N/A (no expiry set)'}`);
+
+    if (otpExpiresAt && otpExpiresAt < now) {
       return res.status(400).json({
         success: false,
         message: 'Customer OTP has expired. Please request a new OTP.'
       });
     }
+
 
     // 4. Verify OTP Hash or raw match
     const suppliedHash = crypto.createHash('sha256').update(suppliedOtp).digest('hex');

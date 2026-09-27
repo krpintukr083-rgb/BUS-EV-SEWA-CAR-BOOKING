@@ -64,6 +64,7 @@ exports.createBooking = async (req, res, next) => {
       const crypto = require('crypto');
       const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
       const confirmationOtpHash = crypto.createHash('sha256').update(rawOtp).digest('hex');
+      const confirmationOtpExpiresAt = new Date(Date.now() + 10 * 60 * 60 * 1000); // 10 Hours
       const bookingId = `BK-${Date.now().toString().slice(-4)}${Math.floor(100 + Math.random() * 900)}`;
 
       const booking = await Booking.create({
@@ -86,9 +87,11 @@ exports.createBooking = async (req, res, next) => {
         paymentStatus: 'Pending Cash',
         bookingStatus: 'Pending Driver Confirmation',
         confirmationOtpHash,
+        confirmationOtpExpiresAt,
         customerViewOtp: rawOtp,
         travelDate: travelDate ? new Date(travelDate) : new Date()
       });
+
 
       await notifyEligibleDriversForBooking(booking);
 

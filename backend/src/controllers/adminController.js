@@ -1469,12 +1469,18 @@ exports.confirmBookingOtp = async (req, res, next) => {
     }
 
     // Expiry check
-    if (booking.confirmationOtpExpiresAt && new Date(booking.confirmationOtpExpiresAt) < new Date()) {
+    const now = new Date();
+    const otpExpiresAt = booking.confirmationOtpExpiresAt ? new Date(booking.confirmationOtpExpiresAt) : null;
+    const remainingMs = otpExpiresAt ? (otpExpiresAt - now) : null;
+    console.log(`[OTP DEBUG] bookingId: ${booking.bookingId} | generatedAt: ${booking.createdAt} | expiresAt: ${otpExpiresAt} | now: ${now} | remainingMs: ${remainingMs} | remainingHours: ${remainingMs != null ? (remainingMs / 3600000).toFixed(2) : 'N/A (no expiry set)'}`);
+
+    if (otpExpiresAt && otpExpiresAt < now) {
       return res.status(400).json({
         success: false,
         message: 'Customer OTP has expired. Please request a new OTP.'
       });
     }
+
 
     // OTP Hash verification
     if (!booking.confirmationOtpHash) {
