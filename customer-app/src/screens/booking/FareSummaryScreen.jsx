@@ -45,10 +45,10 @@ const FareSummaryScreen = ({ navigation }) => {
 
   const serviceColor = getServiceColor();
 
-  const fareUnitCount = bookingDraft.serviceType === 'Bus'
-    ? (bookingDraft.selectedSeats?.length || 1)
-    : bookingDraft.serviceType === 'EV-Sewa'
+  const fareUnitCount = bookingMode === 'INSTANT' || bookingDraft.serviceType === 'EV-Sewa'
     ? (Number(bookingDraft.passengerCount) || bookingDraft.passengerDetails?.length || 1)
+    : bookingDraft.serviceType === 'Bus'
+    ? (bookingDraft.selectedSeats?.length || 1)
     : 1;
   const routeSegmentFare = getRouteSegmentFare(
     bookingDraft.vehicle?.route,
@@ -86,7 +86,7 @@ const FareSummaryScreen = ({ navigation }) => {
         selectedSeats: bookingDraft.selectedSeats,
         bookingMode,
         paymentMethod: 'Offline Cash',
-        ...(bookingDraft.serviceType === 'EV-Sewa' ? { passengerCount: fareUnitCount } : {}),
+        ...((bookingDraft.serviceType === 'EV-Sewa' || bookingMode === 'INSTANT') ? { passengerCount: fareUnitCount } : {}),
         fare: totalPayable,
         travelDate: bookingDraft.travelDate,
         ...(bookingMode === 'NORMAL' && bookingDraft.scheduleId
@@ -141,18 +141,20 @@ const FareSummaryScreen = ({ navigation }) => {
                 {bookingDraft.serviceType} Booking
               </Text>
             </View>
-            <Text style={[styles.serviceFare, { color: serviceColor }]}>
-              ₹{totalPayable}
+            <Text style={[styles.serviceFare, { color: serviceColor }, bookingMode === 'INSTANT' && { fontSize: 16 }]}>
+              {bookingMode === 'INSTANT' ? 'Calculating...' : `₹${totalPayable}`}
             </Text>
           </View>
 
           <Text style={styles.vehicleTitle}>
-            {bookingDraft.vehicle?.busName || bookingDraft.vehicle?.vehicleName || 'Standard Vehicle'}
+            {bookingMode === 'INSTANT' ? 'Searching for eligible vehicle...' : (bookingDraft.vehicle?.busName || bookingDraft.vehicle?.vehicleName || 'Standard Vehicle')}
           </Text>
-          <Text style={styles.vehicleSub}>
-            {bookingDraft.vehicle?.busNumber || bookingDraft.vehicle?.vehicleNumber} •{' '}
-            {bookingDraft.vehicle?.busType || bookingDraft.vehicle?.vehicleModel}
-          </Text>
+          {bookingMode !== 'INSTANT' && (
+            <Text style={styles.vehicleSub}>
+              {bookingDraft.vehicle?.busNumber || bookingDraft.vehicle?.vehicleNumber} •{' '}
+              {bookingDraft.vehicle?.busType || bookingDraft.vehicle?.vehicleModel}
+            </Text>
+          )}
         </View>
 
         <View style={styles.bookingModeCard}>
@@ -204,7 +206,7 @@ const FareSummaryScreen = ({ navigation }) => {
               </View>
             </View>
           )}
-          {bookingDraft.serviceType === 'EV-Sewa' && (
+          {(bookingDraft.serviceType === 'EV-Sewa' || bookingMode === 'INSTANT') && (
             <View style={styles.seatRow}>
               <Text style={styles.seatLabel}>Passengers:</Text>
               <Text style={styles.billVal}>{fareUnitCount}</Text>
@@ -234,55 +236,64 @@ const FareSummaryScreen = ({ navigation }) => {
         <View style={styles.detailCard}>
           <Text style={styles.cardHeading}>Fare Breakdown</Text>
 
-          <View style={styles.billRow}>
-            <Text style={styles.billLabel}>
-              {routeSegmentFare == null
-                ? 'Original Fare'
-                : `Segment Fare (${bookingDraft.pickupLocation} → ${bookingDraft.dropLocation})`}
-            </Text>
-            <Text style={styles.billVal}>₹{routeSegmentFare == null ? originalFare : baseSeatRate}</Text>
-          </View>
-
-          {discountAmt > 0 && (
+          {bookingMode === 'INSTANT' ? (
             <View style={styles.billRow}>
-              <Text style={[styles.billLabel, { color: COLORS.success, fontWeight: '700' }]}>
-                Discount ({discountPct}%)
-              </Text>
-              <Text style={[styles.billVal, { color: COLORS.success, fontWeight: '700' }]}>
-                -₹{discountAmt}
-              </Text>
+              <Text style={styles.billLabel}>Fare Pending</Text>
+              <Text style={styles.billVal}>Calculated after driver confirmation</Text>
             </View>
+          ) : (
+            <>
+              <View style={styles.billRow}>
+                <Text style={styles.billLabel}>
+                  {routeSegmentFare == null
+                    ? 'Original Fare'
+                    : `Segment Fare (${bookingDraft.pickupLocation} → ${bookingDraft.dropLocation})`}
+                </Text>
+                <Text style={styles.billVal}>₹{routeSegmentFare == null ? originalFare : baseSeatRate}</Text>
+              </View>
+
+              {discountAmt > 0 && (
+                <View style={styles.billRow}>
+                  <Text style={[styles.billLabel, { color: COLORS.success, fontWeight: '700' }]}>
+                    Discount ({discountPct}%)
+                  </Text>
+                  <Text style={[styles.billVal, { color: COLORS.success, fontWeight: '700' }]}>
+                    -₹{discountAmt}
+                  </Text>
+                </View>
+              )}
+
+              {(bookingDraft.serviceType === 'Bus' || bookingDraft.serviceType === 'EV-Sewa') && fareUnitCount > 1 && (
+                <View style={styles.billRow}>
+                  <Text style={styles.billLabel}>
+                    {bookingDraft.serviceType === 'Bus'
+                      ? `Seat Multiplier (${fareUnitCount} seats × ₹${baseSeatRate})`
+                      : `Passenger Multiplier (${fareUnitCount} × ₹${baseSeatRate})`}
+                  </Text>
+                  <Text style={styles.billVal}>₹{originalFare}</Text>
+                </View>
+              )}
+
+              <View style={styles.billRow}>
+                <Text style={styles.billLabel}>Taxes & Platform Convenience Fee</Text>
+                <Text style={[styles.billVal, { color: COLORS.success }]}>₹0 (Included)</Text>
+              </View>
+
+              <View style={styles.billRow}>
+                <Text style={styles.billLabel}>Complimentary Transit Insurance</Text>
+                <Text style={[styles.billVal, { color: COLORS.success }]}>FREE</Text>
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Total Payable Amount</Text>
+                <Text style={[styles.totalAmount, { color: serviceColor }]}>
+                  ₹{totalPayable}
+                </Text>
+              </View>
+            </>
           )}
-
-          {(bookingDraft.serviceType === 'Bus' || bookingDraft.serviceType === 'EV-Sewa') && fareUnitCount > 1 && (
-            <View style={styles.billRow}>
-              <Text style={styles.billLabel}>
-                {bookingDraft.serviceType === 'Bus'
-                  ? `Seat Multiplier (${fareUnitCount} seats × ₹${baseSeatRate})`
-                  : `Passenger Multiplier (${fareUnitCount} × ₹${baseSeatRate})`}
-              </Text>
-              <Text style={styles.billVal}>₹{originalFare}</Text>
-            </View>
-          )}
-
-          <View style={styles.billRow}>
-            <Text style={styles.billLabel}>Taxes & Platform Convenience Fee</Text>
-            <Text style={[styles.billVal, { color: COLORS.success }]}>₹0 (Included)</Text>
-          </View>
-
-          <View style={styles.billRow}>
-            <Text style={styles.billLabel}>Complimentary Transit Insurance</Text>
-            <Text style={[styles.billVal, { color: COLORS.success }]}>FREE</Text>
-          </View>
-
-          <View style={styles.divider} />
-
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total Payable Amount</Text>
-            <Text style={[styles.totalAmount, { color: serviceColor }]}>
-              ₹{totalPayable}
-            </Text>
-          </View>
         </View>
       </ScrollView>
 

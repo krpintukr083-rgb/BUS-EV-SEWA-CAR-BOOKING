@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { customerService } from '../../services/customerService';
 import { useCustomerAuth } from '../../context/CustomerAuthContext';
+import { useBooking } from '../../context/BookingContext';
 import Header from '../../components/Header';
 import Input from '../../components/Input';
 import Button from '../../components/Button';
@@ -10,47 +10,29 @@ import { COLORS } from '../../constants/colors';
 
 const InstantBookingRouteScreen = ({ navigation }) => {
   const { user } = useCustomerAuth();
+  const { updateDraft } = useBooking();
   const [pickupLocation, setPickupLocation] = useState('');
   const [dropLocation, setDropLocation] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [passengerCount, setPassengerCount] = useState(1);
 
-  const handleBookNow = async () => {
+  const handleContinue = () => {
     if (!pickupLocation.trim() || !dropLocation.trim()) {
       Alert.alert('Error', 'Please enter both pickup and destination locations.');
       return;
     }
-    setLoading(true);
-    try {
-      const payload = {
-        bookingMode: 'INSTANT',
-        serviceType: 'Any', // Backend will broadcast to all eligible
-        pickupLocation: pickupLocation.trim(),
-        dropLocation: dropLocation.trim(),
-        travelDate: new Date().toISOString(),
-        paymentMethod: 'Offline Cash',
-        customer: {
-          name: user?.name || 'Customer',
-          phone: user?.phone || '0000000000'
-        },
-        passengerDetails: [{ name: user?.name || 'Customer', age: 30, gender: 'Male' }]
-      };
-      
-      const response = await customerService.createBooking(payload);
-      if (response && response.success) {
-        navigation.navigate('DigitalTicket', { 
-          bookingId: response.data._id || response.data.bookingId,
-          isInstant: true 
-        });
-      } else {
-        throw new Error(response?.message || 'Failed to create instant booking');
-      }
-    } catch (error) {
-      console.error(error);
-      Alert.alert('Booking Error', error.response?.data?.message || error.message || 'Unable to create instant booking at this time.');
-    } finally {
-      setLoading(false);
-    }
+    updateDraft({
+      bookingMode: 'INSTANT',
+      serviceType: 'Any',
+      pickupLocation: pickupLocation.trim(),
+      dropLocation: dropLocation.trim(),
+      passengerCount: passengerCount,
+      travelDate: new Date().toISOString()
+    });
+    navigation.navigate('PassengerDetails');
   };
+
+  const increment = () => setPassengerCount(prev => prev + 1);
+  const decrement = () => setPassengerCount(prev => Math.max(1, prev - 1));
 
   return (
     <View style={styles.container}>
@@ -67,12 +49,23 @@ const InstantBookingRouteScreen = ({ navigation }) => {
         <Input label="From / Pickup Location" placeholder="e.g. Delhi" value={pickupLocation} onChangeText={setPickupLocation} />
         <Input label="To / Destination" placeholder="e.g. Jaipur" value={dropLocation} onChangeText={setDropLocation} />
         
+        <View style={styles.counterContainer}>
+          <Text style={styles.counterLabel}>How many passengers?</Text>
+          <View style={styles.counterControls}>
+            <TouchableOpacity onPress={decrement} style={styles.counterBtn}>
+              <Ionicons name="remove" size={20} color={COLORS.primary} />
+            </TouchableOpacity>
+            <Text style={styles.counterValue}>{passengerCount}</Text>
+            <TouchableOpacity onPress={increment} style={styles.counterBtn}>
+              <Ionicons name="add" size={20} color={COLORS.primary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <View style={{ marginTop: 20 }}>
           <Button 
-            title={loading ? 'Creating Booking...' : 'Book Now'} 
-            onPress={handleBookNow} 
-            loading={loading} 
-            disabled={loading} 
+            title="Continue" 
+            onPress={handleContinue} 
           />
         </View>
       </ScrollView>
@@ -87,6 +80,11 @@ const styles = StyleSheet.create({
   introCopy: { flex: 1, marginLeft: 10 },
   title: { color: COLORS.darkNavy, fontSize: 16, fontWeight: '800' },
   subtitle: { color: COLORS.textSecondary, fontSize: 12, lineHeight: 17, marginTop: 3 },
+  counterContainer: { marginTop: 12, padding: 14, backgroundColor: '#ffffff', borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  counterLabel: { fontSize: 14, fontWeight: '700', color: COLORS.darkNavy },
+  counterControls: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  counterBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: COLORS.primaryLight, justifyContent: 'center', alignItems: 'center' },
+  counterValue: { fontSize: 16, fontWeight: '800', color: COLORS.primary, width: 24, textAlign: 'center' }
 });
 
 export default InstantBookingRouteScreen;

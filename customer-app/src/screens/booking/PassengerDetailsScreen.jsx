@@ -19,7 +19,7 @@ import { COLORS } from '../../constants/colors';
 const PassengerDetailsScreen = ({ navigation }) => {
   const { bookingDraft, updateDraft } = useBooking();
 
-  const passengerCount = bookingDraft.serviceType === 'EV-Sewa'
+  const passengerCount = (bookingDraft.serviceType === 'EV-Sewa' || bookingDraft.bookingMode === 'INSTANT')
     ? Math.max(1, Number(bookingDraft.passengerCount) || 1)
     : bookingDraft.selectedSeats && bookingDraft.selectedSeats.length > 0
     ? bookingDraft.selectedSeats.length
@@ -80,7 +80,7 @@ const PassengerDetailsScreen = ({ navigation }) => {
 
     updateDraft({
       passengerDetails: passengers,
-      ...(bookingDraft.serviceType === 'EV-Sewa' ? { passengerCount: passengers.length } : {})
+      ...((bookingDraft.serviceType === 'EV-Sewa' || bookingDraft.bookingMode === 'INSTANT') ? { passengerCount: passengers.length } : {})
     });
 
     navigation.navigate('FareSummary');
