@@ -33,15 +33,24 @@ const BookingDetailsScreen = ({ route, navigation }) => {
     }
   };
 
-  useEffect(() => {
-    fetchDetails();
-
-    const interval = setInterval(() => {
-      fetchDetails();
-    }, 3000);
-
-    return () => clearInterval(interval);
+  React.useEffect(() => {
+    const { AppState } = require('react-native');
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'active') {
+        fetchDetails();
+      }
+    });
+    return () => {
+      subscription.remove();
+    };
   }, [bookingId]);
+
+  const { useFocusEffect } = require('@react-navigation/native');
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchDetails();
+    }, [bookingId])
+  );
 
   if (loading) {
     return (

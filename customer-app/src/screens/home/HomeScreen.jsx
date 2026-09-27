@@ -22,7 +22,7 @@ import { filterBookingsForLocalDate, formatBookingDate } from '../../utils/booki
 
 const HomeScreen = ({ navigation }) => {
   const { user } = useCustomerAuth();
-  const { resetDraft, updateDraft } = useBooking();
+  const { resetDraft, updateDraft, currentBookingId } = useBooking();
   const [serviceControl, setServiceControl] = useState({ busService: 'Active', evSewaService: 'Active', carService: 'Active' });
   const [popularBuses, setPopularBuses] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -76,11 +76,16 @@ const HomeScreen = ({ navigation }) => {
         const bRes = await customerService.getMyBookings();
         if (bRes && bRes.success) {
           const bookings = Array.isArray(bRes.data?.all) ? bRes.data.all : [];
-          if (bookings.length > 0) {
-            setRecentBooking(bookings[0]);
-          } else {
-            setRecentBooking(null);
+          
+          let foundRecent = null;
+          if (currentBookingId) {
+            foundRecent = bookings.find(b => b.bookingId === currentBookingId || b._id === currentBookingId);
           }
+          if (!foundRecent && bookings.length > 0) {
+            foundRecent = bookings[0];
+          }
+          setRecentBooking(foundRecent);
+          
           setTodayBookings(filterBookingsForLocalDate(bookings));
           setTodayBookingsError('');
         } else {

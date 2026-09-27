@@ -536,6 +536,12 @@ exports.getMyBookings = async (req, res, next) => {
     );
     const completed = formattedBookings.filter((b) => ['Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus));
 
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+
     res.json({
       success: true,
       count: formattedBookings.length,

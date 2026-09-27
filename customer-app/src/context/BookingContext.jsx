@@ -3,6 +3,7 @@ import React, { createContext, useContext, useState } from 'react';
 const BookingContext = createContext();
 
 export const BookingProvider = ({ children }) => {
+  const [currentBookingId, setCurrentBookingId] = useState(null);
   const [bookingDraft, setBookingDraft] = useState({
     serviceType: 'Bus', // 'Bus' | 'EV-Sewa' | 'Car'
     bookingMode: 'NORMAL',
@@ -45,7 +46,7 @@ export const BookingProvider = ({ children }) => {
   };
 
   return (
-    <BookingContext.Provider value={{ bookingDraft, updateDraft, resetDraft }}>
+    <BookingContext.Provider value={{ bookingDraft, updateDraft, resetDraft, currentBookingId, setCurrentBookingId }}>
       {children}
     </BookingContext.Provider>
   );

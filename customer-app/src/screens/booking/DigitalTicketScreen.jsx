@@ -58,7 +58,15 @@ const DigitalTicketScreen = ({ route, navigation }) => {
       console.warn('Expo Notifications not loaded', e);
     }
 
+    const { AppState } = require('react-native');
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'active') {
+        if (fetchTicket) fetchTicket();
+      }
+    });
+
     return () => {
+      subscription.remove();
       if (notificationListener) {
         try {
           const Notifications = require('expo-notifications');
@@ -67,6 +75,17 @@ const DigitalTicketScreen = ({ route, navigation }) => {
       }
     };
   }, [bookingId]);
+
+  const { useFocusEffect } = require('@react-navigation/native');
+  useFocusEffect(
+    React.useCallback(() => {
+      if (bookingId) {
+        customerService.getBookingDetails(bookingId).then(res => {
+          if (res.success) setBooking(res.data);
+        }).catch(err => console.log('Focus fetch error:', err));
+      }
+    }, [bookingId])
+  );
 
   const handleShareTicket = async () => {
     try {

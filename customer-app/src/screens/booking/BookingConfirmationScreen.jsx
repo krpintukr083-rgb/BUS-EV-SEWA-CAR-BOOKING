@@ -36,7 +36,21 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
     } catch (e) {
       console.warn('Expo Notifications not loaded', e);
     }
+
+    const { AppState } = require('react-native');
+    const subscription = AppState.addEventListener('change', async nextAppState => {
+      if (nextAppState === 'active') {
+        try {
+          const res = await customerService.getBookingDetails(booking?._id || booking?.bookingId);
+          if (res.success) {
+            setBooking(res.data);
+          }
+        } catch(e){}
+      }
+    });
+
     return () => {
+      subscription.remove();
       if (notificationListener) {
         try {
           const Notifications = require('expo-notifications');
@@ -45,6 +59,21 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
       }
     };
   }, [booking]);
+
+  const { useFocusEffect } = require('@react-navigation/native');
+  useFocusEffect(
+    React.useCallback(() => {
+      const fetchDetails = async () => {
+        try {
+          const res = await customerService.getBookingDetails(booking?._id || booking?.bookingId);
+          if (res.success) {
+            setBooking(res.data);
+          }
+        } catch(e){}
+      };
+      fetchDetails();
+    }, [booking?._id, booking?.bookingId])
+  );
 
   const handleViewTicket = () => {
     navigation.navigate('DigitalTicket', { bookingId: booking?._id || booking?.bookingId, bookingData: booking });

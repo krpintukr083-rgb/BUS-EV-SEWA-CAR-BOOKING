@@ -1381,6 +1381,15 @@ exports.acceptBookingRequest = async (req, res, next) => {
         { new: true }
       );
     } catch (error) {
+      console.error('!!! ACCEPT RIDE DB ERROR:', error);
+      console.error('!!! DRIVER ID:', driver._id);
+      require('fs').writeFileSync('accept_ride_error.json', JSON.stringify({
+        error: error.message,
+        code: error.code,
+        driverId: driver._id,
+        bookingMode: booking.bookingMode,
+        rawError: error
+      }, null, 2));
       if (
         booking.bookingMode === 'INSTANT' &&
         error.code === 11000 &&

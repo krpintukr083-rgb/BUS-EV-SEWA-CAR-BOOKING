@@ -16,7 +16,7 @@ import { COLORS } from '../../constants/colors';
 import { getRouteSegmentFare } from '../../utils/routeFares';
 
 const FareSummaryScreen = ({ navigation }) => {
-  const { bookingDraft, updateDraft } = useBooking();
+  const { bookingDraft, updateDraft, setCurrentBookingId } = useBooking();
   const [loading, setLoading] = useState(false);
   const [busOffer, setBusOffer] = useState(null);
   const bookingMode = bookingDraft.bookingMode === 'INSTANT' ? 'INSTANT' : 'NORMAL';
@@ -97,7 +97,11 @@ const FareSummaryScreen = ({ navigation }) => {
       const res = await customerService.createBooking(payload);
 
       if (res.success) {
+        console.log('NEW BOOKING CREATED:\n', res.data.bookingId, '\n', res.data.bookingMode, '\n', res.data.createdAt);
         updateDraft({ confirmedBooking: res.data });
+        if (setCurrentBookingId) {
+          setCurrentBookingId(res.data.bookingId);
+        }
         navigation.replace('BookingConfirmation', {
           booking: res.data,
           payment: res.payment
