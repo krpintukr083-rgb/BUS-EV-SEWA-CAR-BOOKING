@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { customerService } from '../services/customerService';
+import { registerForPushNotificationsAsync } from '../services/notificationService';
 
 const CustomerAuthContext = createContext();
 
@@ -17,6 +18,7 @@ export const CustomerAuthProvider = ({ children }) => {
           const res = await customerService.getMe();
           if (res.success && res.user.role === 'customer') {
             setUser(res.user);
+            registerForPushNotificationsAsync();
           } else {
             await logout();
           }
@@ -40,6 +42,7 @@ export const CustomerAuthProvider = ({ children }) => {
         await AsyncStorage.setItem('customer_token', res.token);
         await AsyncStorage.setItem('customer_user', JSON.stringify(res.user));
         setUser(res.user);
+        registerForPushNotificationsAsync();
         return { success: true };
       }
       return { success: false, message: res.message };
@@ -65,6 +68,7 @@ export const CustomerAuthProvider = ({ children }) => {
         await AsyncStorage.setItem('customer_token', res.token);
         await AsyncStorage.setItem('customer_user', JSON.stringify(res.user));
         setUser(res.user);
+        registerForPushNotificationsAsync();
         return { success: true };
       }
       return { success: false, message: res.message };

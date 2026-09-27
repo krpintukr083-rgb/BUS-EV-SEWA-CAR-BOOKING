@@ -185,3 +185,38 @@ exports.changeUserPassword = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Register Customer Push Token
+// @route   POST /api/customer/push-token, POST /api/user/push-token
+// @access  Private (Customer / User)
+exports.registerPushToken = async (req, res, next) => {
+  try {
+    const { pushToken, fcmToken, token, expoPushToken } = req.body;
+    const userId = req.user?._id || req.user?.id;
+
+    const finalExpoToken = expoPushToken || pushToken || token;
+    const finalFcmToken = fcmToken || pushToken || token;
+
+    if (!finalExpoToken && !finalFcmToken) {
+      return res.status(400).json({ success: false, message: 'Push token is required' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { $set: { pushToken: finalExpoToken, fcmToken: finalFcmToken } },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    res.json({
+      success: true,
+      message: 'Push token registered successfully',
+      data: { pushToken: finalExpoToken, fcmToken: finalFcmToken }
+    });
+  } catch (error) {
+    next(error);
+  }
+};

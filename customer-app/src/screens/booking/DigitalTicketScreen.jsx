@@ -22,8 +22,10 @@ const DigitalTicketScreen = ({ route, navigation }) => {
   const [loading, setLoading] = useState(!bookingData && !!bookingId);
 
   useEffect(() => {
-    if (bookingId && !booking) {
-      const fetchTicket = async () => {
+    let fetchTicket = null;
+    
+    if (bookingId) {
+      fetchTicket = async () => {
         try {
           const res = await customerService.getBookingDetails(bookingId);
           if (res.success) {
@@ -35,8 +37,35 @@ const DigitalTicketScreen = ({ route, navigation }) => {
           setLoading(false);
         }
       };
-      fetchTicket();
+      
+      if (!booking) {
+        fetchTicket();
+      }
     }
+
+    // Set up Expo Push Notification Listener
+    let notificationListener = null;
+    try {
+      const Notifications = require('expo-notifications');
+      notificationListener = Notifications.addNotificationReceivedListener(notification => {
+        const data = notification.request.content.data;
+        if (data && data.type === 'INSTANT_BOOKING_FARE_UPDATED' && data.bookingId === bookingId) {
+          console.log('Real-time push received! Refreshing ticket...');
+          if (fetchTicket) fetchTicket();
+        }
+      });
+    } catch (e) {
+      console.warn('Expo Notifications not loaded', e);
+    }
+
+    return () => {
+      if (notificationListener) {
+        try {
+          const Notifications = require('expo-notifications');
+          Notifications.removeNotificationSubscription(notificationListener);
+        } catch(e){}
+      }
+    };
   }, [bookingId]);
 
   const handleShareTicket = async () => {

@@ -1381,6 +1381,40 @@ exports.acceptBookingRequest = async (req, res, next) => {
       status: 'Unread'
     });
 
+    // Send push notification to Customer for real-time fare update
+    if (customerId && booking.bookingMode === 'INSTANT') {
+      try {
+        const User = require('../models/User');
+        const custUser = await User.findById(customerId).select('pushToken fcmToken');
+        if (custUser && (custUser.pushToken || custUser.fcmToken)) {
+          const custToken = (custUser.pushToken || custUser.fcmToken).trim();
+          if (custToken) {
+            await fetch('https://exp.host/--/api/v2/push/send', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify({
+                to: custToken,
+                title: 'Instant Booking Fare Calculated',
+                body: `Driver ${driver.name} accepted. Final fare is ₹${updateSet.finalFare}. Tap to view.`,
+                data: {
+                  type: 'INSTANT_BOOKING_FARE_UPDATED',
+                  bookingId: booking._id.toString()
+                },
+                sound: 'default',
+                priority: 'high',
+                channelId: 'customer-booking-updates'
+              })
+            });
+          }
+        }
+      } catch (pushErr) {
+        console.warn('Customer push notification failed:', pushErr.message);
+      }
+    }
+
     res.json({
       success: true,
       message: 'Booking request accepted successfully',
