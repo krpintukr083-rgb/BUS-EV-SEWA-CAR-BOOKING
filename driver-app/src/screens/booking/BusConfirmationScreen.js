@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
+import * as Notifications from 'expo-notifications';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useLanguage } from '../../state/LanguageContext';
@@ -77,8 +78,16 @@ export default function BusConfirmationScreen({ navigation, route }) {
       setLoading(true);
       fetchBusBookings();
       const interval = setInterval(fetchBusBookings, 8000);
+      
+      const notifSub = Notifications.addNotificationReceivedListener(() => {
+        fetchBusBookings();
+      });
+
       return () => {
         clearInterval(interval);
+        if (notifSub && notifSub.remove) {
+          notifSub.remove();
+        }
         fetchRequestId.current += 1;
       };
     }, [fetchBusBookings])

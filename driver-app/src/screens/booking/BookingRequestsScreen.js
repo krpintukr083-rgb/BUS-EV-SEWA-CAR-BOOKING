@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, RefreshControl, Alert, Modal, TouchableOpacity, TextInput } from 'react-native';
 
 import { useFocusEffect } from '@react-navigation/native';
+import * as Notifications from 'expo-notifications';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../state/AuthContext';
@@ -49,7 +50,17 @@ const BookingRequestsScreen = ({ navigation }) => {
     useCallback(() => {
       loadRequests();
       const interval = setInterval(loadRequests, 6000);
-      return () => clearInterval(interval);
+      
+      const notifSub = Notifications.addNotificationReceivedListener(() => {
+        loadRequests();
+      });
+
+      return () => {
+        clearInterval(interval);
+        if (notifSub && notifSub.remove) {
+          notifSub.remove();
+        }
+      };
     }, [isOnline])
   );
 

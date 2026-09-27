@@ -157,7 +157,8 @@ exports.getDriverDashboard = async (req, res, next) => {
               bookingStatus: {
                 $in: ['Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation', 'Admin Confirmed', 'ADMIN_CONFIRMED']
               },
-              bookingMode: { $ne: 'INSTANT' }
+              bookingMode: { $ne: 'INSTANT' },
+              driver: { $in: [null, driver._id] }
             })
               .select('bookingId user customer serviceType pickupLocation dropLocation fare driverPaymentAmount paymentStatus bookingStatus rideStatus travelDate passengerDetails busSeatNumbers vehicle driver createdAt')
               .populate('user', 'phone')
@@ -1149,7 +1150,8 @@ exports.getBookingRequests = async (req, res, next) => {
       rideStatus: { $ne: 'Accepted' },
       bookingStatus: {
         $in: ['Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation', 'Admin Confirmed', 'ADMIN_CONFIRMED']
-      }
+      },
+      driver: { $in: [null, driver._id] }
     })
       .populate('user', 'phone')
       .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory fuelType fareRate route pickupDropDetails hireDetails')
@@ -1164,6 +1166,12 @@ exports.getBookingRequests = async (req, res, next) => {
       if (reqItem.driverConfirmed || reqItem.driverConfirmationStatus === 'Confirmed' || reqItem.confirmationOtpVerifiedAt || reqItem.otpVerified || reqItem.cashCollected || reqItem.rideStatus === 'Accepted') {
         return false;
       }
+      
+      // If directly assigned to another driver, exclude it for ALL booking modes (first driver wins)
+      if (reqItem.driver && (reqItem.driver._id || reqItem.driver).toString() !== driver._id.toString()) {
+        return false;
+      }
+
       if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(reqItem.bookingStatus)) {
         return false;
       }
@@ -1177,10 +1185,6 @@ exports.getBookingRequests = async (req, res, next) => {
           console.log(`[getBookingRequests Debug] Driver ${driver.name} vehicle ${assignedVehicle.vehicleNumber} (${assignedVehicle.route?.origin}->${assignedVehicle.route?.destination}) matches booking ${reqItem.bookingId} (${reqItem.pickupLocation}->${reqItem.dropLocation}): ${matches}`);
           return matches;
         }
-        return false;
-      }
-      // If directly assigned to another driver (non-bus services), skip
-      if (reqItem.driver && (reqItem.driver._id || reqItem.driver).toString() !== driver._id.toString()) {
         return false;
       }
       // If pending/unconfirmed request, check route match between driver's assigned vehicle and booking
@@ -1218,6 +1222,12 @@ exports.getBookingRequests = async (req, res, next) => {
         acceptUrl: `/api/driver/bookings/${reqItem._id}/accept`,
         otpVerifyUrl: `/api/driver/bookings/${reqItem._id}/verify-otp`
       };
+    });
+
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
     });
 
     res.json({
@@ -1364,7 +1374,8 @@ exports.acceptBookingRequest = async (req, res, next) => {
           rideStatus: { $ne: 'Accepted' },
           bookingStatus: {
             $in: ['Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation', 'Admin Confirmed', 'ADMIN_CONFIRMED']
-          }
+          },
+          driver: { $in: [null, driver._id] }
         },
         { $set: updateSet },
         { new: true }
