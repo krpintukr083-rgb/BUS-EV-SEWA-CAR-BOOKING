@@ -86,7 +86,7 @@ const BookingRequestsScreen = ({ navigation }) => {
       console.log('ACCEPT SUCCESS\nbookingId:', acceptedBookingId, '\nbookingStatus:', res?.data?.data?.bookingStatus, '\ndriverConfirmed:', res?.data?.data?.driverConfirmed);
       // Remove accepted booking from pending requests list so it is no longer actionable
       setRequests((prev) => prev.filter((r) => r._id !== bookingId && r.bookingId !== bookingId));
-      navigation.navigate('BusConfirmation', { bookingId: acceptedBookingId });
+      navigation.navigate('BusConfirmation', { bookingId: acceptedBookingId, booking: res?.data?.data });
     } catch (e) {
       const msg = e?.response?.data?.message;
       if (msg && msg.includes('already accepted by this driver')) {

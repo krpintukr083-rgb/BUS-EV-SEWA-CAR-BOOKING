@@ -66,6 +66,7 @@ export default function BusConfirmationScreen({ navigation, route }) {
   const { t } = useLanguage();
   // bookingId passed from BookingRequestsScreen after accepting a ride
   const highlightBookingId = route?.params?.bookingId || null;
+  const passedBooking = route?.params?.booking || null;
 
 
   const [bookings, setBookings] = useState([]);
@@ -93,13 +94,15 @@ export default function BusConfirmationScreen({ navigation, route }) {
       if (requestId !== fetchRequestId.current) return;
       if (res?.data?.success && Array.isArray(res.data.data)) {
         const rawList = res.data.data;
+        // Incorporate passedBooking if provided to guarantee fresh data for accepted booking
+        const list = passedBooking ? [passedBooking, ...rawList.filter(b => b._id !== passedBooking._id)] : rawList;
         if (highlightBookingId) {
-          const targetIndex = rawList.findIndex(
+          const targetIndex = list.findIndex(
             (b) => b._id === highlightBookingId || b.bookingId === highlightBookingId
           );
           if (targetIndex !== -1) {
-            const target = rawList[targetIndex];
-            const remaining = rawList.filter((_, idx) => idx !== targetIndex);
+            const target = list[targetIndex];
+            const remaining = list.filter((_, idx) => idx !== targetIndex);
             remaining.sort((left, right) => {
               const leftCreatedAt = Date.parse(left.createdAt || '') || 0;
               const rightCreatedAt = Date.parse(right.createdAt || '') || 0;
@@ -119,7 +122,7 @@ export default function BusConfirmationScreen({ navigation, route }) {
             setBookings([]);
           }
         } else {
-          const newestFirst = [...rawList].sort((left, right) => {
+          const newestFirst = [...list].sort((left, right) => {
             const leftCreatedAt = Date.parse(left.createdAt || '') || 0;
             const rightCreatedAt = Date.parse(right.createdAt || '') || 0;
             return rightCreatedAt - leftCreatedAt;
