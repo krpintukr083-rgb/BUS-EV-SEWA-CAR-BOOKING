@@ -242,12 +242,20 @@ export default function BusConfirmationScreen({ navigation, route }) {
     return true;
   };
 
-  const filteredBookings = bookings.filter((b) => {
+  let filteredBookings = bookings.filter((b) => {
     const isPending = isBookingPendingOtp(b);
     if (activeTab === 'PENDING') return isPending;
     if (activeTab === 'CONFIRMED') return !isPending && b.bookingStatus !== 'Cancelled';
     return true;
   });
+
+  if (highlightBookingId) {
+    filteredBookings.sort((a, b) => {
+      if (a._id === highlightBookingId || a.bookingId === highlightBookingId) return -1;
+      if (b._id === highlightBookingId || b.bookingId === highlightBookingId) return 1;
+      return 0;
+    });
+  }
 
   const renderBookingItem = ({ item }) => {
     const isPendingConfirmation = isBookingPendingOtp(item);

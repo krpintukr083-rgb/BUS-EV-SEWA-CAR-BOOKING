@@ -78,7 +78,9 @@ const BookingRequestsScreen = ({ navigation }) => {
         await loadRequests();
         return;
       }
-      navigation.navigate('BusConfirmation', { bookingId });
+      const acceptedBookingId = res.data.data?._id || bookingId;
+      console.log('ACCEPT SUCCESS\nbookingId:', acceptedBookingId, '\nbookingStatus:', res.data.data?.bookingStatus, '\ndriverConfirmed:', res.data.data?.driverConfirmed);
+      navigation.navigate('BusConfirmation', { bookingId: acceptedBookingId });
     } catch (e) {
       Alert.alert('Accept Failed', e?.response?.data?.message || 'The booking was not accepted. Refresh requests and try again.');
       await loadRequests();
