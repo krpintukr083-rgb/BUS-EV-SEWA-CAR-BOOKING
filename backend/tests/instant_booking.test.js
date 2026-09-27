@@ -27,7 +27,6 @@ describe('Optional Instant Booking', () => {
   let serviceControl;
   let previousServiceControl;
   let createdServiceControl = false;
-  const testBookingIds = [];
   const suffix = Date.now().toString().slice(-8);
 
   beforeAll(async () => {
@@ -127,20 +126,19 @@ describe('Optional Instant Booking', () => {
   });
 
   beforeEach(async () => {
-    if (testBookingIds.length > 0) {
-      const bookingIdPattern = testBookingIds.join('|');
-      await Notification.deleteMany({
-        $or: [
-          { recipientId: { $in: [customer._id, secondCustomer._id] } },
-          { recipientRole: 'driver', message: { $regex: bookingIdPattern } }
-        ]
-      });
-      testBookingIds.length = 0;
-    }
-    const bookings = await Booking.find({ vehicle: vehicle._id }).select('_id').lean();
-    await Payment.deleteMany({ booking: { $in: bookings.map(booking => booking._id) } });
-    await Booking.deleteMany({ vehicle: vehicle._id });
+    const bookings = await Booking.find({
+      $or: [
+        { user: { $in: [customer._id, secondCustomer._id] } },
+        { vehicle: vehicle._id }
+      ]
+    }).select('_id').lean();
+    const bookingIds = bookings.map(booking => booking._id);
     await Notification.deleteMany({ recipientId: { $in: [customer._id, secondCustomer._id, driver._id] } });
+    if (bookingIds.length > 0) {
+      await Notification.deleteMany({ entityId: { $in: bookingIds } });
+      await Payment.deleteMany({ booking: { $in: bookingIds } });
+      await Booking.deleteMany({ _id: { $in: bookingIds } });
+    }
     vehicle.route = { origin: 'Delhi', destination: 'Jaipur' };
     vehicle.vehicleStatus = 'Active';
     await vehicle.save();
@@ -151,13 +149,22 @@ describe('Optional Instant Booking', () => {
   });
 
   afterAll(async () => {
-    if (testBookingIds.length > 0) {
-      await Notification.deleteMany({
-        $or: [
-          { recipientId: { $in: [customer._id, secondCustomer._id] } },
-          { recipientRole: 'driver', message: { $regex: testBookingIds.join('|') } }
-        ]
-      });
+    const bookings = await Booking.find({
+      $or: [
+        { user: { $in: [customer._id, secondCustomer._id] } },
+        { vehicle: { $in: [vehicle._id, ...otherServiceVehicles.map(item => item._id)] } }
+      ]
+    }).select('_id').lean();
+    const bookingIds = bookings.map(booking => booking._id);
+    await Notification.deleteMany({
+      $or: [
+        { recipientId: { $in: [customer._id, secondCustomer._id, driver._id] } },
+        ...(bookingIds.length > 0 ? [{ entityId: { $in: bookingIds } }] : [])
+      ]
+    });
+    if (bookingIds.length > 0) {
+      await Payment.deleteMany({ booking: { $in: bookingIds } });
+      await Booking.deleteMany({ _id: { $in: bookingIds } });
     }
     if (vehicle) await Vehicle.deleteOne({ _id: vehicle._id });
     if (otherServiceVehicles.length > 0) {
@@ -192,12 +199,21 @@ describe('Optional Instant Booking', () => {
       travelDate: new Date().toISOString(),
       bookingMode,
       ...additionalFields
-    })
-    .then(response => {
-      if (response.status === 201 && response.body.data?.bookingId) {
-        testBookingIds.push(response.body.data.bookingId);
-      }
-      return response;
+    });
+
+  const submitInstantRequest = (token, additionalFields = {}) => request(app)
+    .post('/api/bookings')
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      serviceType: 'Any',
+      pickupLocation: 'Delhi',
+      dropLocation: 'Jaipur',
+      passengerCount: 1,
+      passengerDetails: [{ name: 'Instant Passenger', age: 30, gender: 'Male' }],
+      travelDate: new Date().toISOString(),
+      bookingMode: 'INSTANT',
+      paymentMethod: 'Offline Cash',
+      ...additionalFields
     });
 
   const setInstantBookingEnabled = async enabled => {
@@ -248,35 +264,49 @@ describe('Optional Instant Booking', () => {
     expect(requests.body.data.some(booking => booking._id === response.body.data._id)).toBe(true);
   });
 
-  test('assigns an eligible online driver and keeps instant bookings out of normal requests', async () => {
+  test('creates an instant request for an eligible driver, who claims it before assignment', async () => {
     await setInstantBookingEnabled(true);
 
-    const response = await submitBooking(customerToken);
+    const response = await submitInstantRequest(customerToken);
     expect(response.status).toBe(201);
     expect(response.body.data.bookingMode).toBe('INSTANT');
-    expect(response.body.data.driver.toString()).toBe(driver._id.toString());
-    expect(response.body.data.driverConfirmed).toBe(true);
-    expect(response.body.data.driverConfirmationStatus).toBe('Confirmed');
-    expect(response.body.data.scheduleId).toBeNull();
+    expect(response.body.data.driver).toBeNull();
+    expect(response.body.data.vehicle).toBeNull();
+    expect(response.body.data.bookingStatus).toBe('Pending Driver Confirmation');
+    expect(response.body.data.driverConfirmed).toBe(false);
+    expect(response.body.data.fare).toBe(0);
+    const bookingId = response.body.data._id;
     expect(await Notification.countDocuments({
-      recipientId: customer._id,
-      title: 'Instant Booking Assigned'
+      recipientId: driverUser._id,
+      entityId: bookingId,
+      eventType: 'BOOKING_REQUEST'
     })).toBe(1);
-    expect(await Notification.countDocuments({
-      recipientRole: 'driver',
-      recipientId: driver._id
-    })).toBe(0);
 
     const requests = await request(app)
       .get('/api/driver/booking-requests')
       .set('Authorization', `Bearer ${driverToken}`);
     expect(requests.status).toBe(200);
-    expect(requests.body.data.some(booking => booking._id === response.body.data._id)).toBe(false);
+    expect(requests.body.data.some(booking => booking._id === bookingId)).toBe(true);
+
+    const accepted = await request(app)
+      .post(`/api/driver/booking-requests/${bookingId}/accept`)
+      .set('Authorization', `Bearer ${driverToken}`);
+    expect(accepted.status).toBe(200);
+    const claimedBooking = await Booking.findById(bookingId).lean();
+    expect(String(claimedBooking.driver)).toBe(driver._id.toString());
+    expect(String(claimedBooking.vehicle)).toBe(vehicle._id.toString());
+    expect(claimedBooking.driverConfirmed).toBe(false);
+    expect(claimedBooking.driverConfirmationStatus).toBe('Pending');
+    expect(claimedBooking.fare).toBe(500);
+    expect(await Notification.countDocuments({
+      recipientId: customer._id,
+      title: 'Ride Request Accepted'
+    })).toBe(1);
 
     const createdOrder = await request(app)
       .post('/api/payments/razorpay/create-order')
       .set('Authorization', `Bearer ${customerToken}`)
-      .send({ bookingId: response.body.data._id });
+      .send({ bookingId });
     expect(createdOrder.status).toBe(200);
     expect(createdOrder.body.data.orderId).toBeTruthy();
 
@@ -284,7 +314,7 @@ describe('Optional Instant Booking', () => {
       .post('/api/payments/razorpay/test-pay')
       .set('Authorization', `Bearer ${customerToken}`)
       .send({
-        bookingId: response.body.data._id,
+        bookingId,
         razorpayOrderId: createdOrder.body.data.orderId,
         status: 'success',
         method: 'UPI'
@@ -295,7 +325,7 @@ describe('Optional Instant Booking', () => {
       .post('/api/payments/razorpay/verify-payment')
       .set('Authorization', `Bearer ${customerToken}`)
       .send({
-        bookingId: response.body.data._id,
+        bookingId,
         razorpayOrderId: authorizedPayment.body.data.razorpayOrderId,
         razorpayPaymentId: authorizedPayment.body.data.razorpayPaymentId,
         razorpaySignature: authorizedPayment.body.data.razorpaySignature
@@ -303,14 +333,14 @@ describe('Optional Instant Booking', () => {
     expect(verifiedPayment.status).toBe(200);
     expect(verifiedPayment.body.data.booking.bookingMode).toBe('INSTANT');
     expect(verifiedPayment.body.data.booking.paymentStatus).toBe('Paid');
-    expect(verifiedPayment.body.data.booking.bookingStatus).toBe('Confirmed');
+    expect(verifiedPayment.body.data.booking.bookingStatus).toBe('Pending Driver Confirmation');
     expect(await Payment.countDocuments({ booking: response.body.data._id })).toBe(1);
 
     const active = await request(app)
       .get('/api/driver/active-bookings')
       .set('Authorization', `Bearer ${driverToken}`);
     expect(active.status).toBe(200);
-    expect(active.body.data.some(booking => booking._id === response.body.data._id)).toBe(true);
+    expect(active.body.data.some(booking => booking._id === bookingId)).toBe(true);
   });
 
   test('shows the newly accepted instant booking first in OTP confirmation and verifies its OTP', async () => {
@@ -385,26 +415,37 @@ describe('Optional Instant Booking', () => {
   test('rejects instant assignment for wrong-route, offline, or suspended drivers without creating a booking', async () => {
     await setInstantBookingEnabled(true);
 
+    const getAvailability = () => request(app)
+      .post('/api/bookings/instant/availability')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        serviceType: 'Bus',
+        pickupLocation: 'Delhi',
+        dropLocation: 'Jaipur'
+      });
+
     vehicle.route = { origin: 'Delhi', destination: 'Agra' };
     await vehicle.save();
-    const wrongRoute = await submitBooking(customerToken);
-    expect(wrongRoute.status).toBe(409);
-    expect(wrongRoute.body.code).toBe('INSTANT_BOOKING_UNAVAILABLE');
+    const wrongRoute = await getAvailability();
+    expect(wrongRoute.status).toBe(200);
+    expect(wrongRoute.body.data).toHaveLength(0);
 
     vehicle.route = { origin: 'Delhi', destination: 'Jaipur' };
     await vehicle.save();
     driver.isOnline = false;
     await driver.save();
-    const offline = await submitBooking(customerToken);
-    expect(offline.status).toBe(409);
+    const offline = await getAvailability();
+    expect(offline.status).toBe(200);
+    expect(offline.body.data).toHaveLength(0);
 
     driver.isOnline = true;
     driver.driverStatus = 'Suspended';
     await driver.save();
-    const suspended = await submitBooking(customerToken);
-    expect(suspended.status).toBe(409);
+    const suspended = await getAvailability();
+    expect(suspended.status).toBe(200);
+    expect(suspended.body.data).toHaveLength(0);
 
-    expect(await Booking.countDocuments({ vehicle: vehicle._id })).toBe(0);
+    expect(await Booking.countDocuments({ user: customer._id, bookingMode: 'INSTANT' })).toBe(0);
   });
 
   test('assigns the selected eligible EV-Sewa and Car drivers using their service-specific vehicles', async () => {
@@ -428,14 +469,17 @@ describe('Optional Instant Booking', () => {
         item.instantDriver._id === driver._id.toString()
       )).toBe(true);
 
-      const response = await submitBooking(customerToken, 'INSTANT', {
-        vehicleId: serviceVehicle._id,
-        serviceType: serviceVehicle.vehicleType
-      });
+      const response = await submitInstantRequest(customerToken);
       expect(response.status).toBe(201);
-      expect(response.body.data.serviceType).toBe(serviceVehicle.vehicleType);
-      expect(response.body.data.vehicle.toString()).toBe(serviceVehicle._id.toString());
-      expect(response.body.data.driver.toString()).toBe(driver._id.toString());
+      const accepted = await request(app)
+        .post(`/api/driver/booking-requests/${response.body.data._id}/accept`)
+        .set('Authorization', `Bearer ${driverToken}`);
+      expect(accepted.status).toBe(200);
+      const assignedBooking = await Booking.findById(response.body.data._id).lean();
+      expect(assignedBooking.serviceType).toBe(serviceVehicle.vehicleType);
+      expect(String(assignedBooking.vehicle)).toBe(serviceVehicle._id.toString());
+      expect(String(assignedBooking.driver)).toBe(driver._id.toString());
+      await Notification.deleteMany({ entityId: response.body.data._id });
       await Booking.deleteOne({ _id: response.body.data._id });
       await Payment.deleteMany({ booking: response.body.data._id });
 
@@ -454,7 +498,7 @@ describe('Optional Instant Booking', () => {
     }
   });
 
-  test('allows only one concurrent instant booking to claim a driver', async () => {
+  test('allows only one concurrent instant booking request to be claimed by a driver', async () => {
     await setInstantBookingEnabled(true);
 
     const instantAssignmentIndex = (await Booking.collection.indexes())
@@ -462,22 +506,30 @@ describe('Optional Instant Booking', () => {
     expect(instantAssignmentIndex).toBeDefined();
 
     const responses = await Promise.all([
-      submitBooking(customerToken),
-      submitBooking(secondCustomerToken)
+      submitInstantRequest(customerToken),
+      submitInstantRequest(secondCustomerToken)
     ]);
-    expect(responses.map(response => response.status).sort()).toEqual([201, 409]);
+    expect(responses.map(response => response.status)).toEqual([201, 201]);
+    const claims = await Promise.all(responses.map(response => request(app)
+      .post(`/api/driver/booking-requests/${response.body.data._id}/accept`)
+      .set('Authorization', `Bearer ${driverToken}`)));
+    expect(claims.map(response => response.status).sort()).toEqual([200, 409]);
     expect(await Booking.countDocuments({
-      vehicle: vehicle._id,
+      driver: driver._id,
       bookingMode: 'INSTANT',
-      driver: driver._id
+      bookingStatus: { $in: ['Pending Driver Confirmation', 'Confirmed', 'Ongoing'] }
     })).toBe(1);
   });
 
   test('keeps instant offline-cash bookings assigned and does not rebroadcast as a request', async () => {
     await setInstantBookingEnabled(true);
 
-    const created = await submitBooking(customerToken, 'INSTANT', { paymentMethod: 'Offline Cash' });
+    const created = await submitInstantRequest(customerToken);
     expect(created.status).toBe(201);
+    const accepted = await request(app)
+      .post(`/api/driver/booking-requests/${created.body.data._id}/accept`)
+      .set('Authorization', `Bearer ${driverToken}`);
+    expect(accepted.status).toBe(200);
     const confirmed = await request(app)
       .post(`/api/bookings/${created.body.data._id}/offline-cash`)
       .set('Authorization', `Bearer ${customerToken}`);

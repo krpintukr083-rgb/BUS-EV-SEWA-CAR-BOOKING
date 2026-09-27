@@ -1351,22 +1351,37 @@ exports.acceptBookingRequest = async (req, res, next) => {
       updateSet.finalFare = fare * passCount;
     }
 
-    const claimedBooking = await Booking.findOneAndUpdate(
-      {
-        _id: booking._id,
-        driverConfirmed: { $ne: true },
-        driverConfirmationStatus: { $ne: 'Confirmed' },
-        confirmationOtpVerifiedAt: null,
-        otpVerified: { $ne: true },
-        cashCollected: { $ne: true },
-        rideStatus: { $ne: 'Accepted' },
-        bookingStatus: {
-          $in: ['Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation', 'Admin Confirmed', 'ADMIN_CONFIRMED']
-        }
-      },
-      { $set: updateSet },
-      { new: true }
-    );
+    let claimedBooking;
+    try {
+      claimedBooking = await Booking.findOneAndUpdate(
+        {
+          _id: booking._id,
+          driverConfirmed: { $ne: true },
+          driverConfirmationStatus: { $ne: 'Confirmed' },
+          confirmationOtpVerifiedAt: null,
+          otpVerified: { $ne: true },
+          cashCollected: { $ne: true },
+          rideStatus: { $ne: 'Accepted' },
+          bookingStatus: {
+            $in: ['Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation', 'Admin Confirmed', 'ADMIN_CONFIRMED']
+          }
+        },
+        { $set: updateSet },
+        { new: true }
+      );
+    } catch (error) {
+      if (
+        booking.bookingMode === 'INSTANT' &&
+        error.code === 11000 &&
+        error.message.includes('one_active_instant_booking_per_driver')
+      ) {
+        return res.status(409).json({
+          success: false,
+          message: 'This driver has already accepted another instant booking.'
+        });
+      }
+      throw error;
+    }
     if (!claimedBooking) {
       return res.status(409).json({
         success: false,
