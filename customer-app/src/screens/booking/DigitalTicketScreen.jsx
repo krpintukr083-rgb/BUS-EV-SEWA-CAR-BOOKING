@@ -227,7 +227,11 @@ const DigitalTicketScreen = ({ route, navigation }) => {
 
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={styles.fieldLabel}>TOTAL FARE</Text>
-                <Text style={styles.totalFare}>₹{booking.fare}</Text>
+                <Text style={styles.totalFare}>
+                  {booking.bookingMode === 'INSTANT' && booking.bookingStatus === 'Pending Driver Confirmation' && booking.fare === 0
+                    ? 'Calculating...'
+                    : `₹${booking.fare}`}
+                </Text>
                 {booking.discountAmount > 0 && (
                   <Text style={{ fontSize: 9, color: COLORS.success, fontWeight: '700', marginTop: 2 }}>
                     Original: ₹{booking.originalFare || (booking.fare + booking.discountAmount)} (-{booking.discountPercentage}%)

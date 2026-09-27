@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,9 +11,40 @@ import Header from '../../components/Header';
 import Button from '../../components/Button';
 import StatusBadge from '../../components/StatusBadge';
 import { COLORS } from '../../constants/colors';
+import { customerService } from '../../services/customerService';
 
 const BookingConfirmationScreen = ({ route, navigation }) => {
-  const { booking, payment } = route.params || {};
+  const { booking: initialBooking, payment } = route.params || {};
+  const [booking, setBooking] = useState(initialBooking);
+
+  useEffect(() => {
+    let notificationListener = null;
+    try {
+      const Notifications = require('expo-notifications');
+      notificationListener = Notifications.addNotificationReceivedListener(async (notification) => {
+        const data = notification.request.content.data;
+        if (data && data.type === 'INSTANT_BOOKING_FARE_UPDATED' && data.bookingId === (booking?._id || booking?.bookingId)) {
+          console.log('Real-time push received! Refreshing confirmation...');
+          try {
+            const res = await customerService.getBookingDetails(booking?._id || booking?.bookingId);
+            if (res.success) {
+              setBooking(res.data);
+            }
+          } catch(e){}
+        }
+      });
+    } catch (e) {
+      console.warn('Expo Notifications not loaded', e);
+    }
+    return () => {
+      if (notificationListener) {
+        try {
+          const Notifications = require('expo-notifications');
+          Notifications.removeNotificationSubscription(notificationListener);
+        } catch(e){}
+      }
+    };
+  }, [booking]);
 
   const handleViewTicket = () => {
     navigation.navigate('DigitalTicket', { bookingId: booking?._id || booking?.bookingId, bookingData: booking });
@@ -128,7 +159,11 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
 
           <View style={styles.row}>
             <Text style={styles.rowLabel}>Total Fare</Text>
-            <Text style={styles.fareAmount}>₹{booking?.fare}</Text>
+            <Text style={styles.fareAmount}>
+              {booking?.bookingMode === 'INSTANT' && booking?.bookingStatus === 'Pending Driver Confirmation' && booking?.fare === 0
+                ? 'Calculating...'
+                : `₹${booking?.fare}`}
+            </Text>
           </View>
 
           <View style={styles.row}>
