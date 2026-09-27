@@ -94,8 +94,28 @@ export default function BusConfirmationScreen({ navigation, route }) {
       if (requestId !== fetchRequestId.current) return;
       if (res?.data?.success && Array.isArray(res.data.data)) {
         const rawList = res.data.data;
-        // Incorporate passedBooking if provided to guarantee fresh data for accepted booking
-        const list = passedBooking ? [passedBooking, ...rawList.filter(b => b._id !== passedBooking._id)] : rawList;
+        // Merge passedBooking with fresh data, preferring fresh API object when IDs match
+        let acceptedBooking = passedBooking;
+        if (passedBooking) {
+          const freshMatch = rawList.find(
+            b =>
+              (passedBooking._id && b._id === passedBooking._id) ||
+              (passedBooking.bookingId && b.bookingId === passedBooking.bookingId)
+          );
+          if (freshMatch) {
+            acceptedBooking = freshMatch;
+          }
+        }
+        const list = acceptedBooking
+          ? [
+              acceptedBooking,
+              ...rawList.filter(b => {
+                if (acceptedBooking._id && b._id === acceptedBooking._id) return false;
+                if (acceptedBooking.bookingId && b.bookingId === acceptedBooking.bookingId) return false;
+                return true;
+              })
+            ]
+          : rawList;
         if (highlightBookingId) {
           const targetIndex = list.findIndex(
             (b) => b._id === highlightBookingId || b.bookingId === highlightBookingId
