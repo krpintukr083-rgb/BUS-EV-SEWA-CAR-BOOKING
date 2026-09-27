@@ -95,7 +95,14 @@ const RideRequestCard = ({ request, onAccept, onReject }) => {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.acceptBtn}
-          onPress={() => onAccept(request._id)}
+          onPress={() => {
+            if (request.rideStatus === 'Accepted' || request.driverConfirmed) {
+              // Already accepted – do not trigger onAccept again.
+              // The UI already shows "View Trip"; navigation handled elsewhere.
+              return;
+            }
+            onAccept(request._id);
+          }}
           activeOpacity={0.8}
         >
           <Ionicons name="checkmark-circle" size={18} color="#FFF" />
