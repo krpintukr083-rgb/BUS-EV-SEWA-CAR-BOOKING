@@ -1,5 +1,5 @@
-require('dotenv').config();
 const mongoose = require('mongoose');
+require('./testDatabaseGuard');
 const request = require('supertest');
 const app = require('../src/app');
 const User = require('../src/models/User');
@@ -17,9 +17,8 @@ async function runMasterQA() {
   console.log('STARTING PRODUCTION MASTER END-TO-END QA VALIDATION');
   console.log('====================================================\n');
 
-  const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/transport_booking_db';
-  await mongoose.connect(mongoUri);
-  console.log('✅ 1. MongoDB Atlas Connected Successfully.\n');
+  await mongoose.connect(process.env.TEST_MONGODB_URI);
+  console.log('✅ 1. Isolated test MongoDB Connected Successfully.\n');
 
   const results = {};
 

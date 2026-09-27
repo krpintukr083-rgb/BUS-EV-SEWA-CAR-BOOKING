@@ -1,10 +1,16 @@
-require('dotenv').config();
+require('./testDatabaseGuard');
 const mongoose = require('mongoose');
 
 const connectTestDB = async () => {
   if (mongoose.connection.readyState === 0) {
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/transport_booking_db';
-    await mongoose.connect(mongoUri);
+    await mongoose.connect(process.env.TEST_MONGODB_URI);
+  } else if (
+    !['localhost', '127.0.0.1', '::1', '[::1]'].includes(mongoose.connection.host) ||
+    mongoose.connection.name !== 'transport_booking_test'
+  ) {
+    throw new Error(
+      `Refusing to use existing MongoDB connection ${mongoose.connection.host}/${mongoose.connection.name} for backend tests.`
+    );
   }
 };
 

@@ -51,10 +51,14 @@ const BusDetailsScreen = ({ navigation, route }) => {
       setErrorMessage('');
       const res = await customerService.getBusDetails(targetId);
       if (res.success && res.data) {
-        setBus(res.data);
+        const scheduleInfo = schedule || bookingDraft.schedule || null;
+        const detailedBus = { ...res.data, schedule: scheduleInfo };
+        setBus(detailedBus);
         updateDraft({
-          vehicle: res.data,
-          baseFare: res.data.fareRate
+          vehicle: detailedBus,
+          baseFare: res.data.fareRate,
+          scheduleId: scheduleInfo?._id || null,
+          schedule: scheduleInfo
         });
       }
     } catch (err) {

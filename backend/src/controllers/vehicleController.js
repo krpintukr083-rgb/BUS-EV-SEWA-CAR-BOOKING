@@ -1,6 +1,8 @@
 const Vehicle = require('../models/Vehicle');
 const Booking = require('../models/Booking');
 const Schedule = require('../models/Schedule');
+const { normalizeScheduleTime } = require('../utils/timeFormat');
+const { isRouteSegmentWithin, normalizeLocation } = require('../utils/routeFares');
 
 const formatVehicle = (vehicleDoc, req) => {
   const v = vehicleDoc.toObject ? vehicleDoc.toObject() : { ...vehicleDoc };
@@ -30,7 +32,8 @@ const formatVehicle = (vehicleDoc, req) => {
 // @access  Public
 exports.getVehicles = async (req, res, next) => {
   try {
-    const { type, from, to } = req.query;
+    const { type, from, to, travelDate } = req.query;
+    const scheduleBooking = req.query.scheduleBooking === 'true';
 
     const query = { vehicleStatus: 'Active' };
 
@@ -47,7 +50,82 @@ exports.getVehicles = async (req, res, next) => {
       }
     }
 
+    if (scheduleBooking && !query.vehicleType) {
+      return res.json({ success: true, count: 0, data: [] });
+    }
+
     const vehicles = await Vehicle.find(query).populate('assignedDriver').sort({ createdAt: -1 });
+
+    if (scheduleBooking) {
+      const vehicleIds = vehicles.map(vehicle => vehicle._id);
+      const scheduleQuery = {
+        vehicle: { $in: vehicleIds },
+        status: 'Active'
+      };
+      if (travelDate) {
+        const date = new Date(travelDate);
+        if (!Number.isNaN(date.getTime())) {
+          const startOfDay = new Date(date);
+          startOfDay.setHours(0, 0, 0, 0);
+          const endOfDay = new Date(date);
+          endOfDay.setHours(23, 59, 59, 999);
+          scheduleQuery.travelDate = { $gte: startOfDay, $lte: endOfDay };
+        }
+      }
+
+      const schedules = vehicleIds.length
+        ? await Schedule.find(scheduleQuery).sort({ travelDate: 1, createdAt: 1 }).lean()
+        : [];
+      const scheduleByVehicle = new Map();
+
+      for (const schedule of schedules) {
+        const vehicle = vehicles.find(candidate => String(candidate._id) === String(schedule.vehicle));
+        if (!vehicle || scheduleByVehicle.has(String(schedule.vehicle))) continue;
+
+        let routeMatches = true;
+        if (from || to) {
+          if (Array.isArray(vehicle.route?.stops) && vehicle.route.stops.length > 0) {
+            routeMatches = isRouteSegmentWithin(
+              vehicle.route,
+              schedule.origin,
+              schedule.destination,
+              from || schedule.origin,
+              to || schedule.destination
+            );
+          } else {
+            const scheduleOrigin = normalizeLocation(schedule.origin);
+            const scheduleDestination = normalizeLocation(schedule.destination);
+            const requestedOrigin = normalizeLocation(from);
+            const requestedDestination = normalizeLocation(to);
+            routeMatches = (!requestedOrigin
+              || scheduleOrigin.includes(requestedOrigin)
+              || requestedOrigin.includes(scheduleOrigin))
+              && (!requestedDestination
+                || scheduleDestination.includes(requestedDestination)
+                || requestedDestination.includes(scheduleDestination));
+          }
+        }
+
+        if (routeMatches) {
+          scheduleByVehicle.set(String(schedule.vehicle), {
+            ...schedule,
+            departureTime: normalizeScheduleTime(schedule.departureTime),
+            arrivalTime: normalizeScheduleTime(schedule.arrivalTime)
+          });
+        }
+      }
+
+      const formattedVehicles = vehicles.map(vehicle => ({
+        ...formatVehicle(vehicle, req),
+        schedule: scheduleByVehicle.get(String(vehicle._id)) || null
+      }));
+
+      return res.json({
+        success: true,
+        count: formattedVehicles.length,
+        data: formattedVehicles
+      });
+    }
 
     // Vehicles without schedule records remain visible; scheduled buses require an active schedule.
     const scheduleAwareVehicles = vehicles.filter(vehicle => vehicle.vehicleType === 'Bus');

@@ -16,16 +16,24 @@ import Header from '../../components/Header';
 import { COLORS } from '../../constants/colors';
 import { getPrimaryVehicleImage } from '../../utils/imageUrl';
 import { formatBatteryCapacity } from '../../utils/vehicleFormatting';
+import { formatBookingDate } from '../../utils/bookingDate';
 
 const EvSewaListingScreen = ({ navigation }) => {
-  const { updateDraft } = useBooking();
+  const { updateDraft, bookingDraft } = useBooking();
   const [evs, setEvs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchEvs = async () => {
     try {
-      const res = await customerService.getEvSewa();
+      const travelDate = bookingDraft?.travelDate || new Date().toISOString().split('T')[0];
+      const res = await customerService.getVehicles(
+        'ev-sewa',
+        bookingDraft?.pickupLocation,
+        bookingDraft?.dropLocation,
+        travelDate,
+        true
+      );
       if (res.success) {
         setEvs(res.data || []);
       }
@@ -42,13 +50,16 @@ const EvSewaListingScreen = ({ navigation }) => {
   }, []);
 
   const handleSelectEv = (ev) => {
+    const schedule = ev.schedule;
     updateDraft({
       serviceType: 'EV-Sewa',
       vehicle: ev,
       baseFare: ev.fareRate,
       totalFare: ev.fareRate,
-      pickupLocation: ev.pickupDropDetails?.pickupLocation || ev.route?.origin || 'Connaught Place, New Delhi',
-      dropLocation: ev.pickupDropDetails?.dropLocation || ev.route?.destination || 'Sector 62 Electronic City, Noida',
+      pickupLocation: schedule?.origin || ev.pickupDropDetails?.pickupLocation || ev.route?.origin || 'Connaught Place, New Delhi',
+      dropLocation: schedule?.destination || ev.pickupDropDetails?.dropLocation || ev.route?.destination || 'Sector 62 Electronic City, Noida',
+      scheduleId: schedule?._id || null,
+      schedule: schedule || null,
       passengerCount: 1,
       selectedSeats: [],
       passengerDetails: [{ name: '', phone: '', age: '', gender: 'Male' }]
@@ -162,6 +173,19 @@ const EvSewaListingScreen = ({ navigation }) => {
                         {item.evDetails?.rangeKm || 280} km Range
                       </Text>
                     </View>
+                  </View>
+
+                  <View style={styles.scheduleBox}>
+                    <Text style={styles.scheduleTitle}>
+                      {item.schedule
+                        ? `Travel Date: ${formatBookingDate(item.schedule.travelDate)}`
+                        : 'Schedule Not Available'}
+                    </Text>
+                    {item.schedule && (
+                      <Text style={styles.scheduleTime}>
+                        {item.schedule.origin} → {item.schedule.destination} • {item.schedule.departureTime} – {item.schedule.arrivalTime}
+                      </Text>
+                    )}
                   </View>
 
                   {/* Rapid Corridor Route Preview */}
@@ -367,6 +391,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e2e8f0'
   },
+  scheduleBox: {
+    backgroundColor: '#f0fdf4',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 10
+  },
+  scheduleTitle: { color: '#065f46', fontSize: 12, fontWeight: '700' },
+  scheduleTime: { color: COLORS.textSecondary, fontSize: 12, marginTop: 4 },
   routeText: {
     fontSize: 12,
     color: '#334155',

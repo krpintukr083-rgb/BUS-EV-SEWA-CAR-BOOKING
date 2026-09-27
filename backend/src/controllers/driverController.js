@@ -1251,6 +1251,12 @@ exports.getActiveBookingsForDriver = async (req, res, next) => {
       .sort({ createdAt: -1 })
       .lean();
 
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+
     res.json({
       success: true,
       count: bookings.length,
@@ -1332,7 +1338,7 @@ exports.acceptBookingRequest = async (req, res, next) => {
       updateSet.vehicle = assignedVehicle._id;
       updateSet.serviceType = assignedVehicle.vehicleType;
       
-      const { getRouteSegmentFare } = require('../../utils/routeFares');
+      const { getRouteSegmentFare } = require('../utils/routeFares');
       let fare = assignedVehicle.fareRate || assignedVehicle.fare || 0;
       if (Array.isArray(assignedVehicle.route?.stops) && assignedVehicle.route.stops.length > 0) {
         const segFare = getRouteSegmentFare(assignedVehicle.route, booking.pickupLocation, booking.dropLocation);

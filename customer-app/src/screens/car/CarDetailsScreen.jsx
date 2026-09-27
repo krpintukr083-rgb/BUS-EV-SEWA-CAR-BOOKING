@@ -81,8 +81,10 @@ const CarDetailsScreen = ({ route, navigation }) => {
       vehicle: car,
       baseFare: car.fareRate,
       totalFare: car.fareRate,
-      pickupLocation: car.pickupDropDetails?.pickupLocation || car.route?.origin || 'Airport T3, New Delhi',
-      dropLocation: car.pickupDropDetails?.dropLocation || car.route?.destination || 'Cyber Hub, Gurugram',
+      pickupLocation: car.schedule?.origin || car.pickupDropDetails?.pickupLocation || car.route?.origin || 'Airport T3, New Delhi',
+      dropLocation: car.schedule?.destination || car.pickupDropDetails?.dropLocation || car.route?.destination || 'Cyber Hub, Gurugram',
+      scheduleId: car.schedule?._id || null,
+      schedule: car.schedule || null,
       selectedSeats: [1],
       passengerDetails: [{ name: '', phone: '', age: '', gender: 'Male' }]
     });

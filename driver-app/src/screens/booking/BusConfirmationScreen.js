@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -29,7 +29,9 @@ export default function BusConfirmationScreen({ navigation, route }) {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshError, setRefreshError] = useState(false);
   const [activeTab, setActiveTab] = useState('PENDING'); // 'PENDING', 'CONFIRMED', 'ALL'
+  const fetchRequestId = useRef(0);
 
   // Action states
   const [actionLoadingId, setActionLoadingId] = useState(null);
@@ -40,41 +42,52 @@ export default function BusConfirmationScreen({ navigation, route }) {
   const [selectedBooking, setSelectedBooking] = useState(null);
   const [rejectReason, setRejectReason] = useState('');
 
-  useEffect(() => {
-    fetchBusBookings();
-    const interval = setInterval(fetchBusBookings, 8000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Also refresh when this tab gains focus (e.g. after accepting a booking)
-  useFocusEffect(
-    useCallback(() => {
-      fetchBusBookings();
-    }, [])
-  );
-
-  const fetchBusBookings = async () => {
+  const fetchBusBookings = useCallback(async () => {
+    const requestId = ++fetchRequestId.current;
     try {
       const res = await driverService.getAssignedBookings();
       // axios wraps response: actual JSON is at res.data
-      if (res?.data?.success && res.data.data) {
-        const allBookings = res.data.data;
-        // Include all assigned bookings requiring confirmation (Bus, EV-Sewa, Car, Outstation)
-        const busTrips = allBookings;
-        setBookings(busTrips);
+      if (requestId !== fetchRequestId.current) return;
+      if (res?.data?.success && Array.isArray(res.data.data)) {
+        const newestFirst = [...res.data.data].sort((left, right) => {
+          const leftCreatedAt = Date.parse(left.createdAt || '') || 0;
+          const rightCreatedAt = Date.parse(right.createdAt || '') || 0;
+          return rightCreatedAt - leftCreatedAt;
+        });
+        setBookings(newestFirst);
+        setRefreshError(false);
+      } else {
+        setRefreshError(true);
       }
     } catch (err) {
-      console.log('Error fetching bus bookings:', err?.response?.data || err.message);
+      if (requestId === fetchRequestId.current) {
+        setRefreshError(true);
+        console.log('Error fetching bus bookings:', err?.response?.data || err.message);
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestId === fetchRequestId.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  };
+  }, []);
 
-  const onRefresh = () => {
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      fetchBusBookings();
+      const interval = setInterval(fetchBusBookings, 8000);
+      return () => {
+        clearInterval(interval);
+        fetchRequestId.current += 1;
+      };
+    }, [fetchBusBookings])
+  );
+
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchBusBookings();
-  };
+  }, [fetchBusBookings]);
 
   // 1. Confirm Bus Booking with Customer OTP
   const handleVerifyOtp = async (bookingId) => {
@@ -414,26 +427,36 @@ export default function BusConfirmationScreen({ navigation, route }) {
         </TouchableOpacity>
       </View>
 
+      {refreshError && (
+        <Text style={styles.refreshError} accessibilityRole="alert">
+          Could not refresh bookings. Pull down to try again.
+        </Text>
+      )}
+
       {/* Bookings List */}
       {loading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>{t('loading')}</Text>
         </View>
-      ) : filteredBookings.length === 0 ? (
-        <View style={styles.centerContainer}>
-          <MaterialCommunityIcons name="bus-stop" size={60} color={COLORS.textMuted} />
-          <Text style={styles.emptyTitle}>
-            {activeTab === 'PENDING' ? t('noPendingBusBookings') : t('noBookingsFound')}
-          </Text>
-          <Text style={styles.emptySub}>Pull down to refresh new bus seat requests</Text>
-        </View>
       ) : (
         <FlatList
           data={filteredBookings}
           renderItem={renderBookingItem}
           keyExtractor={(item) => item._id}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            filteredBookings.length === 0 && styles.emptyListContent
+          ]}
+          ListEmptyComponent={
+            <View style={styles.centerContainer}>
+              <MaterialCommunityIcons name="bus-stop" size={60} color={COLORS.textMuted} />
+              <Text style={styles.emptyTitle}>
+                {activeTab === 'PENDING' ? t('noPendingBusBookings') : t('noBookingsFound')}
+              </Text>
+              <Text style={styles.emptySub}>Pull down to refresh new bus seat requests</Text>
+            </View>
+          }
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
@@ -549,6 +572,16 @@ const styles = StyleSheet.create({
   listContent: {
     padding: SPACING.m,
     paddingBottom: SPACING.xl,
+  },
+  emptyListContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+  refreshError: {
+    color: COLORS.danger,
+    fontSize: 12,
+    paddingHorizontal: SPACING.m,
+    paddingBottom: SPACING.xs,
   },
   card: {
     backgroundColor: COLORS.bgCard,

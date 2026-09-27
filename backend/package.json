@@ -14,6 +14,11 @@
     "db:reset": "node src/utils/seedData.js",
     "test": "jest --runInBand --detectOpenHandles --forceExit"
   },
+  "jest": {
+    "setupFiles": [
+      "<rootDir>/tests/testDatabaseGuard.js"
+    ]
+  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",

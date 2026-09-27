@@ -61,11 +61,16 @@ const BookingRequestsScreen = ({ navigation }) => {
 
   const handleAccept = async (bookingId) => {
     try {
-      await driverService.acceptRide(bookingId);
-    } catch (e) {
-      console.warn('Accept ride API call note:', e?.response?.data?.message || e.message);
-    } finally {
+      const res = await driverService.acceptRide(bookingId);
+      if (!res?.data?.success) {
+        Alert.alert('Accept Failed', res?.data?.message || 'The booking was not accepted. Refresh requests and try again.');
+        await loadRequests();
+        return;
+      }
       navigation.navigate('BusConfirmation', { bookingId });
+    } catch (e) {
+      Alert.alert('Accept Failed', e?.response?.data?.message || 'The booking was not accepted. Refresh requests and try again.');
+      await loadRequests();
     }
   };
 

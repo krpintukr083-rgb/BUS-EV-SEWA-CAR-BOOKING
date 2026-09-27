@@ -16,6 +16,7 @@ import Header from '../../components/Header';
 import { COLORS } from '../../constants/colors';
 import { getPrimaryVehicleImage } from '../../utils/imageUrl';
 import { getRouteSegmentFare } from '../../utils/routeFares';
+import { formatBookingDate } from '../../utils/bookingDate';
 
 const BusListingScreen = ({ navigation, route }) => {
   const { from = '', to = '' } = route.params || {};
@@ -29,7 +30,7 @@ const BusListingScreen = ({ navigation, route }) => {
     try {
       setErrorMessage('');
       const travelDate = bookingDraft?.travelDate || new Date().toISOString().split('T')[0];
-      const res = await customerService.getSchedules(customFrom, customTo, travelDate);
+      const res = await customerService.getVehicles('bus', customFrom, customTo, travelDate, true);
       if (res && res.success) {
         setBuses(res.data || []);
       } else {
@@ -49,20 +50,20 @@ const BusListingScreen = ({ navigation, route }) => {
     fetchBuses();
   }, [from, to]);
 
-  const handleSelectBus = (schedule) => {
-    const bus = schedule.vehicle;
+  const handleSelectBus = (bus) => {
+    const schedule = bus.schedule;
     const routeFare = getRouteSegmentFare(bus.route, from, to);
     updateDraft({
       serviceType: 'Bus',
       vehicle: bus,
-      baseFare: routeFare ?? schedule.fareRate ?? bus.fareRate,
+      baseFare: routeFare ?? schedule?.fareRate ?? bus.fareRate,
       pickupLocation: routeFare == null
-        ? (schedule.origin || bus.route?.origin || from || 'Delhi ISBT Kashmere Gate')
+        ? (from || schedule?.origin || bus.route?.origin || 'Delhi ISBT Kashmere Gate')
         : from,
       dropLocation: routeFare == null
-        ? (schedule.destination || bus.route?.destination || to || 'Jaipur Sindhi Camp')
+        ? (to || schedule?.destination || bus.route?.destination || 'Jaipur Sindhi Camp')
         : to,
-      scheduleId: schedule._id,
+      scheduleId: schedule?._id || null,
       schedule
     });
     navigation.navigate('BusDetails', { busId: bus._id, bus, schedule });
@@ -138,7 +139,8 @@ const BusListingScreen = ({ navigation, route }) => {
             </View>
           }
           renderItem={({ item }) => {
-            const vehicle = item.vehicle || {};
+            const vehicle = item;
+            const schedule = item.schedule;
             return (
               <TouchableOpacity
                 style={styles.busCard}
@@ -175,23 +177,27 @@ const BusListingScreen = ({ navigation, route }) => {
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
                       <Ionicons name="calendar-outline" size={14} color={COLORS.textSecondary} style={{ marginRight: 4 }} />
                       <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.textSecondary }}>
-                        Travel Date: {item.travelDate ? new Date(item.travelDate).toDateString() : 'N/A'}
+                        {schedule
+                          ? `Travel Date: ${formatBookingDate(schedule.travelDate)}`
+                          : 'Schedule Not Available'}
                       </Text>
                     </View>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Ionicons name="time-outline" size={16} color={COLORS.primary} style={{ marginRight: 4 }} />
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.textPrimary }}>
-                        Departure: {item.departureTime || '—'}
-                      </Text>
+                    {schedule && (
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Ionicons name="time-outline" size={16} color={COLORS.primary} style={{ marginRight: 4 }} />
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.textPrimary }}>
+                            Departure: {schedule.departureTime}
+                          </Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Ionicons name="time-outline" size={16} color={COLORS.warning} style={{ marginRight: 4 }} />
+                          <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.textPrimary }}>
+                            Arrival: {schedule.arrivalTime}
+                          </Text>
+                        </View>
                     </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Ionicons name="time-outline" size={16} color={COLORS.warning} style={{ marginRight: 4 }} />
-                      <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.textPrimary }}>
-                        Arrival: {item.arrivalTime || '—'}
-                      </Text>
-                    </View>
-                  </View>
+                    )}
                   </View>
 
                   {/* Route Details */}
@@ -199,13 +205,13 @@ const BusListingScreen = ({ navigation, route }) => {
                     <View style={styles.stopRow}>
                       <Ionicons name="radio-button-on" size={14} color={COLORS.primary} />
                       <Text style={styles.stopText} numberOfLines={1}>
-                        Boarding: {getFirstStop(vehicle.route?.boardingPoints, item.origin || vehicle.route?.origin || vehicle.pickupDropDetails?.pickupLocation || 'Delhi ISBT')}
+                        Boarding: {getFirstStop(vehicle.route?.boardingPoints, schedule?.origin || vehicle.route?.origin || vehicle.pickupDropDetails?.pickupLocation || 'Delhi ISBT')}
                       </Text>
                     </View>
                     <View style={styles.stopRow}>
                       <Ionicons name="location" size={14} color="#ef4444" />
                       <Text style={styles.stopText} numberOfLines={1}>
-                        Dropping: {getFirstStop(vehicle.route?.droppingPoints, item.destination || vehicle.route?.destination || vehicle.pickupDropDetails?.dropLocation || 'Jaipur Sindhi Camp')}
+                        Dropping: {getFirstStop(vehicle.route?.droppingPoints, schedule?.destination || vehicle.route?.destination || vehicle.pickupDropDetails?.dropLocation || 'Jaipur Sindhi Camp')}
                       </Text>
                     </View>
                   </View>

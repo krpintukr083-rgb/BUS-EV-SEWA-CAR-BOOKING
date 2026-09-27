@@ -15,16 +15,24 @@ import { useBooking } from '../../context/BookingContext';
 import Header from '../../components/Header';
 import { COLORS } from '../../constants/colors';
 import { getPrimaryVehicleImage } from '../../utils/imageUrl';
+import { formatBookingDate } from '../../utils/bookingDate';
 
 const CarListingScreen = ({ navigation }) => {
-  const { updateDraft } = useBooking();
+  const { updateDraft, bookingDraft } = useBooking();
   const [cars, setCars] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const fetchCars = async () => {
     try {
-      const res = await customerService.getCars();
+      const travelDate = bookingDraft?.travelDate || new Date().toISOString().split('T')[0];
+      const res = await customerService.getVehicles(
+        'car',
+        bookingDraft?.pickupLocation,
+        bookingDraft?.dropLocation,
+        travelDate,
+        true
+      );
       if (res.success) {
         setCars(res.data);
       }
@@ -41,13 +49,16 @@ const CarListingScreen = ({ navigation }) => {
   }, []);
 
   const handleSelectCar = (car) => {
+    const schedule = car.schedule;
     updateDraft({
       serviceType: 'Car',
       vehicle: car,
       baseFare: car.fareRate,
       totalFare: car.fareRate,
-      pickupLocation: car.pickupDropDetails?.pickupLocation || car.route?.origin || 'IGI Airport T3, Delhi',
-      dropLocation: car.pickupDropDetails?.dropLocation || car.route?.destination || 'Cyber City Gurugram'
+      pickupLocation: schedule?.origin || car.pickupDropDetails?.pickupLocation || car.route?.origin || 'IGI Airport T3, Delhi',
+      dropLocation: schedule?.destination || car.pickupDropDetails?.dropLocation || car.route?.destination || 'Cyber City Gurugram',
+      scheduleId: schedule?._id || null,
+      schedule: schedule || null
     });
     navigation.navigate('CarDetails', { carId: car._id });
   };
@@ -113,6 +124,19 @@ const CarListingScreen = ({ navigation }) => {
                     <Ionicons name="shield-checkmark-outline" size={14} color="#ea580c" />
                     <Text style={styles.specText}>Commercial Permit</Text>
                   </View>
+                </View>
+
+                <View style={styles.scheduleBox}>
+                  <Text style={styles.scheduleTitle}>
+                    {item.schedule
+                      ? `Travel Date: ${formatBookingDate(item.schedule.travelDate)}`
+                      : 'Schedule Not Available'}
+                  </Text>
+                  {item.schedule && (
+                    <Text style={styles.scheduleTime}>
+                      {item.schedule.origin} → {item.schedule.destination} • {item.schedule.departureTime} – {item.schedule.arrivalTime}
+                    </Text>
+                  )}
                 </View>
 
                 {/* Route Snippet */}
@@ -232,6 +256,14 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     marginBottom: 12
   },
+  scheduleBox: {
+    backgroundColor: '#fff7ed',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 10
+  },
+  scheduleTitle: { color: '#9a3412', fontSize: 12, fontWeight: '700' },
+  scheduleTime: { color: COLORS.textSecondary, fontSize: 12, marginTop: 4 },
   routeText: {
     fontSize: 12,
     color: '#334155',

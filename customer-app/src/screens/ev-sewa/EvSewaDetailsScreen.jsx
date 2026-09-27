@@ -27,20 +27,28 @@ const EvSewaDetailsScreen = ({ navigation, route }) => {
       try {
         const res = await customerService.getEvSewaDetails(evId);
         if (res.success && res.data) {
-          setEv(res.data);
+          const selectedEv = {
+            ...res.data,
+            schedule: bookingDraft.schedule || null
+          };
+          setEv(selectedEv);
           updateDraft({
             serviceType: 'EV-Sewa',
-            vehicle: res.data,
-            baseFare: res.data.fareRate,
-            totalFare: res.data.fareRate,
+            vehicle: selectedEv,
+            baseFare: selectedEv.fareRate,
+            totalFare: selectedEv.fareRate,
             pickupLocation:
-              res.data.pickupDropDetails?.pickupLocation ||
-              res.data.route?.origin ||
+              selectedEv.schedule?.origin ||
+              selectedEv.pickupDropDetails?.pickupLocation ||
+              selectedEv.route?.origin ||
               'Connaught Place, New Delhi',
             dropLocation:
-              res.data.pickupDropDetails?.dropLocation ||
-              res.data.route?.destination ||
+              selectedEv.schedule?.destination ||
+              selectedEv.pickupDropDetails?.dropLocation ||
+              selectedEv.route?.destination ||
               'Sector 62 Electronic City, Noida',
+            scheduleId: selectedEv.schedule?._id || null,
+            schedule: selectedEv.schedule,
             selectedSeats: [],
             passengerCount: 1,
             passengerDetails: [{ name: '', phone: '', age: '', gender: 'Male' }]
@@ -93,13 +101,17 @@ const EvSewaDetailsScreen = ({ navigation, route }) => {
       baseFare: ev.fareRate,
       totalFare: ev.fareRate,
       pickupLocation:
+        ev.schedule?.origin ||
         ev.pickupDropDetails?.pickupLocation ||
         ev.route?.origin ||
         'Connaught Place, New Delhi',
       dropLocation:
+        ev.schedule?.destination ||
         ev.pickupDropDetails?.dropLocation ||
         ev.route?.destination ||
         'Sector 62 Electronic City, Noida',
+      scheduleId: ev.schedule?._id || null,
+      schedule: ev.schedule || null,
       passengerCount: 1,
       selectedSeats: [],
       passengerDetails: [{ name: '', phone: '', age: '', gender: 'Male' }]

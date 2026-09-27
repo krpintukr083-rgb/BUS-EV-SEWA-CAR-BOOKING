@@ -1,5 +1,6 @@
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const app = require('../src/app');
 const { connectTestDB, closeTestDB } = require('./setup');
 const jwtConfig = require('../src/config/jwt');
@@ -310,6 +311,75 @@ describe('Optional Instant Booking', () => {
       .set('Authorization', `Bearer ${driverToken}`);
     expect(active.status).toBe(200);
     expect(active.body.data.some(booking => booking._id === response.body.data._id)).toBe(true);
+  });
+
+  test('shows the newly accepted instant booking first in OTP confirmation and verifies its OTP', async () => {
+    await setInstantBookingEnabled(true);
+    const oldBooking = await Booking.create({
+      bookingId: `BK-OLD-${suffix}`,
+      bookingMode: 'NORMAL',
+      user: customer._id,
+      customer: { name: customer.name, phone: customer.phone },
+      driver: driver._id,
+      vehicle: vehicle._id,
+      serviceType: 'Bus',
+      pickupLocation: 'Delhi',
+      dropLocation: 'Jaipur',
+      fare: 500,
+      paymentMethod: 'Offline Cash',
+      paymentStatus: 'Pending Cash',
+      bookingStatus: 'Pending Driver Confirmation',
+      driverConfirmationStatus: 'Pending',
+      driverConfirmed: false,
+      rideStatus: 'Accepted',
+      createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000)
+    });
+    const created = await submitBooking(customerToken);
+    expect(created.status).toBe(201);
+    const freshBooking = created.body.data;
+    const otp = freshBooking.confirmationOtp;
+    expect(freshBooking.bookingStatus).toBe('Pending Driver Confirmation');
+    expect(freshBooking.driverConfirmationStatus).toBe('Pending');
+    expect(freshBooking.driverConfirmed).toBe(false);
+    expect(freshBooking.confirmationOtpVerifiedAt).toBeNull();
+
+    const requests = await request(app)
+      .get('/api/driver/booking-requests')
+      .set('Authorization', `Bearer ${driverToken}`);
+    expect(requests.status).toBe(200);
+    expect(requests.body.data.some(booking => booking._id === freshBooking._id.toString())).toBe(true);
+
+    const accepted = await request(app)
+      .post(`/api/driver/booking-requests/${freshBooking._id}/accept`)
+      .set('Authorization', `Bearer ${driverToken}`);
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.data.bookingMode).toBe('INSTANT');
+    expect(accepted.body.data.bookingStatus).toBe('Pending Driver Confirmation');
+    expect(accepted.body.data.driverConfirmationStatus).toBe('Pending');
+    expect(accepted.body.data.driverConfirmed).toBe(false);
+    expect(accepted.body.data.confirmationOtpVerifiedAt).toBeNull();
+
+    const active = await request(app)
+      .get('/api/driver/active-bookings')
+      .set('Authorization', `Bearer ${driverToken}`);
+    expect(active.status).toBe(200);
+    expect(active.headers['cache-control']).toContain('no-store');
+    expect(active.body.data[0]._id).toBe(freshBooking._id.toString());
+    expect(active.body.data[0].bookingId).toBe(freshBooking.bookingId);
+    expect(active.body.data[0].bookingStatus).toBe('Pending Driver Confirmation');
+    expect(active.body.data[0].driverConfirmationStatus).toBe('Pending');
+    expect(active.body.data[0].driverConfirmed).toBe(false);
+    expect(active.body.data[0].confirmationOtpVerifiedAt).toBeNull();
+    expect(active.body.data[0].customerViewOtp).toBe(otp);
+    expect(active.body.data.some(booking => booking._id === oldBooking._id.toString())).toBe(true);
+
+    const verified = await request(app)
+      .post(`/api/driver/bookings/${freshBooking._id}/verify-otp`)
+      .set('Authorization', `Bearer ${driverToken}`)
+      .send({ otp });
+    expect(verified.status).toBe(200);
+    expect(verified.body.data.confirmationOtpVerifiedAt).toBeTruthy();
+    expect(verified.body.data.driverConfirmed).toBe(true);
   });
 
   test('rejects instant assignment for wrong-route, offline, or suspended drivers without creating a booking', async () => {

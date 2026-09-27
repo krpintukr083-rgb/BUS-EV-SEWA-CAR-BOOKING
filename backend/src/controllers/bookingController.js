@@ -205,8 +205,8 @@ exports.createBooking = async (req, res, next) => {
       evPassengerCount = requestedCount;
     }
 
-    // Bind bus bookings to an approved schedule when schedules exist for the vehicle.
-    // Vehicles without schedules remain compatible with the legacy catalogue flow.
+    // Attach a matching active schedule when the customer selected one. Schedules
+    // are optional for this booking flow; vehicles remain bookable without one.
     let activeSchedule = null;
     if (serviceType === 'Bus' && bookingMode !== 'INSTANT') {
       const schedules = await Schedule.find({ vehicle: vehicle._id }).sort({ travelDate: 1 }).lean();
@@ -227,8 +227,26 @@ exports.createBooking = async (req, res, next) => {
       if (scheduleId && !activeSchedule) {
         return res.status(400).json({ success: false, message: 'Selected schedule is not active or does not belong to this vehicle' });
       }
-      if (!scheduleId && schedules.length > 0 && !activeSchedule) {
-        return res.status(400).json({ success: false, message: 'No active schedule is available for this route and date' });
+    } else if (scheduleId && bookingMode !== 'INSTANT') {
+      activeSchedule = await Schedule.findOne({
+        _id: scheduleId,
+        vehicle: vehicle._id,
+        status: 'Active'
+      }).lean();
+      if (!activeSchedule) {
+        return res.status(400).json({ success: false, message: 'Selected schedule is not active or does not belong to this vehicle' });
+      }
+
+      const bookingDate = travelDate ? new Date(travelDate) : new Date();
+      const scheduleDate = new Date(activeSchedule.travelDate);
+      const sameDate = scheduleDate.getFullYear() === bookingDate.getFullYear()
+        && scheduleDate.getMonth() === bookingDate.getMonth()
+        && scheduleDate.getDate() === bookingDate.getDate();
+      const sameRoute = String(activeSchedule.origin).trim().toLowerCase() === String(pickupLocation).trim().toLowerCase()
+        && String(activeSchedule.destination).trim().toLowerCase() === String(dropLocation).trim().toLowerCase();
+
+      if (!sameDate || !sameRoute) {
+        return res.status(400).json({ success: false, message: 'Selected schedule does not match this route and travel date' });
       }
     }
 
