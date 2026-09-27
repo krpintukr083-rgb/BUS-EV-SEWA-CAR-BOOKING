@@ -7,7 +7,9 @@ import CountdownTimer from './CountdownTimer';
 const RideRequestCard = ({ request, onAccept, onReject }) => {
   if (!request) return null;
 
-  const fareAmount = request.fare || request.totalFare || 0;
+  const fareAmount = request.fare ?? request.totalFare;
+  const isInstant = request.bookingMode === 'INSTANT';
+  const showCalculating = isInstant && (fareAmount == null || fareAmount === 0);
   const isCash = request.paymentMethod === 'Offline Cash' || request.paymentMethod === 'Cash';
   const callCustomer = () => {
     const phone = String(request.customerPhone).replace(/[^\d+]/g, '');
@@ -76,7 +78,7 @@ const RideRequestCard = ({ request, onAccept, onReject }) => {
       <View style={styles.fareRow}>
         <View>
           <Text style={styles.fareLabel}>ESTIMATED FARE</Text>
-          <Text style={styles.fareValue}>₹{fareAmount}</Text>
+          <Text style={styles.fareValue}>{showCalculating ? 'Calculating...' : `₹${fareAmount}`}</Text>
         </View>
         <View style={styles.paymentBadge}>
           <Ionicons name={isCash ? 'cash' : 'card'} size={14} color={isCash ? COLORS.warning : COLORS.primary} />
