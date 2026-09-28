@@ -416,7 +416,7 @@ exports.getAdminSchedules = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Invalid schedule status' });
     }
     const data = await Schedule.find({ status })
-      .select('vehicle driver origin destination departureTime arrivalTime fareRate notes status rejectionReason createdAt updatedAt')
+      .select('vehicle driver origin destination travelDate departureTime arrivalTime fareRate notes status rejectionReason createdAt updatedAt')
       .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleStatus seatingCapacity')
       .populate('driver', 'name mobileNumber driverStatus')
       .sort({ createdAt: 1 })

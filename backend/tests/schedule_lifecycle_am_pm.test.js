@@ -137,6 +137,8 @@ describe('Schedule Time AM/PM Full Lifecycle Integration Tests', () => {
       const rawDbSchedule = await Schedule.findById(scheduleId).lean();
       expect(rawDbSchedule.departureTime).toBe(tc.expectedDep);
       expect(rawDbSchedule.arrivalTime).toBe(tc.expectedArr);
+      expect(String(rawDbSchedule.driver)).toBe(String(driver._id));
+      expect(String(rawDbSchedule.vehicle)).toBe(String(vehicle._id));
 
       // 3. Driver My Schedules API check
       const mySchedulesRes = await request(app)
@@ -155,8 +157,17 @@ describe('Schedule Time AM/PM Full Lifecycle Integration Tests', () => {
       expect(adminSchedulesRes.status).toBe(200);
       const pendingItem = adminSchedulesRes.body.data.find(s => String(s._id) === String(scheduleId));
       expect(pendingItem).toBeDefined();
+      expect(pendingItem.status).toBe('Pending');
+      expect(String(pendingItem.driver._id)).toBe(String(driver._id));
+      expect(String(pendingItem.vehicle._id)).toBe(String(vehicle._id));
+      expect(new Date(pendingItem.travelDate).toISOString()).toBe(rawDbSchedule.travelDate.toISOString());
       expect(pendingItem.departureTime).toBe(tc.expectedDep);
       expect(pendingItem.arrivalTime).toBe(tc.expectedArr);
+
+      const pendingCustomerSchedulesRes = await request(app)
+        .get(`/api/customer/schedules?from=Delhi&to=Jaipur&travelDate=${tc.travelDate}`);
+      expect(pendingCustomerSchedulesRes.status).toBe(200);
+      expect(pendingCustomerSchedulesRes.body.data.some(s => String(s._id) === String(scheduleId))).toBe(false);
 
       // 5. Admin Approves the Schedule
       const approveRes = await request(app)
@@ -164,6 +175,7 @@ describe('Schedule Time AM/PM Full Lifecycle Integration Tests', () => {
         .set('Authorization', `Bearer ${adminToken}`)
         .send({});
       expect(approveRes.status).toBe(200);
+      expect(approveRes.body.data.status).toBe('Active');
 
       // 6. Verify Vehicle route timing in MongoDB is updated with the approved schedule
       const updatedVehicle = await Vehicle.findById(vehicle._id).lean();
