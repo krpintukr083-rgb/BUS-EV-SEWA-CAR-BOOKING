@@ -16,7 +16,8 @@ const generateToken = (id, role) => {
 // @access  Public
 exports.login = async (req, res, next) => {
   try {
-    const { identifier, password, role } = req.body;
+    const { identifier, password, role: rawRole } = req.body;
+    const role = typeof rawRole === 'string' ? rawRole.trim().toLowerCase() : rawRole;
 
     if (!identifier || !password) {
       return res.status(400).json({
@@ -75,6 +76,11 @@ exports.login = async (req, res, next) => {
     }
 
     // Ensure Super Admin accounts are ALWAYS role 'admin' and never mutated
+    // If user.role is missing (null/undefined), default to 'customer' for legacy records
+    if (!user.role) {
+      user.role = 'customer';
+      await user.save();
+    }
     const isAdminAccount = user.email && (
       user.email.toLowerCase() === 'admin@platform.com' ||
       user.email.toLowerCase() === 'admin@transportplatform.com' ||
@@ -93,7 +99,7 @@ exports.login = async (req, res, next) => {
         user.status = 'Active';
         await user.save();
       }
-    } else if (role && user.role !== role) {
+    } else if (role && role !== 'customer' && user.role !== role) {
       return res.status(403).json({
         success: false,
         message: `Access denied. This account does not have '${role}' access privileges.`
