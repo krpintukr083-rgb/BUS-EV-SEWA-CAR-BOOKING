@@ -9,7 +9,8 @@ import {
   Alert,
   Modal,
   TextInput,
-  ActivityIndicator
+  ActivityIndicator,
+  Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCustomerAuth } from '../../context/CustomerAuthContext';
@@ -39,21 +40,28 @@ const CustomerProfileScreen = ({ navigation }) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  const handleLogout = () => {
-    Alert.alert(
-      'Log Out',
-      'Are you sure you want to log out of your TravelSewa account?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Log Out',
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
+  const handleLogout = async () => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm('Are you sure you want to log out of your TravelSewa account?');
+      if (confirmed) {
+        await logout();
+      }
+    } else {
+      Alert.alert(
+        'Log Out',
+        'Are you sure you want to log out of your TravelSewa account?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Log Out',
+            style: 'destructive',
+            onPress: async () => {
+              await logout();
+            }
           }
-        }
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const handleOpenEditProfile = () => {

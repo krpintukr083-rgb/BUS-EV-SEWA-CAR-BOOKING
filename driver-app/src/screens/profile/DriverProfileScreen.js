@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -223,21 +224,28 @@ export default function DriverProfileScreen({ navigation }) {
     }
   };
 
-  const handleLogout = () => {
-    Alert.alert(
-      t('logout'),
-      t('logoutConfirm'),
-      [
-        { text: t('cancel'), style: 'cancel' },
-        {
-          text: t('logout'),
-          style: 'destructive',
-          onPress: async () => {
-            await logout();
+  const handleLogout = async () => {
+    if (Platform.OS === 'web') {
+      const confirmed = window.confirm(t('logoutConfirm'));
+      if (confirmed) {
+        await logout();
+      }
+    } else {
+      Alert.alert(
+        t('logout'),
+        t('logoutConfirm'),
+        [
+          { text: t('cancel'), style: 'cancel' },
+          {
+            text: t('logout'),
+            style: 'destructive',
+            onPress: async () => {
+              await logout();
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const getLanguageLabel = () => {
