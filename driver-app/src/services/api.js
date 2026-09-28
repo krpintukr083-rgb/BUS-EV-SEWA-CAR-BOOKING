@@ -1,5 +1,6 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { getDefaultBaseUrl, sanitizeApiUrl, CANDIDATE_URLS } from '../constants/api';
 
 const parseApiResponse = (data) => {
@@ -76,7 +77,7 @@ const apiClient = axios.create({
     'bypass-tunnel-reminder': 'true',
     'Bypass-Tunnel-Reminder': 'true',
     'ngrok-skip-browser-warning': 'true',
-    'User-Agent': 'TravelSewaDriverApp/1.0'
+    ...(Platform.OS === 'web' ? {} : { 'User-Agent': 'TravelSewaDriverApp/1.0' })
   },
   transformResponse: [parseApiResponse]
 });

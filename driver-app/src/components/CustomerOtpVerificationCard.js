@@ -6,7 +6,8 @@ import {
   TextInput,
   TouchableOpacity,
   ActivityIndicator,
-  Alert
+  Alert,
+  Platform
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
@@ -195,7 +196,10 @@ const styles = StyleSheet.create({
     marginVertical: SPACING.s,
     borderWidth: 1.5,
     borderColor: COLORS.primary,
-    ...SHADOWS.card
+    ...Platform.select({
+      web: { boxShadow: '0px 4px 6px rgba(0, 0, 0, 0.3)' },
+      default: SHADOWS.card
+    })
   },
   cardHeader: {
     flexDirection: 'row',
