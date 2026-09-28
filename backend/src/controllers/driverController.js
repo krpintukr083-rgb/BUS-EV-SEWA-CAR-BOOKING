@@ -1597,6 +1597,38 @@ const acceptInstantBookingRequest = async (req, res, next) => {
       updateSet.finalFare = fare * passCount;
     }
 
+    // STALE INSTANT BOOKING CLEANUP
+    if (booking.bookingMode === 'INSTANT') {
+      const staleThresholdTime = new Date(Date.now() - 6 * 60 * 60 * 1000);
+      const staleCleanupQuery = getActiveInstantBookingQuery(driver._id);
+      delete staleCleanupQuery.createdAt; // Override the >= 6h check with < 6h check
+      staleCleanupQuery.createdAt = { $lt: staleThresholdTime };
+
+      const staleRecords = await Booking.find(staleCleanupQuery).select('bookingId driver createdAt bookingStatus rideStatus paymentStatus completedAt').lean();
+      for (const stale of staleRecords) {
+        console.log('--- STALE INSTANT BOOKING CLEANUP DIAGNOSTIC ---');
+        console.log(`stale bookingId: ${stale.bookingId}`);
+        console.log(`driver ID: ${stale.driver}`);
+        console.log(`createdAt: ${stale.createdAt}`);
+        console.log(`previous bookingStatus: ${stale.bookingStatus}`);
+        console.log(`previous rideStatus: ${stale.rideStatus}`);
+        console.log(`previous paymentStatus: ${stale.paymentStatus}`);
+        console.log(`previous completedAt: ${stale.completedAt}`);
+      }
+
+      if (staleRecords.length > 0) {
+        await Booking.updateMany(staleCleanupQuery, {
+          $set: {
+            bookingStatus: 'Cancelled',
+            rideStatus: 'Cancelled',
+            cancellationReason: 'System auto-cancelled stale uncompleted Instant ride',
+            cancelledBy: 'System',
+            cancelledAt: new Date()
+          }
+        });
+      }
+    }
+
     let claimedBooking;
     try {
       claimedBooking = await Booking.findOneAndUpdate(
