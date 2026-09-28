@@ -94,8 +94,23 @@ const BookingRequestsScreen = ({ navigation }) => {
         highlightBookingId: acceptedBookingId
       });
     } catch (e) {
+      const status = e?.response?.status;
       const msg = e?.response?.data?.message;
-      Alert.alert('Accept Failed', msg || 'The booking was not accepted. Refresh requests and try again.');
+      if (status === 409) {
+        Alert.alert(
+          'Already Committed to a Ride',
+          msg || 'You have already accepted another instant booking. Please complete or verify your current trip before accepting new requests.',
+          [
+            { text: 'OK' },
+            {
+              text: 'View Active Trip',
+              onPress: () => navigation.navigate('BusConfirmation')
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Accept Failed', msg || 'The booking was not accepted. Refresh requests and try again.');
+      }
       await loadRequests();
     }
   };
@@ -152,10 +167,10 @@ const BookingRequestsScreen = ({ navigation }) => {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="car-outline" size={64} color={COLORS.surfaceHighlight} />
-            <Text style={styles.emptyTitle}>{t('noRequests')}</Text>
+            <Text style={styles.emptyTitle}>{t('noRequests') || 'No active bookings available'}</Text>
             <Text style={styles.emptySub}>
               {isOnline
-                ? 'Stay active and near popular transport hubs to receive incoming trip requests.'
+                ? 'No active booking requests available right now. Stay active and near popular transport hubs to receive incoming trip requests.'
                 : 'Turn on your online switch to start receiving ride dispatches.'}
             </Text>
           </View>
