@@ -44,7 +44,7 @@ const bookingSchema = new mongoose.Schema(
     },
     bookingMode: {
       type: String,
-      enum: ['NORMAL', 'INSTANT'],
+      enum: ['NORMAL', 'INSTANT', 'SCHEDULE'],
       default: 'NORMAL'
     },
     pickupLocation: {

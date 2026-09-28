@@ -82,7 +82,7 @@ const createInstantBooking = async (req, res, next) => {
 const createScheduleBooking = async (req, res, next) => {
   try {
     const { vehicleId, serviceType, pickupLocation, dropLocation, passengerDetails, passengerCount, selectedSeats, fare, travelDate, scheduleId, paymentMethod } = req.body;
-    const bookingMode = 'NORMAL';
+    const bookingMode = 'SCHEDULE';
     if (!vehicleId || !serviceType || !pickupLocation || !dropLocation) {
       return res.status(400).json({
         success: false,
@@ -288,51 +288,54 @@ const createScheduleBooking = async (req, res, next) => {
     } : undefined;
     let booking;
     try {
+      // Determine schedule ID to store: prefer the explicitly provided scheduleId if valid,
+      // otherwise fall back to the active schedule matched earlier.
+      const scheduleIdToStore = scheduleId && activeSchedule ? activeSchedule._id : (activeSchedule ? activeSchedule._id : null);
       booking = await Booking.create({
-      bookingId,
-      bookingMode,
-      user: req.user?._id,
-      vehicleSource: isThirdParty ? 'THIRD_PARTY' : 'OWN',
-      hiredVehicleDetails,
-      customer: {
-        name: req.user.name,
-        phone: req.user.phone,
-        email: req.user.email
-      },
-      driver: instantDriver?._id || (['Bus', 'Truck'].includes(serviceType) ? vehicle.assignedDriver : null),
-      vehicle: vehicle._id,
-      scheduleId: activeSchedule?._id || null,
-      serviceType,
-      pickupLocation,
-      dropLocation,
-      passengerDetails: (passengerDetails && passengerDetails.length > 0)
-        ? passengerDetails
-        : [{ name: req.user.name, age: 28, gender: 'Male' }],
-      fare: finalPayableFare,
-      originalFare,
-      discountPercentage,
-      discountAmount,
-      finalFare: finalPayableFare,
-      driverPaymentAmount: Math.round(finalPayableFare * 0.8),
-      paymentMethod: initialPaymentMethod,
-      paymentStatus: initialPaymentStatus,
-      cashCollected: false,
-      cashCollectedAt: null,
-      cashCollectedBy: null,
-      bookingStatus: initialBookingStatus,
-      rideStatus: bookingMode === 'INSTANT' && isOfflineCash && serviceType !== 'Bus'
-        ? 'Accepted'
-        : undefined,
-      confirmationOtpHash,
-      confirmationOtpExpiresAt,
-      customerViewOtp: rawOtp,
-      driverConfirmationStatus: instantDriver ? 'Confirmed' : 'Pending',
-      driverConfirmed: Boolean(instantDriver),
-      driverConfirmedAt: instantDriver ? new Date() : null,
-      driverConfirmedBy: instantDriver?._id || null,
-      travelDate: travelDate ? new Date(travelDate) : new Date(),
-      busSeatNumbers: selectedSeats || []
-    });
+        bookingId,
+        bookingMode,
+        user: req.user?._id,
+        vehicleSource: isThirdParty ? 'THIRD_PARTY' : 'OWN',
+        hiredVehicleDetails,
+        customer: {
+          name: req.user.name,
+          phone: req.user.phone,
+          email: req.user.email
+        },
+        driver: instantDriver?._id || (['Bus', 'Truck'].includes(serviceType) ? vehicle.assignedDriver : null),
+        vehicle: vehicle._id,
+        scheduleId: scheduleIdToStore,
+        serviceType,
+        pickupLocation,
+        dropLocation,
+        passengerDetails: (passengerDetails && passengerDetails.length > 0)
+          ? passengerDetails
+          : [{ name: req.user.name, age: 28, gender: 'Male' }],
+        fare: finalPayableFare,
+        originalFare,
+        discountPercentage,
+        discountAmount,
+        finalFare: finalPayableFare,
+        driverPaymentAmount: Math.round(finalPayableFare * 0.8),
+        paymentMethod: initialPaymentMethod,
+        paymentStatus: initialPaymentStatus,
+        cashCollected: false,
+        cashCollectedAt: null,
+        cashCollectedBy: null,
+        bookingStatus: initialBookingStatus,
+        rideStatus: bookingMode === 'INSTANT' && isOfflineCash && serviceType !== 'Bus'
+          ? 'Accepted'
+          : undefined,
+        confirmationOtpHash,
+        confirmationOtpExpiresAt,
+        customerViewOtp: rawOtp,
+        driverConfirmationStatus: instantDriver ? 'Confirmed' : 'Pending',
+        driverConfirmed: Boolean(instantDriver),
+        driverConfirmedAt: instantDriver ? new Date() : null,
+        driverConfirmedBy: instantDriver?._id || null,
+        travelDate: travelDate ? new Date(travelDate) : new Date(),
+        busSeatNumbers: selectedSeats || []
+      });
     } catch (error) {
       if (
         bookingMode === 'INSTANT' &&
@@ -400,14 +403,13 @@ const createScheduleBooking = async (req, res, next) => {
 exports.createInstantBooking = createInstantBooking;
 exports.createScheduleBooking = createScheduleBooking;
 exports.createBooking = async (req, res, next) => {
+  // This endpoint is reserved for legacy NORMAL bookings only.
+  // Instant and Schedule bookings must use their dedicated routes (/instant and /schedule).
   const requestedBookingMode = req.body.bookingMode;
-  if (requestedBookingMode !== undefined && !['NORMAL', 'INSTANT'].includes(requestedBookingMode)) {
-    return res.status(400).json({ success: false, message: 'Invalid booking mode' });
+  if (requestedBookingMode && requestedBookingMode !== 'NORMAL') {
+    return res.status(400).json({ success: false, message: 'Invalid booking mode for this endpoint. Use /instant or /schedule routes.' });
   }
-  const bookingMode = requestedBookingMode || 'NORMAL';
-  if (bookingMode === 'INSTANT') {
-    return createInstantBooking(req, res, next);
-  }
+  // Proceed with NORMAL booking creation using the schedule flow.
   return createScheduleBooking(req, res, next);
 };
 
