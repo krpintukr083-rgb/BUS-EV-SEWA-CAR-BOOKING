@@ -20,6 +20,7 @@ import { useLanguage } from '../../state/LanguageContext';
 import CustomerOtpVerificationCard from '../../components/CustomerOtpVerificationCard';
 import { getBookingDisplayFare } from '../../utils/fareResolver';
 import { getConfirmationBookings } from '../../utils/bookingHandoff';
+import { driverService } from '../../services/driverService';
 
 const isBookingCompletedOrCancelled = (b) => {
   if (!b) return true;
