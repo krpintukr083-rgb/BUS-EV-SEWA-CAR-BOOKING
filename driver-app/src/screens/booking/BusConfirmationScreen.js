@@ -23,6 +23,25 @@ import { getBookingDisplayFare } from '../../utils/fareResolver';
 import { getConfirmationBookings } from '../../utils/bookingHandoff';
 import driverService from '../../services/driverService';
 
+const getDisplayPaidAmount = (booking) => {
+  const isInstant = booking?.bookingMode === 'INSTANT';
+  const amount =
+    booking?.finalFare ??
+    booking?.totalFare ??
+    booking?.fare ??
+    booking?.totalPaid ??
+    getBookingDisplayFare(booking);
+
+  if (isInstant && (!amount || Number(amount) === 0)) {
+    return 'Calculating...';
+  }
+
+  if (amount === null || amount === undefined || amount === '') {
+    return '₹0';
+  }
+
+  return `₹${amount}`;
+};
 const isBookingCompletedOrCancelled = (b) => {
   if (!b) return true;
   if (['Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus)) return true;
@@ -441,7 +460,7 @@ export default function BusConfirmationScreen({ navigation, route }) {
         {/* Fare Details */}
         <View style={styles.fareRow}>
           <Text style={styles.fareLabel}>{t('totalFare')}:</Text>
-          <Text style={styles.fareAmount}>₹{itemFare}</Text>
+          <Text style={styles.fareAmount}>{getDisplayPaidAmount(item)}</Text>
         </View>
 
         {/* Action Buttons */}

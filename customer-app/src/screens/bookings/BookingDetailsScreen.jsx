@@ -15,6 +15,26 @@ import Button from '../../components/Button';
 import StatusBadge from '../../components/StatusBadge';
 import { COLORS } from '../../constants/colors';
 
+const getDisplayPaidAmount = (booking) => {
+  const isInstant = booking?.bookingMode === "INSTANT";
+
+  const amount =
+    booking?.finalFare ??
+    booking?.totalFare ??
+    booking?.fare ??
+    booking?.totalPaid;
+
+  if (isInstant && (!amount || Number(amount) === 0)) {
+    return "Calculating...";
+  }
+
+  if (amount === null || amount === undefined || amount === "") {
+    return "₹0";
+  }
+
+  return `₹${Number(amount).toFixed(2)}`;
+};
+
 const BookingDetailsScreen = ({ route, navigation }) => {
   const { bookingId } = route.params || {};
   const [booking, setBooking] = useState(null);
@@ -171,7 +191,7 @@ const BookingDetailsScreen = ({ route, navigation }) => {
             </View>
             <View style={styles.metaCol}>
               <Text style={styles.metaLabel}>{booking.discountAmount > 0 ? 'Final Payable' : 'Total Paid'}</Text>
-              <Text style={styles.metaAmount}>₹{booking.fare}</Text>
+              <Text style={styles.metaAmount}>{getDisplayPaidAmount(booking)}</Text>
             </View>
           </View>
 
