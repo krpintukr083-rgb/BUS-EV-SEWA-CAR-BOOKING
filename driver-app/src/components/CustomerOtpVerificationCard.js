@@ -12,8 +12,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import driverService from '../services/driverService';
 import { getBookingDisplayFare } from '../utils/fareResolver';
+import { getOtpBookingId } from '../utils/bookingHandoff';
 
-export default function CustomerOtpVerificationCard({ booking, onVerified, onCancel }) {
+export default function CustomerOtpVerificationCard({ booking, acceptedBookingId, onVerified, onCancel }) {
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -41,7 +42,10 @@ export default function CustomerOtpVerificationCard({ booking, onVerified, onCan
     setErrorMsg('');
 
     try {
-      const targetId = booking._id || booking.bookingId;
+      const targetId = getOtpBookingId(booking, acceptedBookingId);
+      if (!targetId) {
+        throw new Error('Accepted booking ID is unavailable.');
+      }
       const res = await driverService.verifyBookingOtp(targetId, otp.trim());
       if (res?.data?.success || res?.status === 200 || res?.data?.status === 'success' || res?.success) {
         Alert.alert('OTP Verified', 'Customer OTP verified successfully. Booking confirmed!');

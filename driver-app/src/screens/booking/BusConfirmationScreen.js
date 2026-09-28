@@ -19,6 +19,7 @@ import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useLanguage } from '../../state/LanguageContext';
 import CustomerOtpVerificationCard from '../../components/CustomerOtpVerificationCard';
 import { getBookingDisplayFare } from '../../utils/fareResolver';
+import { getConfirmationBookings } from '../../utils/bookingHandoff';
 
 const isBookingCompletedOrCancelled = (b) => {
   if (!b) return true;
@@ -65,7 +66,7 @@ export default function BusConfirmationScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { t } = useLanguage();
   // bookingId passed from BookingRequestsScreen after accepting a ride
-  const highlightBookingId = route?.params?.bookingId || null;
+  const highlightBookingId = route?.params?.acceptedBookingId || route?.params?.bookingId || null;
   const passedBooking = route?.params?.booking || null;
 
 
@@ -94,68 +95,41 @@ export default function BusConfirmationScreen({ navigation, route }) {
       if (requestId !== fetchRequestId.current) return;
       if (res?.data?.success && Array.isArray(res.data.data)) {
         const rawList = res.data.data;
-        // Merge passedBooking with fresh data, preferring fresh API object when IDs match
-        let acceptedBooking = passedBooking;
-        if (passedBooking) {
-          const freshMatch = rawList.find(
-            b =>
-              (passedBooking._id && b._id === passedBooking._id) ||
-              (passedBooking.bookingId && b.bookingId === passedBooking.bookingId)
-          );
-          if (freshMatch) {
-            acceptedBooking = freshMatch;
-          }
-        }
-        const list = acceptedBooking
-          ? [
-              acceptedBooking,
-              ...rawList.filter(b => {
-                if (acceptedBooking._id && b._id === acceptedBooking._id) return false;
-                if (acceptedBooking.bookingId && b.bookingId === acceptedBooking.bookingId) return false;
-                return true;
-              })
-            ]
-          : rawList;
-        if (highlightBookingId) {
-          const targetIndex = list.findIndex(
-            (b) => b._id === highlightBookingId || b.bookingId === highlightBookingId
-          );
-          if (targetIndex !== -1) {
-            const target = list[targetIndex];
-            const remaining = list.filter((_, idx) => idx !== targetIndex);
-            remaining.sort((left, right) => {
-              const leftCreatedAt = Date.parse(left.createdAt || '') || 0;
-              const rightCreatedAt = Date.parse(right.createdAt || '') || 0;
-              return rightCreatedAt - leftCreatedAt;
-            });
-            setBookings([target, ...remaining]);
-            setHighlightNotFound(false);
-            if (isBookingPending(target)) {
-              setActiveTab('PENDING');
-            } else if (isBookingConfirmed(target)) {
-              setActiveTab('CONFIRMED');
-            }
-          } else {
-            // Target was specified by route.params.bookingId but could not be found!
-            // Do NOT silently fall back to an old booking
-            setHighlightNotFound(true);
-            setBookings([]);
-          }
+        const selection = getConfirmationBookings(rawList, highlightBookingId, passedBooking);
+        if (selection.notFound) {
+          setHighlightNotFound(true);
+          setBookings([]);
         } else {
-          const newestFirst = [...list].sort((left, right) => {
+          const selectedBookings = [...selection.bookings];
+          selectedBookings.sort((left, right) => {
             const leftCreatedAt = Date.parse(left.createdAt || '') || 0;
             const rightCreatedAt = Date.parse(right.createdAt || '') || 0;
             return rightCreatedAt - leftCreatedAt;
           });
-          setBookings(newestFirst);
+          setBookings(selectedBookings);
           setHighlightNotFound(false);
+          if (highlightBookingId && selectedBookings[0]) {
+            if (isBookingPending(selectedBookings[0])) {
+              setActiveTab('PENDING');
+            } else if (isBookingConfirmed(selectedBookings[0])) {
+              setActiveTab('CONFIRMED');
+            }
+          }
         }
         setRefreshError(false);
       } else {
+        if (highlightBookingId) {
+          setHighlightNotFound(true);
+          setBookings([]);
+        }
         setRefreshError(true);
       }
     } catch (err) {
       if (requestId === fetchRequestId.current) {
+        if (highlightBookingId) {
+          setHighlightNotFound(true);
+          setBookings([]);
+        }
         setRefreshError(true);
         console.log('Error fetching bus bookings:', err?.response?.data || err.message);
       }
@@ -165,7 +139,7 @@ export default function BusConfirmationScreen({ navigation, route }) {
         setRefreshing(false);
       }
     }
-  }, [highlightBookingId]);
+  }, [highlightBookingId, passedBooking]);
 
   useFocusEffect(
     useCallback(() => {
@@ -448,6 +422,7 @@ export default function BusConfirmationScreen({ navigation, route }) {
         {isPendingOtp ? (
           <CustomerOtpVerificationCard
             booking={item}
+            acceptedBookingId={highlightBookingId}
             onVerified={fetchBusBookings}
           />
         ) : isCompleted ? (

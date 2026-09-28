@@ -11,6 +11,7 @@ import { driverService } from '../../services/driverService';
 import { checkAndNotifyBookingRequests } from '../../services/notificationService';
 import DriverHeader from '../../components/DriverHeader';
 import RideRequestCard from '../../components/RideRequestCard';
+import { getAcceptedBookingId, filterIncomingRequests } from '../../utils/bookingHandoff';
 
 const REJECTION_REASONS = [
   'Customer did not arrive',
@@ -36,14 +37,7 @@ const BookingRequestsScreen = ({ navigation }) => {
     try {
       const res = await driverService.getBookingRequests();
       if (res.data?.success && Array.isArray(res.data.data)) {
-        // Keep accepted, confirmed, and cash-collected bookings out of actionable requests.
-        const validRequests = res.data.data.filter(
-          (req) => !req.driverConfirmed
-            && req.rideStatus !== 'Accepted'
-            && req.bookingStatus !== 'Confirmed'
-            && req.bookingStatus !== 'Awaiting Cash Collection'
-            && !req.cashCollected
-        );
+        const validRequests = filterIncomingRequests(res.data.data);
         setRequests(validRequests);
         checkAndNotifyBookingRequests(validRequests, user?._id || driver?._id);
       } else {
@@ -86,18 +80,21 @@ const BookingRequestsScreen = ({ navigation }) => {
         await loadRequests();
         return;
       }
-      const acceptedBookingId = res?.data?.data?._id || res?.data?.data?.bookingId || bookingId;
+      const acceptedBookingId = getAcceptedBookingId(res);
+      if (!acceptedBookingId) {
+        Alert.alert('Accept Failed', 'The accepted booking ID was missing from the server response. Refresh requests and try again.');
+        await loadRequests();
+        return;
+      }
       console.log('ACCEPT SUCCESS\nbookingId:', acceptedBookingId, '\nbookingStatus:', res?.data?.data?.bookingStatus, '\ndriverConfirmed:', res?.data?.data?.driverConfirmed);
       // Remove accepted booking from pending requests list so it is no longer actionable
       setRequests((prev) => prev.filter((r) => r._id !== bookingId && r.bookingId !== bookingId));
-      navigation.navigate('BusConfirmation', { bookingId: acceptedBookingId, booking: res?.data?.data });
+      navigation.navigate('BusConfirmation', {
+        bookingId: acceptedBookingId,
+        highlightBookingId: acceptedBookingId
+      });
     } catch (e) {
       const msg = e?.response?.data?.message;
-      if (msg && msg.includes('already accepted by this driver')) {
-        setRequests((prev) => prev.filter((r) => r._id !== bookingId && r.bookingId !== bookingId));
-        navigation.navigate('BusConfirmation', { bookingId });
-        return;
-      }
       Alert.alert('Accept Failed', msg || 'The booking was not accepted. Refresh requests and try again.');
       await loadRequests();
     }
