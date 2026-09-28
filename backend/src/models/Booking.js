@@ -1,4 +1,11 @@
 const mongoose = require('mongoose');
+const {
+  ACTIVE_INSTANT_BOOKING_STATUSES,
+  ACTIVE_INSTANT_RIDE_STATUSES,
+  ACTIVE_INSTANT_DRIVER_CONFIRMATION_STATUSES,
+  ACTIVE_INSTANT_CANCELLATION_STATUSES,
+  ACTIVE_INSTANT_PAYMENT_STATUSES
+} = require('../utils/activeInstantBooking');
 
 const bookingSchema = new mongoose.Schema(
   {
@@ -267,20 +274,12 @@ bookingSchema.index(
     partialFilterExpression: {
       bookingMode: 'INSTANT',
       driver: { $type: 'objectId' },
-      rideStatus: { $in: ['Accepted', 'Arrived', 'Started', 'Ongoing'] },
-      bookingStatus: {
-        $in: [
-          'Pending Admin Confirmation',
-          'PENDING_ADMIN_CONFIRMATION',
-          'Admin Confirmed',
-          'ADMIN_CONFIRMED',
-          'Pending',
-          'Pending Driver Confirmation',
-          'Awaiting Cash Collection',
-          'Confirmed',
-          'Ongoing'
-        ]
-      }
+      bookingStatus: { $in: ACTIVE_INSTANT_BOOKING_STATUSES },
+      rideStatus: { $in: ACTIVE_INSTANT_RIDE_STATUSES },
+      driverConfirmationStatus: { $in: ACTIVE_INSTANT_DRIVER_CONFIRMATION_STATUSES },
+      cancellationStatus: { $in: ACTIVE_INSTANT_CANCELLATION_STATUSES },
+      paymentStatus: { $in: ACTIVE_INSTANT_PAYMENT_STATUSES },
+      completedAt: null
     }
   }
 );

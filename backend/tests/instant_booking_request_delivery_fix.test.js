@@ -18,7 +18,22 @@ describe('Instant Booking Driver Request Delivery & Stale Booking Isolation', ()
 
   beforeAll(async () => {
     await connectTestDB();
+    const bookingIndexes = await Booking.collection.indexes().catch(error => {
+      if (error.codeName === 'NamespaceNotFound') return [];
+      throw error;
+    });
+    if (bookingIndexes.some(index => index.name === 'one_active_instant_booking_per_driver')) {
+      await Booking.collection.dropIndex('one_active_instant_booking_per_driver');
+    }
     await Booking.init();
+    const activeInstantIndex = (await Booking.collection.indexes())
+      .find(index => index.name === 'one_active_instant_booking_per_driver');
+    expect(activeInstantIndex).toBeDefined();
+    const partialFilter = activeInstantIndex.partialFilterExpression;
+    expect(partialFilter.bookingMode).toBe('INSTANT');
+    expect(partialFilter.rideStatus.$in).toEqual(expect.arrayContaining(['Accepted', 'Started']));
+    expect(partialFilter.completedAt).toBeNull();
+    expect(partialFilter.bookingStatus.$in).not.toEqual(expect.arrayContaining(['Completed', 'Cancelled', 'Rejected', 'Expired']));
 
     await ServiceControl.findOneAndUpdate(
       {},
@@ -248,6 +263,65 @@ describe('Instant Booking Driver Request Delivery & Stale Booking Isolation', ()
 
     expect(res.status).toBe(200);
     expect(res.body.data.some(req => req.bookingId === freshBooking.bookingId)).toBe(false);
+    const acceptRes = await request(app)
+      .post(`/api/driver/booking-requests/${freshBooking._id}/accept`)
+      .set('Authorization', `Bearer ${driver1Token}`);
+    expect(acceptRes.status).toBe(409);
+    expect(acceptRes.body.code).toBe('DRIVER_HAS_ACTIVE_INSTANT_BOOKING');
+  });
+
+  test.each([
+    ['Completed', { bookingStatus: 'Completed', rideStatus: 'Started', completedAt: new Date() }],
+    ['Cancelled', { bookingStatus: 'Cancelled', rideStatus: 'Started', cancellationStatus: 'Approved' }],
+    ['Rejected', { bookingStatus: 'Rejected', rideStatus: 'Started', driverConfirmationStatus: 'Rejected' }],
+    ['Expired', { bookingStatus: 'Expired', rideStatus: 'Started' }],
+    ['Refunded', { bookingStatus: 'Ongoing', rideStatus: 'Started', cancellationStatus: 'Refunded', paymentStatus: 'Refunded' }],
+    ['Failed', { bookingStatus: 'Ongoing', rideStatus: 'Started', paymentStatus: 'Failed' }],
+    ['completion timestamp', { bookingStatus: 'Ongoing', rideStatus: 'Started', completedAt: new Date() }]
+  ])('%s Instant booking with stale active ride state does not block a new request or accept', async (label, closedState) => {
+    const oldBookingData = {
+      driver: driver1._id,
+      driverConfirmed: true,
+      ...closedState
+    };
+    if (closedState.bookingStatus === 'Expired') {
+      await Booking.collection.insertOne({
+        bookingId: `BK-${label.toUpperCase()}-${Date.now()}`,
+        user: customerUser._id,
+        customer: { name: customerUser.name, phone: customerUser.phone },
+        pickupLocation: 'Delhi',
+        dropLocation: 'Jaipur',
+        serviceType: 'Any',
+        bookingMode: 'INSTANT',
+        passengerDetails: [{ name: 'Test Passenger', age: 25, gender: 'Male' }],
+        fare: 0,
+        paymentMethod: 'Offline Cash',
+        paymentStatus: 'Pending Cash',
+        bookingStatus: 'Expired',
+        driverConfirmed: true,
+        driverConfirmationStatus: 'Confirmed',
+        driver: driver1._id,
+        rideStatus: 'Started',
+        cancellationStatus: 'None',
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+    } else {
+      await createBooking(oldBookingData);
+    }
+
+    const freshBooking = await createBooking();
+    const requests = await request(app)
+      .get('/api/driver/booking-requests')
+      .set('Authorization', `Bearer ${driver1Token}`);
+    expect(requests.status).toBe(200);
+    expect(requests.body.data.some(item => item._id === String(freshBooking._id))).toBe(true);
+
+    const accepted = await request(app)
+      .post(`/api/driver/booking-requests/${freshBooking._id}/accept`)
+      .set('Authorization', `Bearer ${driver1Token}`);
+    expect(accepted.status).toBe(200);
+    expect(accepted.body.success).toBe(true);
   });
 
   test('TEST 4: Completed Instant booking does not block new Instant booking', async () => {

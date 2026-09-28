@@ -15,7 +15,7 @@ describe('Schedule Time AM/PM Full Lifecycle Integration Tests', () => {
     await connectTestDB();
     const suffix = Date.now();
     user = await User.create({
-      name: 'Time Test Driver',
+      name: 'Harsh',
       email: `time-driver-${suffix}@example.com`,
       phone: `980${String(suffix).slice(-7)}`,
       password: 'Password123!',
@@ -209,4 +209,64 @@ describe('Schedule Time AM/PM Full Lifecycle Integration Tests', () => {
       expect(custBusDetailRes.body.data.route.arrivalTime).toBe(tc.expectedArr);
     });
   }
+
+  test('Driver POST creates a Pending PM schedule returned by Admin Pending and supports rejection', async () => {
+    const payload = {
+      vehicle: vehicle._id,
+      origin: 'Delhi',
+      destination: 'Jaipur',
+      travelDate: '2026-09-29',
+      departureTime: '06:00 PM',
+      arrivalTime: '11:00 PM'
+    };
+    const createRes = await request(app)
+      .post('/api/driver/schedules')
+      .set('Authorization', `Bearer ${driverToken}`)
+      .send(payload);
+
+    expect(createRes.status).toBe(201);
+    expect(createRes.body.success).toBe(true);
+    expect(createRes.body.data._id).toBeTruthy();
+    expect(String(createRes.body.data.driver)).toBe(String(driver._id));
+    expect(String(createRes.body.data.vehicle)).toBe(String(vehicle._id));
+    expect(createRes.body.data.origin).toBe('Delhi');
+    expect(createRes.body.data.destination).toBe('Jaipur');
+    expect(createRes.body.data.status).toBe('Pending');
+    expect(createRes.body.data.departureTime).toBe('06:00 PM');
+    expect(createRes.body.data.arrivalTime).toBe('11:00 PM');
+    console.log('DRIVER SCHEDULE POST DIAGNOSTIC', JSON.stringify({
+      httpStatus: createRes.status,
+      response: {
+        success: createRes.body.success,
+        _id: createRes.body.data._id,
+        driver: createRes.body.data.driver,
+        vehicle: createRes.body.data.vehicle,
+        origin: createRes.body.data.origin,
+        destination: createRes.body.data.destination,
+        travelDate: createRes.body.data.travelDate,
+        departureTime: createRes.body.data.departureTime,
+        arrivalTime: createRes.body.data.arrivalTime,
+        status: createRes.body.data.status
+      }
+    }, null, 2));
+
+    const adminPendingRes = await request(app)
+      .get('/api/admin/schedules?status=Pending')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(adminPendingRes.status).toBe(200);
+    const pendingSchedule = adminPendingRes.body.data.find(item => item._id === createRes.body.data._id);
+    expect(pendingSchedule).toBeDefined();
+    expect(pendingSchedule.status).toBe('Pending');
+    expect(String(pendingSchedule.driver._id)).toBe(String(driver._id));
+    expect(String(pendingSchedule.vehicle._id)).toBe(String(vehicle._id));
+    expect(pendingSchedule.departureTime).toBe('06:00 PM');
+    expect(pendingSchedule.arrivalTime).toBe('11:00 PM');
+
+    const rejectRes = await request(app)
+      .patch(`/api/admin/schedules/${createRes.body.data._id}/reject`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ reason: 'Test schedule rejection' });
+    expect(rejectRes.status).toBe(200);
+    expect(rejectRes.body.data.status).toBe('Rejected');
+  });
 });

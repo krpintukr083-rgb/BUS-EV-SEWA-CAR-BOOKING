@@ -3,18 +3,7 @@ const Driver = require('../models/Driver');
 const Schedule = require('../models/Schedule');
 const Vehicle = require('../models/Vehicle');
 const { vehicleMatchesBookingRoute } = require('./notification');
-
-const activeInstantBookingStatuses = [
-  'Pending Admin Confirmation',
-  'PENDING_ADMIN_CONFIRMATION',
-  'Admin Confirmed',
-  'ADMIN_CONFIRMED',
-  'Pending',
-  'Pending Driver Confirmation',
-  'Awaiting Cash Collection',
-  'Confirmed',
-  'Ongoing'
-];
+const { getActiveInstantBookingQuery } = require('./activeInstantBooking');
 
 const getAvailableInstantVehicleDrivers = async (
   serviceType,
@@ -76,10 +65,9 @@ const getAvailableInstantVehicleDrivers = async (
 
   const eligibleDrivers = candidatesByVehicle.flatMap(({ eligible }) => eligible);
   const activeDriverIds = eligibleDrivers.length
-      ? await Booking.distinct('driver', {
-          driver: { $in: eligibleDrivers.map(driver => driver._id) },
-          rideStatus: { $in: ['Accepted', 'Arrived', 'Started'] }
-        })
+      ? await Booking.distinct('driver', getActiveInstantBookingQuery({
+          $in: eligibleDrivers.map(driver => driver._id)
+        }))
       : [];
   const activeDriverSet = new Set(activeDriverIds.map(id => String(id)));
 

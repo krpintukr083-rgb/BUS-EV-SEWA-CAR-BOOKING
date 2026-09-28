@@ -14,6 +14,7 @@ const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
 const { validateRoutePricing } = require('../utils/routeFares');
 const driverBookingResponse = require('../utils/driverBookingResponse');
 const { vehicleMatchesBookingRoute } = require('../utils/notification');
+const { getActiveInstantBookingQuery } = require('../utils/activeInstantBooking');
 
 const getBookingQuery = (idOrCode) => {
   return mongoose.isValidObjectId(idOrCode)
@@ -1169,11 +1170,9 @@ const getInstantBookingRequests = async (req, res, next) => {
       .lean();
 
     // Check if this driver currently has an active Instant Booking
-    const hasActiveInstantBooking = Boolean(await Booking.exists({
-      driver: driver._id,
-      bookingMode: 'INSTANT',
-      rideStatus: { $in: ['Accepted', 'Arrived', 'Started'] }
-    }));
+    const hasActiveInstantBooking = Boolean(await Booking.exists(
+      getActiveInstantBookingQuery(driver._id)
+    ));
 
     // Filter candidate bookings by route match & eligibility
     const requests = candidateBookings.filter(reqItem => {
@@ -1349,11 +1348,9 @@ const getScheduleBookingRequests = async (req, res, next) => {
       .lean();
 
     // Check if this driver currently has an active Instant Booking
-    const hasActiveInstantBooking = Boolean(await Booking.exists({
-      driver: driver._id,
-      bookingMode: 'INSTANT',
-      rideStatus: { $in: ['Accepted', 'Arrived', 'Started'] }
-    }));
+    const hasActiveInstantBooking = Boolean(await Booking.exists(
+      getActiveInstantBookingQuery(driver._id)
+    ));
 
     // Filter candidate bookings by route match & eligibility
     const requests = candidateBookings.filter(reqItem => {
@@ -1520,9 +1517,7 @@ const acceptInstantBookingRequest = async (req, res, next) => {
       // A driver cannot accept multiple simultaneous active instant bookings.
       const activeInstantBooking = await Booking.findOne({
         _id: { $ne: booking._id },
-        driver: driver._id,
-        bookingMode: 'INSTANT',
-        rideStatus: { $in: ['Accepted', 'Arrived', 'Started'] }
+        ...getActiveInstantBookingQuery(driver._id)
       }).select('bookingId bookingStatus rideStatus').lean();
 
       if (activeInstantBooking) {
@@ -4331,4 +4326,3 @@ exports.verifyRideOtp = async (req, res, next) => {
   if (booking.bookingMode === 'INSTANT') return verifyInstantRideOtp(req, res, next);
   return verifyScheduleRideOtp(req, res, next);
 };
-
