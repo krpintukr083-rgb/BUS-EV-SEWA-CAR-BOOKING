@@ -27,6 +27,7 @@ const BookingRequestsScreen = ({ navigation }) => {
   const { t } = useLanguage();
 
   const [requests, setRequests] = useState([]);
+  const [activeTrip, setActiveTrip] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
   const [rejectModalVisible, setRejectModalVisible] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState(null);
@@ -40,8 +41,23 @@ const BookingRequestsScreen = ({ navigation }) => {
         const validRequests = filterIncomingRequests(res.data.data);
         setRequests(validRequests);
         checkAndNotifyBookingRequests(validRequests, user?._id || driver?._id);
+
+        if (validRequests.length === 0) {
+          try {
+            const activeRes = await driverService.getActiveBookings();
+            const active = (activeRes.data?.data || []).find(
+              b => b.bookingStatus !== 'Cancelled' && b.bookingStatus !== 'Completed' && b.rideStatus !== 'Completed'
+            );
+            setActiveTrip(active || null);
+          } catch (_) {
+            setActiveTrip(null);
+          }
+        } else {
+          setActiveTrip(null);
+        }
       } else {
         setRequests([]);
+        setActiveTrip(null);
       }
     } catch (e) {
       console.warn('Error loading requests', e);
@@ -165,15 +181,35 @@ const BookingRequestsScreen = ({ navigation }) => {
           />
         )}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="car-outline" size={64} color={COLORS.surfaceHighlight} />
-            <Text style={styles.emptyTitle}>{t('noRequests') || 'No active bookings available'}</Text>
-            <Text style={styles.emptySub}>
-              {isOnline
-                ? 'No active booking requests available right now. Stay active and near popular transport hubs to receive incoming trip requests.'
-                : 'Turn on your online switch to start receiving ride dispatches.'}
-            </Text>
-          </View>
+          activeTrip ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="time-outline" size={64} color={COLORS.warning || '#f59e0b'} />
+              <Text style={styles.emptyTitle}>Active Trip in Progress</Text>
+              <Text style={styles.emptySub}>
+                You have an ongoing trip ({activeTrip.bookingId || 'Active Booking'}). New incoming instant booking requests are suppressed until your current ride is verified and completed.
+              </Text>
+              <TouchableOpacity
+                style={styles.viewTripBtn}
+                onPress={() => navigation.navigate('BusConfirmation', {
+                  bookingId: activeTrip._id || activeTrip.bookingId,
+                  highlightBookingId: activeTrip._id || activeTrip.bookingId
+                })}
+              >
+                <Ionicons name="navigate-outline" size={16} color="#000" />
+                <Text style={styles.viewTripBtnText}>Open Active Trip</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="car-outline" size={64} color={COLORS.surfaceHighlight} />
+              <Text style={styles.emptyTitle}>{t('noRequests') || 'No active bookings available'}</Text>
+              <Text style={styles.emptySub}>
+                {isOnline
+                  ? 'No active booking requests available right now on your assigned route. Stay active and near popular transport hubs to receive incoming trip requests.'
+                  : 'Turn on your online switch to start receiving ride dispatches.'}
+              </Text>
+            </View>
+          )
         }
       />
 
@@ -279,6 +315,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 6,
     lineHeight: 18
+  },
+  viewTripBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderRadius: 12,
+    marginTop: SPACING.lg
+  },
+  viewTripBtnText: {
+    color: '#000',
+    fontSize: 14,
+    fontWeight: '800'
   },
   modalOverlay: {
     flex: 1,
