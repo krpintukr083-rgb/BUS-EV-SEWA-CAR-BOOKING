@@ -1168,8 +1168,6 @@ const getInstantBookingRequests = async (req, res, next) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    console.log(`[getBookingRequests Debug] Driver ${driver.name} candidateBookings count: ${candidateBookings.length}`);
-
     // Check if this driver currently has an active Instant Booking
     const hasActiveInstantBooking = Boolean(await Booking.exists({
       driver: driver._id,
@@ -1204,7 +1202,6 @@ const getInstantBookingRequests = async (req, res, next) => {
           const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem, {
             requireRouteMatch: !isSelectedBusVehicle
           });
-          console.log(`[getBookingRequests Debug] Driver ${driver.name} vehicle ${assignedVehicle.vehicleNumber} (${assignedVehicle.route?.origin}->${assignedVehicle.route?.destination}) matches booking ${reqItem.bookingId} (${reqItem.pickupLocation}->${reqItem.dropLocation}): ${matches}`);
           return matches;
         }
         return false;
@@ -1212,7 +1209,6 @@ const getInstantBookingRequests = async (req, res, next) => {
       // If pending/unconfirmed request, check route match between driver's assigned vehicle and booking
       if (assignedVehicle) {
         const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem, { requireRouteMatch: true });
-        console.log(`[getBookingRequests Debug] Driver ${driver.name} vehicle ${assignedVehicle.vehicleNumber} (${assignedVehicle.route?.origin}->${assignedVehicle.route?.destination}) matches booking ${reqItem.bookingId} (${reqItem.pickupLocation}->${reqItem.dropLocation}): ${matches}`);
         return matches;
       }
       return false;
@@ -1314,13 +1310,28 @@ const getScheduleBookingRequests = async (req, res, next) => {
       return res.json({ success: true, count: 0, data: [], reason: 'UNSUPPORTED_VEHICLE_TYPE' });
     }
 
-    // Fetch candidate pending bookings
+    // Fetch candidate pending bookings for this service or broadcast Instant requests.
+    const isCombinedRequest = !req.query.mode;
+    const candidateQuery = isCombinedRequest
+      ? {
+        bookingMode: { $in: ['NORMAL', 'SCHEDULE', 'INSTANT'] },
+        $or: [
+          { bookingMode: 'INSTANT' },
+          {
+            bookingMode: { $in: ['NORMAL', 'SCHEDULE'] },
+            serviceType: { $in: [assignedVehicle.vehicleType, 'Any'] }
+          }
+        ]
+      }
+      : {
+        $or: [
+          { serviceType: assignedVehicle.vehicleType },
+          { bookingMode: 'INSTANT' },
+          { serviceType: 'Any' }
+        ]
+      };
     const candidateBookings = await Booking.find({
-      $or: [
-        { serviceType: assignedVehicle.vehicleType },
-        { bookingMode: 'INSTANT' },
-        { serviceType: 'Any' }
-      ],
+      ...candidateQuery,
       driverConfirmed: { $ne: true },
       driverConfirmationStatus: { $ne: 'Confirmed' },
       confirmationOtpVerifiedAt: null,
@@ -1337,8 +1348,6 @@ const getScheduleBookingRequests = async (req, res, next) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    console.log(`[getBookingRequests Debug] Driver ${driver.name} candidateBookings count: ${candidateBookings.length}`);
-
     // Check if this driver currently has an active Instant Booking
     const hasActiveInstantBooking = Boolean(await Booking.exists({
       driver: driver._id,
@@ -1353,8 +1362,8 @@ const getScheduleBookingRequests = async (req, res, next) => {
         return false;
       }
 
-      // If driver already has an active instant booking, do not offer more instant booking requests
-      if (hasActiveInstantBooking && false) {
+      // An active instant booking only suppresses additional instant requests.
+      if (isCombinedRequest && reqItem.bookingMode === 'INSTANT' && hasActiveInstantBooking) {
         return false;
       }
       
@@ -1366,23 +1375,12 @@ const getScheduleBookingRequests = async (req, res, next) => {
       if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(reqItem.bookingStatus)) {
         return false;
       }
-      // Bus, Any, or INSTANT requests remain broadcast; non-Bus requests cannot be claimed by another assigned driver unless they are 'Any' or 'INSTANT' broadcast.
-      if (false || reqItem.serviceType === 'Bus' || reqItem.serviceType === 'Any') {
-        if (assignedVehicle) {
-          const isSelectedBusVehicle = reqItem.vehicle && String(assignedVehicle._id) === String(reqItem.vehicle?._id || reqItem.vehicle);
-          const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem, {
-            requireRouteMatch: !isSelectedBusVehicle
-          });
-          console.log(`[getBookingRequests Debug] Driver ${driver.name} vehicle ${assignedVehicle.vehicleNumber} (${assignedVehicle.route?.origin}->${assignedVehicle.route?.destination}) matches booking ${reqItem.bookingId} (${reqItem.pickupLocation}->${reqItem.dropLocation}): ${matches}`);
-          return matches;
-        }
-        return false;
-      }
-      // If pending/unconfirmed request, check route match between driver's assigned vehicle and booking
       if (assignedVehicle) {
-        const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem, { requireRouteMatch: true });
-        console.log(`[getBookingRequests Debug] Driver ${driver.name} vehicle ${assignedVehicle.vehicleNumber} (${assignedVehicle.route?.origin}->${assignedVehicle.route?.destination}) matches booking ${reqItem.bookingId} (${reqItem.pickupLocation}->${reqItem.dropLocation}): ${matches}`);
-        return matches;
+        const isSelectedVehicle = reqItem.vehicle
+          && String(assignedVehicle._id) === String(reqItem.vehicle?._id || reqItem.vehicle);
+        return vehicleMatchesBookingRoute(assignedVehicle, reqItem, {
+          requireRouteMatch: isCombinedRequest || !isSelectedVehicle
+        });
       }
       return false;
     });
@@ -4333,5 +4331,4 @@ exports.verifyRideOtp = async (req, res, next) => {
   if (booking.bookingMode === 'INSTANT') return verifyInstantRideOtp(req, res, next);
   return verifyScheduleRideOtp(req, res, next);
 };
-
 

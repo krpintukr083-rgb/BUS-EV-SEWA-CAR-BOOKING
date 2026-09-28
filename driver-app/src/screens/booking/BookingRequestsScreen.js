@@ -36,9 +36,13 @@ const BookingRequestsScreen = ({ navigation }) => {
     try {
       const res = await driverService.getBookingRequests();
       if (res.data?.success && Array.isArray(res.data.data)) {
-        // Exclude bookings that are already accepted, confirmed, or completed
+        // Keep accepted, confirmed, and cash-collected bookings out of actionable requests.
         const validRequests = res.data.data.filter(
-          (req) => !req.driverConfirmed && req.rideStatus !== 'Accepted' && req.bookingStatus !== 'Confirmed' && req.bookingStatus !== 'Awaiting Cash Collection'
+          (req) => !req.driverConfirmed
+            && req.rideStatus !== 'Accepted'
+            && req.bookingStatus !== 'Confirmed'
+            && req.bookingStatus !== 'Awaiting Cash Collection'
+            && !req.cashCollected
         );
         setRequests(validRequests);
         checkAndNotifyBookingRequests(validRequests, user?._id || driver?._id);

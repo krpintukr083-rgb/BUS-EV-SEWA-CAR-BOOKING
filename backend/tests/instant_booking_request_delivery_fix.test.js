@@ -10,10 +10,10 @@ const Booking = require('../src/models/Booking');
 const ServiceControl = require('../src/models/ServiceControl');
 
 describe('Instant Booking Driver Request Delivery & Stale Booking Isolation', () => {
-  let customerUser, driverUser1, driverUser2;
-  let driver1, driver2;
+  let customerUser, driverUser1, driverUser2, driverUser3;
+  let driver1, driver2, driver3;
   let vehicleBus, vehicleEv, vehicleCar, vehicleInactive, vehiclePending;
-  let customerToken, driver1Token, driver2Token;
+  let customerToken, driver1Token, driver2Token, driver3Token;
   const suffix = Date.now().toString().slice(-8);
 
   beforeAll(async () => {
@@ -52,10 +52,19 @@ describe('Instant Booking Driver Request Delivery & Stale Booking Isolation', ()
       role: 'driver',
       status: 'Active'
     });
+    driverUser3 = await User.create({
+      name: 'Driver Three',
+      email: `driver3_${suffix}@test.com`,
+      phone: `93${suffix}`,
+      password: 'password123',
+      role: 'driver',
+      status: 'Active'
+    });
 
     customerToken = jwt.sign({ id: customerUser._id, role: 'customer' }, jwtConfig.secret, { expiresIn: '1h' });
     driver1Token = jwt.sign({ id: driverUser1._id, role: 'driver' }, jwtConfig.secret, { expiresIn: '1h' });
     driver2Token = jwt.sign({ id: driverUser2._id, role: 'driver' }, jwtConfig.secret, { expiresIn: '1h' });
+    driver3Token = jwt.sign({ id: driverUser3._id, role: 'driver' }, jwtConfig.secret, { expiresIn: '1h' });
 
     driver1 = await Driver.create({
       user: driverUser1._id,
@@ -71,6 +80,14 @@ describe('Instant Booking Driver Request Delivery & Stale Booking Isolation', ()
       name: 'Driver Two',
       mobileNumber: driverUser2.phone,
       drivingLicenceNumber: `DL-2-${suffix}`,
+      driverStatus: 'Active',
+      isOnline: true
+    });
+    driver3 = await Driver.create({
+      user: driverUser3._id,
+      name: 'Driver Three',
+      mobileNumber: driverUser3.phone,
+      drivingLicenceNumber: `DL-3-${suffix}`,
       driverStatus: 'Active',
       isOnline: true
     });
@@ -101,6 +118,19 @@ describe('Instant Booking Driver Request Delivery & Stale Booking Isolation', ()
       fareRate: 600,
       assignedDriver: driver2._id,
       route: { origin: 'Delhi', destination: 'Jaipur' }
+    });
+    vehicleCar = await Vehicle.create({
+      vehicleNumber: `CAR${suffix}`,
+      vehicleType: 'Car',
+      vehicleCategory: 'Sedan',
+      vehicleModel: 'Model Car',
+      vehicleName: 'Test Car',
+      ownerName: 'Owner Car',
+      ownerMobileNumber: `90${suffix}`,
+      vehicleStatus: 'Active',
+      fareRate: 400,
+      assignedDriver: driver3._id,
+      route: { origin: ' Delhi ', destination: ' JAIPUR ' }
     });
 
     vehicleInactive = await Vehicle.create({
@@ -134,21 +164,23 @@ describe('Instant Booking Driver Request Delivery & Stale Booking Isolation', ()
 
     driver2.assignedVehicle = vehicleBus._id;
     await driver2.save();
+    driver3.assignedVehicle = vehicleCar._id;
+    await driver3.save();
   });
 
   afterEach(async () => {
     await Booking.deleteMany({
       $or: [
         { user: customerUser._id },
-        { driver: { $in: [driver1._id, driver2._id] } }
+        { driver: { $in: [driver1._id, driver2._id, driver3._id] } }
       ]
     });
   });
 
   afterAll(async () => {
-    await User.deleteMany({ _id: { $in: [customerUser._id, driverUser1._id, driverUser2._id] } });
-    await Driver.deleteMany({ _id: { $in: [driver1._id, driver2._id] } });
-    await Vehicle.deleteMany({ _id: { $in: [vehicleEv._id, vehicleBus._id, vehicleInactive._id, vehiclePending._id] } });
+    await User.deleteMany({ _id: { $in: [customerUser._id, driverUser1._id, driverUser2._id, driverUser3._id] } });
+    await Driver.deleteMany({ _id: { $in: [driver1._id, driver2._id, driver3._id] } });
+    await Vehicle.deleteMany({ _id: { $in: [vehicleEv._id, vehicleBus._id, vehicleCar._id, vehicleInactive._id, vehiclePending._id] } });
   });
 
   const createBooking = (overrides = {}) => {
@@ -360,6 +392,126 @@ describe('Instant Booking Driver Request Delivery & Stale Booking Isolation', ()
     expect(res2.status).toBe(200);
     expect(res1.body.data.some(req => req.bookingId === freshBooking.bookingId)).toBe(true);
     expect(res2.body.data.some(req => req.bookingId === freshBooking.bookingId)).toBe(true);
+  });
+
+  test('default request endpoint returns NORMAL, SCHEDULE, and INSTANT bookings with route and status filters', async () => {
+    const normal = await createBooking({
+      bookingMode: 'NORMAL',
+      serviceType: 'Bus',
+      pickupLocation: '  dElHi ',
+      dropLocation: ' JAIPUR  '
+    });
+    const scheduled = await createBooking({
+      bookingMode: 'SCHEDULE',
+      serviceType: 'Bus'
+    });
+    const instant = await createBooking();
+    const wrongRoute = await createBooking({
+      bookingMode: 'NORMAL',
+      serviceType: 'Bus',
+      pickupLocation: 'Delhi',
+      dropLocation: 'Agra'
+    });
+    const reverseRoute = await createBooking({
+      bookingMode: 'SCHEDULE',
+      serviceType: 'Bus',
+      pickupLocation: 'Jaipur',
+      dropLocation: 'Delhi'
+    });
+    const accepted = await createBooking({
+      bookingMode: 'NORMAL',
+      serviceType: 'Bus',
+      rideStatus: 'Accepted'
+    });
+    const confirmed = await createBooking({
+      bookingMode: 'SCHEDULE',
+      serviceType: 'Bus',
+      bookingStatus: 'Confirmed'
+    });
+    const cashCollected = await createBooking({
+      bookingMode: 'NORMAL',
+      serviceType: 'Bus',
+      cashCollected: true
+    });
+    const unknownMode = await Booking.collection.insertOne({
+      bookingId: `BK-UNKNOWN-${suffix}`,
+      user: customerUser._id,
+      customer: { name: customerUser.name, phone: customerUser.phone },
+      pickupLocation: 'Delhi',
+      dropLocation: 'Jaipur',
+      serviceType: 'Bus',
+      bookingMode: 'UNKNOWN',
+      fare: 500,
+      bookingStatus: 'Pending Driver Confirmation',
+      driver: null,
+      driverConfirmed: false,
+      driverConfirmationStatus: 'Pending',
+      confirmationOtpVerifiedAt: null,
+      otpVerified: false,
+      cashCollected: false,
+      rideStatus: 'None',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    });
+
+    const response = await request(app)
+      .get('/api/driver/booking-requests')
+      .set('Authorization', `Bearer ${driver2Token}`);
+    expect(response.status).toBe(200);
+    expect(response.body.success).toBe(true);
+    expect(response.body.data.map(item => item._id)).toEqual(expect.arrayContaining([
+      String(normal._id),
+      String(scheduled._id),
+      String(instant._id)
+    ]));
+    expect(response.body.data.map(item => item._id)).not.toEqual(expect.arrayContaining([
+      String(wrongRoute._id),
+      String(reverseRoute._id),
+      String(accepted._id),
+      String(confirmed._id),
+      String(cashCollected._id),
+      String(unknownMode.insertedId)
+    ]));
+
+    const frontendEligible = response.body.data.filter(item =>
+      !item.driverConfirmed
+      && item.rideStatus !== 'Accepted'
+      && item.bookingStatus !== 'Confirmed'
+      && item.bookingStatus !== 'Awaiting Cash Collection'
+      && !item.cashCollected
+    );
+    console.log([
+      `RAW API COUNT: ${response.body.count}`,
+      `NORMAL COUNT: ${response.body.data.filter(item => item.bookingMode === 'NORMAL').length}`,
+      `SCHEDULE COUNT: ${response.body.data.filter(item => item.bookingMode === 'SCHEDULE').length}`,
+      `INSTANT COUNT: ${response.body.data.filter(item => item.bookingMode === 'INSTANT').length}`,
+      `FINAL RENDERED COUNT: ${frontendEligible.length}`
+    ].join('\n'));
+    expect(response.body.count).toBe(3);
+    expect(frontendEligible).toHaveLength(3);
+  });
+
+  test('Instant request is visible to same-route Bus, EV-Sewa, and Car drivers; first claim removes it for others', async () => {
+    const instant = await createBooking();
+    const tokens = [driver1Token, driver2Token, driver3Token];
+    const responses = await Promise.all(tokens.map(token => request(app)
+      .get('/api/driver/booking-requests')
+      .set('Authorization', `Bearer ${token}`)));
+    for (const response of responses) {
+      expect(response.status).toBe(200);
+      expect(response.body.data.some(item => item._id === String(instant._id))).toBe(true);
+    }
+
+    const accepted = await request(app)
+      .post(`/api/driver/booking-requests/${instant._id}/accept`)
+      .set('Authorization', `Bearer ${driver1Token}`);
+    expect(accepted.status).toBe(200);
+
+    const remainingRequests = await request(app)
+      .get('/api/driver/booking-requests')
+      .set('Authorization', `Bearer ${driver2Token}`);
+    expect(remainingRequests.status).toBe(200);
+    expect(remainingRequests.body.data.some(item => item._id === String(instant._id))).toBe(false);
   });
 
   test('TEST 11 & 12: First driver wins, second driver receives 409', async () => {
