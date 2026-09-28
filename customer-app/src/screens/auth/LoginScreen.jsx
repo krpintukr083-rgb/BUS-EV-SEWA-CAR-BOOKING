@@ -28,8 +28,8 @@ import {
 
 const LoginScreen = ({ navigation }) => {
   const [authMode, setAuthMode] = useState('email'); // 'phone' | 'email'
-  const [identifier, setIdentifier] = useState('priya.nair@example.com');
-  const [password, setPassword] = useState('user123');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Server settings modal state
@@ -140,7 +140,7 @@ const LoginScreen = ({ navigation }) => {
             <TouchableOpacity
               onPress={() => {
                 setAuthMode('phone');
-                setIdentifier('+919844556677');
+                setIdentifier('');
               }}
               style={[styles.tab, authMode === 'phone' && styles.activeTab]}
             >
@@ -155,7 +155,7 @@ const LoginScreen = ({ navigation }) => {
             <TouchableOpacity
               onPress={() => {
                 setAuthMode('email');
-                setIdentifier('priya.nair@example.com');
+                setIdentifier('');
               }}
               style={[styles.tab, authMode === 'email' && styles.activeTab]}
             >
@@ -194,12 +194,7 @@ const LoginScreen = ({ navigation }) => {
             style={{ marginTop: 8 }}
           />
 
-          {/* Quick Demo Credentials helper */}
-          <View style={styles.demoBox}>
-            <Text style={styles.demoTitle}>Demo Customer Credentials:</Text>
-            <Text style={styles.demoText}>Email: priya.nair@example.com | Pass: user123</Text>
-            <Text style={styles.demoText}>Mobile: +919844556677 | Pass: user123</Text>
-          </View>
+      
 
           {/* Server status pill button */}
           <TouchableOpacity
@@ -407,24 +402,7 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: '700'
   },
-  demoBox: {
-    backgroundColor: '#f8fafc',
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 18,
-    borderWidth: 1,
-    borderColor: '#e2e8f0'
-  },
-  demoTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: COLORS.primary,
-    marginBottom: 2
-  },
-  demoText: {
-    fontSize: 11,
-    color: COLORS.textSecondary
-  },
+
   signupRow: {
     flexDirection: 'row',
     justifyContent: 'center',
