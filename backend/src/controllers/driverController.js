@@ -1725,7 +1725,11 @@ exports.verifyRideOtp = async (req, res, next) => {
         booking.bookingStatus = 'Confirmed';
       }
     } else {
-      booking.bookingStatus = 'Confirmed';
+      if (isOfflineCash && !isPaid) {
+        booking.bookingStatus = 'Awaiting Cash Collection';
+      } else {
+        booking.bookingStatus = 'Confirmed';
+      }
       booking.rideStatus = 'Accepted';
     }
 

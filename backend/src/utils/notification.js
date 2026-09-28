@@ -37,11 +37,11 @@ const vehicleMatchesBookingRoute = (vehicle, booking, { requireRouteMatch = fals
     if (bVehId === vehId) return true;
   }
 
-  const vOrigin = vehicle.route?.origin || vehicle.pickupDropDetails?.pickupLocation || vehicle.hireDetails?.pickup || '';
-  const vDest = vehicle.route?.destination || vehicle.pickupDropDetails?.dropLocation || vehicle.hireDetails?.destination || '';
+  const vOrigin = vehicle.route?.origin || vehicle.route?.from || vehicle.pickupDropDetails?.pickupLocation || vehicle.hireDetails?.pickup || '';
+  const vDest = vehicle.route?.destination || vehicle.route?.to || vehicle.pickupDropDetails?.dropLocation || vehicle.hireDetails?.destination || '';
 
-  const bOrigin = booking.pickupLocation || booking.route?.origin || '';
-  const bDest = booking.dropLocation || booking.route?.destination || '';
+  const bOrigin = booking.pickupLocation || booking.origin || booking.from || booking.route?.origin || booking.route?.from || '';
+  const bDest = booking.dropLocation || booking.destination || booking.to || booking.route?.destination || booking.route?.to || '';
 
   if (Array.isArray(vehicle.route?.stops) && vehicle.route.stops.length > 0) {
     return getRouteSegmentFare(vehicle.route, bOrigin, bDest) != null;
