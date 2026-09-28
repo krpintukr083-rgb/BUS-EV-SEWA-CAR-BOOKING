@@ -76,15 +76,11 @@ const getAvailableInstantVehicleDrivers = async (
 
   const eligibleDrivers = candidatesByVehicle.flatMap(({ eligible }) => eligible);
   const activeDriverIds = eligibleDrivers.length
-    ? await Booking.distinct('driver', {
-        driver: { $in: eligibleDrivers.map(driver => driver._id) },
-        bookingStatus: { $in: activeInstantBookingStatuses },
-        $or: [
-          { travelDate: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
-          { rideStatus: { $in: ['Accepted', 'Arrived', 'Started'] } }
-        ]
-      })
-    : [];
+      ? await Booking.distinct('driver', {
+          driver: { $in: eligibleDrivers.map(driver => driver._id) },
+          rideStatus: { $in: ['Accepted', 'Arrived', 'Started'] }
+        })
+      : [];
   const activeDriverSet = new Set(activeDriverIds.map(id => String(id)));
 
   return candidatesByVehicle.flatMap(({ vehicle, eligible }) => {

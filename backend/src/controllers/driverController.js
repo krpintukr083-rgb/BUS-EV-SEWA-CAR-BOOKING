@@ -1164,20 +1164,7 @@ exports.getBookingRequests = async (req, res, next) => {
     const hasActiveInstantBooking = Boolean(await Booking.exists({
       driver: driver._id,
       bookingMode: 'INSTANT',
-      rideStatus: { $in: ['Accepted', 'Arrived', 'Started', 'Ongoing'] },
-      bookingStatus: {
-        $in: [
-          'Pending Admin Confirmation',
-          'PENDING_ADMIN_CONFIRMATION',
-          'Admin Confirmed',
-          'ADMIN_CONFIRMED',
-          'Pending',
-          'Pending Driver Confirmation',
-          'Awaiting Cash Collection',
-          'Confirmed',
-          'Ongoing'
-        ]
-      }
+      rideStatus: { $in: ['Accepted', 'Arrived', 'Started'] }
     }));
 
     // Filter candidate bookings by route match & eligibility
@@ -1350,20 +1337,7 @@ exports.acceptBookingRequest = async (req, res, next) => {
         _id: { $ne: booking._id },
         driver: driver._id,
         bookingMode: 'INSTANT',
-        rideStatus: { $in: ['Accepted', 'Arrived', 'Started', 'Ongoing'] },
-        bookingStatus: {
-          $in: [
-            'Pending Admin Confirmation',
-            'PENDING_ADMIN_CONFIRMATION',
-            'Admin Confirmed',
-            'ADMIN_CONFIRMED',
-            'Pending',
-            'Pending Driver Confirmation',
-            'Awaiting Cash Collection',
-            'Confirmed',
-            'Ongoing'
-          ]
-        }
+        rideStatus: { $in: ['Accepted', 'Arrived', 'Started'] }
       }).select('bookingId bookingStatus rideStatus').lean();
 
       if (activeInstantBooking) {
