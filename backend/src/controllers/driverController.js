@@ -1309,10 +1309,12 @@ const getScheduleBookingRequests = async (req, res, next) => {
       return res.json({ success: true, count: 0, data: [], reason: 'UNSUPPORTED_VEHICLE_TYPE' });
     }
 
-    // Fetch candidate pending bookings for this service or broadcast Instant requests.
-    const isCombinedRequest = !req.query.mode;
-    const candidateQuery = isCombinedRequest
-      ? {
+    const mode = req.query.mode;
+    const isCombinedRequest = !mode;
+    
+    let candidateQuery = {};
+    if (isCombinedRequest) {
+      candidateQuery = {
         bookingMode: { $in: ['NORMAL', 'SCHEDULE', 'INSTANT'] },
         $or: [
           { bookingMode: 'INSTANT' },
@@ -1321,14 +1323,17 @@ const getScheduleBookingRequests = async (req, res, next) => {
             serviceType: { $in: [assignedVehicle.vehicleType, 'Any'] }
           }
         ]
-      }
-      : {
-        $or: [
-          { serviceType: assignedVehicle.vehicleType },
-          { bookingMode: 'INSTANT' },
-          { serviceType: 'Any' }
-        ]
       };
+    } else if (mode === 'INSTANT') {
+      candidateQuery = {
+        bookingMode: 'INSTANT'
+      };
+    } else {
+      candidateQuery = {
+        bookingMode: mode,
+        serviceType: { $in: [assignedVehicle.vehicleType, 'Any'] }
+      };
+    }
     const candidateBookings = await Booking.find({
       ...candidateQuery,
       driverConfirmed: { $ne: true },
@@ -1432,8 +1437,6 @@ const getScheduleBookingRequests = async (req, res, next) => {
 
 
 exports.getBookingRequests = async (req, res, next) => {
-  const isInstantReq = req.query.mode === 'INSTANT';
-  if (isInstantReq) return getInstantBookingRequests(req, res, next);
   return getScheduleBookingRequests(req, res, next);
 };
 
