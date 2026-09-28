@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Driver = require('../models/Driver');
 const jwt = require('jsonwebtoken');
 const jwtConfig = require('../config/jwt');
+const mongoose = require('mongoose');
 
 // Generate JWT token
 const generateToken = (id, role) => {
@@ -53,6 +54,26 @@ exports.login = async (req, res, next) => {
       });
     }
 
+    // Diagnostic logging
+    console.log('--- DIAGNOSTIC LOGIN LOG ---');
+    console.log('requested login identifier:', cleanId);
+    console.log('requested role:', role);
+    console.log('matched user _id:', user._id);
+    console.log('matched user email:', user.email);
+    console.log('matched user role:', user.role);
+    console.log('matched user accountType:', user.accountType);
+    console.log('matched user userType:', user.userType);
+    const dbInstance = mongoose.connection.db;
+    console.log('MongoDB database name:', dbInstance ? dbInstance.databaseName : 'Unknown');
+    // Verify Password
+    const isMatch = await user.matchPassword(password);
+    if (!isMatch) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid password. Please try again.'
+      });
+    }
+
     // Ensure Super Admin accounts are ALWAYS role 'admin' and never mutated
     const isAdminAccount = user.email && (
       user.email.toLowerCase() === 'admin@platform.com' ||
@@ -76,15 +97,6 @@ exports.login = async (req, res, next) => {
       return res.status(403).json({
         success: false,
         message: `Access denied. This account does not have '${role}' access privileges.`
-      });
-    }
-
-    // Verify Password
-    const isMatch = await user.matchPassword(password);
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid password. Please try again.'
       });
     }
 
