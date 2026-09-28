@@ -397,6 +397,8 @@ const createScheduleBooking = async (req, res, next) => {
   }
 };
 
+exports.createInstantBooking = createInstantBooking;
+exports.createScheduleBooking = createScheduleBooking;
 exports.createBooking = async (req, res, next) => {
   const requestedBookingMode = req.body.bookingMode;
   if (requestedBookingMode !== undefined && !['NORMAL', 'INSTANT'].includes(requestedBookingMode)) {
