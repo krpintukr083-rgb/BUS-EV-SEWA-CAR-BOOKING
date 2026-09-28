@@ -40,7 +40,7 @@ const createInstantBooking = async (req, res, next) => {
     const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
     const confirmationOtpHash = crypto.createHash('sha256').update(rawOtp).digest('hex');
     const confirmationOtpExpiresAt = new Date(Date.now() + 10 * 60 * 60 * 1000); // 10 Hours
-    const bookingId = BK-\;
+    const bookingId = `BK-${Date.now().toString().slice(-4)}${Math.floor(100 + Math.random() * 900)}`;
     const booking = await Booking.create({
       bookingId,
       bookingMode: 'INSTANT',
@@ -83,6 +83,27 @@ const createScheduleBooking = async (req, res, next) => {
   try {
     const { vehicleId, serviceType, pickupLocation, dropLocation, passengerDetails, passengerCount, selectedSeats, fare, travelDate, scheduleId, paymentMethod } = req.body;
     const bookingMode = 'NORMAL';
+    if (!vehicleId || !serviceType || !pickupLocation || !dropLocation) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required booking fields (vehicleId, serviceType, pickupLocation, dropLocation)'
+      });
+    }
+
+    // 1. Check Service Control status
+    const serviceControl = await ServiceControl.findOne();
+    if (serviceControl) {
+      if (serviceType === 'Bus' && serviceControl.busService !== 'Active') {
+        return res.status(400).json({
+          success: false,
+          message: 'Bus booking service is currently inactive'
+        });
+      }
+      if (serviceType === 'EV-Sewa' && serviceControl.evSewaService !== 'Active') {
+        return res.status(400).json({
+          success: false,
+          message: 'EV-Sewa booking service is currently inactive'
+        });
       }
       if (serviceType === 'Car' && serviceControl.carService !== 'Active') {
         return res.status(400).json({
@@ -371,10 +392,6 @@ const createScheduleBooking = async (req, res, next) => {
       data: bookingObj,
       payment
     });
-  } catch (error) {
-    next(error);
-  }
-};
   } catch (error) {
     next(error);
   }
