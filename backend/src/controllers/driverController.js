@@ -157,7 +157,7 @@ exports.getDriverDashboard = async (req, res, next) => {
               bookingStatus: {
                 $in: ['Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation', 'Admin Confirmed', 'ADMIN_CONFIRMED']
               },
-              bookingMode: { $ne: 'INSTANT' },
+              // Removed exclusion of INSTANT bookings to allow all modes
               driver: { $in: [null, driver._id] }
             })
               .select('bookingId user customer serviceType pickupLocation dropLocation fare driverPaymentAmount paymentStatus bookingStatus rideStatus travelDate passengerDetails busSeatNumbers vehicle driver createdAt')
@@ -172,15 +172,25 @@ exports.getDriverDashboard = async (req, res, next) => {
             return candidates.filter(b => {
               if (b.driverConfirmed || b.driverConfirmationStatus === 'Confirmed' || b.confirmationOtpVerifiedAt || b.otpVerified || b.cashCollected || b.rideStatus === 'Accepted') return false;
               if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus)) return false;
-              if (b.serviceType !== driverVeh?.vehicleType) return false;
-              if (b.serviceType !== 'Bus' && b.driver && (b.driver._id || b.driver).toString() !== driver._id.toString()) return false;
-              if (driverVeh) {
-                const isSelectedBusVehicle = b.serviceType === 'Bus'
-                  && String(driverVeh._id) === String(b.vehicle?._id || b.vehicle);
-                return vehicleMatchesBookingRoute(driverVeh, b, {
-                  requireRouteMatch: !isSelectedBusVehicle
-                });
+
+              // Mode‑specific handling
+              if (b.bookingMode === 'NORMAL' || b.bookingMode === 'SCHEDULE') {
+                if (b.serviceType !== driverVeh?.vehicleType) return false;
+                if (b.serviceType !== 'Bus' && b.driver && (b.driver._id || b.driver).toString() !== driver._id.toString()) return false;
+                if (driverVeh) {
+                  const isSelectedBusVehicle = b.serviceType === 'Bus' && String(driverVeh._id) === String(b.vehicle?._id || b.vehicle);
+                  return vehicleMatchesBookingRoute(driverVeh, b, { requireRouteMatch: !isSelectedBusVehicle });
+                }
+                return false;
               }
+
+              if (b.bookingMode === 'INSTANT') {
+                // Instant bookings: ignore service type, only route match required
+                if (!driverVeh) return false;
+                return vehicleMatchesBookingRoute(driverVeh, b, { requireRouteMatch: true });
+              }
+
+              // Unknown mode – exclude
               return false;
             }).slice(0, 10);
           })()
