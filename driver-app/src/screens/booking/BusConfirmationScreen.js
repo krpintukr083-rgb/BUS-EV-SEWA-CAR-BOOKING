@@ -18,7 +18,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useLanguage } from '../../state/LanguageContext';
 import CustomerOtpVerificationCard from '../../components/CustomerOtpVerificationCard';
-import { driverService } from '../../services/driverService';
+import { getBookingDisplayFare } from '../../utils/fareResolver';
 
 const isBookingCompletedOrCancelled = (b) => {
   if (!b) return true;
@@ -358,7 +358,7 @@ export default function BusConfirmationScreen({ navigation, route }) {
     const isOnlinePayment = Boolean(item.paymentMethod && /esewa|khalti|razorpay|card|netbanking|online/i.test(item.paymentMethod));
     const showCollectCashBtn = !isPaid && !isOnlinePayment && !isCompleted;
     const isLoading = actionLoadingId === item._id || actionLoadingId === item.bookingId;
-    const itemFare = item.totalFare || item.fare || item.finalFare || 0;
+    const itemFare = getBookingDisplayFare(item) || 0;
 
     return (
       <View style={styles.card}>

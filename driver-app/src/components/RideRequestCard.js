@@ -1,4 +1,5 @@
 import React from 'react';
+import { getBookingDisplayFare } from '../utils/fareResolver';
 import { View, Text, StyleSheet, TouchableOpacity, Linking, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING } from '../constants/theme';
@@ -7,9 +8,10 @@ import CountdownTimer from './CountdownTimer';
 const RideRequestCard = ({ request, onAccept, onReject }) => {
   if (!request) return null;
 
-  const fareAmount = request.fare ?? request.totalFare;
+  const fare = getBookingDisplayFare(request);
   const isInstant = request.bookingMode === 'INSTANT';
-  const showCalculating = isInstant && (fareAmount == null || fareAmount === 0);
+  const showCalculating = isInstant && (!fare || fare <= 0);
+  const fareAmount = fare || 0;
   const isCash = request.paymentMethod === 'Offline Cash' || request.paymentMethod === 'Cash';
   const callCustomer = () => {
     const phone = String(request.customerPhone).replace(/[^\d+]/g, '');

@@ -11,6 +11,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import driverService from '../services/driverService';
+import { getBookingDisplayFare } from '../utils/fareResolver';
 
 export default function CustomerOtpVerificationCard({ booking, onVerified, onCancel }) {
   const [otp, setOtp] = useState('');
@@ -26,7 +27,7 @@ export default function CustomerOtpVerificationCard({ booking, onVerified, onCan
   const seatNo = booking.selectedSeats?.join(', ') || booking.seats?.join(', ') || booking.seatNumber || 'A1';
   const pickup = booking.pickupLocation || booking.from || 'Delhi';
   const drop = booking.dropLocation || booking.to || 'Jaipur';
-  const fare = booking.fare || booking.totalFare || 850;
+  const fare = getBookingDisplayFare(booking) ?? 850;
 
   const isComplete = otp.length === 6;
 
