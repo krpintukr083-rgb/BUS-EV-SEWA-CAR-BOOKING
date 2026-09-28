@@ -1087,7 +1087,7 @@ exports.updateLanguage = async (req, res, next) => {
 // @desc    Get Booking Requests for Driver's Assigned Vehicle
 // @route   GET /api/driver/booking-requests, GET /api/driver/requests
 // @access  Private (Driver Only)
-exports.getBookingRequests = async (req, res, next) => {
+const getInstantBookingRequests = async (req, res, next) => {
   try {
     const driver = req.driver;
 
@@ -1175,7 +1175,7 @@ exports.getBookingRequests = async (req, res, next) => {
       }
 
       // If driver already has an active instant booking, do not offer more instant booking requests
-      if (hasActiveInstantBooking && reqItem.bookingMode === 'INSTANT') {
+      if (hasActiveInstantBooking && true) {
         return false;
       }
       
@@ -1188,7 +1188,7 @@ exports.getBookingRequests = async (req, res, next) => {
         return false;
       }
       // Bus, Any, or INSTANT requests remain broadcast; non-Bus requests cannot be claimed by another assigned driver unless they are 'Any' or 'INSTANT' broadcast.
-      if (reqItem.bookingMode === 'INSTANT' || reqItem.serviceType === 'Bus' || reqItem.serviceType === 'Any') {
+      if (true || reqItem.serviceType === 'Bus' || reqItem.serviceType === 'Any') {
         if (assignedVehicle) {
           const isSelectedBusVehicle = reqItem.vehicle && String(assignedVehicle._id) === String(reqItem.vehicle?._id || reqItem.vehicle);
           const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem, {
@@ -1255,6 +1255,183 @@ exports.getBookingRequests = async (req, res, next) => {
 // @desc    Get Active Bookings for Driver (Accepted but OTP not yet verified, and ongoing)
 // @route   GET /api/driver/active-bookings
 // @access  Private (Driver Only)
+
+const getScheduleBookingRequests = async (req, res, next) => {
+  try {
+    const driver = req.driver;
+
+    // Driver eligibility check: must be Active and Online
+    if (!driver || !['Active', 'Approved'].includes(driver.driverStatus)) {
+      return res.json({ success: true, count: 0, data: [], reason: 'DRIVER_NOT_ACTIVE', driverStatus: driver ? driver.driverStatus : null });
+    }
+
+    if (!driver.isOnline) {
+      return res.json({
+        success: true,
+        count: 0,
+        data: [],
+        reason: 'DRIVER_OFFLINE',
+        message: 'Driver is currently OFFLINE. Switch to ONLINE to receive ride requests.'
+      });
+    }
+
+    // Load driver's assigned vehicle guaranteed via fresh DB lookup & type-coerced reverse match
+    let assignedVehicle = null;
+
+    const currentDriverDoc = await Driver.findById(driver._id).lean();
+    if (currentDriverDoc && currentDriverDoc.assignedVehicle) {
+      assignedVehicle = await Vehicle.findById(currentDriverDoc.assignedVehicle).lean();
+    }
+
+    if (!assignedVehicle) {
+      const driverObjId = mongoose.Types.ObjectId.isValid(driver._id)
+        ? new mongoose.Types.ObjectId(driver._id)
+        : driver._id;
+
+      assignedVehicle = await Vehicle.findOne({
+        $or: [
+          { assignedDriver: driver._id },
+          { assignedDriver: driver._id.toString() },
+          { assignedDriver: driverObjId }
+        ]
+      }).lean();
+    }
+
+    if (!assignedVehicle || (assignedVehicle.vehicleStatus && assignedVehicle.vehicleStatus !== 'Active')) {
+      return res.json({ success: true, count: 0, data: [], reason: 'NO_ACTIVE_ASSIGNED_VEHICLE', assignedVehicle, driverId: driver._id });
+    }
+    if (!['Bus', 'EV-Sewa', 'Car'].includes(assignedVehicle.vehicleType)) {
+      return res.json({ success: true, count: 0, data: [], reason: 'UNSUPPORTED_VEHICLE_TYPE' });
+    }
+
+    // Fetch candidate pending bookings
+    const candidateBookings = await Booking.find({
+      $or: [
+        { serviceType: assignedVehicle.vehicleType },
+        { bookingMode: 'INSTANT' },
+        { serviceType: 'Any' }
+      ],
+      driverConfirmed: { $ne: true },
+      driverConfirmationStatus: { $ne: 'Confirmed' },
+      confirmationOtpVerifiedAt: null,
+      otpVerified: { $ne: true },
+      cashCollected: { $ne: true },
+      rideStatus: { $ne: 'Accepted' },
+      bookingStatus: {
+        $in: ['Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation', 'Admin Confirmed', 'ADMIN_CONFIRMED']
+      },
+      driver: { $in: [null, driver._id] }
+    })
+      .populate('user', 'phone')
+      .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory fuelType fareRate route pickupDropDetails hireDetails')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    console.log(`[getBookingRequests Debug] Driver ${driver.name} candidateBookings count: ${candidateBookings.length}`);
+
+    // Check if this driver currently has an active Instant Booking
+    const hasActiveInstantBooking = Boolean(await Booking.exists({
+      driver: driver._id,
+      bookingMode: 'INSTANT',
+      rideStatus: { $in: ['Accepted', 'Arrived', 'Started'] }
+    }));
+
+    // Filter candidate bookings by route match & eligibility
+    const requests = candidateBookings.filter(reqItem => {
+      // Direct canonical exclusion check
+      if (reqItem.driverConfirmed || reqItem.driverConfirmationStatus === 'Confirmed' || reqItem.confirmationOtpVerifiedAt || reqItem.otpVerified || reqItem.cashCollected || reqItem.rideStatus === 'Accepted') {
+        return false;
+      }
+
+      // If driver already has an active instant booking, do not offer more instant booking requests
+      if (hasActiveInstantBooking && false) {
+        return false;
+      }
+      
+      // If directly assigned to another driver, exclude it for ALL booking modes (first driver wins)
+      if (reqItem.driver && (reqItem.driver._id || reqItem.driver).toString() !== driver._id.toString()) {
+        return false;
+      }
+
+      if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(reqItem.bookingStatus)) {
+        return false;
+      }
+      // Bus, Any, or INSTANT requests remain broadcast; non-Bus requests cannot be claimed by another assigned driver unless they are 'Any' or 'INSTANT' broadcast.
+      if (false || reqItem.serviceType === 'Bus' || reqItem.serviceType === 'Any') {
+        if (assignedVehicle) {
+          const isSelectedBusVehicle = reqItem.vehicle && String(assignedVehicle._id) === String(reqItem.vehicle?._id || reqItem.vehicle);
+          const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem, {
+            requireRouteMatch: !isSelectedBusVehicle
+          });
+          console.log(`[getBookingRequests Debug] Driver ${driver.name} vehicle ${assignedVehicle.vehicleNumber} (${assignedVehicle.route?.origin}->${assignedVehicle.route?.destination}) matches booking ${reqItem.bookingId} (${reqItem.pickupLocation}->${reqItem.dropLocation}): ${matches}`);
+          return matches;
+        }
+        return false;
+      }
+      // If pending/unconfirmed request, check route match between driver's assigned vehicle and booking
+      if (assignedVehicle) {
+        const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem, { requireRouteMatch: true });
+        console.log(`[getBookingRequests Debug] Driver ${driver.name} vehicle ${assignedVehicle.vehicleNumber} (${assignedVehicle.route?.origin}->${assignedVehicle.route?.destination}) matches booking ${reqItem.bookingId} (${reqItem.pickupLocation}->${reqItem.dropLocation}): ${matches}`);
+        return matches;
+      }
+      return false;
+    });
+
+    // Map requests with external navigation links and countdown metadata
+    const enrichedRequests = requests.map(reqItem => {
+      const createdTime = new Date(reqItem.createdAt).getTime();
+      const elapsedSeconds = Math.floor((Date.now() - createdTime) / 1000);
+      const countdownSeconds = Math.max(0, 45 - elapsedSeconds);
+
+      let safeHiredDetails = reqItem.hiredVehicleDetails;
+      if (safeHiredDetails) {
+        safeHiredDetails = { ...safeHiredDetails };
+        delete safeHiredDetails.hireAmount;
+        delete safeHiredDetails.additionalExpense;
+      }
+
+      return {
+        ...driverBookingResponse(reqItem, driver.canViewCustomerPhone === true),
+        hiredVehicleDetails: safeHiredDetails,
+        countdownSeconds,
+        remainingSeconds: countdownSeconds > 0 ? countdownSeconds : 45,
+        isExpired: countdownSeconds === 0 && reqItem.bookingStatus === 'Pending',
+        customerRating: 4.9,
+        estimatedDistance: '12.5 km',
+        pickupNavigationUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(reqItem.pickupLocation)}`,
+        dropNavigationUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(reqItem.dropLocation)}`,
+        acceptUrl: `/api/driver/bookings/${reqItem._id}/accept`,
+        otpVerifyUrl: `/api/driver/bookings/${reqItem._id}/verify-otp`
+      };
+    });
+
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+
+    res.json({
+      success: true,
+      count: enrichedRequests.length,
+      data: enrichedRequests
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get Active Bookings for Driver (Accepted but OTP not yet verified, and ongoing)
+// @route   GET /api/driver/active-bookings
+// @access  Private (Driver Only)
+
+
+exports.getBookingRequests = async (req, res, next) => {
+  const isInstantReq = req.query.mode === 'INSTANT';
+  if (isInstantReq) return getInstantBookingRequests(req, res, next);
+  return getScheduleBookingRequests(req, res, next);
+};
+
 exports.getActiveBookingsForDriver = async (req, res, next) => {
   try {
     const driver = req.driver;
@@ -1293,12 +1470,12 @@ exports.getActiveBookingsForDriver = async (req, res, next) => {
 // @desc    Accept Booking Request / Ride
 // @route   POST /api/driver/booking-requests/:id/accept, POST /api/driver/requests/:id/accept
 // @access  Private (Driver Only)
-exports.acceptBookingRequest = async (req, res, next) => {
+const acceptInstantBookingRequest = async (req, res, next) => {
   try {
     const driver = req.driver;
     const { id } = req.params;
 
-    const booking = await Booking.findOne(getBookingQuery(id));
+    const booking = req.bookingObj;
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking request not found' });
     }
@@ -1328,7 +1505,7 @@ exports.acceptBookingRequest = async (req, res, next) => {
     }
 
     // Explicit bookingMode branching for active conflict evaluation
-    const isInstant = booking.bookingMode === 'INSTANT';
+    const isInstant = true;
 
     if (isInstant) {
       // INSTANT BOOKING CONFLICT RULE:
@@ -1535,6 +1712,261 @@ exports.acceptBookingRequest = async (req, res, next) => {
 // @desc    Reject Booking Request
 // @route   POST /api/driver/booking-requests/:id/reject, POST /api/driver/requests/:id/reject
 // @access  Private (Driver Only)
+
+const acceptScheduleBookingRequest = async (req, res, next) => {
+  try {
+    const driver = req.driver;
+    const { id } = req.params;
+
+    const booking = req.bookingObj;
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking request not found' });
+    }
+
+    // Driver Data Isolation & Vehicle Assignment Security Barrier
+    const isAuthorized = await verifyDriverVehicleAccess(driver, booking);
+    if (!isAuthorized) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to accept bookings for this vehicle'
+      });
+    }
+
+    // Prevent accepting already accepted/confirmed bookings
+    if (['Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(booking.bookingStatus) || booking.driverConfirmed || booking.confirmationOtpVerifiedAt || booking.rideStatus === 'Accepted') {
+      if (booking.driver && booking.driver.toString() === driver._id.toString()) {
+        return res.json({
+          success: true,
+          message: 'Booking already accepted by this driver',
+          data: driverBookingResponse(booking, driver.canViewCustomerPhone === true)
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message: `Booking is already in '${booking.bookingStatus}' status and cannot be accepted again.`
+      });
+    }
+
+    // Explicit bookingMode branching for active conflict evaluation
+    const isInstant = false;
+
+    if (isInstant) {
+      // INSTANT BOOKING CONFLICT RULE:
+      // A driver cannot accept multiple simultaneous active instant bookings.
+      const activeInstantBooking = await Booking.findOne({
+        _id: { $ne: booking._id },
+        driver: driver._id,
+        bookingMode: 'INSTANT',
+        rideStatus: { $in: ['Accepted', 'Arrived', 'Started'] }
+      }).select('bookingId bookingStatus rideStatus').lean();
+
+      if (activeInstantBooking) {
+        return res.status(409).json({
+          success: false,
+          code: 'DRIVER_HAS_ACTIVE_INSTANT_BOOKING',
+          message: 'This driver has already accepted another instant booking.'
+        });
+      }
+    } else {
+      // SCHEDULE BOOKING CONFLICT RULE:
+      // Schedule bookings are NOT blocked by active instant bookings.
+      // Schedule bookings are evaluated using their own booking mode, travel date/time,
+      // assigned vehicle/driver, and existing schedule availability rules.
+      if (booking.driver && booking.driver.toString() !== driver._id.toString()) {
+        return res.status(409).json({
+          success: false,
+          message: 'This schedule booking request has already been assigned to another driver.'
+        });
+      }
+    }
+
+    let assignedVehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
+    if (!assignedVehicleId) {
+      let vByDriver = await Vehicle.findOne({ assignedDriver: driver._id, vehicleStatus: 'Active' }).select('_id').lean();
+      if (!vByDriver) {
+         vByDriver = await Vehicle.findOne({ assignedDriver: driver._id }).sort({ createdAt: -1 }).select('_id').lean();
+      }
+      if (vByDriver) assignedVehicleId = vByDriver._id;
+    }
+    const assignedVehicle = assignedVehicleId ? await Vehicle.findById(assignedVehicleId).lean() : null;
+
+    const finalServiceType = booking.serviceType === 'Any' && assignedVehicle ? assignedVehicle.vehicleType : booking.serviceType;
+    const isBus = finalServiceType === 'Bus';
+    const isOfflineCash = booking.paymentMethod === 'Offline Cash' || booking.paymentMethod === 'Cash';
+    const isPaid = booking.paymentStatus === 'Paid' || booking.paymentStatus === 'Successful';
+
+    let nextBookingStatus;
+    if (isBus) {
+      if (isPaid) {
+        nextBookingStatus = 'Confirmed';
+      } else {
+        nextBookingStatus = 'Pending Driver Confirmation';
+      }
+    } else {
+      // Car / EV-Sewa ride flow
+      nextBookingStatus = 'Ongoing';
+    }
+
+
+    const updateSet = {
+      driver: driver._id,
+      assignedDriverId: driver._id,
+      driverConfirmationStatus: 'Pending',
+      driverConfirmed: false,
+      rideStatus: 'Accepted',
+      bookingStatus: nextBookingStatus
+    };
+
+    if (booking.bookingMode === 'INSTANT' && (booking.serviceType === 'Any' || !booking.vehicle) && assignedVehicle) {
+      updateSet.vehicle = assignedVehicle._id;
+      updateSet.serviceType = assignedVehicle.vehicleType;
+      
+      const { getRouteSegmentFare } = require('../utils/routeFares');
+      let fare = assignedVehicle.fareRate || assignedVehicle.fare || 0;
+      if (Array.isArray(assignedVehicle.route?.stops) && assignedVehicle.route.stops.length > 0) {
+        const segFare = getRouteSegmentFare(assignedVehicle.route, booking.pickupLocation, booking.dropLocation);
+        if (segFare != null) fare = segFare;
+      }
+      
+      const passCount = booking.passengerDetails?.length || 1;
+      updateSet.fare = fare * passCount;
+      updateSet.originalFare = fare * passCount;
+      updateSet.finalFare = fare * passCount;
+    }
+
+    let claimedBooking;
+    try {
+      claimedBooking = await Booking.findOneAndUpdate(
+        {
+          _id: booking._id,
+          driverConfirmed: { $ne: true },
+          driverConfirmationStatus: { $ne: 'Confirmed' },
+          confirmationOtpVerifiedAt: null,
+          otpVerified: { $ne: true },
+          cashCollected: { $ne: true },
+          rideStatus: { $ne: 'Accepted' },
+          bookingStatus: {
+            $in: ['Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation', 'Admin Confirmed', 'ADMIN_CONFIRMED']
+          },
+          driver: { $in: [null, driver._id] }
+        },
+        { $set: updateSet },
+        { new: true }
+      );
+    } catch (error) {
+      console.error('!!! ACCEPT RIDE DB ERROR:', error);
+      console.error('!!! DRIVER ID:', driver._id);
+      require('fs').writeFileSync('accept_ride_error.json', JSON.stringify({
+        error: error.message,
+        code: error.code,
+        driverId: driver._id,
+        bookingMode: booking.bookingMode,
+        rawError: error
+      }, null, 2));
+      if (
+        booking.bookingMode === 'INSTANT' &&
+        error.code === 11000 &&
+        error.message.includes('one_active_instant_booking_per_driver')
+      ) {
+        return res.status(409).json({
+          success: false,
+          message: 'This driver has already accepted another instant booking.'
+        });
+      }
+      throw error;
+    }
+    if (!claimedBooking) {
+      const freshBooking = await Booking.findById(booking._id).lean();
+      if (freshBooking && freshBooking.driver && freshBooking.driver.toString() === driver._id.toString()) {
+        return res.json({
+          success: true,
+          message: 'Booking already accepted by this driver',
+          data: driverBookingResponse(freshBooking, driver.canViewCustomerPhone === true)
+        });
+      }
+      return res.status(409).json({
+        success: false,
+        message: 'This booking request has already been accepted by another driver.'
+      });
+    }
+    booking.set(claimedBooking.toObject());
+
+    // Create customer notification
+    const customerId = await getValidRecipientId(booking);
+    const customerName = booking.customer?.name || (typeof booking.customer === 'string' ? booking.customer : 'Customer');
+    await Notification.create({
+      title: booking.bookingStatus === 'Confirmed' ? 'Booking Confirmed!' : 'Ride Request Accepted',
+      message: `Your booking #${booking.bookingId} has been accepted by driver ${driver.name}. Pickup: ${booking.pickupLocation}`,
+      recipient: `Customer: ${customerName}`,
+      recipientRole: 'customer',
+      ...(customerId ? { recipientId: customerId } : {}),
+      status: 'Unread'
+    });
+
+    // Send push notification to Customer for real-time fare update
+    if (customerId && booking.bookingMode === 'INSTANT') {
+      try {
+        const User = require('../models/User');
+        const custUser = await User.findById(customerId).select('pushToken fcmToken');
+        if (custUser && (custUser.pushToken || custUser.fcmToken)) {
+          const custToken = (custUser.pushToken || custUser.fcmToken).trim();
+          if (custToken) {
+            await fetch('https://exp.host/--/api/v2/push/send', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify({
+                to: custToken,
+                title: 'Instant Booking Fare Calculated',
+                body: `Driver ${driver.name} accepted. Final fare is ₹${updateSet.finalFare}. Tap to view.`,
+                data: {
+                  type: 'INSTANT_BOOKING_FARE_UPDATED',
+                  bookingId: booking._id.toString()
+                },
+                sound: 'default',
+                priority: 'high',
+                channelId: 'customer-booking-updates'
+              })
+            });
+          }
+        }
+      } catch (pushErr) {
+        console.warn('Customer push notification failed:', pushErr.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Booking request accepted successfully',
+      data: {
+        ...driverBookingResponse(booking, driver.canViewCustomerPhone === true),
+        rideStatus: booking.rideStatus,
+        pickupNavigationUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(booking.pickupLocation)}`,
+        dropNavigationUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(booking.dropLocation)}`
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Reject Booking Request
+// @route   POST /api/driver/booking-requests/:id/reject, POST /api/driver/requests/:id/reject
+// @access  Private (Driver Only)
+
+
+exports.acceptBookingRequest = async (req, res, next) => {
+  const { id } = req.params;
+  const booking = await Booking.findOne(getBookingQuery(id));
+  if (!booking) return res.status(404).json({ success: false, message: 'Booking request not found' });
+  req.bookingObj = booking; // pass down
+
+  if (booking.bookingMode === 'INSTANT') return acceptInstantBookingRequest(req, res, next);
+  return acceptScheduleBookingRequest(req, res, next);
+};
+
 exports.rejectBookingRequest = async (req, res, next) => {
   try {
     const driver = req.driver;
@@ -1588,7 +2020,7 @@ exports.rejectBookingRequest = async (req, res, next) => {
 // @desc    Verify Customer Booking OTP by Assigned Driver
 // @route   POST /api/driver/bookings/:id/verify-otp, POST /api/driver/verify-otp
 // @access  Private (Driver Only)
-exports.verifyRideOtp = async (req, res, next) => {
+const verifyInstantRideOtp = async (req, res, next) => {
   try {
     const driver = req.driver;
     if (!driver || driver.driverStatus !== 'Active') {
@@ -2734,3 +3166,1162 @@ exports.updateVehicleFare = async (req, res, next) => {
     next(error);
   }
 };
+const verifyScheduleRideOtp = async (req, res, next) => {
+  try {
+    const driver = req.driver;
+    if (!driver || driver.driverStatus !== 'Active') {
+      return res.status(403).json({ success: false, message: 'Forbidden: Only active/approved drivers can verify customer OTP' });
+    }
+
+    const { id } = req.params;
+    const targetBookingId = id || req.body.bookingId || req.body.id;
+    const { otp, confirmationOtp } = req.body;
+    const suppliedOtp = (otp || confirmationOtp || '').toString().trim();
+
+    if (!suppliedOtp) {
+      return res.status(400).json({ success: false, message: 'Customer 6-digit OTP is required' });
+    }
+
+    if (!targetBookingId) {
+      return res.status(400).json({ success: false, message: 'Booking ID is required for OTP verification' });
+    }
+
+    // Retrieve booking with confirmationOtpHash explicitly selected
+    const booking = await Booking.findOne(getBookingQuery(targetBookingId)).select('+confirmationOtpHash');
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking request not found' });
+    }
+
+    // 1. Check if OTP was already used / verified or booking already confirmed by another driver
+    if (booking.confirmationOtpVerifiedAt || booking.otpVerified) {
+      return res.status(400).json({
+        success: false,
+        message: 'Booking OTP already verified.'
+      });
+    }
+
+    if (booking.driverConfirmed && (booking.driver && (booking.driver._id || booking.driver).toString() !== driver._id.toString())) {
+      return res.status(400).json({
+        success: false,
+        message: 'Booking already confirmed by another driver.'
+      });
+    }
+
+    // 2. Strict authorization & route matching check
+    const isAuthorized = await verifyDriverVehicleAccess(driver, booking);
+    if (!isAuthorized) {
+      return res.status(403).json({
+        success: false,
+        message: 'Forbidden: Your assigned vehicle route does not match this booking.'
+      });
+    }
+
+    // 3. Check if OTP has expired
+    const now = new Date();
+    const otpExpiresAt = booking.confirmationOtpExpiresAt ? new Date(booking.confirmationOtpExpiresAt) : null;
+    const remainingMs = otpExpiresAt ? (otpExpiresAt - now) : null;
+    console.log(`[OTP DEBUG] bookingId: ${booking.bookingId} | generatedAt: ${booking.createdAt} | expiresAt: ${otpExpiresAt} | now: ${now} | remainingMs: ${remainingMs} | remainingHours: ${remainingMs != null ? (remainingMs / 3600000).toFixed(2) : 'N/A (no expiry set)'}`);
+
+    if (otpExpiresAt && otpExpiresAt < now) {
+      return res.status(400).json({
+        success: false,
+        message: 'Customer OTP has expired. Please request a new OTP.'
+      });
+    }
+
+
+    // 4. Verify OTP Hash or raw match
+    const suppliedHash = crypto.createHash('sha256').update(suppliedOtp).digest('hex');
+    const isMatch = (suppliedHash === booking.confirmationOtpHash) ||
+                    (booking.customerViewOtp && suppliedOtp === String(booking.customerViewOtp).trim()) ||
+                    (booking.confirmationOtp && suppliedOtp === String(booking.confirmationOtp).trim());
+
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid OTP. Please check the 6-digit code with the customer.'
+      });
+    }
+
+    // 5. Successful OTP Verification - Update Booking State & Invalidate OTP immediately
+    booking.confirmationOtpVerifiedAt = new Date();
+    booking.confirmationOtpVerifiedBy = driver._id;
+    booking.confirmationOtpHash = null; // Single-use: invalidate OTP immediately!
+    booking.customerViewOtp = null; // Single-use: clear raw OTP
+    booking.otpVerified = true;
+
+    booking.driver = driver._id;
+    booking.assignedDriverId = driver._id;
+
+    if (driver.assignedVehicle) {
+      const vId = driver.assignedVehicle._id || driver.assignedVehicle;
+      booking.vehicle = vId;
+      booking.assignedVehicleId = vId;
+    }
+
+    booking.driverConfirmationStatus = 'Confirmed';
+    booking.driverConfirmed = true;
+    booking.driverConfirmedAt = new Date();
+    booking.driverConfirmedBy = driver._id;
+
+    const isBus = booking.serviceType === 'Bus';
+    const isOfflineCash = booking.paymentMethod === 'Offline Cash' || booking.paymentMethod === 'Cash';
+    const isPaid = booking.paymentStatus === 'Paid' || booking.paymentStatus === 'Successful';
+
+    if (isBus) {
+      if (isPaid) {
+        booking.bookingStatus = 'Confirmed';
+      } else if (isOfflineCash) {
+        booking.bookingStatus = 'Awaiting Cash Collection';
+      } else {
+        booking.bookingStatus = 'Confirmed';
+      }
+    } else {
+      if (isOfflineCash && !isPaid) {
+        booking.bookingStatus = 'Awaiting Cash Collection';
+      } else {
+        booking.bookingStatus = 'Confirmed';
+      }
+      booking.rideStatus = 'Accepted';
+    }
+
+    await booking.save();
+
+    // Send customer notification
+    const recipientId = await getValidRecipientId(booking);
+    if (recipientId) {
+      await Notification.create({
+        recipientId,
+        recipient: `Customer: ${booking.customer?.name || 'Customer'}`,
+        title: 'Booking Confirmed by Driver',
+        message: `Your booking #${booking.bookingId} has been confirmed by your assigned driver.`,
+        recipientRole: 'customer',
+        status: 'Unread'
+      }).catch(err => console.error('Notification error:', err));
+    }
+
+    res.json({
+      success: true,
+      message: 'Customer OTP verified successfully. Booking confirmed!',
+      data: driverBookingResponse(booking, driver.canViewCustomerPhone === true)
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Driver Arrives at Customer Pickup Location
+// @route   POST /api/driver/rides/:id/arrived
+// @access  Private (Driver Only)
+exports.arriveAtPickup = async (req, res, next) => {
+  try {
+    const driver = req.driver;
+    const { id } = req.params;
+
+    const booking = await Booking.findOne(getBookingQuery(id));
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Ride not found' });
+    }
+
+    const isAuthorized = await verifyDriverVehicleAccess(driver, booking);
+    if (!isAuthorized) {
+      return res.status(403).json({ success: false, message: 'Unauthorized for this ride' });
+    }
+
+    booking.rideStatus = 'Arrived';
+    booking.arrivedAt = new Date();
+    await booking.save();
+
+    // Notify customer
+    const customerId = await getValidRecipientId(booking);
+    const customerName = booking.customer?.name || 'Customer';
+    await Notification.create({
+      title: 'Driver Has Arrived',
+      message: `Your driver ${driver.name} has arrived at the pickup location (${booking.pickupLocation}). Share your PIN ${booking.rideOtp} to start your journey.`,
+      recipient: `Customer: ${customerName}`,
+      recipientRole: 'customer',
+      ...(customerId ? { recipientId: customerId } : {}),
+      status: 'Unread'
+    });
+
+    res.json({
+      success: true,
+      message: 'Arrived at pickup location. Customer notified.',
+      data: {
+        ...driverBookingResponse(booking, driver.canViewCustomerPhone === true),
+        bookingId: booking.bookingId,
+        rideStatus: booking.rideStatus,
+        arrivedAt: booking.arrivedAt,
+        waitingTimerStarted: true
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Duplicate exports.verifyRideOtp removed - canonical implementation defined above
+
+// @desc    Start Active Ride
+// @route   POST /api/driver/rides/:id/start
+// @access  Private (Driver Only)
+exports.startRide = async (req, res, next) => {
+  try {
+    const driver = req.driver;
+    const { id } = req.params;
+    const { otp } = req.body;
+
+    const booking = await Booking.findOne(getBookingQuery(id));
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Ride not found' });
+    }
+
+    const isAuthorized = await verifyDriverVehicleAccess(driver, booking);
+    if (!isAuthorized) {
+      return res.status(403).json({ success: false, message: 'Unauthorized for this ride' });
+    }
+
+    // Verify OTP if passed or ensure otpVerified/driverConfirmationStatus is confirmed
+    if (otp) {
+      if (String(booking.rideOtp).trim() !== String(otp).trim() && String(booking.customerViewOtp).trim() !== String(otp).trim()) {
+        return res.status(400).json({ success: false, message: 'Invalid customer OTP/PIN' });
+      }
+      booking.otpVerified = true;
+    } else if (!booking.otpVerified && booking.driverConfirmationStatus !== 'Confirmed' && !booking.confirmationOtpVerifiedAt) {
+      return res.status(400).json({
+        success: false,
+        message: 'Customer OTP verification is required before starting the ride'
+      });
+    }
+
+    booking.otpVerified = true;
+
+    booking.rideStatus = 'Started';
+    booking.bookingStatus = 'Ongoing';
+    booking.startedAt = new Date();
+    await booking.save();
+
+    res.json({
+      success: true,
+      message: 'Ride started successfully',
+      data: {
+        ...driverBookingResponse(booking, driver.canViewCustomerPhone === true),
+        dropNavigationUrl: `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(booking.dropLocation)}`
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    End Ride & Complete Journey
+// @route   POST /api/driver/rides/:id/end
+// @access  Private (Driver Only)
+exports.endRide = async (req, res, next) => {
+  try {
+    const driver = await Driver.findById(req.driver._id);
+    const { id } = req.params;
+
+    const booking = await Booking.findOne(getBookingQuery(id));
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Ride not found' });
+    }
+
+    const isAuthorized = await verifyDriverVehicleAccess(driver, booking);
+    if (!isAuthorized) {
+      return res.status(403).json({ success: false, message: 'Unauthorized for this ride' });
+    }
+
+    // Idempotency & cancellation checks
+    if (booking.bookingStatus === 'Completed' || booking.rideStatus === 'Completed') {
+      return res.json({
+        success: true,
+        message: 'Ride is already completed.',
+        data: {
+          ...driverBookingResponse(booking, driver.canViewCustomerPhone === true),
+          bookingId: booking.bookingId,
+          rideStatus: 'Completed',
+          bookingStatus: 'Completed'
+        }
+      });
+    }
+
+    if (['Cancelled', 'Rejected'].includes(booking.bookingStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: `Booking is ${booking.bookingStatus} and cannot be completed.`
+      });
+    }
+
+    booking.rideStatus = 'Completed';
+    booking.bookingStatus = 'Completed';
+    booking.completedAt = new Date();
+
+    const finalFare = booking.fare || 0;
+    const platformCommission = Math.round(finalFare * 0.2);
+    const driverEarning = finalFare - platformCommission;
+
+    booking.driverPaymentAmount = driverEarning;
+
+    // If offline cash, auto collect upon completion if not collected earlier
+    if ((booking.paymentMethod === 'Offline Cash' || booking.paymentMethod === 'Cash') && !booking.cashCollected) {
+      booking.paymentStatus = 'Paid';
+      booking.cashCollected = true;
+      booking.cashCollectedAt = new Date();
+      booking.cashCollectedBy = driver._id;
+    }
+
+    await booking.save();
+
+    // Credit Driver Wallet & Update Financials
+    driver.walletBalance = (driver.walletBalance || 0) + driverEarning;
+    driver.totalEarnings = (driver.totalEarnings || 0) + driverEarning;
+    driver.totalCommission = (driver.totalCommission || 0) + platformCommission;
+    await driver.save();
+
+    // Update / Create Payment record
+    await Payment.findOneAndUpdate(
+      { booking: booking._id },
+      {
+        booking: booking._id,
+        bookingId: booking.bookingId,
+        customer: booking.customer,
+        driver: driver._id,
+        bookingAmount: finalFare,
+        driverPayment: driverEarning,
+        paymentStatus: 'Paid',
+        paymentMethod: booking.paymentMethod
+      },
+      { upsert: true, new: true }
+    );
+
+    res.json({
+      success: true,
+      message: 'Ride completed successfully. Receipt generated.',
+      data: {
+        ...driverBookingResponse(booking, driver.canViewCustomerPhone === true),
+        bookingId: booking.bookingId,
+        rideStatus: booking.rideStatus,
+        dropLocation: booking.dropLocation,
+        finalFare,
+        platformCommission,
+        driverEarning,
+        paymentStatus: booking.paymentStatus,
+        paymentMethod: booking.paymentMethod,
+        completedAt: booking.completedAt,
+        receipt: {
+          tripId: booking.bookingId,
+          totalFare: finalFare,
+          commission: platformCommission,
+          platformCommission: platformCommission,
+          netEarnings: driverEarning,
+          driverEarnings: driverEarning,
+          paymentStatus: booking.paymentStatus,
+          paymentMethod: booking.paymentMethod
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Cancel Ride with Valid Reason
+// @route   POST /api/driver/rides/:id/cancel
+// @access  Private (Driver Only)
+exports.cancelRide = async (req, res, next) => {
+  try {
+    const driver = req.driver;
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const validReasons = [
+      'Customer did not arrive',
+      'Wrong pickup',
+      'Vehicle problem',
+      'Emergency',
+      'Other'
+    ];
+
+    if (!reason || !validReasons.includes(reason)) {
+      return res.status(400).json({
+        success: false,
+        message: `Valid cancellation reason is required. Options: ${validReasons.join(', ')}`
+      });
+    }
+
+    const booking = await Booking.findOne(getBookingQuery(id));
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Ride not found' });
+    }
+
+    const isAuthorized = await verifyDriverVehicleAccess(driver, booking);
+    if (!isAuthorized) {
+      return res.status(403).json({ success: false, message: 'Unauthorized for this ride' });
+    }
+
+    booking.rideStatus = 'Cancelled';
+    booking.bookingStatus = 'Cancelled';
+    booking.cancellationReason = reason;
+    booking.cancelledBy = 'Driver';
+    await booking.save();
+
+    // Send customer notification
+    await Notification.create({
+      title: 'Ride Cancelled by Driver',
+      message: `Your ride #${booking.bookingId} was cancelled by the driver. Reason: ${reason}`,
+      recipient: `Customer: ${booking.customer.name}`,
+      recipientRole: 'customer',
+      status: 'Unread'
+    });
+
+    res.json({
+      success: true,
+      message: 'Ride cancelled successfully',
+      data: driverBookingResponse(booking, driver.canViewCustomerPhone === true)
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Collect Cash from Customer for Offline Cash Booking
+// @route   POST /api/driver/bookings/:id/collect-cash, POST /api/driver/collect-cash
+// @access  Private (Driver Only)
+exports.collectCash = async (req, res, next) => {
+  try {
+    const driver = req.driver;
+    const bookingIdParam = req.params.id || req.body.bookingId;
+
+    if (!bookingIdParam) {
+      return res.status(400).json({ success: false, message: 'Booking ID is required' });
+    }
+
+    const query = mongoose.Types.ObjectId.isValid(bookingIdParam)
+      ? { _id: bookingIdParam }
+      : { bookingId: bookingIdParam };
+
+    const booking = await Booking.findOne(query);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+
+    // Driver Data Isolation
+    const isAuthorized = await verifyDriverVehicleAccess(driver, booking);
+    if (!isAuthorized) {
+      return res.status(403).json({
+        success: false,
+        message: 'You are not authorized to collect cash for this booking'
+      });
+    }
+
+    // Block duplicate cash collection
+    if (booking.cashCollected || booking.paymentStatus === 'Paid') {
+      return res.status(400).json({
+        success: false,
+        message: 'Cash already collected and verified for this booking.'
+      });
+    }
+
+    booking.cashCollected = true;
+    booking.cashCollectedAt = new Date();
+    booking.cashCollectedBy = driver._id;
+    booking.paymentStatus = 'Paid';
+    booking.driverConfirmationStatus = 'Confirmed';
+    booking.driverConfirmed = true;
+    booking.driverConfirmedAt = booking.driverConfirmedAt || new Date();
+    booking.driverConfirmedBy = booking.driverConfirmedBy || driver._id;
+    booking.bookingStatus = 'Confirmed';
+
+    await booking.save();
+
+    // Update / Create Payment record
+    await Payment.findOneAndUpdate(
+      { booking: booking._id },
+      {
+        booking: booking._id,
+        bookingId: booking.bookingId,
+        customer: booking.customer,
+        driver: driver._id,
+        bookingAmount: booking.fare,
+        driverPayment: booking.driverPaymentAmount || Math.round(booking.fare * 0.8),
+        paymentStatus: 'Paid',
+        paymentMethod: 'Offline Cash',
+        transactionReference: `CASH-${Date.now()}`
+      },
+      { upsert: true, new: true }
+    );
+
+    // Notify customer
+    const customerId = await getValidRecipientId(booking);
+    const customerName = booking.customer?.name || 'Customer';
+    await Notification.create({
+      title: 'Cash Payment Verified',
+      message: `Driver ${driver.name} has confirmed cash payment of ₹${booking.fare} for booking #${booking.bookingId}. Your ticket is now fully confirmed.`,
+      recipient: `Customer: ${customerName}`,
+      recipientRole: 'customer',
+      ...(customerId ? { recipientId: customerId } : {}),
+      status: 'Unread'
+    });
+
+    res.json({
+      success: true,
+      message: 'Cash collection confirmed. Payment status updated to Paid.',
+      data: {
+        booking: driverBookingResponse(booking, driver.canViewCustomerPhone === true),
+        bookingId: booking.bookingId,
+        paymentStatus: booking.paymentStatus,
+        bookingStatus: booking.bookingStatus,
+        cashCollected: booking.cashCollected,
+        cashCollectedAt: booking.cashCollectedAt
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get Booking History
+// @route   GET /api/driver/booking-history
+// @access  Private (Driver Only)
+exports.getBookingHistory = async (req, res, next) => {
+  try {
+    const driver = req.driver;
+    const assignedVehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
+
+    const bookings = await Booking.find({
+      $or: [
+        { driver: driver._id },
+        ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
+      ]
+    })
+      .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const history = bookings.map(b => ({
+      id: b._id,
+      bookingId: b.bookingId,
+      date: new Date(b.createdAt).toLocaleDateString(),
+      time: new Date(b.createdAt).toLocaleTimeString(),
+      customer: b.customer?.name || 'Passenger',
+      ...(driver.canViewCustomerPhone === true && b.customer?.phone ? { customerPhone: b.customer.phone } : {}),
+      pickup: b.pickupLocation,
+      drop: b.dropLocation,
+      distance: '15.4 km',
+      fare: b.fare,
+      driverEarnings: b.driverPaymentAmount || Math.round(b.fare * 0.8),
+      paymentMethod: b.paymentMethod,
+      paymentStatus: b.paymentStatus,
+      status: b.bookingStatus,
+      rideStatus: b.rideStatus || 'Completed'
+    }));
+
+    res.json({
+      success: true,
+      count: history.length,
+      data: history
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get Authoritative Driver Earnings
+// @route   GET /api/driver/earnings
+// @access  Private (Driver Only)
+exports.getEarnings = async (req, res, next) => {
+  try {
+    const driver = await Driver.findById(req.driver._id).lean();
+    const assignedVehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const startOfWeek = new Date();
+    startOfWeek.setDate(startOfWeek.getDate() - 7);
+
+    const startOfMonth = new Date();
+    startOfMonth.setDate(startOfMonth.getDate() - 30);
+
+    const matchDriver = {
+      $or: [
+        { driver: driver._id },
+        ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
+      ],
+      paymentStatus: 'Paid'
+    };
+
+    const [todayAgg, weekAgg, monthAgg, completedCount, cancelledCount] = await Promise.all([
+      Booking.aggregate([
+        { $match: { ...matchDriver, createdAt: { $gte: startOfToday } } },
+        { $group: { _id: null, total: { $sum: '$driverPaymentAmount' } } }
+      ]),
+      Booking.aggregate([
+        { $match: { ...matchDriver, createdAt: { $gte: startOfWeek } } },
+        { $group: { _id: null, total: { $sum: '$driverPaymentAmount' } } }
+      ]),
+      Booking.aggregate([
+        { $match: { ...matchDriver, createdAt: { $gte: startOfMonth } } },
+        { $group: { _id: null, total: { $sum: '$driverPaymentAmount' } } }
+      ]),
+      Booking.countDocuments({
+        $or: [
+          { driver: driver._id },
+          ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
+        ],
+        bookingStatus: 'Completed'
+      }),
+      Booking.countDocuments({
+        $or: [
+          { driver: driver._id },
+          ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
+        ],
+        bookingStatus: 'Cancelled'
+      })
+    ]);
+
+    const todayEarnings = todayAgg.length > 0 ? (todayAgg[0].total || 0) : 0;
+    const weeklyEarnings = weekAgg.length > 0 ? (weekAgg[0].total || 0) : 0;
+    const monthlyEarnings = monthAgg.length > 0 ? (monthAgg[0].total || 0) : (driver.totalEarnings || 0);
+
+    const totalCommission = driver.totalCommission || Math.round(monthlyEarnings * 0.25);
+    const netEarnings = monthlyEarnings;
+
+    res.json({
+      success: true,
+      data: {
+        todayEarnings,
+        weeklyEarnings,
+        monthlyEarnings,
+        completedRides: completedCount,
+        cancellations: cancelledCount,
+        commission: totalCommission,
+        netEarnings,
+        walletBalance: driver.walletBalance || 0
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get Driver Wallet & Transaction Ledger
+// @route   GET /api/driver/wallet
+// @access  Private (Driver Only)
+exports.getDriverWallet = async (req, res, next) => {
+  try {
+    const driver = await Driver.findById(req.driver._id).lean();
+    if (!driver) {
+      return res.status(404).json({ success: false, message: 'Driver profile not found' });
+    }
+    const withdrawals = await Withdrawal.find({ driver: driver._id }).sort({ createdAt: -1 }).limit(10).lean();
+
+    const recentPayments = await Payment.find({ driver: driver._id, paymentStatus: 'Paid' })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .lean();
+
+    const ledger = recentPayments.map(p => ({
+      id: p._id,
+      date: new Date(p.createdAt).toLocaleDateString(),
+      time: new Date(p.createdAt).toLocaleTimeString(),
+      type: 'Ride Earning',
+      amount: p.driverPayment || Math.round(p.bookingAmount * 0.8),
+      status: 'Credited',
+      referenceId: p.transactionReference || `TXN-${p.bookingId}`
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        walletBalance: driver.walletBalance || 0,
+        totalEarnings: driver.totalEarnings || 0,
+        totalBonus: driver.totalBonus || 0,
+        totalCommission: driver.totalCommission || 0,
+        totalWithdrawn: driver.totalWithdrawn || 0,
+        payoutMethods: driver.payoutMethods || {},
+        ledger,
+        recentWithdrawals: withdrawals
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Submit Payout / Withdrawal Request
+// @route   POST /api/driver/withdraw
+// @access  Private (Driver Only)
+exports.requestWithdrawal = async (req, res, next) => {
+  try {
+    const driver = await Driver.findById(req.driver._id);
+    if (!driver) {
+      return res.status(404).json({ success: false, message: 'Driver profile not found' });
+    }
+    const { amount, payoutDetails, accountDetails } = req.body;
+    const methodInput = req.body.payoutMethod || req.body.method || '';
+
+    const withdrawAmount = Number(amount);
+    if (!withdrawAmount || withdrawAmount < 100) {
+      return res.status(400).json({
+        success: false,
+        message: 'Minimum withdrawal amount is ₹100'
+      });
+    }
+
+    const availableBalance = driver.walletBalance || 0;
+    if (availableBalance < withdrawAmount) {
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient wallet balance. Current balance: ₹${availableBalance}`
+      });
+    }
+
+    let payoutMethod = 'Bank';
+    if (/esewa/i.test(methodInput)) payoutMethod = 'eSewa';
+    else if (/khalti/i.test(methodInput)) payoutMethod = 'Khalti';
+    else if (/bank/i.test(methodInput)) payoutMethod = 'Bank';
+    else payoutMethod = methodInput;
+
+    if (!['Bank', 'eSewa', 'Khalti'].includes(payoutMethod)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Valid payout method is required: Bank, eSewa, or Khalti'
+      });
+    }
+
+    const updatedDriver = await Driver.findOneAndUpdate(
+      { _id: driver._id, walletBalance: { $gte: withdrawAmount } },
+      { $inc: { walletBalance: -withdrawAmount, totalWithdrawn: withdrawAmount } },
+      { new: true }
+    );
+    if (!updatedDriver) {
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient wallet balance. Current balance: ₹${driver.walletBalance || 0}`
+      });
+    }
+
+    const isEsewaConfigured = Boolean(process.env.ESEWA_MERCHANT_CODE);
+    const isKhaltiConfigured = Boolean(process.env.KHALTI_SECRET_KEY);
+    const gatewayStatus = payoutMethod === 'eSewa' && !isEsewaConfigured
+      ? 'BLOCKED — PAYMENT PROVIDER CONFIGURATION REQUIRED (eSewa merchant credentials missing)'
+      : payoutMethod === 'Khalti' && !isKhaltiConfigured
+      ? 'BLOCKED — PAYMENT PROVIDER CONFIGURATION REQUIRED (Khalti merchant secret key missing)'
+      : 'READY';
+
+    let withdrawal;
+    try {
+      withdrawal = await Withdrawal.create({
+        driver: driver._id,
+        user: driver.user,
+        amount: withdrawAmount,
+        payoutMethod,
+        payoutDetails: payoutDetails || accountDetails || driver.payoutMethods,
+        status: 'Pending',
+        adminNotes: gatewayStatus === 'READY' ? 'Withdrawal request logged.' : gatewayStatus
+      });
+    } catch (error) {
+      await Driver.findByIdAndUpdate(driver._id, {
+        $inc: { walletBalance: withdrawAmount, totalWithdrawn: -withdrawAmount }
+      });
+      throw error;
+    }
+
+    res.json({
+      success: true,
+      message: 'Withdrawal request submitted successfully.',
+      data: {
+        ...withdrawal.toObject(),
+        status: withdrawal.status.toLowerCase(),
+        gatewayStatus
+      },
+      newWalletBalance: updatedDriver.walletBalance
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get Active Driver Incentives & Progress
+// @route   GET /api/driver/incentives
+// @access  Private (Driver Only)
+exports.getDriverIncentives = async (req, res, next) => {
+  try {
+    const driver = req.driver;
+    const incentives = await Incentive.find({ status: 'Active' }).lean();
+
+    const completedRidesCount = await Booking.countDocuments({
+      driver: driver._id,
+      bookingStatus: 'Completed'
+    });
+
+    const evaluatedIncentives = incentives.map(inc => {
+      const currentProgress = Math.min(completedRidesCount, inc.targetValue);
+      const isCompleted = completedRidesCount >= inc.targetValue;
+      return {
+        ...inc,
+        currentProgress,
+        isCompleted,
+        earnedBonus: isCompleted ? inc.bonusAmount : 0
+      };
+    });
+
+    res.json({
+      success: true,
+      count: evaluatedIncentives.length,
+      data: evaluatedIncentives
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Trigger Driver SOS Emergency (CRITICAL: NO GPS TRANSMISSION)
+// @route   POST /api/driver/sos
+// @access  Private (Driver Only)
+exports.triggerSOS = async (req, res, next) => {
+  try {
+    const driver = await Driver.findById(req.driver._id).populate('assignedVehicle').lean();
+
+    // Emergency details dispatch without GPS tracking
+    const emergencyContact = driver.emergencyContact || { name: 'Emergency Services', phone: '112 / 100' };
+
+    await Notification.create({
+      title: '🚨 DRIVER SOS EMERGENCY ALERT',
+      message: `Driver ${driver.name} (Phone: ${driver.mobileNumber}) triggered an Emergency Alert. Vehicle: ${driver.assignedVehicle?.vehicleNumber || 'N/A'}.`,
+      recipient: 'All Admins',
+      recipientRole: 'admin',
+      status: 'Unread'
+    });
+
+    res.json({
+      success: true,
+      message: 'SOS alert dispatched to response center and emergency contacts.',
+      data: {
+        driverName: driver.name,
+        emergencyContact,
+        helpline: '112 (National Police Helpline) / +977-1-4200000',
+        gpsTracking: 'DISABLED'
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get EV Vehicle Battery, Range & Charging Stations (EV ONLY)
+// @route   GET /api/driver/ev-hub
+// @access  Private (Driver Only)
+exports.getEVDetails = async (req, res, next) => {
+  try {
+    const driver = await Driver.findById(req.driver._id).populate('assignedVehicle');
+    const vehicle = driver.assignedVehicle;
+
+    const isEV = vehicle && (vehicle.vehicleType === 'EV-Sewa' || vehicle.vehicleType === 'ev' || vehicle.fuelType === 'EV' || driver.assignedType === 'ev');
+    if (!isEV) {
+      return res.json({
+        success: true,
+        data: {
+          isEV: false,
+          message: 'Assigned vehicle is not an Electric Vehicle (EV).'
+        }
+      });
+    }
+
+    const chargingStations = [
+      {
+        name: 'Tata Power EZ EV Charging Hub',
+        location: 'Kashmere Gate ISBT EV Plaza',
+        plugTypes: ['CCS2 Fast (60 kW)', 'Type 2 AC (22 kW)'],
+        availablePlugs: 4,
+        status: 'Available',
+        navigationUrl: 'https://www.google.com/maps/dir/?api=1&destination=Kashmere+Gate+ISBT+Delhi'
+      },
+      {
+        name: 'EcoRide Rapid Supercharger',
+        location: 'IFFCO Chowk Green Corridor',
+        plugTypes: ['GB/T Fast DC (50 kW)', 'CCS2 (120 kW)'],
+        availablePlugs: 2,
+        status: 'Available',
+        navigationUrl: 'https://www.google.com/maps/dir/?api=1&destination=IFFCO+Chowk+Gurugram'
+      },
+      {
+        name: 'Kathmandu Eco-Charge Hub',
+        location: 'Ratna Park Electric Bus Terminal',
+        plugTypes: ['CCS2 Fast (60 kW)'],
+        availablePlugs: 6,
+        status: 'Available',
+        navigationUrl: 'https://www.google.com/maps/dir/?api=1&destination=Ratna+Park+Kathmandu'
+      }
+    ];
+
+    res.json({
+      success: true,
+      data: {
+        isEV: true,
+        vehicleNumber: vehicle.vehicleNumber,
+        vehicleName: vehicle.vehicleName,
+        batteryPercentage: driver.batteryPercentage || 85,
+        estimatedRangeKm: driver.estimatedRangeKm || 180,
+        lastChargedAt: driver.lastChargedAt,
+        chargingReminder: (driver.batteryPercentage || 85) < 20 ? 'Battery is low. Please visit a charging station.' : 'Battery level optimal.',
+        chargingStations
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update EV Battery Level Manually
+// @route   PUT /api/driver/ev-battery
+// @access  Private (Driver Only)
+exports.updateEVBattery = async (req, res, next) => {
+  try {
+    const driver = await Driver.findById(req.driver._id);
+    const { batteryPercentage, estimatedRangeKm } = req.body;
+
+    if (batteryPercentage !== undefined) {
+      driver.batteryPercentage = Math.min(100, Math.max(0, Number(batteryPercentage)));
+      if (driver.batteryPercentage === 100) {
+        driver.lastChargedAt = new Date();
+      }
+    }
+
+    if (estimatedRangeKm !== undefined) {
+      driver.estimatedRangeKm = Number(estimatedRangeKm);
+    }
+
+    await driver.save();
+
+    res.json({
+      success: true,
+      message: 'EV Battery status updated successfully',
+      data: {
+        batteryPercentage: driver.batteryPercentage,
+        estimatedRangeKm: driver.estimatedRangeKm,
+        lastChargedAt: driver.lastChargedAt
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get Driver Notifications
+// @route   GET /api/driver/notifications
+// @access  Private (Driver Only)
+exports.getDriverNotifications = async (req, res, next) => {
+  try {
+    const driver = req.driver;
+    const driverUserId = driver.user ? (driver.user._id || driver.user) : null;
+    const reqUserId = req.user ? (req.user._id || req.user) : null;
+
+    const recipientIds = [driverUserId, driver._id, reqUserId].filter(Boolean);
+
+    const notifications = await Notification.find({
+      $or: [
+        { recipientRole: 'all' },
+        { recipient: 'All Drivers' },
+        { recipientRole: 'driver', recipientId: { $in: recipientIds } },
+        { recipientRole: 'driver', recipient: `Driver: ${driver.name}` },
+        { recipient: `Driver: ${driver.name}` }
+      ]
+    })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .lean();
+
+    res.json({
+      success: true,
+      count: notifications.length,
+      data: notifications
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get Driver Support Information & Tickets
+// @route   GET /api/driver/support
+// @access  Private (Driver Only)
+exports.getDriverSupport = async (req, res, next) => {
+  try {
+    const driver = req.driver;
+    const tickets = await Support.find({
+      $or: [
+        { driver: driver._id },
+        { mobileNumber: driver.mobileNumber }
+      ]
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const faqList = [
+      { q: 'How is driver fare calculated?', a: '80% of the total collected passenger fare goes directly to driver earnings, with 20% platform fee.' },
+      { q: 'When do I collect Offline Cash?', a: 'When the passenger boards, tap [ Collect Cash ] -> [ Confirm Cash Received ] to mark booking Paid and fully confirmed.' },
+      { q: 'How does External Navigation work?', a: 'Tapping [ Navigate to Pickup ] or [ Navigate to Drop ] opens Google Maps externally. The app does NOT track your GPS.' },
+      { q: 'How do I submit withdrawal requests?', a: 'Visit the Wallet screen, enter the withdrawal amount and payout details (Bank, eSewa, or Khalti).' }
+    ];
+
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+
+    res.json({
+      success: true,
+      data: {
+        helpline: '+91 98765 00000 / 1800-PLATFORM',
+        email: 'driver-support@platform.com',
+        faqList,
+        tickets
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Create Driver Support Ticket
+// @route   POST /api/driver/support/ticket
+// @access  Private (Driver Only)
+exports.createSupportTicket = async (req, res, next) => {
+  try {
+    const driver = req.driver;
+    const { category, supportIssue, bookingId } = req.body;
+
+    if (!supportIssue) {
+      return res.status(400).json({ success: false, message: 'Issue description is required' });
+    }
+
+    const ticketId = `TKT-DRV-${Date.now().toString().slice(-4)}${Math.floor(100 + Math.random() * 900)}`;
+
+    const ticket = await Support.create({
+      ticketId,
+      requesterName: driver.name,
+      role: 'driver',
+      mobileNumber: driver.mobileNumber,
+      driver: driver._id,
+      category: category || 'General',
+      bookingId: bookingId || 'N/A',
+      supportIssue,
+      status: 'Open',
+      supportInformation: 'Driver ticket created and dispatched to fleet admin team.'
+    });
+
+    res.json({
+      success: true,
+      message: 'Support ticket submitted successfully',
+      data: ticket
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Register or Update Driver Push Token (FCM / Expo)
+// @route   POST /api/driver/push-token
+// @access  Private (Driver Only)
+exports.registerPushToken = async (req, res, next) => {
+  try {
+    const { pushToken, fcmToken, token, expoPushToken } = req.body;
+    
+    // Support separated tokens or legacy fallback
+    const finalExpoToken = expoPushToken || pushToken || token;
+    const finalFcmToken = fcmToken || pushToken || token;
+
+    if (!finalExpoToken && !finalFcmToken) {
+      return res.status(400).json({ success: false, message: 'Push token is required' });
+    }
+
+    await Driver.findByIdAndUpdate(
+      req.driver._id,
+      { $set: { pushToken: finalExpoToken, fcmToken: finalFcmToken } },
+      { new: true }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Push token registered successfully',
+      data: { expoPushToken: finalExpoToken, fcmToken: finalFcmToken }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update Driver Vehicle Fare
+// @route   PUT /api/driver/vehicle/fare
+// @access  Private (Driver Only)
+exports.updateVehicleFare = async (req, res, next) => {
+  try {
+    const { fareRate, fare, vehicleId, route } = req.body;
+    const finalFare = fare !== undefined && fare !== null ? fare : fareRate;
+    const hasSegmentPricing = Array.isArray(route?.stops) && route.stops.length > 0;
+    const routePricing = hasSegmentPricing ? validateRoutePricing(route) : null;
+    if (hasSegmentPricing && !routePricing.valid) {
+      return res.status(400).json({ success: false, message: routePricing.message });
+    }
+    if (!hasSegmentPricing && (finalFare === undefined || finalFare === null || Number(finalFare) <= 0 || isNaN(Number(finalFare)))) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid positive fare amount' });
+    }
+    if (vehicleId && !mongoose.isValidObjectId(vehicleId)) {
+      return res.status(400).json({ success: false, message: 'Invalid vehicleId' });
+    }
+
+    const ownershipQuery = getDriverVehicleOwnershipQuery(req.driver);
+    let vehicle;
+    if (vehicleId) {
+      vehicle = await Vehicle.findOne({ _id: vehicleId, ...ownershipQuery });
+    } else {
+      vehicle = await Vehicle.findOne({ assignedDriver: req.driver._id });
+      const assignedVehicleId = req.driver.assignedVehicle?._id || req.driver.assignedVehicle;
+      if (!vehicle && assignedVehicleId) {
+        vehicle = await Vehicle.findOne({ _id: assignedVehicleId, ...ownershipQuery });
+      }
+      if (!vehicle) {
+        vehicle = await Vehicle.findOne({ 'submission.submittedByDriver': req.driver._id });
+      }
+    }
+
+    if (!vehicle) {
+      return res.status(404).json({ success: false, message: 'Assigned vehicle not found or you are not authorized to edit this vehicle' });
+    }
+
+    if (hasSegmentPricing) {
+      vehicle.route = { ...(vehicle.route?.toObject?.() || vehicle.route || {}), ...route };
+      vehicle.fareRate = routePricing.totalFare;
+    } else {
+      if (Array.isArray(vehicle.route?.stops) && vehicle.route.stops.length > 0) {
+        return res.status(400).json({ success: false, message: 'Update each route segment fare for a vehicle with route stops.' });
+      }
+      vehicle.fareRate = Number(finalFare);
+    }
+    await vehicle.save();
+
+    res.json({
+      success: true,
+      message: 'Vehicle fare updated successfully',
+      data: vehicle
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.verifyRideOtp = async (req, res, next) => {
+  const { id } = req.params;
+  const targetBookingId = id || req.body.bookingId || req.body.id;
+  const booking = await Booking.findOne(getBookingQuery(targetBookingId));
+  if (!booking) return res.status(404).json({ success: false, message: 'Booking request not found' });
+  req.bookingObj = booking;
+
+  if (booking.bookingMode === 'INSTANT') return verifyInstantRideOtp(req, res, next);
+  return verifyScheduleRideOtp(req, res, next);
+};
+
+

@@ -26,114 +26,63 @@ const getBookingQuery = (idOrCode) => {
 // @desc    Create a new booking with backend validation (service status, vehicle status, seat collision, fare check)
 // @route   POST /api/bookings
 // @access  Private (Customer)
-exports.createBooking = async (req, res, next) => {
+const createInstantBooking = async (req, res, next) => {
   try {
-    const {
-      vehicleId,
-      serviceType,
+    const { serviceType, pickupLocation, dropLocation, passengerDetails, passengerCount, paymentMethod, travelDate } = req.body;
+    if (!pickupLocation || !dropLocation) {
+      return res.status(400).json({ success: false, message: 'Missing required booking fields (pickupLocation, dropLocation)' });
+    }
+    const serviceControl = await ServiceControl.findOne();
+    if (!serviceControl?.instantBookingEnabled) {
+      return res.status(403).json({ success: false, code: 'INSTANT_BOOKING_DISABLED', message: 'Instant booking is currently unavailable.' });
+    }
+    const crypto = require('crypto');
+    const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const confirmationOtpHash = crypto.createHash('sha256').update(rawOtp).digest('hex');
+    const confirmationOtpExpiresAt = new Date(Date.now() + 10 * 60 * 60 * 1000); // 10 Hours
+    const bookingId = BK-\;
+    const booking = await Booking.create({
+      bookingId,
+      bookingMode: 'INSTANT',
+      serviceType: serviceType || 'Any',
+      user: req.user?._id,
+      customer: {
+        name: req.body.customer?.name || req.user?.name || 'Customer',
+        phone: req.body.customer?.phone || req.user?.phone || '0000000000',
+        email: req.body.customer?.email || req.user?.email || ''
+      },
+      passengerDetails: Array.isArray(passengerDetails) ? passengerDetails : [],
       pickupLocation,
       dropLocation,
-      passengerDetails,
-      passengerCount,
-      selectedSeats,
-      fare,
-      travelDate,
-      scheduleId,
-      paymentMethod,
-      bookingMode: requestedBookingMode
-    } = req.body;
+      fare: 0,
+      originalFare: 0,
+      finalFare: 0,
+      paymentMethod: paymentMethod || 'Offline Cash',
+      paymentStatus: 'Pending Cash',
+      bookingStatus: 'Pending Driver Confirmation',
+      confirmationOtpHash,
+      confirmationOtpExpiresAt,
+      customerViewOtp: rawOtp,
+      travelDate: travelDate ? new Date(travelDate) : new Date()
+    });
+    await notifyEligibleDriversForBooking(booking);
+    const bookingObj = booking.toObject();
+    bookingObj.confirmationOtp = rawOtp;
+    delete bookingObj.confirmationOtpHash;
+    return res.status(201).json({
+      success: true,
+      message: 'Instant booking request created successfully. Waiting for a driver to accept.',
+      data: bookingObj
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
-    if (
-      requestedBookingMode !== undefined &&
-      !['NORMAL', 'INSTANT'].includes(requestedBookingMode)
-    ) {
-      return res.status(400).json({ success: false, message: 'Invalid booking mode' });
-    }
-    const bookingMode = requestedBookingMode || 'NORMAL';
-
-    if (bookingMode === 'INSTANT') {
-      if (!pickupLocation || !dropLocation) {
-        return res.status(400).json({ success: false, message: 'Missing required booking fields (pickupLocation, dropLocation)' });
-      }
-
-      const serviceControl = await ServiceControl.findOne();
-      if (!serviceControl?.instantBookingEnabled) {
-        return res.status(403).json({ success: false, code: 'INSTANT_BOOKING_DISABLED', message: 'Instant booking is currently unavailable.' });
-      }
-
-      const crypto = require('crypto');
-      const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      const confirmationOtpHash = crypto.createHash('sha256').update(rawOtp).digest('hex');
-      const confirmationOtpExpiresAt = new Date(Date.now() + 10 * 60 * 60 * 1000); // 10 Hours
-      const bookingId = `BK-${Date.now().toString().slice(-4)}${Math.floor(100 + Math.random() * 900)}`;
-
-      const booking = await Booking.create({
-        bookingId,
-        bookingMode: 'INSTANT',
-        serviceType: serviceType || 'Any',
-        user: req.user?._id,
-        customer: {
-          name: req.body.customer?.name || req.user?.name || 'Customer',
-          phone: req.body.customer?.phone || req.user?.phone || '0000000000',
-          email: req.body.customer?.email || req.user?.email || ''
-        },
-        passengerDetails: Array.isArray(passengerDetails) ? passengerDetails : [],
-        pickupLocation,
-        dropLocation,
-        fare: 0,
-        originalFare: 0,
-        finalFare: 0,
-        paymentMethod: paymentMethod || 'Offline Cash',
-        paymentStatus: 'Pending Cash',
-        bookingStatus: 'Pending Driver Confirmation',
-        confirmationOtpHash,
-        confirmationOtpExpiresAt,
-        customerViewOtp: rawOtp,
-        travelDate: travelDate ? new Date(travelDate) : new Date()
-      });
-
-
-      await notifyEligibleDriversForBooking(booking);
-
-      const bookingObj = booking.toObject();
-      bookingObj.confirmationOtp = rawOtp;
-      delete bookingObj.confirmationOtpHash;
-
-      return res.status(201).json({
-        success: true,
-        message: 'Instant booking request created successfully. Waiting for a driver to accept.',
-        data: bookingObj
-      });
-    }
-
-    if (!vehicleId || !serviceType || !pickupLocation || !dropLocation) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing required booking fields (vehicleId, serviceType, pickupLocation, dropLocation)'
-      });
-    }
-
-    // 1. Check Service Control status
-    const serviceControl = await ServiceControl.findOne();
-    if (bookingMode === 'INSTANT' && !serviceControl?.instantBookingEnabled) {
-      return res.status(403).json({
-        success: false,
-        code: 'INSTANT_BOOKING_DISABLED',
-        message: 'Instant booking is currently unavailable.'
-      });
-    }
-    if (serviceControl) {
-      if (serviceType === 'Bus' && serviceControl.busService !== 'Active') {
-        return res.status(400).json({
-          success: false,
-          message: 'Bus booking service is currently inactive'
-        });
-      }
-      if (serviceType === 'EV-Sewa' && serviceControl.evSewaService !== 'Active') {
-        return res.status(400).json({
-          success: false,
-          message: 'EV-Sewa booking service is currently inactive'
-        });
+const createScheduleBooking = async (req, res, next) => {
+  try {
+    const { vehicleId, serviceType, pickupLocation, dropLocation, passengerDetails, passengerCount, selectedSeats, fare, travelDate, scheduleId, paymentMethod } = req.body;
+    const bookingMode = 'NORMAL';
       }
       if (serviceType === 'Car' && serviceControl.carService !== 'Active') {
         return res.status(400).json({
@@ -142,7 +91,6 @@ exports.createBooking = async (req, res, next) => {
         });
       }
     }
-
     // 2. Check Vehicle existence and active status
     const vehicle = await Vehicle.findById(vehicleId);
     if (!vehicle) {
@@ -151,7 +99,6 @@ exports.createBooking = async (req, res, next) => {
         message: 'Vehicle not found'
       });
     }
-
     if (vehicle.vehicleStatus !== 'Active') {
       return res.status(400).json({
         success: false,
@@ -171,19 +118,16 @@ exports.createBooking = async (req, res, next) => {
     if (bookingMode === 'INSTANT' && vehicle.vehicleType !== serviceType) {
       return res.status(400).json({ success: false, message: 'Selected vehicle does not match the requested service' });
     }
-
     let evPassengerCount = 1;
     if (serviceType === 'EV-Sewa') {
       if (vehicle.vehicleType !== 'EV-Sewa') {
         return res.status(400).json({ success: false, message: 'Selected vehicle is not an EV-Sewa vehicle' });
       }
-
       const capacity = Number(vehicle.seatingCapacity);
       const submittedPassengers = Array.isArray(passengerDetails) ? passengerDetails : [];
       const requestedCount = passengerCount == null
         ? (submittedPassengers.length || 1)
         : Number(passengerCount);
-
       if (!Number.isInteger(capacity) || capacity < 1) {
         return res.status(400).json({ success: false, message: 'EV-Sewa passenger capacity is unavailable' });
       }
@@ -204,7 +148,6 @@ exports.createBooking = async (req, res, next) => {
       }
       evPassengerCount = requestedCount;
     }
-
     // Attach a matching active schedule when the customer selected one. Schedules
     // are optional for this booking flow; vehicles remain bookable without one.
     let activeSchedule = null;
@@ -223,7 +166,6 @@ exports.createBooking = async (req, res, next) => {
           && scheduleDate.getMonth() === bookingDate.getMonth()
           && scheduleDate.getDate() === bookingDate.getDate();
       }) || null;
-
       if (scheduleId && !activeSchedule) {
         return res.status(400).json({ success: false, message: 'Selected schedule is not active or does not belong to this vehicle' });
       }
@@ -236,7 +178,6 @@ exports.createBooking = async (req, res, next) => {
       if (!activeSchedule) {
         return res.status(400).json({ success: false, message: 'Selected schedule is not active or does not belong to this vehicle' });
       }
-
       const bookingDate = travelDate ? new Date(travelDate) : new Date();
       const scheduleDate = new Date(activeSchedule.travelDate);
       const sameDate = scheduleDate.getFullYear() === bookingDate.getFullYear()
@@ -244,35 +185,29 @@ exports.createBooking = async (req, res, next) => {
         && scheduleDate.getDate() === bookingDate.getDate();
       const sameRoute = String(activeSchedule.origin).trim().toLowerCase() === String(pickupLocation).trim().toLowerCase()
         && String(activeSchedule.destination).trim().toLowerCase() === String(dropLocation).trim().toLowerCase();
-
       if (!sameDate || !sameRoute) {
         return res.status(400).json({ success: false, message: 'Selected schedule does not match this route and travel date' });
       }
     }
-
     // 3. Check Seat Availability on Backend for Buses (DATE-SPECIFIC)
     if (serviceType === 'Bus' && selectedSeats && selectedSeats.length > 0) {
       const bookingTravelDate = travelDate ? new Date(travelDate) : new Date();
-
       // Day-boundary range for the target travel date
       const startOfDay = new Date(bookingTravelDate);
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(bookingTravelDate);
       endOfDay.setHours(23, 59, 59, 999);
-
       const activeBookings = await Booking.find({
         vehicle: vehicle._id,
         travelDate: { $gte: startOfDay, $lte: endOfDay },
         bookingStatus: { $in: ['Confirmed', 'Pending', 'Pending Driver Confirmation', 'Awaiting Cash Collection', 'Ongoing'] }
       });
-
       const alreadyBooked = [];
       activeBookings.forEach((b) => {
         if (b.busSeatNumbers && b.busSeatNumbers.length > 0) {
           b.busSeatNumbers.forEach((s) => alreadyBooked.push(s));
         }
       });
-
       const conflictingSeats = selectedSeats.filter((s) => alreadyBooked.includes(s));
       if (conflictingSeats.length > 0) {
         return res.status(400).json({
@@ -281,9 +216,7 @@ exports.createBooking = async (req, res, next) => {
         });
       }
     }
-
     let instantDriver = null;
-
     // 4. Calculate Server-Side Fare with Dynamic Admin Bus Offer Discount
     const fareUnitCount = serviceType === 'Bus' && selectedSeats && selectedSeats.length > 0
       ? selectedSeats.length
@@ -298,7 +231,6 @@ exports.createBooking = async (req, res, next) => {
     let discountPercentage = 0;
     let discountAmount = 0;
     let finalPayableFare = computedBaseFare;
-
     if (serviceType === 'Bus') {
       const busOffer = await BusOffer.findOne({ service: 'bus' });
       const currentStatus = busOffer ? (busOffer.offerStatus || busOffer.discountStatus || 'active') : 'inactive';
@@ -308,14 +240,11 @@ exports.createBooking = async (req, res, next) => {
         finalPayableFare = Math.max(0, originalFare - discountAmount);
       }
     }
-
     const crypto = require('crypto');
     const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
     const confirmationOtpHash = crypto.createHash('sha256').update(rawOtp).digest('hex');
     const confirmationOtpExpiresAt = new Date(Date.now() + 10 * 60 * 60 * 1000); // 10 Hours
-
     const bookingId = `BK-${Date.now().toString().slice(-4)}${Math.floor(100 + Math.random() * 900)}`;
-
     const isBus = serviceType === 'Bus';
     const isOfflineCash = paymentMethod === 'Offline Cash' || paymentMethod === 'Cash';
     const initialPaymentMethod = isOfflineCash ? 'Offline Cash' : (paymentMethod || 'Online Razorpay');
@@ -336,7 +265,6 @@ exports.createBooking = async (req, res, next) => {
       loadCapacity: vehicle.loadCapacity || '',
       notes: vehicle.hireDetails?.notes || ''
     } : undefined;
-
     let booking;
     try {
       booking = await Booking.create({
@@ -398,7 +326,6 @@ exports.createBooking = async (req, res, next) => {
       }
       throw error;
     }
-
     // Create corresponding Payment record
     const payment = await Payment.create({
       booking: booking._id,
@@ -416,7 +343,6 @@ exports.createBooking = async (req, res, next) => {
       paymentGateway: isOfflineCash ? 'Offline Cash' : 'Razorpay',
       cashCollected: false
     });
-
     // Create Customer Notification
     await Notification.create({
       title: bookingMode === 'INSTANT'
@@ -432,16 +358,13 @@ exports.createBooking = async (req, res, next) => {
       recipientId: req.user._id,
       status: 'Unread'
     });
-
     // Notify every matching online driver for normal Bus, EV-Sewa, and Car requests.
     if (bookingMode !== 'INSTANT') {
       await notifyEligibleDriversForBooking(booking);
     }
-
     const bookingObj = booking.toObject();
     bookingObj.confirmationOtp = rawOtp;
     delete bookingObj.confirmationOtpHash;
-
     res.status(201).json({
       success: true,
       message: 'Booking created successfully. Please provide the OTP to admin for confirmation.',
@@ -451,6 +374,22 @@ exports.createBooking = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.createBooking = async (req, res, next) => {
+  const requestedBookingMode = req.body.bookingMode;
+  if (requestedBookingMode !== undefined && !['NORMAL', 'INSTANT'].includes(requestedBookingMode)) {
+    return res.status(400).json({ success: false, message: 'Invalid booking mode' });
+  }
+  const bookingMode = requestedBookingMode || 'NORMAL';
+  if (bookingMode === 'INSTANT') {
+    return createInstantBooking(req, res, next);
+  }
+  return createScheduleBooking(req, res, next);
 };
 
 exports.getInstantBookingAvailability = async (req, res, next) => {

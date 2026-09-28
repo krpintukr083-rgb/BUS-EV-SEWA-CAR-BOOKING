@@ -122,8 +122,13 @@ export const customerService = {
 
   // Bookings
   createBooking: async bookingData => {
-    const res = await api.post('/bookings', bookingData);
-    return res.data;
+    if (bookingData.bookingMode === 'INSTANT') {
+      const res = await api.post('/bookings/instant', bookingData);
+      return res.data;
+    } else {
+      const res = await api.post('/bookings/schedule', bookingData);
+      return res.data;
+    }
   },
 
   getInstantBookingAvailability: async availability => {
