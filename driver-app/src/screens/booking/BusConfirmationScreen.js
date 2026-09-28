@@ -10,6 +10,7 @@ import {
   Alert,
   Modal,
   TextInput,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -219,65 +220,89 @@ export default function BusConfirmationScreen({ navigation, route }) {
   };
 
   // 2. Offline Cash Payment Collection (Conductor marks cash received)
+  // Helper for cash collection logic
+  const confirmCashCollection = async (bookingId, amount) => {
+    setActionLoadingId(bookingId);
+    try {
+      const res = await driverService.collectCashPayment(bookingId, amount);
+      if (res?.data?.success) {
+        Alert.alert(t('success'), `₹${amount} Cash Collected! Payment marked as PAID.`);
+        fetchBusBookings();
+      } else {
+        Alert.alert(t('error'), res?.data?.message || 'Failed to update payment');
+      }
+    } catch (err) {
+      Alert.alert(t('error'), err.response?.data?.message || 'Failed to collect cash payment');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   const handleCollectCash = async (bookingId, amount) => {
-    Alert.alert(
-      t('collectCash'),
-      `Collect ₹${amount} in cash from passenger and mark payment as Completed?`,
-      [
-        { text: t('cancel'), style: 'cancel' },
-        {
-          text: t('confirmPaid'),
-          style: 'default',
-          onPress: async () => {
-            setActionLoadingId(bookingId);
-            try {
-              const res = await driverService.collectCashPayment(bookingId);
-              if (res?.data?.success) {
-                Alert.alert(t('success'), `₹${amount} Cash Collected! Payment marked as PAID.`);
-                fetchBusBookings();
-              } else {
-                Alert.alert(t('error'), res?.data?.message || 'Failed to update payment');
-              }
-            } catch (err) {
-              Alert.alert(t('error'), err.response?.data?.message || 'Failed to collect cash payment');
-            } finally {
-              setActionLoadingId(null);
-            }
+    const message = `Collect ₹${amount} in cash from passenger and mark payment as Completed?`;
+    if (Platform.OS === 'web') {
+      if (window.confirm(message)) {
+        await confirmCashCollection(bookingId, amount);
+      }
+    } else {
+      Alert.alert(
+        t('collectCash'),
+        message,
+        [
+          { text: t('cancel'), style: 'cancel' },
+          {
+            text: t('confirmPaid'),
+            style: 'default',
+            onPress: async () => {
+              await confirmCashCollection(bookingId, amount);
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   // 3. Destination Reached / Complete Ride for Bus & EV-Sewa
+  const confirmDestinationReached = async (bookingId) => {
+    setActionLoadingId(bookingId);
+    try {
+      const res = await driverService.reachDestination(bookingId);
+      if (res?.data?.success || res?.data?.status === 'success' || res?.success) {
+        Alert.alert(t('success'), 'Trip marked as Completed!');
+        fetchBusBookings();
+      } else {
+        Alert.alert(t('error'), res?.data?.message || res?.message || 'Failed to complete ride');
+      }
+    } catch (err) {
+      Alert.alert(t('error'), err.response?.data?.message || 'Failed to complete ride');
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   const handleReachDestination = async (bookingId) => {
-    Alert.alert(
-      t('confirmDestinationReachedTitle') || 'Destination Reached',
-      t('confirmDestinationReachedMessage') || "Have you reached the customer's destination?",
-      [
-        { text: t('cancel') || 'Cancel', style: 'cancel' },
-        {
-          text: t('confirm') || 'Confirm',
-          style: 'default',
-          onPress: async () => {
-            setActionLoadingId(bookingId);
-            try {
-              const res = await driverService.reachDestination(bookingId);
-              if (res?.data?.success || res?.data?.status === 'success' || res?.success) {
-                Alert.alert(t('success'), 'Trip marked as Completed!');
-                fetchBusBookings();
-              } else {
-                Alert.alert(t('error'), res?.data?.message || res?.message || 'Failed to complete ride');
-              }
-            } catch (err) {
-              Alert.alert(t('error'), err.response?.data?.message || 'Failed to complete ride');
-            } finally {
-              setActionLoadingId(null);
-            }
+    const title = t('confirmDestinationReachedTitle') || 'Destination Reached';
+    const message = t('confirmDestinationReachedMessage') || "Have you reached the customer's destination?";
+    if (Platform.OS === 'web') {
+      if (window.confirm(message)) {
+        await confirmDestinationReached(bookingId);
+      }
+    } else {
+      Alert.alert(
+        title,
+        message,
+        [
+          { text: t('cancel') || 'Cancel', style: 'cancel' },
+          {
+            text: t('confirm') || 'Confirm',
+            style: 'default',
+            onPress: async () => {
+              await confirmDestinationReached(bookingId);
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   // 4. Reject Bus Booking
