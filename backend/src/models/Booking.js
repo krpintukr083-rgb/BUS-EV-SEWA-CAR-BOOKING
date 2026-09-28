@@ -266,22 +266,5 @@ bookingSchema.index({ bookingStatus: 1, createdAt: -1 });
 bookingSchema.index({ driverConfirmationStatus: 1 });
 bookingSchema.index({ 'customer.phone': 1 });
 bookingSchema.index({ paymentStatus: 1 });
-bookingSchema.index(
-  { driver: 1 },
-  {
-    unique: true,
-    name: 'one_active_instant_booking_per_driver',
-    partialFilterExpression: {
-      bookingMode: 'INSTANT',
-      driver: { $type: 'objectId' },
-      bookingStatus: { $in: ACTIVE_INSTANT_BOOKING_STATUSES },
-      rideStatus: { $in: ACTIVE_INSTANT_RIDE_STATUSES },
-      driverConfirmationStatus: { $in: ACTIVE_INSTANT_DRIVER_CONFIRMATION_STATUSES },
-      cancellationStatus: { $in: ACTIVE_INSTANT_CANCELLATION_STATUSES },
-      paymentStatus: { $in: ACTIVE_INSTANT_PAYMENT_STATUSES },
-      completedAt: null
-    }
-  }
-);
 
 module.exports = mongoose.model('Booking', bookingSchema);

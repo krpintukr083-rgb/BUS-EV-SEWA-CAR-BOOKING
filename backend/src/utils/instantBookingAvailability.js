@@ -3,7 +3,7 @@ const Driver = require('../models/Driver');
 const Schedule = require('../models/Schedule');
 const Vehicle = require('../models/Vehicle');
 const { vehicleMatchesBookingRoute } = require('./notification');
-const { getActiveInstantBookingQuery } = require('./activeInstantBooking');
+const { getActiveReservedSeats } = require('./activeInstantBooking');
 
 const getAvailableInstantVehicleDrivers = async (
   serviceType,
@@ -64,15 +64,15 @@ const getAvailableInstantVehicleDrivers = async (
   }));
 
   const eligibleDrivers = candidatesByVehicle.flatMap(({ eligible }) => eligible);
-  const activeDriverIds = eligibleDrivers.length
-      ? await Booking.distinct('driver', getActiveInstantBookingQuery({
-          $in: eligibleDrivers.map(driver => driver._id)
-        }))
-      : [];
-  const activeDriverSet = new Set(activeDriverIds.map(id => String(id)));
+  const candidatesWithCapacity = await Promise.all(candidatesByVehicle.map(async ({ vehicle, eligible }) => {
+    const reservedSeats = await getActiveReservedSeats(vehicle._id);
+    const capacity = vehicle.seatingCapacity || 4;
+    // We assume 1 seat is needed if passenger count is not provided here
+    return { vehicle, eligible, hasCapacity: reservedSeats + 1 <= capacity };
+  }));
 
-  return candidatesByVehicle.flatMap(({ vehicle, eligible }) => {
-    const driver = eligible.find(candidate => !activeDriverSet.has(String(candidate._id)));
+  return candidatesWithCapacity.filter(c => c.hasCapacity).flatMap(({ vehicle, eligible }) => {
+    const driver = eligible[0]; // Just take the first eligible driver for the vehicle
     return driver ? [{ vehicle, driver }] : [];
   });
 };

@@ -36,6 +36,26 @@ const getActiveInstantBookingQuery = (driver) => ({
   ...getActiveInstantBookingFilter()
 });
 
+const getActiveReservedSeats = async (vehicleId) => {
+  const mongoose = require('mongoose');
+  const Booking = mongoose.model('Booking');
+  
+  const activeInstantBookings = await Booking.find({
+    vehicle: vehicleId,
+    ...getActiveInstantBookingFilter()
+  }).select('passengerDetails').lean();
+
+  let reserved = 0;
+  for (const b of activeInstantBookings) {
+    if (b.passengerDetails && b.passengerDetails.length > 0) {
+      reserved += b.passengerDetails.length;
+    } else {
+      reserved += 1;
+    }
+  }
+  return reserved;
+};
+
 module.exports = {
   ACTIVE_INSTANT_BOOKING_STATUSES,
   ACTIVE_INSTANT_RIDE_STATUSES,
@@ -43,5 +63,6 @@ module.exports = {
   ACTIVE_INSTANT_CANCELLATION_STATUSES,
   ACTIVE_INSTANT_PAYMENT_STATUSES,
   getActiveInstantBookingFilter,
-  getActiveInstantBookingQuery
+  getActiveInstantBookingQuery,
+  getActiveReservedSeats
 };

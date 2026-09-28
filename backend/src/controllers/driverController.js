@@ -14,7 +14,7 @@ const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
 const { validateRoutePricing } = require('../utils/routeFares');
 const driverBookingResponse = require('../utils/driverBookingResponse');
 const { vehicleMatchesBookingRoute } = require('../utils/notification');
-const { getActiveInstantBookingQuery } = require('../utils/activeInstantBooking');
+const { getActiveInstantBookingQuery, getActiveReservedSeats } = require('../utils/activeInstantBooking');
 
 const getBookingQuery = (idOrCode) => {
   return mongoose.isValidObjectId(idOrCode)
@@ -1169,10 +1169,11 @@ const getInstantBookingRequests = async (req, res, next) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    // Check if this driver currently has an active Instant Booking
-    const hasActiveInstantBooking = Boolean(await Booking.exists(
-      getActiveInstantBookingQuery(driver._id)
-    ));
+    // Calculate active reserved seats for the assigned vehicle
+    let activeReservedSeats = 0;
+    if (assignedVehicleId) {
+      activeReservedSeats = await getActiveReservedSeats(assignedVehicleId);
+    }
 
     // Filter candidate bookings by route match & eligibility
     const requests = candidateBookings.filter(reqItem => {
@@ -1181,11 +1182,14 @@ const getInstantBookingRequests = async (req, res, next) => {
         return false;
       }
 
-      // If driver already has an active instant booking, do not offer more instant booking requests
-      if (hasActiveInstantBooking && true) {
-        return false;
+      // If vehicle does not have enough capacity, do not offer more instant booking requests
+      if (reqItem.bookingMode === 'INSTANT' && assignedVehicle) {
+        const reqSeats = reqItem.passengerDetails ? reqItem.passengerDetails.length : 1;
+        const capacity = assignedVehicle.seatingCapacity || 4;
+        if (activeReservedSeats + reqSeats > capacity) {
+          return false;
+        }
       }
-      
       // If directly assigned to another driver, exclude it for ALL booking modes (first driver wins)
       if (reqItem.driver && (reqItem.driver._id || reqItem.driver).toString() !== driver._id.toString()) {
         return false;
@@ -1352,10 +1356,11 @@ const getScheduleBookingRequests = async (req, res, next) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    // Check if this driver currently has an active Instant Booking
-    const hasActiveInstantBooking = Boolean(await Booking.exists(
-      getActiveInstantBookingQuery(driver._id)
-    ));
+    // Calculate active reserved seats for the assigned vehicle
+    let activeReservedSeats = 0;
+    if (assignedVehicle) {
+      activeReservedSeats = await getActiveReservedSeats(assignedVehicle._id);
+    }
 
     // Filter candidate bookings by route match & eligibility
     const requests = candidateBookings.filter(reqItem => {
@@ -1364,9 +1369,13 @@ const getScheduleBookingRequests = async (req, res, next) => {
         return false;
       }
 
-      // An active instant booking only suppresses additional instant requests.
-      if (isCombinedRequest && reqItem.bookingMode === 'INSTANT' && hasActiveInstantBooking) {
-        return false;
+      // Check if vehicle has enough capacity for this instant request
+      if (reqItem.bookingMode === 'INSTANT' && assignedVehicle) {
+        const reqSeats = reqItem.passengerDetails ? reqItem.passengerDetails.length : 1;
+        const capacity = assignedVehicle.seatingCapacity || 4;
+        if (activeReservedSeats + reqSeats > capacity) {
+          return false;
+        }
       }
       
       // If directly assigned to another driver, exclude it for ALL booking modes (first driver wins)
@@ -1517,17 +1526,35 @@ const acceptInstantBookingRequest = async (req, res, next) => {
 
     if (isInstant) {
       // INSTANT BOOKING CONFLICT RULE:
-      // A driver cannot accept multiple simultaneous active instant bookings.
-      const activeInstantBooking = await Booking.findOne({
-        _id: { $ne: booking._id },
-        ...getActiveInstantBookingQuery(driver._id)
-      }).select('bookingId bookingStatus rideStatus').lean();
-
-      if (activeInstantBooking) {
+      // Capacity check instead of single active booking check
+      const reqSeats = booking.passengerDetails ? booking.passengerDetails.length : 1;
+      
+      let vehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
+      if (!vehicleId) {
+        let vByDriver = await Vehicle.findOne({ assignedDriver: driver._id, vehicleStatus: 'Active' }).select('_id').lean();
+        if (!vByDriver) {
+           vByDriver = await Vehicle.findOne({ assignedDriver: driver._id }).sort({ createdAt: -1 }).select('_id').lean();
+        }
+        if (vByDriver) vehicleId = vByDriver._id;
+      }
+      
+      if (!vehicleId) {
         return res.status(409).json({
           success: false,
-          code: 'DRIVER_HAS_ACTIVE_INSTANT_BOOKING',
-          message: 'This driver has already accepted another instant booking.'
+          code: 'DRIVER_NO_VEHICLE',
+          message: 'No assigned vehicle found to calculate capacity.'
+        });
+      }
+      
+      const vDoc = await Vehicle.findById(vehicleId).lean();
+      const activeReservedSeats = await getActiveReservedSeats(vehicleId);
+      const capacity = vDoc.seatingCapacity || 4;
+      
+      if (activeReservedSeats + reqSeats > capacity) {
+        return res.status(409).json({
+          success: false,
+          code: 'VEHICLE_CAPACITY_FULL',
+          message: 'Vehicle does not have enough available seats.'
         });
       }
     } else {
