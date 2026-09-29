@@ -302,6 +302,24 @@ export default function VehicleDetailsScreen({ navigation, route }) {
                   )}
                 </>
               )}
+              <TouchableOpacity 
+                style={[
+                  styles.saveFareButton,
+                  (!isFareValid || savingFare) && styles.saveFareButtonDisabled,
+                ]} 
+                onPress={handleSaveFare}
+                disabled={!isFareValid || savingFare}
+                activeOpacity={0.8}
+              >
+                {savingFare ? (
+                  <View style={styles.saveFareButtonContent}>
+                    <ActivityIndicator color={COLORS.white} size="small" style={{ marginRight: SPACING.s }} />
+                    <Text style={styles.saveFareButtonText}>Updating...</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.saveFareButtonText}>Save / Update Route & Schedule</Text>
+                )}
+              </TouchableOpacity>
             </View>
 
             {/* Specifications Card */}
@@ -434,24 +452,6 @@ export default function VehicleDetailsScreen({ navigation, route }) {
                     />
                   </View>
                 )}
-              <TouchableOpacity 
-                style={[
-                  styles.saveFareButton,
-                  (!isFareValid || savingFare) && styles.saveFareButtonDisabled,
-                ]} 
-                onPress={handleSaveFare}
-                disabled={!isFareValid || savingFare}
-                activeOpacity={0.8}
-              >
-                {savingFare ? (
-                  <View style={styles.saveFareButtonContent}>
-                    <ActivityIndicator color={COLORS.white} size="small" style={{ marginRight: SPACING.s }} />
-                    <Text style={styles.saveFareButtonText}>Updating...</Text>
-                  </View>
-                ) : (
-                  <Text style={styles.saveFareButtonText}>Save / Update</Text>
-                )}
-              </TouchableOpacity>
             </View>
 
             {/* Vehicle Type Badge Card */}
