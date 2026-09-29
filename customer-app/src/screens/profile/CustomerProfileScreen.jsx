@@ -13,19 +13,24 @@ import {
   Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useCustomerAuth } from '../../context/CustomerAuthContext';
 import { customerService } from '../../services/customerService';
 import Header from '../../components/Header';
+import { getFullImageUrl } from '../../utils/imageUrl';
 
 import { COLORS } from '../../constants/colors';
 
 const CustomerProfileScreen = ({ navigation }) => {
-  const { customer, logout, refreshUser } = useCustomerAuth();
+  const { customer, logout, refreshUser, updateCustomerProfilePhoto } = useCustomerAuth();
   // Modals state
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showLoginIdModal, setShowLoginIdModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [photoPickerVisible, setPhotoPickerVisible] = useState(false);
+  const [pendingProfilePhoto, setPendingProfilePhoto] = useState(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   // Edit Profile state
   const [editName, setEditName] = useState(customer?.name || '');
@@ -152,6 +157,100 @@ const CustomerProfileScreen = ({ navigation }) => {
     }
   };
 
+  const chooseProfilePhoto = async source => {
+    setPhotoPickerVisible(false);
+    try {
+      if (source === 'camera') {
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert('Permission Required', 'Camera permission is required to take a profile photo.');
+          return;
+        }
+      } else {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert('Permission Required', 'Gallery permission is required to choose a profile photo.');
+          return;
+        }
+      }
+
+      const result = source === 'camera'
+        ? await ImagePicker.launchCameraAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8
+          })
+        : await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8
+          });
+
+      const asset = result.assets?.[0];
+      if (result.canceled || !asset) return;
+
+      const fileName = asset.fileName || asset.file?.name || asset.uri.split(/[?#]/)[0].split('/').pop();
+      const extension = fileName?.split('.').pop()?.toLowerCase();
+      const mimeByExtension = {
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        png: 'image/png',
+        webp: 'image/webp'
+      };
+      const mimeType = asset.mimeType || asset.file?.type || mimeByExtension[extension];
+      if (!mimeType || !Object.values(mimeByExtension).includes(mimeType) || (extension && !mimeByExtension[extension])) {
+        Alert.alert('Invalid Image', 'Choose a JPG, JPEG, PNG, or WEBP image.');
+        return;
+      }
+      if ((asset.fileSize || asset.file?.size || 0) > 10 * 1024 * 1024) {
+        Alert.alert('Image Too Large', 'Choose an image that is 10MB or smaller.');
+        return;
+      }
+
+      setPendingProfilePhoto({ ...asset, fileName, mimeType });
+    } catch (error) {
+      Alert.alert('Image Selection Failed', error.message || 'Could not open the image picker.');
+    }
+  };
+
+  const handleSaveProfilePhoto = async () => {
+    if (!pendingProfilePhoto) return;
+    setPhotoUploading(true);
+    try {
+      const formData = new FormData();
+      if (Platform.OS === 'web') {
+        const imageFile = pendingProfilePhoto.file || await fetch(pendingProfilePhoto.uri).then(response => response.blob());
+        formData.append(
+          'profilePhoto',
+          imageFile,
+          pendingProfilePhoto.fileName || `profile-${Date.now()}.jpg`
+        );
+      } else {
+        formData.append('profilePhoto', {
+          uri: pendingProfilePhoto.uri,
+          name: pendingProfilePhoto.fileName || `profile-${Date.now()}.jpg`,
+          type: pendingProfilePhoto.mimeType
+        });
+      }
+      const response = await customerService.uploadProfilePhoto(formData);
+      if (!response.success) {
+        throw new Error(response.message || 'Could not update your profile photo.');
+      }
+      if (typeof response.data?.profilePhoto !== 'string' || !response.data.profilePhoto) {
+        throw new Error('The server did not return the updated profile photo.');
+      }
+      await updateCustomerProfilePhoto(response.data.profilePhoto);
+      setPendingProfilePhoto(null);
+      Alert.alert('Success', 'Profile photo updated successfully.');
+    } catch (error) {
+      Alert.alert('Upload Failed', error.response?.data?.message || error.message || 'Could not upload your profile photo.');
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
   const menuSections = [
     {
       title: 'Account & Security',
@@ -254,16 +353,50 @@ const CustomerProfileScreen = ({ navigation }) => {
         {/* Profile Card */}
         <View style={styles.profileCard}>
           <View style={styles.avatarContainer}>
-            <Image
-              source={{
-                uri: customer?.profilePhoto || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80'
-              }}
-              style={styles.avatar}
-            />
+            <TouchableOpacity
+              onPress={() => setPhotoPickerVisible(true)}
+              activeOpacity={0.8}
+              disabled={photoUploading}
+              accessibilityLabel="Change profile photo"
+            >
+              <Image
+                source={{
+                  uri: pendingProfilePhoto?.uri || getFullImageUrl(customer?.profilePhoto) || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80'
+                }}
+                style={styles.avatar}
+              />
+            </TouchableOpacity>
+            <View style={styles.cameraIconBadge}>
+              {photoUploading ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Ionicons name="camera" size={14} color="#ffffff" />
+              )}
+            </View>
             <View style={styles.verifiedBadge}>
               <Ionicons name="checkmark" size={12} color="#ffffff" />
             </View>
           </View>
+          {pendingProfilePhoto ? (
+            <View style={styles.photoActionRow}>
+              <TouchableOpacity
+                style={[styles.photoActionButton, styles.photoCancelButton]}
+                onPress={() => setPendingProfilePhoto(null)}
+                disabled={photoUploading}
+              >
+                <Text style={styles.photoCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.photoActionButton}
+                onPress={handleSaveProfilePhoto}
+                disabled={photoUploading}
+              >
+                {photoUploading ? <ActivityIndicator color="#ffffff" size="small" /> : <Text style={styles.photoSaveText}>Save Photo</Text>}
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <Text style={styles.photoHint}>Tap photo to change</Text>
+          )}
 
           <Text style={styles.userName}>{customer?.name || 'Customer Profile'}</Text>
           <Text style={styles.userRole}>Verified Passenger</Text>
@@ -319,6 +452,27 @@ const CustomerProfileScreen = ({ navigation }) => {
         {/* Version info */}
         <Text style={styles.versionText}>TravelSewa Customer App v1.0.0 (Production Build)</Text>
       </ScrollView>
+
+        <Modal visible={photoPickerVisible} transparent animationType="fade" onRequestClose={() => setPhotoPickerVisible(false)}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.photoPickerContent}>
+              <Text style={styles.modalTitle}>Update Profile Photo</Text>
+              <TouchableOpacity style={styles.photoPickerOption} onPress={() => chooseProfilePhoto('gallery')}>
+                <Ionicons name="images-outline" size={20} color={COLORS.primary} />
+                <Text style={styles.photoPickerOptionText}>Choose from Gallery</Text>
+              </TouchableOpacity>
+              {Platform.OS !== 'web' && (
+                <TouchableOpacity style={styles.photoPickerOption} onPress={() => chooseProfilePhoto('camera')}>
+                  <Ionicons name="camera-outline" size={20} color={COLORS.primary} />
+                  <Text style={styles.photoPickerOptionText}>Take Photo</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.photoPickerCancel} onPress={() => setPhotoPickerVisible(false)}>
+                <Text style={styles.photoCancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
 
       {/* Edit Profile Modal */}
       <Modal visible={showEditProfileModal} transparent animationType="slide">
@@ -471,6 +625,19 @@ const styles = StyleSheet.create({
     position: 'relative',
     marginBottom: 10
   },
+  cameraIconBadge: {
+    position: 'absolute',
+    right: -4,
+    top: -4,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#ffffff'
+  },
   avatar: {
     width: 80,
     height: 80,
@@ -527,6 +694,42 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     backgroundColor: COLORS.border,
     marginHorizontal: 8
+  },
+  photoHint: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    marginTop: -4,
+    marginBottom: 12
+  },
+  photoActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: -2,
+    marginBottom: 12
+  },
+  photoActionButton: {
+    minWidth: 96,
+    minHeight: 36,
+    borderRadius: 9,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12
+  },
+  photoCancelButton: {
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: COLORS.border
+  },
+  photoSaveText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  photoCancelText: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    fontWeight: '600'
   },
   sectionWrap: {
     marginBottom: 20
@@ -613,6 +816,31 @@ const styles = StyleSheet.create({
     padding: 20,
     width: '100%',
     maxWidth: 400
+  },
+  photoPickerContent: {
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    maxWidth: 360
+  },
+  photoPickerOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border
+  },
+  photoPickerOptionText: {
+    color: COLORS.textPrimary,
+    fontSize: 14,
+    fontWeight: '600'
+  },
+  photoPickerCancel: {
+    alignSelf: 'flex-end',
+    paddingVertical: 12,
+    paddingHorizontal: 8
   },
   modalHeader: {
     flexDirection: 'row',

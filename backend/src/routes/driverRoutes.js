@@ -42,7 +42,7 @@ const {
   createSchedule, getDriverSchedules, deleteDriverSchedule
 } = require('../controllers/workflowController');
 const { verifyToken, driverAuth } = require('../middleware/auth');
-const { handleSingleUpload, handleMultipleUpload } = require('../middleware/upload');
+const { handleSingleUpload, handleMultipleUpload, handleProfileImageUpload } = require('../middleware/upload');
 
 // All driver routes are protected with JWT and driver role verification
 router.use(verifyToken, driverAuth);
@@ -50,7 +50,7 @@ router.use(verifyToken, driverAuth);
 // 1. Dashboard & Profile
 router.get('/dashboard', getDriverDashboard);
 router.get('/profile', getDriverProfile);
-router.put('/profile', updateDriverProfile);
+router.put('/profile', handleProfileImageUpload, updateDriverProfile);
 router.put('/account/login-id', changeDriverLoginId);
 router.put('/account/password', changeDriverPassword);
 router.get('/vehicle', getAssignedVehicle);

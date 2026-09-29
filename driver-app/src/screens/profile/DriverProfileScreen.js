@@ -20,13 +20,16 @@ import { useAuth } from '../../state/AuthContext';
 import { useLanguage } from '../../state/LanguageContext';
 import LanguageModal from '../../components/LanguageModal';
 import { driverService } from '../../services/driverService';
+import { DRIVER_API_BASE_URL } from '../../constants/api';
 
 export default function DriverProfileScreen({ navigation }) {
   const insets = useSafeAreaInsets();
-  const { driver, logout, fetchFreshProfile } = useAuth();
+  const { driver, logout, fetchFreshProfile, updateDriverProfilePhoto } = useAuth();
   const { t, currentLanguage } = useLanguage();
   const [langModalVisible, setLangModalVisible] = useState(false);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoPickerVisible, setPhotoPickerVisible] = useState(false);
+  const [pendingProfilePhoto, setPendingProfilePhoto] = useState(null);
 
   // Profile Edit State
   const [editProfileModalVisible, setEditProfileModalVisible] = useState(false);
@@ -151,69 +154,89 @@ export default function DriverProfileScreen({ navigation }) {
     }
   };
 
-  const handleUpdatePhoto = async () => {
+  const handleUpdatePhoto = () => {
+    setPhotoPickerVisible(true);
+  };
+
+  const chooseProfilePhoto = async source => {
+    setPhotoPickerVisible(false);
     try {
-      Alert.alert(
-        'Update Profile Photo',
-        'Choose an option to update your profile photo:',
-        [
-          {
-            text: 'Take Photo (Camera)',
-            onPress: async () => {
-              const perm = await ImagePicker.requestCameraPermissionsAsync();
-              if (!perm.granted) {
-                Alert.alert('Permission Required', 'Camera permission is required.');
-                return;
-              }
-              const res = await ImagePicker.launchCameraAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true,
-                aspect: [1, 1],
-                quality: 0.7,
-                base64: true
-              });
-              if (!res.canceled && res.assets?.[0]) {
-                uploadPhoto(res.assets[0]);
-              }
-            }
-          },
-          {
-            text: 'Choose from Gallery',
-            onPress: async () => {
-              const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-              if (!perm.granted) {
-                Alert.alert('Permission Required', 'Gallery permission is required.');
-                return;
-              }
-              const res = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ImagePicker.MediaTypeOptions.Images,
-                allowsEditing: true,
-                aspect: [1, 1],
-                quality: 0.7,
-                base64: true
-              });
-              if (!res.canceled && res.assets?.[0]) {
-                uploadPhoto(res.assets[0]);
-              }
-            }
-          },
-          { text: 'Cancel', style: 'cancel' }
-        ]
-      );
-    } catch (e) {
-      Alert.alert('Error', e.message || 'Could not launch photo picker');
+      if (source === 'camera') {
+        const permission = await ImagePicker.requestCameraPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert('Permission Required', 'Camera permission is required to take a profile photo.');
+          return;
+        }
+      } else {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted) {
+          Alert.alert('Permission Required', 'Gallery permission is required to choose a profile photo.');
+          return;
+        }
+      }
+
+      const result = source === 'camera'
+        ? await ImagePicker.launchCameraAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8
+          })
+        : await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8
+          });
+      const asset = result.assets?.[0];
+      if (result.canceled || !asset) return;
+
+      const fileName = asset.fileName || asset.file?.name || asset.uri.split(/[?#]/)[0].split('/').pop();
+      const extension = fileName?.split('.').pop()?.toLowerCase();
+      const mimeByExtension = {
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        png: 'image/png',
+        webp: 'image/webp'
+      };
+      const mimeType = asset.mimeType || asset.file?.type || mimeByExtension[extension];
+      if (!mimeType || !Object.values(mimeByExtension).includes(mimeType) || (extension && !mimeByExtension[extension])) {
+        Alert.alert('Invalid Image', 'Choose a JPG, JPEG, PNG, or WEBP image.');
+        return;
+      }
+      if ((asset.fileSize || asset.file?.size || 0) > 10 * 1024 * 1024) {
+        Alert.alert('Image Too Large', 'Choose an image that is 10MB or smaller.');
+        return;
+      }
+      setPendingProfilePhoto({ ...asset, fileName, mimeType });
+    } catch (error) {
+      Alert.alert('Image Selection Failed', error.message || 'Could not open the image picker.');
     }
   };
 
-  const uploadPhoto = async (asset) => {
+  const uploadPhoto = async () => {
+    if (!pendingProfilePhoto) return;
     setPhotoUploading(true);
     try {
-      const mime = asset.mimeType || 'image/jpeg';
-      const base64Uri = `data:${mime};base64,${asset.base64}`;
-      const res = await driverService.updateProfile({ profilePhoto: base64Uri });
+      const formData = new FormData();
+      if (Platform.OS === 'web') {
+        const imageFile = pendingProfilePhoto.file || await fetch(pendingProfilePhoto.uri).then(response => response.blob());
+        formData.append('profilePhoto', imageFile, pendingProfilePhoto.fileName || `profile-${Date.now()}.jpg`);
+      } else {
+        formData.append('profilePhoto', {
+          uri: pendingProfilePhoto.uri,
+          name: pendingProfilePhoto.fileName || `profile-${Date.now()}.jpg`,
+          type: pendingProfilePhoto.mimeType
+        });
+      }
+      const res = await driverService.uploadProfilePhoto(formData);
       if (res.data?.success) {
+        if (typeof res.data.data?.profilePhoto !== 'string' || !res.data.data.profilePhoto) {
+          throw new Error('The server did not return the updated profile photo.');
+        }
+        await updateDriverProfilePhoto(res.data.data.profilePhoto);
+        setPendingProfilePhoto(null);
         Alert.alert('Success', 'Profile photo updated successfully!');
-        if (fetchFreshProfile) fetchFreshProfile();
       } else {
         Alert.alert('Update Failed', res.data?.message || 'Could not update photo.');
       }
@@ -254,7 +277,10 @@ export default function DriverProfileScreen({ navigation }) {
     return 'English';
   };
 
-  const photoUrl = driver?.profilePhoto || driver?.driverPhoto || driver?.user?.profilePhoto;
+  const storedPhotoUrl = driver?.profilePhoto || driver?.driverPhoto || driver?.user?.profilePhoto;
+  const photoUrl = pendingProfilePhoto?.uri || (storedPhotoUrl?.startsWith('/')
+    ? `${DRIVER_API_BASE_URL.replace(/\/api\/?$/, '')}${storedPhotoUrl}`
+    : storedPhotoUrl);
 
   const menuSections = [
     {
@@ -380,6 +406,22 @@ export default function DriverProfileScreen({ navigation }) {
               )}
             </View>
           </TouchableOpacity>
+          {pendingProfilePhoto ? (
+            <View style={styles.photoActionRow}>
+              <TouchableOpacity
+                style={[styles.photoActionButton, styles.photoCancelButton]}
+                onPress={() => setPendingProfilePhoto(null)}
+                disabled={photoUploading}
+              >
+                <Text style={styles.photoCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.photoActionButton} onPress={uploadPhoto} disabled={photoUploading}>
+                {photoUploading ? <ActivityIndicator color="#FFF" size="small" /> : <Text style={styles.photoSaveText}>Save Photo</Text>}
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <Text style={styles.photoHint}>Tap photo to change</Text>
+          )}
           <Text style={styles.driverName}>{driver?.name || 'Partner Driver'}</Text>
           <Text style={styles.driverPhone}>{driver?.phone || driver?.mobileNumber || '+977-98XXXXXXXX'}</Text>
 
@@ -626,6 +668,26 @@ export default function DriverProfileScreen({ navigation }) {
           </View>
         </View>
       </Modal>
+      <Modal visible={photoPickerVisible} animationType="fade" transparent onRequestClose={() => setPhotoPickerVisible(false)}>
+        <View style={modalStyles.modalOverlay}>
+          <View style={modalStyles.modalContainer}>
+            <Text style={modalStyles.modalTitle}>Update Profile Photo</Text>
+            <TouchableOpacity style={modalStyles.photoPickerOption} onPress={() => chooseProfilePhoto('gallery')}>
+              <MaterialCommunityIcons name="image-multiple-outline" size={20} color={COLORS.primary} />
+              <Text style={modalStyles.photoPickerOptionText}>Choose from Gallery</Text>
+            </TouchableOpacity>
+            {Platform.OS !== 'web' && (
+              <TouchableOpacity style={modalStyles.photoPickerOption} onPress={() => chooseProfilePhoto('camera')}>
+                <MaterialCommunityIcons name="camera-outline" size={20} color={COLORS.primary} />
+                <Text style={modalStyles.photoPickerOptionText}>Take Photo</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity style={modalStyles.cancelBtn} onPress={() => setPhotoPickerVisible(false)}>
+              <Text style={modalStyles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -645,6 +707,19 @@ const modalStyles = StyleSheet.create({
     padding: SPACING.l,
     borderWidth: 1,
     borderColor: COLORS.border || '#333',
+  },
+  photoPickerOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.m,
+    paddingVertical: SPACING.m,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border || '#333',
+  },
+  photoPickerOptionText: {
+    color: COLORS.textPrimary || '#FFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   modalTitle: {
     fontSize: 18,
@@ -764,6 +839,42 @@ const styles = StyleSheet.create({
   avatarWrapper: {
     position: 'relative',
     marginBottom: SPACING.s,
+  },
+  photoHint: {
+    color: COLORS.textMuted,
+    fontSize: 11,
+    marginTop: -SPACING.xs,
+    marginBottom: SPACING.s,
+  },
+  photoActionRow: {
+    flexDirection: 'row',
+    gap: SPACING.s,
+    marginTop: -SPACING.xs,
+    marginBottom: SPACING.s,
+  },
+  photoActionButton: {
+    minWidth: 96,
+    minHeight: 36,
+    borderRadius: RADIUS.s,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: SPACING.m,
+  },
+  photoCancelButton: {
+    backgroundColor: COLORS.bgDark,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  photoSaveText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  photoCancelText: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    fontWeight: '600',
   },
   avatarImage: {
     width: 72,

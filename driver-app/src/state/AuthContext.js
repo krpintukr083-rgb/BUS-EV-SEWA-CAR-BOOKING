@@ -73,6 +73,19 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateDriverProfilePhoto = async (profilePhoto) => {
+    const updatedDriver = driver ? { ...driver, profilePhoto, driverPhoto: profilePhoto } : driver;
+    const updatedUser = user ? { ...user, profilePhoto } : user;
+    if (updatedDriver) {
+      setDriver(updatedDriver);
+      await AsyncStorage.setItem('@driver_profile_data', JSON.stringify(updatedDriver));
+    }
+    if (updatedUser) {
+      setUser(updatedUser);
+      await AsyncStorage.setItem('@driver_user_data', JSON.stringify(updatedUser));
+    }
+  };
+
   const login = async (identifier, password) => {
     try {
       const res = await driverService.login({ identifier, password });
@@ -166,6 +179,7 @@ export const AuthProvider = ({ children }) => {
         register,
         toggleOnlineStatus,
         fetchFreshProfile,
+        updateDriverProfilePhoto,
         logout
       }}
     >

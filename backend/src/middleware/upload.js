@@ -45,12 +45,55 @@ const upload = multer({
   fileFilter: fileFilter
 });
 
+const profileImageUpload = multer({
+  storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024
+  },
+  fileFilter: (req, file, cb) => {
+    const extension = path.extname(file.originalname).toLowerCase();
+    const allowedMimeTypes = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.webp': 'image/webp'
+    };
+
+    if (allowedMimeTypes[extension] !== file.mimetype) {
+      return cb(new Error('Invalid profile image. Only JPG, JPEG, PNG, and WEBP images are allowed.'), false);
+    }
+    return cb(null, true);
+  }
+}).single('profilePhoto');
+
+const hasValidProfileImageSignature = file => {
+  const descriptor = fs.openSync(file.path, 'r');
+  try {
+    const header = Buffer.alloc(12);
+    const bytesRead = fs.readSync(descriptor, header, 0, header.length, 0);
+    const signature = header.subarray(0, bytesRead);
+
+    if (file.mimetype === 'image/jpeg') {
+      return signature.length >= 3 && signature[0] === 0xff && signature[1] === 0xd8 && signature[2] === 0xff;
+    }
+    if (file.mimetype === 'image/png') {
+      return signature.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+    }
+    if (file.mimetype === 'image/webp') {
+      return signature.toString('ascii', 0, 4) === 'RIFF' && signature.toString('ascii', 8, 12) === 'WEBP';
+    }
+    return false;
+  } finally {
+    fs.closeSync(descriptor);
+  }
+};
+
 const UploadedFile = require('../models/UploadedFile');
 
 // Asynchronously persist uploaded files to MongoDB Atlas for durability across restarts
-const persistFilesToMongo = (files) => {
-  if (!files || !Array.isArray(files) || files.length === 0) return;
-  files.forEach(async file => {
+const persistFilesToMongo = (files, failOnError = false) => {
+  if (!files || !Array.isArray(files) || files.length === 0) return Promise.resolve();
+  return Promise.all(files.map(async file => {
     try {
       if (file.path && fs.existsSync(file.path)) {
         const data = fs.readFileSync(file.path);
@@ -68,8 +111,9 @@ const persistFilesToMongo = (files) => {
       }
     } catch (e) {
       console.warn('MongoDB file persistence warning:', e.message);
+      if (failOnError) throw e;
     }
-  });
+  }));
 };
 
 // Error handling wrapper middleware for single upload
@@ -145,8 +189,56 @@ const handleMultipleUpload = (maxCount = 5) => {
   };
 };
 
+const handleProfileImageUpload = (req, res, next) => {
+  profileImageUpload(req, res, async error => {
+    if (error instanceof multer.MulterError) {
+      if (error.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+          success: false,
+          message: 'Profile image must be 10MB or smaller.'
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message: `Upload error: ${error.message}`
+      });
+    }
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: error.message || 'Invalid profile image upload.'
+      });
+    }
+
+    if (req.file) {
+      if (!hasValidProfileImageSignature(req.file)) {
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (cleanupError) {
+          console.warn('Invalid profile image cleanup warning:', cleanupError.message);
+        }
+        return res.status(400).json({
+          success: false,
+          message: 'The uploaded file is not a valid JPG, PNG, or WEBP image.'
+        });
+      }
+      try {
+        await persistFilesToMongo([req.file], true);
+      } catch (persistenceError) {
+        console.error('Profile image persistence failed:', persistenceError.message);
+        return res.status(500).json({
+          success: false,
+          message: 'Unable to save profile image. Please try again.'
+        });
+      }
+    }
+    return next();
+  });
+};
+
 module.exports = {
   upload,
   handleSingleUpload,
-  handleMultipleUpload
+  handleMultipleUpload,
+  handleProfileImageUpload
 };

@@ -11,6 +11,10 @@ export const driverService = {
   getDashboard: () => apiClient.get(ENDPOINTS.DASHBOARD),
   getProfile: () => apiClient.get(ENDPOINTS.PROFILE),
   updateProfile: (data) => apiClient.put(ENDPOINTS.PROFILE, data),
+  uploadProfilePhoto: (formData) => apiClient.put(ENDPOINTS.PROFILE, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    transformRequest: (data) => data
+  }),
   changeLoginId: (newLoginId, loginType) => apiClient.put('/driver/account/login-id', { newLoginId, loginType }),
   changePassword: (currentPassword, newPassword, confirmNewPassword) => apiClient.put('/driver/account/password', { currentPassword, newPassword, confirmNewPassword }),
   getStatus: () => apiClient.get(ENDPOINTS.STATUS),

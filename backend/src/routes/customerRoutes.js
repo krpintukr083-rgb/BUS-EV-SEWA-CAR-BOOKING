@@ -20,6 +20,7 @@ const {
   getPolicies
 } = require('../controllers/customerController');
 const { verifyToken } = require('../middleware/auth');
+const { handleProfileImageUpload } = require('../middleware/upload');
 const { getActiveSchedules } = require('../controllers/workflowController');
 
 // Public endpoints
@@ -42,7 +43,7 @@ router.get('/banners/active', getActiveBanners);
 // Protected customer endpoints
 router.use(verifyToken);
 router.get('/profile', getCustomerProfile);
-router.put('/profile', updateCustomerProfile);
+router.put('/profile', handleProfileImageUpload, updateCustomerProfile);
 router.put('/account/login-id', changeUserLoginId);
 router.put('/account/password', changeUserPassword);
 router.post('/push-token', registerPushToken);

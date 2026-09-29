@@ -15,6 +15,11 @@ exports.getCustomerProfile = async (req, res, next) => {
       });
     }
 
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
     res.json({
       success: true,
       data: {
@@ -38,8 +43,15 @@ exports.getCustomerProfile = async (req, res, next) => {
 // @access  Private (Customer)
 exports.updateCustomerProfile = async (req, res, next) => {
   try {
-    const { name, email, phone, profilePhoto } = req.body;
+    const { name, email, phone } = req.body;
     const userId = req.user?._id || req.user?.id;
+
+    if (req.user?.role !== 'customer') {
+      return res.status(403).json({
+        success: false,
+        message: 'Only customers can update this profile'
+      });
+    }
 
     const user = await User.findById(userId);
     if (!user) {
@@ -68,7 +80,11 @@ exports.updateCustomerProfile = async (req, res, next) => {
     }
 
     if (name) user.name = name.trim();
-    if (profilePhoto) user.profilePhoto = profilePhoto;
+    if (req.file) {
+      user.profilePhoto = `/uploads/${req.file.filename}`;
+    } else if (req.body.profilePhoto) {
+      user.profilePhoto = req.body.profilePhoto;
+    }
 
     await user.save();
 

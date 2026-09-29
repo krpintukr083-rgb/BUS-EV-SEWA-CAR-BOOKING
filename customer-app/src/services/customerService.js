@@ -13,7 +13,9 @@ export const customerService = {
   },
 
   getMe: async () => {
-    const res = await api.get('/auth/me');
+    const res = await api.get('/auth/me', {
+      headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache' }
+    });
     return res.data;
   },
 
@@ -25,6 +27,14 @@ export const customerService = {
 
   updateProfile: async profileData => {
     const res = await api.put('/customer/profile', profileData);
+    return res.data;
+  },
+
+  uploadProfilePhoto: async formData => {
+    const res = await api.put('/customer/profile', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      transformRequest: data => data
+    });
     return res.data;
   },
 

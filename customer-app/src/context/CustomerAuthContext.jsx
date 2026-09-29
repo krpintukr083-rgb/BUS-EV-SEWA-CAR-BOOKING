@@ -98,6 +98,12 @@ export const CustomerAuthProvider = ({ children }) => {
     }
   };
 
+  const updateCustomerProfilePhoto = async profilePhoto => {
+    const updatedUser = { ...user, profilePhoto };
+    setUser(updatedUser);
+    await AsyncStorage.setItem('customer_user', JSON.stringify(updatedUser));
+  };
+
   const logout = async () => {
     try {
       await AsyncStorage.removeItem('customer_token');
@@ -119,7 +125,8 @@ export const CustomerAuthProvider = ({ children }) => {
         login,
         register,
         logout,
-        refreshUser
+        refreshUser,
+        updateCustomerProfilePhoto
       }}
     >
       {children}

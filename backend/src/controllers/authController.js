@@ -175,6 +175,11 @@ exports.getMe = async (req, res, next) => {
       driverData = await Driver.findOne({ user: user._id }).populate('assignedVehicle');
     }
 
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
     res.json({
       success: true,
       user: {

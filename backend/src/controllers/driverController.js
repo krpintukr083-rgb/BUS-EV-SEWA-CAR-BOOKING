@@ -341,6 +341,11 @@ exports.getDriverProfile = async (req, res, next) => {
     }
 
     delete driver.canViewCustomerPhone;
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
     res.json({
       success: true,
       data: {
@@ -370,12 +375,12 @@ exports.updateDriverProfile = async (req, res, next) => {
     const {
       name,
       mobileNumber,
-      profilePhoto,
       address,
       emergencyContact,
       payoutMethods,
       language
     } = req.body;
+    const profilePhoto = req.file ? `/uploads/${req.file.filename}` : req.body.profilePhoto;
 
     if (name) driver.name = name.trim();
     if (mobileNumber) driver.mobileNumber = mobileNumber.trim();
