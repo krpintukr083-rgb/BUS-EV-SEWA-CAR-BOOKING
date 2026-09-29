@@ -67,6 +67,27 @@ const ServiceControl = () => {
     }
   };
 
+  // Handler for Opposite Route Notifications toggle (boolean)
+  const handleOppositeRouteToggle = async () => {
+    if (!controls) return;
+    setUpdating(true);
+    setMessage('');
+    try {
+      const res = await adminService.updateServiceControl({
+        ...controls,
+        oppositeRouteNotifications: !controls.oppositeRouteNotifications
+      });
+      if (res.success) {
+        setControls(res.data);
+        setMessage(res.message);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
   if (loading) {
     return <div style={{ padding: '24px', color: '#64748b' }}>Loading service control state...</div>;
   }
@@ -238,6 +259,28 @@ const ServiceControl = () => {
               {controls?.instantBookingEnabled ? 'Disable Instant Booking' : 'Enable Instant Booking'}
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* 4. Opposite Route Notifications Toggle */}
+      <div className="content-card" style={{ marginBottom: 0 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: '700' }}>Opposite Route Notifications</h3>
+              <StatusBadge status={controls?.oppositeRouteNotifications ? 'Active' : 'Inactive'} />
+            </div>
+            <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '4px' }}>
+              When ON, drivers operating the reverse route will receive booking-request notifications.
+            </p>
+          </div>
+          <button
+            onClick={handleOppositeRouteToggle}
+            className={`btn ${controls?.oppositeRouteNotifications ? 'btn-outline' : 'btn-success'}`}
+            disabled={updating}
+          >
+            {controls?.oppositeRouteNotifications ? 'Disable Opposite Route' : 'Enable Opposite Route'}
+          </button>
         </div>
       </div>
     </div>
