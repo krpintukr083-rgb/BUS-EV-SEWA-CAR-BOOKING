@@ -2160,7 +2160,7 @@ exports.getServiceControl = async (req, res, next) => {
 
 exports.updateServiceControl = async (req, res, next) => {
   try {
-    const { busService, evSewaService, carService, instantBookingEnabled } = req.body;
+    const { busService, evSewaService, carService, instantBookingEnabled, oppositeRouteNotifications } = req.body;
     if (
       instantBookingEnabled !== undefined &&
       typeof instantBookingEnabled !== 'boolean'
@@ -2168,6 +2168,15 @@ exports.updateServiceControl = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'instantBookingEnabled must be a boolean'
+      });
+    }
+    if (
+      oppositeRouteNotifications !== undefined &&
+      typeof oppositeRouteNotifications !== 'boolean'
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: 'oppositeRouteNotifications must be a boolean'
       });
     }
     let serviceControl = await ServiceControl.findOne();
@@ -2181,6 +2190,9 @@ exports.updateServiceControl = async (req, res, next) => {
     if (instantBookingEnabled !== undefined) {
       serviceControl.instantBookingEnabled = instantBookingEnabled;
     }
+    if (oppositeRouteNotifications !== undefined) {
+      serviceControl.oppositeRouteNotifications = oppositeRouteNotifications;
+    }
 
     await serviceControl.save();
 
@@ -2193,6 +2205,7 @@ exports.updateServiceControl = async (req, res, next) => {
     next(error);
   }
 };
+
 
 // ==========================================
 // 19. RESET DATABASE TO CLEAN DEMO STATE

@@ -2,36 +2,61 @@ const Notification = require('../models/Notification');
 const Vehicle = require('../models/Vehicle');
 const Driver = require('../models/Driver');
 const Schedule = require('../models/Schedule');
+const ServiceControl = require('../models/ServiceControl');
 const { getRouteSegmentFare } = require('./routeFares');
-const { isSameRoute } = require('./routeMatching');
+const { isSameRoute, isEligibleForBooking } = require('./routeMatching');
 
 
 
 /**
- * Determines if a vehicle operates on the exact origin -> destination route of a booking.
+ * Extracts origin/destination from a vehicle document.
  */
-const vehicleMatchesBookingRoute = (vehicle, booking, { requireRouteMatch = false } = {}) => {
+const getVehicleRoute = (vehicle) => ({
+  origin: vehicle.route?.origin || vehicle.route?.from || vehicle.pickupDropDetails?.pickupLocation || vehicle.hireDetails?.pickup || '',
+  destination: vehicle.route?.destination || vehicle.route?.to || vehicle.pickupDropDetails?.dropLocation || vehicle.hireDetails?.destination || ''
+});
+
+/**
+ * Extracts origin/destination from a booking document.
+ */
+const getBookingRoute = (booking) => ({
+  origin: booking.pickupLocation || booking.origin || booking.from || booking.route?.origin || booking.route?.from || '',
+  destination: booking.dropLocation || booking.destination || booking.to || booking.route?.destination || booking.route?.to || ''
+});
+
+/**
+ * Determines if a vehicle is eligible for a booking.
+ * Vehicle-ID shortcuts are intentionally absent; route is always validated.
+ * Multi-stop vehicles use segment-fare logic; single-route vehicles use isEligibleForBooking.
+ *
+ * @param {object} vehicle
+ * @param {object} booking
+ * @param {object} opts
+ * @param {boolean} opts.allowOpposite  - Value of ServiceControl.oppositeRouteNotifications
+ */
+const vehicleMatchesBookingRoute = (vehicle, booking, { allowOpposite = false } = {}) => {
   if (!vehicle || !booking) return false;
 
-  // Direct vehicle match if booking explicitly bound to this vehicle
-  if (!requireRouteMatch && booking.vehicle) {
-    const bVehId = (booking.vehicle._id || booking.vehicle).toString();
-    const vehId = (vehicle._id || vehicle).toString();
-    if (bVehId === vehId) return true;
-  }
+  const { origin: vOrigin, destination: vDest } = getVehicleRoute(vehicle);
+  const { origin: bOrigin, destination: bDest } = getBookingRoute(booking);
 
-  const vOrigin = vehicle.route?.origin || vehicle.route?.from || vehicle.pickupDropDetails?.pickupLocation || vehicle.hireDetails?.pickup || '';
-  const vDest = vehicle.route?.destination || vehicle.route?.to || vehicle.pickupDropDetails?.dropLocation || vehicle.hireDetails?.destination || '';
-
-  const bOrigin = booking.pickupLocation || booking.origin || booking.from || booking.route?.origin || booking.route?.from || '';
-  const bDest = booking.dropLocation || booking.destination || booking.to || booking.route?.destination || booking.route?.to || '';
-
+  // Multi-stop segment matching (stops array present)
   if (Array.isArray(vehicle.route?.stops) && vehicle.route.stops.length > 0) {
     return getRouteSegmentFare(vehicle.route, bOrigin, bDest) != null;
   }
 
   if (vOrigin && vDest && bOrigin && bDest) {
-    return isSameRoute(vOrigin, vDest, bOrigin, bDest);
+    const { normalMatch, reverseMatch, finalEligible } = isEligibleForBooking(
+      vOrigin, vDest, bOrigin, bDest, allowOpposite
+    );
+    console.log('[ROUTE-NOTIFICATION-TRACE]');
+    console.log(`  booking route: ${bOrigin} -> ${bDest}`);
+    console.log(`  vehicle route: ${vOrigin} -> ${vDest}`);
+    console.log(`  allowOpposite: ${allowOpposite}`);
+    console.log(`  normalMatch: ${normalMatch}`);
+    console.log(`  reverseMatch: ${reverseMatch}`);
+    console.log(`  finalEligible: ${finalEligible}`);
+    return finalEligible;
   }
 
   return false;
@@ -63,6 +88,11 @@ const notifyEligibleDriversForBooking = async (booking) => {
       return;
     }
 
+    // Read admin toggle once for this broadcast
+    const serviceControl = await ServiceControl.findOne().lean();
+    const allowOpposite = serviceControl?.oppositeRouteNotifications === true;
+    console.log(`[ROUTE-NOTIFICATION-TRACE] oppositeRouteNotifications flag = ${allowOpposite}`);
+
     if (booking.scheduleId) {
       const scheduleId = booking.scheduleId._id || booking.scheduleId;
       const activeSchedule = await Schedule.exists({ _id: scheduleId, vehicle: booking.vehicle, status: 'Active' });
@@ -91,7 +121,7 @@ const notifyEligibleDriversForBooking = async (booking) => {
 
     // Step B: Filter route matches directionally, including configured intermediate-stop segments.
     const matchingVehicles = activeVehicles.filter(v =>
-      vehicleMatchesBookingRoute(v, booking, { requireRouteMatch: true })
+      vehicleMatchesBookingRoute(v, booking, { allowOpposite })
     );
     const matchingVehicleIds = matchingVehicles.map(v => v._id);
     const assignedDriverIds = matchingVehicles.map(v => v.assignedDriver).filter(Boolean);
@@ -144,16 +174,7 @@ const notifyEligibleDriversForBooking = async (booking) => {
         continue;
       }
 
-      const routeMatches = vehicleMatchesBookingRoute(activeVehicle, booking, { requireRouteMatch: true });
-      
-      const vOrigin = activeVehicle.route?.origin || activeVehicle.route?.from || activeVehicle.pickupDropDetails?.pickupLocation || activeVehicle.hireDetails?.pickup || '';
-      const vDest = activeVehicle.route?.destination || activeVehicle.route?.to || activeVehicle.pickupDropDetails?.dropLocation || activeVehicle.hireDetails?.destination || '';
-
-      console.log(`[NOTIFY DEBUG] Driver Route: ${vOrigin} → ${vDest}`);
-      console.log(`[NOTIFY DEBUG] Booking Route: ${bookingOrigin} → ${bookingDest}`);
-      console.log(`[NOTIFY DEBUG] Service Type: ${serviceType}`);
-      console.log(`[NOTIFY DEBUG] Route Match: ${routeMatches}`);
-      console.log(`[NOTIFY DEBUG] Eligible: ${routeMatches}`);
+      const routeMatches = vehicleMatchesBookingRoute(activeVehicle, booking, { allowOpposite });
 
       if (routeMatches) {
         finalEligibleDrivers.push(driver);
@@ -223,7 +244,7 @@ const notifyEligibleDriversForBooking = async (booking) => {
         if (fallbackVehicle) actualVehicleId = String(fallbackVehicle._id);
       }
       const activeVehicle = actualVehicleId ? activeVehiclesMap.get(actualVehicleId) : null;
-      const routeMatches = activeVehicle ? vehicleMatchesBookingRoute(activeVehicle, booking, { requireRouteMatch: true }) : false;
+      const routeMatches = activeVehicle ? vehicleMatchesBookingRoute(activeVehicle, booking, { allowOpposite }) : false;
 
       const vOrigin = activeVehicle ? (activeVehicle.route?.origin || activeVehicle.route?.from || activeVehicle.pickupDropDetails?.pickupLocation || activeVehicle.hireDetails?.pickup || '') : 'NONE';
       const vDest = activeVehicle ? (activeVehicle.route?.destination || activeVehicle.route?.to || activeVehicle.pickupDropDetails?.dropLocation || activeVehicle.hireDetails?.destination || '') : 'NONE';

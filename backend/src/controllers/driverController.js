@@ -10,6 +10,7 @@ const Support = require('../models/Support');
 const Incentive = require('../models/Incentive');
 const Withdrawal = require('../models/Withdrawal');
 const Schedule = require('../models/Schedule');
+const ServiceControl = require('../models/ServiceControl');
 const { dashboardCache } = require('../utils/cache');
 const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
 const { validateRoutePricing } = require('../utils/routeFares');
@@ -112,11 +113,8 @@ const verifyDriverVehicleAccess = async (driver, booking) => {
 
   if (booking.bookingMode !== 'INSTANT' && booking.serviceType !== 'Any' && assignedVehicle.vehicleType !== booking.serviceType) return false;
 
-  const isSelectedBusVehicle = (booking.bookingMode === 'INSTANT' || booking.serviceType === 'Bus' || booking.serviceType === 'Any')
-    && booking.vehicle && String(assignedVehicle._id) === String(booking.vehicle?._id || booking.vehicle);
-  return vehicleMatchesBookingRoute(assignedVehicle, booking, {
-    requireRouteMatch: !isSelectedBusVehicle
-  });
+  // Always validate route; vehicle-ID match never bypasses route check
+  return vehicleMatchesBookingRoute(assignedVehicle, booking);
 };
 
 // @desc    Get Driver Dashboard Summary
@@ -180,7 +178,7 @@ exports.getDriverDashboard = async (req, res, next) => {
                 if (b.serviceType !== driverVeh?.vehicleType) return false;
                 if (b.serviceType !== 'Bus' && b.driver && (b.driver._id || b.driver).toString() !== driver._id.toString()) return false;
                 if (driverVeh) {
-                  return vehicleMatchesBookingRoute(driverVeh, b, { requireRouteMatch: true });
+                  return vehicleMatchesBookingRoute(driverVeh, b);
                 }
                 return false;
               }
@@ -188,7 +186,7 @@ exports.getDriverDashboard = async (req, res, next) => {
               if (b.bookingMode === 'INSTANT') {
                 // Instant bookings: ignore service type, only route match required
                 if (!driverVeh) return false;
-                return vehicleMatchesBookingRoute(driverVeh, b, { requireRouteMatch: true });
+                return vehicleMatchesBookingRoute(driverVeh, b);
               }
 
               // Unknown mode – exclude
@@ -1206,17 +1204,14 @@ const getInstantBookingRequests = async (req, res, next) => {
       // Bus, Any, or INSTANT requests remain broadcast; non-Bus requests cannot be claimed by another assigned driver unless they are 'Any' or 'INSTANT' broadcast.
       if (true || reqItem.serviceType === 'Bus' || reqItem.serviceType === 'Any') {
         if (assignedVehicle) {
-          const isSelectedBusVehicle = reqItem.vehicle && String(assignedVehicle._id) === String(reqItem.vehicle?._id || reqItem.vehicle);
-          const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem, {
-            requireRouteMatch: !isSelectedBusVehicle
-          });
+          const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem);
           return matches;
         }
         return false;
       }
       // If pending/unconfirmed request, check route match between driver's assigned vehicle and booking
       if (assignedVehicle) {
-        const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem, { requireRouteMatch: true });
+        const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem);
         return matches;
       }
       return false;
@@ -1367,6 +1362,11 @@ const getScheduleBookingRequests = async (req, res, next) => {
       activeReservedSeats = await getActiveReservedSeats(assignedVehicle._id);
     }
 
+    // Read admin toggle for opposite-route eligibility
+    const serviceControl = await ServiceControl.findOne().lean();
+    const allowOpposite = serviceControl?.oppositeRouteNotifications === true;
+    console.log(`[ROUTE-NOTIFICATION-TRACE] polling oppositeRouteNotifications flag = ${allowOpposite}`);
+
     // Filter candidate bookings by route match & eligibility
     const requests = candidateBookings.filter(reqItem => {
       // Direct canonical exclusion check
@@ -1393,7 +1393,7 @@ const getScheduleBookingRequests = async (req, res, next) => {
       }
       if (assignedVehicle) {
         return vehicleMatchesBookingRoute(assignedVehicle, reqItem, {
-          requireRouteMatch: true
+          allowOpposite
         });
       }
       return false;

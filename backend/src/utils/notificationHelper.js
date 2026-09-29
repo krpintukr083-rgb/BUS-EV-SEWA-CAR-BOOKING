@@ -1,40 +1,103 @@
 const Driver = require('../models/Driver');
 const Vehicle = require('../models/Vehicle');
 const Notification = require('../models/Notification');
-const { isSameRoute } = require('./routeMatching');
+const ServiceControl = require('../models/ServiceControl');
+const { isEligibleForBooking } = require('./routeMatching');
 
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
 
+/**
+ * Extract route strings from a vehicle document.
+ */
+const getVehicleRoute = (vehicle) => {
+  const origin =
+    vehicle.route?.origin ||
+    vehicle.route?.from ||
+    vehicle.pickupDropDetails?.pickupLocation ||
+    vehicle.hireDetails?.pickup ||
+    '';
+  const destination =
+    vehicle.route?.destination ||
+    vehicle.route?.to ||
+    vehicle.pickupDropDetails?.dropLocation ||
+    vehicle.hireDetails?.destination ||
+    '';
+  return { origin, destination };
+};
 
-const vehicleMatchesBookingRoute = (vehicle, booking) => {
+/**
+ * Extract route strings from a booking document.
+ */
+const getBookingRoute = (booking) => {
+  const origin =
+    booking.pickupLocation ||
+    booking.origin ||
+    booking.from ||
+    booking.route?.origin ||
+    booking.route?.from ||
+    '';
+  const destination =
+    booking.dropLocation ||
+    booking.destination ||
+    booking.to ||
+    booking.route?.destination ||
+    booking.route?.to ||
+    '';
+  return { origin, destination };
+};
+
+// ---------------------------------------------------------------------------
+// Public: vehicleMatchesBookingRoute
+//   Used by driverController (polling path).
+//   NOTE: allowOpposite must be pre-fetched by the caller and passed in.
+//   Vehicle-ID shortcuts are intentionally removed; route is always validated.
+// ---------------------------------------------------------------------------
+
+const vehicleMatchesBookingRoute = (vehicle, booking, { allowOpposite = false } = {}) => {
   if (!vehicle || !booking) return false;
 
-  if (booking.vehicle) {
-    const bVehId = (booking.vehicle._id || booking.vehicle).toString();
-    const vehId = (vehicle._id || vehicle).toString();
-    if (bVehId === vehId) return true;
-  }
-
-  const vOrigin = vehicle.route?.origin || vehicle.pickupDropDetails?.pickupLocation || vehicle.hireDetails?.pickup || '';
-  const vDest = vehicle.route?.destination || vehicle.pickupDropDetails?.dropLocation || vehicle.hireDetails?.destination || '';
-
-  const bOrigin = booking.pickupLocation || '';
-  const bDest = booking.dropLocation || '';
+  const { origin: vOrigin, destination: vDest } = getVehicleRoute(vehicle);
+  const { origin: bOrigin, destination: bDest } = getBookingRoute(booking);
 
   if (vOrigin && vDest && bOrigin && bDest) {
-    return isSameRoute(vOrigin, vDest, bOrigin, bDest);
+    const { normalMatch, reverseMatch, finalEligible } = isEligibleForBooking(
+      vOrigin, vDest, bOrigin, bDest, allowOpposite
+    );
+    console.log('[ROUTE-NOTIFICATION-TRACE]');
+    console.log(`  booking route: ${bOrigin} -> ${bDest}`);
+    console.log(`  vehicle route: ${vOrigin} -> ${vDest}`);
+    console.log(`  allowOpposite: ${allowOpposite}`);
+    console.log(`  normalMatch: ${normalMatch}`);
+    console.log(`  reverseMatch: ${reverseMatch}`);
+    console.log(`  finalEligible: ${finalEligible}`);
+    return finalEligible;
   }
 
   return false;
 };
 
+// ---------------------------------------------------------------------------
+// Public: sendPushNotificationToSameRouteDrivers
+//   Called for serviceType === 'Bus' bookings from booking controller.
+//   Reads oppositeRouteNotifications from ServiceControl.
+// ---------------------------------------------------------------------------
+
 const sendPushNotificationToSameRouteDrivers = async (booking) => {
   try {
     if (!booking || booking.serviceType !== 'Bus') return;
 
+    const serviceControl = await ServiceControl.findOne().lean();
+    const allowOpposite = serviceControl?.oppositeRouteNotifications === true;
+
+    const { origin: bOrigin, destination: bDest } = getBookingRoute(booking);
+    if (!bOrigin || !bDest) return;
+
     const activeDrivers = await Driver.find({ driverStatus: 'Active' }).populate('assignedVehicle');
 
-    const originName = (booking.pickupLocation || 'Origin').split('(')[0].trim();
-    const destName = (booking.dropLocation || 'Destination').split('(')[0].trim();
+    const originName = bOrigin.split('(')[0].trim();
+    const destName = bDest.split('(')[0].trim();
     const title = 'New Bus Booking Request';
     const bodyText = `${originName} → ${destName} booking request. Tap to view.`;
     const bookingIdStr = booking.bookingId || booking._id;
@@ -50,43 +113,57 @@ const sendPushNotificationToSameRouteDrivers = async (booking) => {
 
       if (!v || v.vehicleStatus !== 'Active') continue;
 
-      if (vehicleMatchesBookingRoute(v, booking)) {
-        // Create in-app notification in DB
-        await Notification.create({
-          title,
-          message: bodyText,
-          recipient: `Driver: ${d.name}`,
-          recipientRole: 'driver',
-          recipientId: d.user || d._id,
-          status: 'Unread'
-        }).catch(() => {});
+      const { origin: vOrigin, destination: vDest } = getVehicleRoute(v);
+      const { normalMatch, reverseMatch, finalEligible } = isEligibleForBooking(
+        vOrigin, vDest, bOrigin, bDest, allowOpposite
+      );
 
-        // Push to Expo/FCM Push Token
-        const token = d.pushToken || d.fcmToken;
-        if (token && typeof token === 'string' && token.trim()) {
-          try {
-            await fetch('https://exp.host/--/api/v2/push/send', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
+      console.log('[ROUTE-NOTIFICATION-TRACE]');
+      console.log(`  Driver: ${d.name || d._id}`);
+      console.log(`  booking route: ${bOrigin} -> ${bDest}`);
+      console.log(`  vehicle route: ${vOrigin} -> ${vDest}`);
+      console.log(`  allowOpposite: ${allowOpposite}`);
+      console.log(`  normalMatch: ${normalMatch}`);
+      console.log(`  reverseMatch: ${reverseMatch}`);
+      console.log(`  finalEligible: ${finalEligible}`);
+
+      if (!finalEligible) continue;
+
+      // Create in-app notification in DB
+      await Notification.create({
+        title,
+        message: bodyText,
+        recipient: `Driver: ${d.name}`,
+        recipientRole: 'driver',
+        recipientId: d.user || d._id,
+        status: 'Unread'
+      }).catch(() => {});
+
+      // Push to Expo/FCM Push Token
+      const token = d.pushToken || d.fcmToken;
+      if (token && typeof token === 'string' && token.trim()) {
+        try {
+          await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+              to: token.trim(),
+              title,
+              body: bodyText,
+              data: {
+                bookingId: bookingIdStr,
+                screen: 'Requests'
               },
-              body: JSON.stringify({
-                to: token.trim(),
-                title,
-                body: bodyText,
-                data: {
-                  bookingId: bookingIdStr,
-                  screen: 'Requests'
-                },
-                sound: 'default',
-                priority: 'high',
-                channelId: 'driver-booking-requests'
-              })
-            });
-          } catch (pushErr) {
-            console.warn(`Push dispatch log for driver ${d._id}:`, pushErr.message);
-          }
+              sound: 'default',
+              priority: 'high',
+              channelId: 'driver-booking-requests'
+            })
+          });
+        } catch (pushErr) {
+          console.warn(`Push dispatch log for driver ${d._id}:`, pushErr.message);
         }
       }
     }
