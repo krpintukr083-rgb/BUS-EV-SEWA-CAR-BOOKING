@@ -45,6 +45,7 @@ const CarListingScreen = ({ navigation }) => {
   };
 
   useEffect(() => {
+    console.log('[CAR LISTING] SCREEN MOUNTED');
     fetchCars();
   }, []);
 

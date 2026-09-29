@@ -36,33 +36,49 @@ const BookingServiceSelectionScreen = ({ route, navigation }) => {
   }, []);
 
   const chooseService = service => {
-    console.log('[SCHEDULE CAR] Card pressed:', service.type);
-    
-    if (serviceStatus?.[service.statusKey] && serviceStatus[service.statusKey] !== 'Active') {
-      Alert.alert('Service Inactive', `${service.title} booking is currently inactive.`);
-      return;
+    console.log('[CAR DEBUG 1] entered chooseService');
+    console.log('[CAR DEBUG 2] service:', service);
+    console.log('[CAR DEBUG 3] service type:', service?.type);
+    console.log('[CAR DEBUG 4] status key:', service?.statusKey);
+    console.log('[CAR DEBUG 5] serviceStatus:', serviceStatus);
+
+    try {
+      if (serviceStatus?.[service.statusKey] && serviceStatus[service.statusKey] !== 'Active') {
+        Alert.alert('Service Inactive', `${service.title} booking is currently inactive.`);
+        return;
+      }
+    } catch (error) {
+      console.error('[CAR DEBUG EXCEPTION] in serviceStatus check', error);
+      throw error;
     }
 
-    updateDraft({
-      bookingMode,
-      serviceType: service.type,
-      vehicle: null,
-      baseFare: 0,
-      totalFare: 0,
-      pickupLocation: '',
-      dropLocation: '',
-      schedule: null,
-      scheduleId: null,
-      selectedSeats: [],
-      passengerCount: 1,
-      passengerDetails: [{ name: '', phone: '', age: '', gender: 'Male' }],
-      ...(bookingMode === 'INSTANT'
-        ? { travelDate: new Date().toISOString().split('T')[0] }
-        : {})
-    });
+    console.log('[CAR DEBUG 6] before updateDraft');
 
-    console.log('[SCHEDULE CAR] navigation target:', bookingMode === 'INSTANT' ? 'InstantBookingRoute' : (service.type === 'Bus' ? 'BusSearch' : (service.type === 'EV-Sewa' ? 'EvSewaListing' : 'CarListing')));
-    console.log('[SCHEDULE CAR] params:', bookingMode === 'INSTANT' ? { serviceType: service.type } : undefined);
+    try {
+      updateDraft({
+        bookingMode,
+        serviceType: service.type,
+        vehicle: null,
+        baseFare: 0,
+        totalFare: 0,
+        pickupLocation: '',
+        dropLocation: '',
+        schedule: null,
+        scheduleId: null,
+        selectedSeats: [],
+        passengerCount: 1,
+        passengerDetails: [{ name: '', phone: '', age: '', gender: 'Male' }],
+        ...(bookingMode === 'INSTANT'
+          ? { travelDate: new Date().toISOString().split('T')[0] }
+          : {})
+      });
+    } catch (error) {
+      console.error('[CAR DEBUG EXCEPTION] in updateDraft', error);
+      throw error;
+    }
+
+    console.log('[CAR DEBUG 7] after updateDraft');
+    console.log('[CAR DEBUG 8] before navigation');
 
     if (bookingMode === 'INSTANT') {
       navigation.navigate('InstantBookingRoute', { serviceType: service.type });
@@ -71,9 +87,10 @@ const BookingServiceSelectionScreen = ({ route, navigation }) => {
     } else if (service.type === 'EV-Sewa') {
       navigation.navigate('EvSewaListing');
     } else if (service.type === 'Car' || service.type === 'car') {
+      console.log('[SCHEDULE CAR] Evaluating navigation...');
+      console.log('[SCHEDULE CAR] navigation target: CarListing');
+      console.log('[SCHEDULE CAR] params: undefined');
       navigation.navigate('CarListing');
-    } else {
-      navigation.navigate('CarListing'); // Fallback
     }
   };
 
@@ -96,7 +113,12 @@ const BookingServiceSelectionScreen = ({ route, navigation }) => {
           <TouchableOpacity
             key={service.type}
             style={styles.serviceCard}
-            onPress={() => chooseService(service)}
+            onPress={() => {
+              console.log('[CAR TEST] DIRECT CARD PRESSED:', service.type);
+              console.log('[CAR TEST] BEFORE chooseService');
+              console.log('[CAR TEST] navigation object exists:', !!navigation);
+              chooseService(service);
+            }}
             activeOpacity={0.85}
           >
             <View style={[styles.icon, { backgroundColor: `${service.color}15` }]}>
