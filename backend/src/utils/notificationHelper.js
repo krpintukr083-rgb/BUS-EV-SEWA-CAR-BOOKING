@@ -1,18 +1,9 @@
 const Driver = require('../models/Driver');
 const Vehicle = require('../models/Vehicle');
 const Notification = require('../models/Notification');
+const { isSameRoute } = require('./routeMatching');
 
-const normalizeLoc = (loc) => {
-  if (!loc) return '';
-  return String(loc).split('(')[0].toLowerCase().replace(/[^a-z0-9]/g, '').trim();
-};
 
-const isLocationMatch = (loc1, loc2) => {
-  const n1 = normalizeLoc(loc1);
-  const n2 = normalizeLoc(loc2);
-  if (!n1 || !n2) return false;
-  return n1 === n2 || n1.includes(n2) || n2.includes(n1);
-};
 
 const vehicleMatchesBookingRoute = (vehicle, booking) => {
   if (!vehicle || !booking) return false;
@@ -30,11 +21,7 @@ const vehicleMatchesBookingRoute = (vehicle, booking) => {
   const bDest = booking.dropLocation || '';
 
   if (vOrigin && vDest && bOrigin && bDest) {
-    const originMatches = isLocationMatch(vOrigin, bOrigin);
-    const destMatches = isLocationMatch(vDest, bDest);
-    if (originMatches && destMatches) {
-      return true;
-    }
+    return isSameRoute(vOrigin, vDest, bOrigin, bDest);
   }
 
   return false;

@@ -3,26 +3,9 @@ const Vehicle = require('../models/Vehicle');
 const Driver = require('../models/Driver');
 const Schedule = require('../models/Schedule');
 const { getRouteSegmentFare } = require('./routeFares');
+const { isSameRoute } = require('./routeMatching');
 
-/**
- * Normalizes location strings for accurate route matching.
- * e.g., "Delhi (Kashmere Gate ISBT)" -> "delhi"
- */
-const normalizeLoc = (loc) => {
-  if (!loc) return '';
-  const clean = String(loc).split('(')[0].toLowerCase().replace(/[^a-z0-9]/g, '').trim();
-  return clean;
-};
 
-/**
- * Checks direction-sensitive location match between vehicle route & booking route.
- */
-const isLocationMatch = (loc1, loc2) => {
-  const n1 = normalizeLoc(loc1);
-  const n2 = normalizeLoc(loc2);
-  if (!n1 || !n2) return false;
-  return n1 === n2 || n1.includes(n2) || n2.includes(n1);
-};
 
 /**
  * Determines if a vehicle operates on the exact origin -> destination route of a booking.
@@ -48,9 +31,7 @@ const vehicleMatchesBookingRoute = (vehicle, booking, { requireRouteMatch = fals
   }
 
   if (vOrigin && vDest && bOrigin && bDest) {
-    const originMatches = isLocationMatch(vOrigin, bOrigin);
-    const destMatches = isLocationMatch(vDest, bDest);
-    return originMatches && destMatches;
+    return isSameRoute(vOrigin, vDest, bOrigin, bDest);
   }
 
   return false;
@@ -380,8 +361,6 @@ const notifyEligibleDriversForBooking = async (booking) => {
 };
 
 module.exports = {
-  normalizeLoc,
-  isLocationMatch,
   vehicleMatchesBookingRoute,
   notifyEligibleDriversForBooking,
   notifyEligibleDriversForBusBooking: notifyEligibleDriversForBooking
