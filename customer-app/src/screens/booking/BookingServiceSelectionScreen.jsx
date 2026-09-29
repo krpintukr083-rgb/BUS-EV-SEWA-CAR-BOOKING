@@ -36,6 +36,8 @@ const BookingServiceSelectionScreen = ({ route, navigation }) => {
   }, []);
 
   const chooseService = service => {
+    console.log('[SCHEDULE CAR] Card pressed:', service.type);
+    
     if (serviceStatus?.[service.statusKey] && serviceStatus[service.statusKey] !== 'Active') {
       Alert.alert('Service Inactive', `${service.title} booking is currently inactive.`);
       return;
@@ -59,14 +61,19 @@ const BookingServiceSelectionScreen = ({ route, navigation }) => {
         : {})
     });
 
+    console.log('[SCHEDULE CAR] navigation target:', bookingMode === 'INSTANT' ? 'InstantBookingRoute' : (service.type === 'Bus' ? 'BusSearch' : (service.type === 'EV-Sewa' ? 'EvSewaListing' : 'CarListing')));
+    console.log('[SCHEDULE CAR] params:', bookingMode === 'INSTANT' ? { serviceType: service.type } : undefined);
+
     if (bookingMode === 'INSTANT') {
       navigation.navigate('InstantBookingRoute', { serviceType: service.type });
     } else if (service.type === 'Bus') {
       navigation.navigate('BusSearch');
     } else if (service.type === 'EV-Sewa') {
       navigation.navigate('EvSewaListing');
-    } else {
+    } else if (service.type === 'Car' || service.type === 'car') {
       navigation.navigate('CarListing');
+    } else {
+      navigation.navigate('CarListing'); // Fallback
     }
   };
 
