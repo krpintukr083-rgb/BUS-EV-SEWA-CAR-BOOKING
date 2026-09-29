@@ -117,13 +117,50 @@ const notifyEligibleDriversForBooking = async (booking) => {
         .lean();
     }
 
-    const matchingVehicleIdSet = new Set(matchingVehicleIds.map(id => String(id)));
-    const matchingDriverIdSet = new Set(assignedDriverIds.map(id => String(id)));
-    eligibleDrivers = eligibleDrivers.filter(driver => {
-      if (!driver.user || driver.user.status === 'Blocked') return false;
-      return (driver.assignedVehicle && matchingVehicleIdSet.has(String(driver.assignedVehicle)))
-        || matchingDriverIdSet.has(String(driver._id));
-    });
+    const activeVehiclesMap = new Map();
+    activeVehicles.forEach(v => activeVehiclesMap.set(String(v._id), v));
+
+    const finalEligibleDrivers = [];
+
+    for (const driver of eligibleDrivers) {
+      if (!driver.user || driver.user.status === 'Blocked') continue;
+
+      let actualVehicleId = driver.assignedVehicle ? String(driver.assignedVehicle) : null;
+      if (!actualVehicleId) {
+        const fallbackVehicle = activeVehicles.find(v => v.assignedDriver && String(v.assignedDriver) === String(driver._id));
+        if (fallbackVehicle) actualVehicleId = String(fallbackVehicle._id);
+      }
+
+      const activeVehicle = actualVehicleId ? activeVehiclesMap.get(actualVehicleId) : null;
+
+      console.log(`\n[NOTIFY DEBUG] Driver: ${driver.name || driver._id}`);
+      
+      if (!activeVehicle) {
+        console.log(`[NOTIFY DEBUG] Driver Route: NONE`);
+        console.log(`[NOTIFY DEBUG] Booking Route: ${bookingOrigin} → ${bookingDest}`);
+        console.log(`[NOTIFY DEBUG] Service Type: ${serviceType}`);
+        console.log(`[NOTIFY DEBUG] Route Match: false`);
+        console.log(`[NOTIFY DEBUG] Eligible: false`);
+        continue;
+      }
+
+      const routeMatches = vehicleMatchesBookingRoute(activeVehicle, booking, { requireRouteMatch: true });
+      
+      const vOrigin = activeVehicle.route?.origin || activeVehicle.route?.from || activeVehicle.pickupDropDetails?.pickupLocation || activeVehicle.hireDetails?.pickup || '';
+      const vDest = activeVehicle.route?.destination || activeVehicle.route?.to || activeVehicle.pickupDropDetails?.dropLocation || activeVehicle.hireDetails?.destination || '';
+
+      console.log(`[NOTIFY DEBUG] Driver Route: ${vOrigin} → ${vDest}`);
+      console.log(`[NOTIFY DEBUG] Booking Route: ${bookingOrigin} → ${bookingDest}`);
+      console.log(`[NOTIFY DEBUG] Service Type: ${serviceType}`);
+      console.log(`[NOTIFY DEBUG] Route Match: ${routeMatches}`);
+      console.log(`[NOTIFY DEBUG] Eligible: ${routeMatches}`);
+
+      if (routeMatches) {
+        finalEligibleDrivers.push(driver);
+      }
+    }
+    
+    eligibleDrivers = finalEligibleDrivers;
 
     const tQueryEnd = Date.now();
     console.log(`[NOTIFY] eligible driver query completed: ${tQueryEnd - tQueryStart} ms`);
