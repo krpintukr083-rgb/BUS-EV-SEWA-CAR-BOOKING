@@ -208,8 +208,12 @@ export const adminService = {
     const res = await api.get('/admin/payments');
     return res.data;
   },
-  getWithdrawals: async () => (await api.get('/admin/withdrawals')).data,
+  getWithdrawals: async () => (await api.get('/admin/withdrawals', {
+    params: { _t: Date.now() },
+    headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache' }
+  })).data,
   approveWithdrawal: async id => (await api.patch(`/admin/withdrawals/${id}/approve`)).data,
+  completeWithdrawalPayment: async id => (await api.patch(`/admin/withdrawals/${id}/complete`)).data,
   rejectWithdrawal: async (id, reason) => (await api.patch(`/admin/withdrawals/${id}/reject`, { reason })).data,
 
   // 10. Cancellation Management

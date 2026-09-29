@@ -2756,6 +2756,11 @@ exports.getDriverWallet = async (req, res, next) => {
       referenceId: p.transactionReference || `TXN-${p.bookingId}`
     }));
 
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
     res.json({
       success: true,
       data: {
@@ -3902,6 +3907,11 @@ exports.getDriverWallet = async (req, res, next) => {
       referenceId: p.transactionReference || `TXN-${p.bookingId}`
     }));
 
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
     res.json({
       success: true,
       data: {

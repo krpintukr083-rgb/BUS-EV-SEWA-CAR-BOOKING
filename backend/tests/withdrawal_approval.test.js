@@ -1,5 +1,6 @@
 const request = require('supertest');
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const app = require('../src/app');
 const User = require('../src/models/User');
 const Driver = require('../src/models/Driver');
@@ -18,6 +19,7 @@ describe('Driver withdrawal approval flow', () => {
   let adminToken;
   let approvedWithdrawalId;
   let rejectedWithdrawalId;
+  let orphanWithdrawalId;
 
   beforeAll(async () => {
     await connectTestDB();
@@ -66,6 +68,7 @@ describe('Driver withdrawal approval flow', () => {
   });
 
   afterAll(async () => {
+    if (orphanWithdrawalId) await Withdrawal.findByIdAndDelete(orphanWithdrawalId);
     if (driver || otherDriver) {
       await Withdrawal.deleteMany({ driver: { $in: [driver?._id, otherDriver?._id].filter(Boolean) } });
     }
@@ -108,17 +111,52 @@ describe('Driver withdrawal approval flow', () => {
       .get('/api/admin/withdrawals')
       .set('Authorization', `Bearer ${adminToken}`);
     expect(adminList.status).toBe(200);
+    expect(adminList.headers['cache-control']).toContain('no-store');
     const listedRequest = adminList.body.data.find(item => item._id === approvedWithdrawalId);
     expect(listedRequest.driver.name).toBe('Withdrawal Driver');
     expect(listedRequest.driver.mobileNumber).toBe(driverUser.phone);
     expect(listedRequest.amount).toBe(1000);
     expect(listedRequest.driver.walletBalance).toBe(4000);
 
+    const cannotCompletePending = await request(app)
+      .patch(`/api/admin/withdrawals/${approvedWithdrawalId}/complete`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(cannotCompletePending.status).toBe(409);
+    expect((await Withdrawal.findById(approvedWithdrawalId)).status).toBe('Pending');
+
     const approved = await request(app)
       .patch(`/api/admin/withdrawals/${approvedWithdrawalId}/approve`)
       .set('Authorization', `Bearer ${adminToken}`);
     expect(approved.status).toBe(200);
     expect(approved.body.data.status).toBe('Processing');
+
+    const driverCannotMarkPaymentDone = await request(app)
+      .patch(`/api/admin/withdrawals/${approvedWithdrawalId}/complete`)
+      .set('Authorization', `Bearer ${driverToken}`);
+    expect(driverCannotMarkPaymentDone.status).toBe(403);
+
+    const completed = await request(app)
+      .patch(`/api/admin/withdrawals/${approvedWithdrawalId}/complete`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(completed.status).toBe(200);
+    expect(completed.body.data.status).toBe('Completed');
+    expect(completed.body.data.processedAt).toBeTruthy();
+    expect((await Driver.findById(driver._id)).walletBalance).toBe(4000);
+
+    const refreshedAdminList = await request(app)
+      .get('/api/admin/withdrawals')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(refreshedAdminList.body.data.find(item => item._id === approvedWithdrawalId).status).toBe('Completed');
+
+    const duplicateCompletion = await request(app)
+      .patch(`/api/admin/withdrawals/${approvedWithdrawalId}/complete`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(duplicateCompletion.status).toBe(409);
+    const cannotRejectCompleted = await request(app)
+      .patch(`/api/admin/withdrawals/${approvedWithdrawalId}/reject`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ reason: 'Already paid' });
+    expect(cannotRejectCompleted.status).toBe(409);
 
     const secondRequest = await submitWithdrawal();
     expect(secondRequest.status).toBe(200);
@@ -140,9 +178,10 @@ describe('Driver withdrawal approval flow', () => {
     const ownWallet = await request(app)
       .get('/api/driver/wallet')
       .set('Authorization', `Bearer ${driverToken}`);
+    expect(ownWallet.headers['cache-control']).toContain('no-store');
     const driverRequests = ownWallet.body.data.recentWithdrawals;
     expect(driverRequests.map(item => String(item._id))).toEqual(expect.arrayContaining([approvedWithdrawalId, rejectedWithdrawalId]));
-    expect(driverRequests.find(item => String(item._id) === approvedWithdrawalId).status).toBe('Processing');
+    expect(driverRequests.find(item => String(item._id) === approvedWithdrawalId).status).toBe('Completed');
     expect(driverRequests.find(item => String(item._id) === rejectedWithdrawalId).status).toBe('Rejected');
     expect(driverRequests.find(item => String(item._id) === rejectedWithdrawalId).adminNotes)
       .toBe('Payout account details could not be verified');
@@ -152,6 +191,22 @@ describe('Driver withdrawal approval flow', () => {
       .set('Authorization', `Bearer ${otherDriverToken}`);
     expect(otherWallet.status).toBe(200);
     expect(otherWallet.body.data.recentWithdrawals).toHaveLength(0);
+
+    const orphanWithdrawal = await Withdrawal.create({
+      driver: new mongoose.Types.ObjectId(),
+      user: new mongoose.Types.ObjectId(),
+      amount: 100,
+      payoutMethod: 'Bank',
+      status: 'Processing'
+    });
+    orphanWithdrawalId = orphanWithdrawal._id;
+    const adminListWithMissingDriver = await request(app)
+      .get('/api/admin/withdrawals')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(adminListWithMissingDriver.status).toBe(200);
+    const orphanItem = adminListWithMissingDriver.body.data.find(item => String(item._id) === String(orphanWithdrawalId));
+    expect(orphanItem.driver).toBeNull();
+    expect(orphanItem.user).toBeNull();
 
     const driverCannotListAdminQueue = await request(app)
       .get('/api/admin/withdrawals')

@@ -7,6 +7,7 @@ const WithdrawalManagement = () => {
   const [withdrawals, setWithdrawals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
+  const [paymentConfirmation, setPaymentConfirmation] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
@@ -62,6 +63,30 @@ const WithdrawalManagement = () => {
     }
   };
 
+  const markPaymentDone = async () => {
+    if (!paymentConfirmation) return;
+    const { _id } = paymentConfirmation;
+    setActionLoading(_id);
+    setError('');
+    setMessage('');
+    try {
+      const response = await adminService.completeWithdrawalPayment(_id);
+      if (response.success) {
+        setMessage('Withdrawal payment marked as done.');
+        setPaymentConfirmation(null);
+        await fetchWithdrawals();
+      }
+    } catch (actionError) {
+      setError(actionError.response?.data?.message || 'Unable to mark withdrawal payment as done.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const getStatusLabel = status => ['completed', 'successful', 'succeeded', 'paid'].includes(String(status || '').toLowerCase())
+    ? 'Payment Done'
+    : status;
+
   if (loading) return <div style={{ padding: '24px', color: '#64748b' }}>Loading withdrawal requests...</div>;
 
   return (
@@ -108,7 +133,7 @@ const WithdrawalManagement = () => {
               {withdrawals.length ? withdrawals.map(item => (
                 <tr key={item._id}>
                   <td>
-                    <div style={{ fontWeight: 600 }}>{item.driver?.name || item.user?.name || 'Driver unavailable'}</div>
+                    <div style={{ fontWeight: 600 }}>{item.driver?.name || item.user?.name || 'Driver Unavailable'}</div>
                     <div style={{ fontSize: '.75rem', color: '#64748b' }}>{item.driver?.mobileNumber || item.user?.phone || '—'}</div>
                   </td>
                   <td style={{ fontWeight: 700 }}>₹{Number(item.amount).toLocaleString('en-IN')}</td>
@@ -122,7 +147,7 @@ const WithdrawalManagement = () => {
                     </div>
                   </td>
                   <td>
-                    <StatusBadge status={item.status} />
+                    <StatusBadge status={getStatusLabel(item.status)} />
                     {item.status === 'Rejected' && item.adminNotes && (
                       <div style={{ maxWidth: 220, marginTop: 6, color: '#b91c1c', fontSize: '.75rem' }}>{item.adminNotes}</div>
                     )}
@@ -137,7 +162,19 @@ const WithdrawalManagement = () => {
                           <X size={13} /> Reject
                         </button>
                       </div>
-                    ) : <span style={{ color: '#64748b', fontSize: '.8rem' }}>Reviewed</span>}
+                    ) : item.status === 'Processing' ? (
+                      <button
+                        className="btn btn-sm btn-success"
+                        disabled={actionLoading === item._id}
+                        onClick={() => setPaymentConfirmation(item)}
+                      >
+                        <Check size={13} /> Mark Payment Done
+                      </button>
+                    ) : ['Completed', 'Successful', 'Succeeded', 'Paid'].includes(item.status) ? (
+                      null
+                    ) : item.status === 'Rejected' ? (
+                      null
+                    ) : null}
                   </td>
                 </tr>
               )) : (
@@ -147,6 +184,61 @@ const WithdrawalManagement = () => {
           </table>
         </div>
       </div>
+
+      {paymentConfirmation && (
+        <div
+          role="presentation"
+          onClick={() => actionLoading !== paymentConfirmation._id && setPaymentConfirmation(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+            background: 'rgba(15, 23, 42, .5)'
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="withdrawal-payment-confirmation"
+            onClick={event => event.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: 420,
+              padding: 24,
+              borderRadius: 10,
+              background: '#fff',
+              boxShadow: '0 20px 50px rgba(15, 23, 42, .2)'
+            }}
+          >
+            <h3 id="withdrawal-payment-confirmation" style={{ margin: '0 0 10px', color: '#0f172a' }}>
+              Have you completed this payment to the driver?
+            </h3>
+            <p style={{ margin: '0 0 20px', color: '#64748b' }}>
+              Confirm only after the withdrawal amount has actually been transferred.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button
+                className="btn btn-sm btn-outline"
+                disabled={actionLoading === paymentConfirmation._id}
+                onClick={() => setPaymentConfirmation(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-sm btn-success"
+                disabled={actionLoading === paymentConfirmation._id}
+                onClick={markPaymentDone}
+              >
+                {actionLoading === paymentConfirmation._id ? 'Saving...' : 'Mark Payment Done'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

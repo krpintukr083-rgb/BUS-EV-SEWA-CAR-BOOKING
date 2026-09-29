@@ -31,6 +31,7 @@ const {
   getPayments,
   getWithdrawals,
   approveWithdrawal,
+  completeWithdrawalPayment,
   rejectWithdrawal,
   getCancellations,
   processCancellationRefund,
@@ -136,6 +137,7 @@ router.put('/bookings/:id/status', updateBookingStatus);
 router.get('/payments', getPayments);
 router.get('/withdrawals', getWithdrawals);
 router.patch('/withdrawals/:id/approve', approveWithdrawal);
+router.patch('/withdrawals/:id/complete', completeWithdrawalPayment);
 router.patch('/withdrawals/:id/reject', rejectWithdrawal);
 
 // 10. Cancellation Management

@@ -69,6 +69,15 @@ export default function WalletScreen({ navigation }) {
     fetchWalletData();
   };
 
+  const getWithdrawalStatusLabel = status => {
+    const normalizedStatus = String(status || '').toLowerCase();
+    if (['completed', 'successful', 'succeeded', 'paid'].includes(normalizedStatus)) return 'Payment Done';
+    if (normalizedStatus === 'processing') return 'Processing';
+    if (normalizedStatus === 'rejected') return 'Rejected';
+    if (normalizedStatus === 'pending') return 'Pending';
+    return status || 'Pending';
+  };
+
   const handleRequestPayout = async () => {
     const amountNum = parseFloat(payoutAmount);
     if (isNaN(amountNum) || amountNum <= 0) {
@@ -252,26 +261,31 @@ export default function WalletScreen({ navigation }) {
           <View style={styles.emptyTrans}>
             <Text style={styles.emptyTransText}>No withdrawal requests yet.</Text>
           </View>
-        ) : withdrawals.map(withdrawal => (
-          <View key={withdrawal._id} style={styles.withdrawalCard}>
-            <View style={styles.withdrawalTopRow}>
-              <Text style={styles.withdrawalAmount}>₹{Number(withdrawal.amount).toFixed(2)}</Text>
-              <Text style={[
-                styles.withdrawalStatus,
-                withdrawal.status === 'Rejected' && styles.withdrawalRejected,
-                withdrawal.status === 'Processing' && styles.withdrawalProcessing
-              ]}>
-                {withdrawal.status}
+        ) : withdrawals.map(withdrawal => {
+          const normalizedStatus = String(withdrawal.status || '').toLowerCase();
+          const isPaymentDone = ['completed', 'successful', 'succeeded', 'paid'].includes(normalizedStatus);
+          return (
+            <View key={withdrawal._id} style={styles.withdrawalCard}>
+              <View style={styles.withdrawalTopRow}>
+                <Text style={styles.withdrawalAmount}>₹{Number(withdrawal.amount).toFixed(2)}</Text>
+                <Text style={[
+                  styles.withdrawalStatus,
+                  normalizedStatus === 'rejected' && styles.withdrawalRejected,
+                  normalizedStatus === 'processing' && styles.withdrawalProcessing,
+                  isPaymentDone && styles.withdrawalCompleted
+                ]}>
+                  {getWithdrawalStatusLabel(withdrawal.status)}
+                </Text>
+              </View>
+              <Text style={styles.transDate}>
+                {withdrawal.referenceId} · {withdrawal.createdAt ? new Date(withdrawal.createdAt).toLocaleDateString() : ''}
               </Text>
+              {normalizedStatus === 'rejected' && withdrawal.adminNotes ? (
+                <Text style={styles.rejectionReason}>Reason: {withdrawal.adminNotes}</Text>
+              ) : null}
             </View>
-            <Text style={styles.transDate}>
-              {withdrawal.referenceId} · {withdrawal.createdAt ? new Date(withdrawal.createdAt).toLocaleDateString() : ''}
-            </Text>
-            {withdrawal.status === 'Rejected' && withdrawal.adminNotes ? (
-              <Text style={styles.rejectionReason}>Reason: {withdrawal.adminNotes}</Text>
-            ) : null}
-          </View>
-        ))}
+          );
+        })}
       </ScrollView>
 
       {/* Payout Request Modal */}
@@ -571,6 +585,9 @@ const styles = StyleSheet.create({
     color: COLORS.danger,
   },
   withdrawalProcessing: {
+    color: COLORS.warning,
+  },
+  withdrawalCompleted: {
     color: COLORS.success,
   },
   rejectionReason: {

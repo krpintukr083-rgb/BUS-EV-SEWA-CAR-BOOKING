@@ -1753,6 +1753,11 @@ exports.getWithdrawals = async (req, res, next) => {
       .populate('user', 'name phone')
       .sort({ createdAt: -1 })
       .lean();
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
     res.json({ success: true, count: withdrawals.length, data: withdrawals });
   } catch (error) {
     next(error);
@@ -1778,6 +1783,42 @@ exports.approveWithdrawal = async (req, res, next) => {
     }
 
     res.json({ success: true, message: 'Withdrawal approved and marked for processing', data: withdrawal });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.completeWithdrawalPayment = async (req, res, next) => {
+  try {
+    const withdrawal = await Withdrawal.findOneAndUpdate(
+      { _id: req.params.id, status: 'Processing' },
+      {
+        $set: {
+          status: 'Completed',
+          processedAt: new Date(),
+          adminNotes: 'Payment completed manually by admin.'
+        }
+      },
+      { new: true }
+    )
+      .populate({ path: 'driver', select: 'name mobileNumber walletBalance' })
+      .populate('user', 'name phone');
+
+    if (!withdrawal) {
+      const exists = await Withdrawal.exists({ _id: req.params.id });
+      return res.status(exists ? 409 : 404).json({
+        success: false,
+        message: exists
+          ? 'Only a withdrawal in Processing status can be marked as payment done.'
+          : 'Withdrawal request not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Withdrawal payment marked as done.',
+      data: withdrawal
+    });
   } catch (error) {
     next(error);
   }
