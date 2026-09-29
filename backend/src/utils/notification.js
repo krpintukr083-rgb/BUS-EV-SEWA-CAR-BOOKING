@@ -216,7 +216,44 @@ const notifyEligibleDriversForBooking = async (booking) => {
       const driver = newRequestDrivers[i];
       const token = (driver.pushToken || driver.fcmToken || '').trim();
 
+      // HARD SAFETY BARRIER
+      let actualVehicleId = driver.assignedVehicle ? String(driver.assignedVehicle) : null;
+      if (!actualVehicleId) {
+        const fallbackVehicle = activeVehicles.find(v => v.assignedDriver && String(v.assignedDriver) === String(driver._id));
+        if (fallbackVehicle) actualVehicleId = String(fallbackVehicle._id);
+      }
+      const activeVehicle = actualVehicleId ? activeVehiclesMap.get(actualVehicleId) : null;
+      const routeMatches = activeVehicle ? vehicleMatchesBookingRoute(activeVehicle, booking, { requireRouteMatch: true }) : false;
+
+      const vOrigin = activeVehicle ? (activeVehicle.route?.origin || activeVehicle.route?.from || activeVehicle.pickupDropDetails?.pickupLocation || activeVehicle.hireDetails?.pickup || '') : 'NONE';
+      const vDest = activeVehicle ? (activeVehicle.route?.destination || activeVehicle.route?.to || activeVehicle.pickupDropDetails?.dropLocation || activeVehicle.hireDetails?.destination || '') : 'NONE';
+
+      console.log(`\n[ROUTE-NOTIFICATION-TRACE]`);
+      console.log(`Booking: ${bookingIdStr}`);
+      console.log(`Route: ${bookingOrigin} → ${bookingDest}`);
+      console.log(`Service Type: ${serviceType}`);
+      console.log(`Driver: ${driver.name || 'Unknown'}`);
+      console.log(`Driver ID: ${driver._id}`);
+      console.log(`Active Vehicle: ${actualVehicleId || 'NONE'}`);
+      console.log(`Vehicle Route: ${vOrigin} → ${vDest}`);
+      console.log(`Route Match: ${routeMatches}`);
+      console.log(`Eligible: ${routeMatches}`);
+      console.log(`Notification function name: notifyEligibleDriversForBooking`);
+
+      if (!routeMatches) {
+        console.log(`Push DISPATCH: BLOCKED (Hard Safety Barrier)`);
+        driverLogResults[i] = {
+          driver,
+          token: null,
+          status: 'BLOCKED (Route mismatch)',
+          ticketId: 'N/A',
+          error: null
+        };
+        continue;
+      }
+
       if (token) {
+        console.log(`Push DISPATCH: PREPARING`);
         messages.push({
           to: token,
           title: notifTitle,
@@ -233,6 +270,7 @@ const notifyEligibleDriversForBooking = async (booking) => {
         });
         messageDriverMap.push({ driver, token, originalIndex: i });
       } else {
+        console.log(`Push DISPATCH: SKIPPED (No Token)`);
         driverLogResults[i] = {
           driver,
           token: null,
@@ -285,6 +323,9 @@ const notifyEligibleDriversForBooking = async (booking) => {
             const errorMsg = isError
               ? (ticket.message || ticket.details?.error || 'Expo Error')
               : (!pushResponse.ok ? `HTTP ${pushResponse.status}` : null);
+
+            console.log(`[ROUTE-NOTIFICATION-TRACE] Push ticket ID: ${ticket?.id || 'N/A'}`);
+            console.log(`[ROUTE-NOTIFICATION-TRACE] Push provider result: ${isOk ? 'ok' : 'error'} - ${errorMsg || ''}`);
 
             if (isOk && ticket.id) {
               ticketIdsToCheck.push(ticket.id);

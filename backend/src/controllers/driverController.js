@@ -180,8 +180,7 @@ exports.getDriverDashboard = async (req, res, next) => {
                 if (b.serviceType !== driverVeh?.vehicleType) return false;
                 if (b.serviceType !== 'Bus' && b.driver && (b.driver._id || b.driver).toString() !== driver._id.toString()) return false;
                 if (driverVeh) {
-                  const isSelectedBusVehicle = b.serviceType === 'Bus' && String(driverVeh._id) === String(b.vehicle?._id || b.vehicle);
-                  return vehicleMatchesBookingRoute(driverVeh, b, { requireRouteMatch: !isSelectedBusVehicle });
+                  return vehicleMatchesBookingRoute(driverVeh, b, { requireRouteMatch: true });
                 }
                 return false;
               }
@@ -1393,10 +1392,8 @@ const getScheduleBookingRequests = async (req, res, next) => {
         return false;
       }
       if (assignedVehicle) {
-        const isSelectedVehicle = reqItem.vehicle
-          && String(assignedVehicle._id) === String(reqItem.vehicle?._id || reqItem.vehicle);
         return vehicleMatchesBookingRoute(assignedVehicle, reqItem, {
-          requireRouteMatch: isCombinedRequest || !isSelectedVehicle
+          requireRouteMatch: true
         });
       }
       return false;
