@@ -9,6 +9,7 @@ const Notification = require('../models/Notification');
 const Support = require('../models/Support');
 const Incentive = require('../models/Incentive');
 const Withdrawal = require('../models/Withdrawal');
+const Schedule = require('../models/Schedule');
 const { dashboardCache } = require('../utils/cache');
 const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
 const { validateRoutePricing } = require('../utils/routeFares');
@@ -4372,6 +4373,16 @@ exports.updateVehicleFare = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Assigned vehicle not found or you are not authorized to edit this vehicle' });
     }
 
+    let isRouteReversed = false;
+    if (route && vehicle.route?.origin && vehicle.route?.destination) {
+      if (
+        String(route.origin).trim().toLowerCase() === String(vehicle.route.destination).trim().toLowerCase() &&
+        String(route.destination).trim().toLowerCase() === String(vehicle.route.origin).trim().toLowerCase()
+      ) {
+        isRouteReversed = true;
+      }
+    }
+
     if (hasSegmentPricing) {
       vehicle.route = { ...(vehicle.route?.toObject?.() || vehicle.route || {}), ...route };
       vehicle.fareRate = routePricing.totalFare;
@@ -4380,8 +4391,19 @@ exports.updateVehicleFare = async (req, res, next) => {
         return res.status(400).json({ success: false, message: 'Update each route segment fare for a vehicle with route stops.' });
       }
       vehicle.fareRate = Number(finalFare);
+      if (route) {
+        vehicle.route = { ...(vehicle.route?.toObject?.() || vehicle.route || {}), ...route };
+      }
     }
+    
     await vehicle.save();
+
+    if (isRouteReversed) {
+      await Schedule.updateMany(
+        { vehicle: vehicle._id, status: { $in: ['Pending', 'Active'] } },
+        { $set: { origin: route.origin, destination: route.destination } }
+      );
+    }
 
     res.json({
       success: true,

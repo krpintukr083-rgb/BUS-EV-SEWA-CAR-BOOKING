@@ -98,7 +98,9 @@ export default function VehicleDetailsScreen({ navigation, route }) {
         })),
         destinationFareFromOrigin: Number(destinationFareFromOrigin),
         finalSegmentFare: undefined
-      } : undefined;
+      } : {
+        ...vehicle.route
+      };
       const res = await driverService.updateVehicleFare(
         hasRouteSegments ? calculatedRouteFare : fare,
         vehicle?._id,
@@ -194,11 +196,33 @@ export default function VehicleDetailsScreen({ navigation, route }) {
               ) : null}
               {/* Route from DB route.origin → route.destination */}
               {(vehicle.route?.origin || vehicle.route?.destination) && (
-                <Text style={[styles.routeText, { marginTop: 4 }]}>
-                  {vehicle.route.origin}
-                  {vehicle.route.origin && vehicle.route.destination ? ' → ' : ''}
-                  {vehicle.route.destination}
-                </Text>
+                <>
+                  <Text style={[styles.routeText, { marginTop: 4 }]}>
+                    {vehicle.route.origin}
+                    {vehicle.route.origin && vehicle.route.destination ? ' → ' : ''}
+                    {vehicle.route.destination}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.reverseRouteButton}
+                    onPress={() => {
+                      if (!vehicle.route?.origin || !vehicle.route?.destination) {
+                        Alert.alert('Validation Error', 'Please enter both From and To locations first.');
+                        return;
+                      }
+                      setVehicle(prev => ({
+                        ...prev,
+                        route: {
+                          ...prev.route,
+                          origin: prev.route.destination,
+                          destination: prev.route.origin
+                        }
+                      }));
+                    }}
+                  >
+                    <MaterialCommunityIcons name="swap-horizontal" size={16} color={COLORS.primaryLight} />
+                    <Text style={styles.reverseRouteButtonText}>Reverse Route</Text>
+                  </TouchableOpacity>
+                </>
               )}
             </View>
 
@@ -487,6 +511,24 @@ const styles = StyleSheet.create({
   routeText: {
     fontSize: 13,
     color: COLORS.textSecondary,
+  },
+  reverseRouteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.xs,
+    backgroundColor: COLORS.surface,
+    borderColor: COLORS.primaryLight,
+    borderWidth: 1,
+    borderRadius: RADIUS.l,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginTop: SPACING.s,
+  },
+  reverseRouteButtonText: {
+    color: COLORS.textPrimary,
+    fontWeight: '700',
+    fontSize: 12,
   },
   card: {
     backgroundColor: COLORS.bgCard,
