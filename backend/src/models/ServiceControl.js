@@ -17,6 +17,10 @@ const serviceControlSchema = new mongoose.Schema(
       enum: ['Active', 'Inactive'],
       default: 'Active'
     },
+    oppositeRouteNotifications: {
+      type: Boolean,
+      default: false
+    },
     instantBookingEnabled: {
       type: Boolean,
       default: false
