@@ -129,12 +129,12 @@ const CarListingScreen = ({ navigation }) => {
                 <View style={styles.scheduleBox}>
                   <Text style={styles.scheduleTitle}>
                     {item.schedule
-                      ? `Travel Date: ${formatBookingDate(item.schedule.travelDate)}`
+                      ? `Travel Date: ${formatBookingDate(item.schedule?.travelDate)}`
                       : 'Schedule Not Available'}
                   </Text>
                   {item.schedule && (
                     <Text style={styles.scheduleTime}>
-                      {item.schedule.origin} → {item.schedule.destination} • {item.schedule.departureTime} – {item.schedule.arrivalTime}
+                      {item.schedule?.origin} → {item.schedule?.destination} • {item.schedule?.departureTime} – {item.schedule?.arrivalTime}
                     </Text>
                   )}
                 </View>

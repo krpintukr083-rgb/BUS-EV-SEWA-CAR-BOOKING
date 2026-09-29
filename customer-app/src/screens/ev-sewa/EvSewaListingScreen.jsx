@@ -178,12 +178,12 @@ const EvSewaListingScreen = ({ navigation }) => {
                   <View style={styles.scheduleBox}>
                     <Text style={styles.scheduleTitle}>
                       {item.schedule
-                        ? `Travel Date: ${formatBookingDate(item.schedule.travelDate)}`
+                        ? `Travel Date: ${formatBookingDate(item.schedule?.travelDate)}`
                         : 'Schedule Not Available'}
                     </Text>
                     {item.schedule && (
                       <Text style={styles.scheduleTime}>
-                        {item.schedule.origin} → {item.schedule.destination} • {item.schedule.departureTime} – {item.schedule.arrivalTime}
+                        {item.schedule?.origin} → {item.schedule?.destination} • {item.schedule?.departureTime} – {item.schedule?.arrivalTime}
                       </Text>
                     )}
                   </View>
@@ -203,7 +203,7 @@ const EvSewaListingScreen = ({ navigation }) => {
                     <View style={styles.driverRow}>
                       <Ionicons name="person-circle-outline" size={15} color={COLORS.textSecondary} />
                       <Text style={styles.driverText} numberOfLines={1}>
-                        Driver: {item.assignedDriver.name || 'Assigned Chauffeur'}
+                        Driver: {item.assignedDriver?.name || 'Assigned Chauffeur'}
                       </Text>
                     </View>
                   )}

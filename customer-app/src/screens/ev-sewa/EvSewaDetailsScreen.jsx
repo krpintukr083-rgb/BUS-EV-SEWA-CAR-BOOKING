@@ -18,7 +18,7 @@ import { formatBatteryCapacity } from '../../utils/vehicleFormatting';
 
 const EvSewaDetailsScreen = ({ navigation, route }) => {
   const { evId } = route.params || {};
-  const { updateDraft } = useBooking();
+  const { bookingDraft, updateDraft } = useBooking();
   const [ev, setEv] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -298,9 +298,9 @@ const EvSewaDetailsScreen = ({ navigation, route }) => {
                 <Ionicons name="person" size={24} color="#ffffff" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.driverName}>{ev.assignedDriver.name || 'Professional Driver'}</Text>
-                {ev.assignedDriver.mobileNumber && (
-                  <Text style={styles.driverPhone}>Mobile: {ev.assignedDriver.mobileNumber}</Text>
+                <Text style={styles.driverName}>{ev.assignedDriver?.name || 'Professional Driver'}</Text>
+                {ev.assignedDriver?.mobileNumber && (
+                  <Text style={styles.driverPhone}>Mobile: {ev.assignedDriver?.mobileNumber}</Text>
                 )}
                 <View style={styles.driverVerifyPill}>
                   <Ionicons name="checkmark-circle" size={12} color="#059669" />

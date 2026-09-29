@@ -162,11 +162,11 @@ const BusDetailsScreen = ({ navigation, route }) => {
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, backgroundColor: '#f1f5f9', padding: 10, borderRadius: 8 }}>
               <View>
                 <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>Departure</Text>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.textPrimary }}>{schedule.departureTime}</Text>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.textPrimary }}>{schedule?.departureTime}</Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
                 <Text style={{ fontSize: 12, color: COLORS.textSecondary }}>Arrival</Text>
-                <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.textPrimary }}>{schedule.arrivalTime}</Text>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: COLORS.textPrimary }}>{schedule?.arrivalTime}</Text>
               </View>
             </View>
           )}

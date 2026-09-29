@@ -178,7 +178,7 @@ const BusListingScreen = ({ navigation, route }) => {
                       <Ionicons name="calendar-outline" size={14} color={COLORS.textSecondary} style={{ marginRight: 4 }} />
                       <Text style={{ fontSize: 13, fontWeight: '600', color: COLORS.textSecondary }}>
                         {schedule
-                          ? `Travel Date: ${formatBookingDate(schedule.travelDate)}`
+                          ? `Travel Date: ${formatBookingDate(schedule?.travelDate)}`
                           : 'Schedule Not Available'}
                       </Text>
                     </View>
@@ -187,13 +187,13 @@ const BusListingScreen = ({ navigation, route }) => {
                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                           <Ionicons name="time-outline" size={16} color={COLORS.primary} style={{ marginRight: 4 }} />
                           <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.textPrimary }}>
-                            Departure: {schedule.departureTime}
+                            Departure: {schedule?.departureTime}
                           </Text>
                         </View>
                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                           <Ionicons name="time-outline" size={16} color={COLORS.warning} style={{ marginRight: 4 }} />
                           <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.textPrimary }}>
-                            Arrival: {schedule.arrivalTime}
+                            Arrival: {schedule?.arrivalTime}
                           </Text>
                         </View>
                     </View>
