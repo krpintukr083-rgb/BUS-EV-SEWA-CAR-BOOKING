@@ -45,11 +45,14 @@ export const driverService = {
   getMySchedules: () => apiClient.get('/driver/schedules'),
   removeSchedule: (scheduleId) => apiClient.delete(`/driver/schedules/${scheduleId}`),
   uploadVehicleImages: (formData) => apiClient.post('/driver/vehicle-images', formData, { headers: { 'Content-Type': 'multipart/form-data' }, transformRequest: (data) => data }),
-  updateVehicleFare: (fareRate, vehicleId, route) => apiClient.put('/driver/vehicle/fare', {
+  updateVehicleFare: (fareRate, vehicleId, route, travelDate, departureTime, arrivalTime) => apiClient.put('/driver/vehicle/fare', {
     fare: Number(fareRate),
     fareRate: Number(fareRate),
     vehicleId,
-    ...(route ? { route } : {})
+    ...(route ? { route } : {}),
+    ...(travelDate ? { travelDate } : {}),
+    ...(departureTime ? { departureTime } : {}),
+    ...(arrivalTime ? { arrivalTime } : {})
   }),
 
   // Booking Requests & Ride Lifecycle

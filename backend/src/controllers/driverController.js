@@ -4340,7 +4340,7 @@ exports.registerPushToken = async (req, res, next) => {
 // @access  Private (Driver Only)
 exports.updateVehicleFare = async (req, res, next) => {
   try {
-    const { fareRate, fare, vehicleId, route } = req.body;
+    const { fareRate, fare, vehicleId, route, travelDate, departureTime, arrivalTime } = req.body;
     const finalFare = fare !== undefined && fare !== null ? fare : fareRate;
     const hasSegmentPricing = Array.isArray(route?.stops) && route.stops.length > 0;
     const routePricing = hasSegmentPricing ? validateRoutePricing(route) : null;
@@ -4399,9 +4399,17 @@ exports.updateVehicleFare = async (req, res, next) => {
     await vehicle.save();
 
     if (isRouteReversed) {
+      const updatePayload = {
+        origin: route.origin,
+        destination: route.destination
+      };
+      if (travelDate) updatePayload.travelDate = new Date(travelDate);
+      if (departureTime) updatePayload.departureTime = departureTime;
+      if (arrivalTime) updatePayload.arrivalTime = arrivalTime;
+      
       await Schedule.updateMany(
         { vehicle: vehicle._id, status: { $in: ['Pending', 'Active'] } },
-        { $set: { origin: route.origin, destination: route.destination } }
+        { $set: updatePayload }
       );
     }
 

@@ -28,9 +28,21 @@ export default function VehicleDetailsScreen({ navigation, route }) {
   const [destinationFareFromOrigin, setDestinationFareFromOrigin] = useState('');
   const [savingFare, setSavingFare] = useState(false);
 
+  const [isReversing, setIsReversing] = useState(false);
+  const [newTravelDate, setNewTravelDate] = useState('');
+  const [newDepartureTime, setNewDepartureTime] = useState('');
+  const [newArrivalTime, setNewArrivalTime] = useState('');
+
   useEffect(() => {
     fetchVehicle(route?.params?.vehicleId);
   }, [route?.params?.vehicleId]);
+
+  useEffect(() => {
+    console.log('[REVERSE DEBUG] RENDERED ROUTE STATE:', {
+      origin: vehicle?.route?.origin,
+      destination: vehicle?.route?.destination,
+    });
+  }, [vehicle?.route?.origin, vehicle?.route?.destination]);
 
   const fetchVehicle = async (vehicleId) => {
     try {
@@ -87,6 +99,20 @@ export default function VehicleDetailsScreen({ navigation, route }) {
       Alert.alert('Invalid Fare', 'Enter positive fares from origin in non-decreasing order.');
       return;
     }
+    if (isReversing) {
+      if (!newTravelDate || !newTravelDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        Alert.alert('Invalid Date', 'Please enter a valid Travel Date (YYYY-MM-DD).');
+        return;
+      }
+      if (!newDepartureTime) {
+        Alert.alert('Invalid Time', 'Please enter a Departure Time.');
+        return;
+      }
+      if (!newArrivalTime) {
+        Alert.alert('Invalid Time', 'Please enter an Arrival Time.');
+        return;
+      }
+    }
     setSavingFare(true);
     try {
       const routeUpdate = hasRouteSegments ? {
@@ -104,7 +130,10 @@ export default function VehicleDetailsScreen({ navigation, route }) {
       const res = await driverService.updateVehicleFare(
         hasRouteSegments ? calculatedRouteFare : fare,
         vehicle?._id,
-        routeUpdate
+        routeUpdate,
+        isReversing ? newTravelDate : null,
+        isReversing ? newDepartureTime : null,
+        isReversing ? newArrivalTime : null
       );
       if (res.data?.success) {
         // Update displayed fare immediately without full refetch
@@ -112,7 +141,11 @@ export default function VehicleDetailsScreen({ navigation, route }) {
           setVehicle(res.data.data);
           setFare(res.data.data.fareRate ? res.data.data.fareRate.toString() : fare);
         }
-        Alert.alert('Success', 'Fare updated successfully');
+        setIsReversing(false);
+        setNewTravelDate('');
+        setNewDepartureTime('');
+        setNewArrivalTime('');
+        Alert.alert('Success', 'Fare and Schedule updated successfully');
       } else {
         Alert.alert('Error', res.data?.message || 'Failed to update fare');
       }
@@ -205,23 +238,68 @@ export default function VehicleDetailsScreen({ navigation, route }) {
                   <TouchableOpacity
                     style={styles.reverseRouteButton}
                     onPress={() => {
-                      if (!vehicle.route?.origin || !vehicle.route?.destination) {
+                      const currentOrigin = vehicle?.route?.origin;
+                      const currentDest = vehicle?.route?.destination;
+                      
+                      console.log('[REVERSE DEBUG] BEFORE:', {
+                        origin: currentOrigin,
+                        destination: currentDest,
+                      });
+
+                      if (!currentOrigin || !currentDest) {
                         Alert.alert('Validation Error', 'Please enter both From and To locations first.');
                         return;
                       }
-                      setVehicle(prev => ({
-                        ...prev,
-                        route: {
-                          ...prev.route,
-                          origin: prev.route.destination,
-                          destination: prev.route.origin
-                        }
-                      }));
+
+                      setIsReversing(true);
+                      setVehicle(prev => {
+                        const newState = {
+                          ...prev,
+                          route: {
+                            ...prev.route,
+                            origin: currentDest,
+                            destination: currentOrigin
+                          }
+                        };
+                        console.log('[REVERSE DEBUG] AFTER:', {
+                          origin: newState.route.origin,
+                          destination: newState.route.destination,
+                        });
+                        return newState;
+                      });
                     }}
                   >
                     <MaterialCommunityIcons name="swap-horizontal" size={16} color={COLORS.primaryLight} />
                     <Text style={styles.reverseRouteButtonText}>Reverse Route</Text>
                   </TouchableOpacity>
+                  {isReversing && (
+                    <View style={{ marginTop: 16, width: '100%' }}>
+                      <Text style={[styles.specLabel, { color: COLORS.primaryLight, marginBottom: 8 }]}>Set New Route Schedule</Text>
+                      <View style={{ gap: 8 }}>
+                        <TextInput
+                          style={[styles.input, { backgroundColor: 'rgba(255,255,255,0.1)', color: '#FFF' }]}
+                          placeholder="Travel Date (YYYY-MM-DD)"
+                          placeholderTextColor="rgba(255,255,255,0.5)"
+                          value={newTravelDate}
+                          onChangeText={setNewTravelDate}
+                        />
+                        <TextInput
+                          style={[styles.input, { backgroundColor: 'rgba(255,255,255,0.1)', color: '#FFF' }]}
+                          placeholder="Departure Time (e.g. 06:00 AM)"
+                          placeholderTextColor="rgba(255,255,255,0.5)"
+                          value={newDepartureTime}
+                          onChangeText={setNewDepartureTime}
+                        />
+                        <TextInput
+                          style={[styles.input, { backgroundColor: 'rgba(255,255,255,0.1)', color: '#FFF' }]}
+                          placeholder="Arrival Time (e.g. 11:30 PM)"
+                          placeholderTextColor="rgba(255,255,255,0.5)"
+                          value={newArrivalTime}
+                          onChangeText={setNewArrivalTime}
+                        />
+                      </View>
+                    </View>
+                  )}
                 </>
               )}
             </View>
