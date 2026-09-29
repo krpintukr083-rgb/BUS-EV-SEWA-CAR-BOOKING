@@ -23,18 +23,29 @@ const CarDetailsScreen = ({ route, navigation }) => {
   const [loading, setLoading] = useState(!initialCar);
 
   useEffect(() => {
+    console.log("CAR route params:", route.params);
+    console.log("CAR vehicle ID:", carId);
+    
     if (carId && (!car || car._id !== carId)) {
       const fetchDetail = async () => {
         setLoading(true);
         try {
           const res = await customerService.getCarDetails(carId);
-          if (res.success) {
-            setCar(res.data);
+          console.log("CAR API response:", res);
+          
+          // Safe extraction depending on exact backend response nesting
+          const vehicle = res?.data?.data || res?.data || res?.vehicle;
+          console.log("CAR vehicle:", vehicle);
+          
+          if (res.success && vehicle) {
+            setCar(vehicle);
             updateDraft({
-              vehicle: res.data,
-              baseFare: res.data.fareRate,
-              totalFare: res.data.fareRate
+              vehicle: vehicle,
+              baseFare: vehicle.fareRate,
+              totalFare: vehicle.fareRate
             });
+          } else {
+            setCar(null);
           }
         } catch (err) {
           console.log('Error fetching car details:', err);
