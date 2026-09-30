@@ -160,7 +160,7 @@ exports.getDriverDashboard = async (req, res, next) => {
               // Removed exclusion of INSTANT bookings to allow all modes
               driver: { $in: [null, driver._id] }
             })
-              .select('bookingId user customer serviceType pickupLocation dropLocation fare driverPaymentAmount paymentStatus bookingStatus rideStatus travelDate passengerDetails busSeatNumbers vehicle driver createdAt')
+              .select('bookingId bookingMode user customer serviceType pickupLocation dropLocation fare driverPaymentAmount paymentStatus bookingStatus rideStatus travelDate passengerDetails busSeatNumbers vehicle driver createdAt')
               .populate('user', 'phone')
               .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory vehicleStatus seatingCapacity fuelType route pickupDropDetails hireDetails')
               .sort({ createdAt: -1 })
