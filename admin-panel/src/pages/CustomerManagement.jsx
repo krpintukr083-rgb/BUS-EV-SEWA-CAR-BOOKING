@@ -421,12 +421,15 @@ const CustomerManagement = () => {
               <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#0f172a' }}>Delete Customer?</h3>
             </div>
             <p style={{ color: '#475569', marginBottom: '8px' }}>
-              Are you sure you want to permanently delete this customer account?
+              Are you sure you want to permanently delete:
             </p>
-            <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '6px', marginBottom: '20px' }}>
-              <div style={{ fontWeight: '600', color: '#1e293b' }}>{deleteModal.customer?.name}</div>
-              <div style={{ fontSize: '0.9rem', color: '#64748b' }}>{deleteModal.customer?.email}</div>
+            <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '6px', marginBottom: '12px' }}>
+              <div style={{ fontWeight: '600', color: '#1e293b' }}>Customer Name: {deleteModal.customer?.name}</div>
+              <div style={{ fontSize: '0.9rem', color: '#64748b' }}>Email: {deleteModal.customer?.email}</div>
             </div>
+            <p style={{ color: '#ef4444', marginBottom: '20px', fontSize: '0.9rem' }}>
+              This action cannot be undone.
+            </p>
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
               <button
                 className="btn btn-outline"
