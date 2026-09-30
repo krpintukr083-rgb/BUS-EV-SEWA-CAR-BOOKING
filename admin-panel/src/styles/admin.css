@@ -1240,6 +1240,16 @@ input, select, textarea {
   box-shadow: none;
 }
 
+.subadmin-form-error {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  color: #b42318;
+  background: #fef3f2;
+  border: 1px solid #fecdca;
+  border-radius: var(--radius-sm);
+  font-size: .82rem;
+}
+
 @media (max-width: 767px) {
   .subadmin-page-header {
     align-items: stretch;

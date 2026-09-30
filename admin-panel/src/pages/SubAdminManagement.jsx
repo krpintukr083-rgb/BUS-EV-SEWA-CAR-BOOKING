@@ -4,6 +4,23 @@ import { adminService } from '../services/adminService';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import SubAdminFormModal from '../components/SubAdminFormModal';
 
+const displayText = (value, fallback = '—') => {
+  if (typeof value === 'string' || typeof value === 'number') return value;
+  if (value && typeof value === 'object') {
+    if (typeof value.name === 'string') return value.name;
+    if (typeof value.label === 'string') return value.label;
+    if (typeof value.key === 'string') return value.key;
+  }
+  return fallback;
+};
+
+const getSuccessMessage = (value) => {
+  if (typeof value === 'string') return value;
+  if (typeof value?.message === 'string') return value.message;
+  if (typeof value?.success === 'string') return value.success;
+  return 'Sub-Admin saved successfully.';
+};
+
 /**
  * Sub-Admin Management Page – accessible only to Super Admins.
  * Displays list of sub-admins with actions: view, edit, permissions, status toggle, suspend, delete.
@@ -81,7 +98,7 @@ const SubAdminManagement = () => {
 
   const closeForm = (message) => {
     setShowForm(false);
-    if (message) setSuccessMessage(message);
+    if (message) setSuccessMessage(getSuccessMessage(message));
     fetchSubAdmins();
   };
 
@@ -136,17 +153,17 @@ const SubAdminManagement = () => {
               <tbody>
                 {subAdmins.length > 0 ? subAdmins.map((admin) => (
                   <tr key={admin._id}>
-                    <td className="subadmin-name-cell">{admin.name}</td>
-                    <td>{admin.email}</td>
-                    <td><span className="subadmin-role">{admin.adminType || 'Custom'}</span></td>
+                    <td className="subadmin-name-cell">{displayText(admin.name)}</td>
+                    <td>{displayText(admin.email)}</td>
+                    <td><span className="subadmin-role">{displayText(admin.adminType, 'Custom')}</span></td>
                     <td><span className="subadmin-count-badge">{(admin.permissions || []).length}</span></td>
                     <td>
                       <span className={`badge badge-${String(admin.status || '').toLowerCase()} subadmin-status subadmin-status-${String(admin.status || '').toLowerCase()}`}>
                         <span className="subadmin-status-dot" />
-                        {admin.status}
+                        {displayText(admin.status)}
                       </span>
                     </td>
-                    <td>{admin.adminMeta?.createdBy?.name || '—'}</td>
+                    <td>{displayText(admin.adminMeta?.createdBy?.name)}</td>
                     <td>
                       {admin.adminMeta?.lastLoginAt
                         ? new Date(admin.adminMeta.lastLoginAt).toLocaleString()

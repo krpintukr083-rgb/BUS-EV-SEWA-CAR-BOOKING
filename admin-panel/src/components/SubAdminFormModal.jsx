@@ -15,6 +15,25 @@ const PERMISSION_GROUPS = [
   { name: 'Admin', prefix: 'admin.' }
 ];
 
+const permissionKey = (permission) => {
+  if (typeof permission === 'string') return permission;
+  if (permission && typeof permission === 'object') {
+    if (typeof permission.key === 'string') return permission.key;
+    if (typeof permission.name === 'string') return permission.name;
+    if (typeof permission.label === 'string') return permission.label;
+  }
+  return null;
+};
+
+const getErrorMessage = (error) => {
+  const data = error?.response?.data;
+  if (typeof data === 'string') return data;
+  if (typeof data?.message === 'string') return data.message;
+  if (typeof data?.error === 'string') return data.error;
+  if (typeof error?.message === 'string') return error.message;
+  return 'Something went wrong';
+};
+
 /**
  * SubAdminFormModal – Handles both create and edit of a Sub‑Admin.
  * Props:
@@ -32,10 +51,12 @@ const SubAdminFormModal = ({ onClose, editingSubAdmin, permissionTemplates, allP
   const [adminType, setAdminType] = useState(editingSubAdmin?.adminType || 'custom');
   const [selectedPermissions, setSelectedPermissions] = useState(editingSubAdmin?.permissions || []);
   const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
+    setErrorMessage('');
     try {
       const payload = {
         name,
@@ -52,6 +73,8 @@ const SubAdminFormModal = ({ onClose, editingSubAdmin, permissionTemplates, allP
         response = await adminService.createSubAdmin(payload);
       }
       onClose(response?.message);
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
     } finally {
       setSubmitting(false);
     }
@@ -64,7 +87,9 @@ const SubAdminFormModal = ({ onClose, editingSubAdmin, permissionTemplates, allP
   };
 
   const renderPermissionList = () => {
-    const permissions = adminType === 'custom' ? (allPermissions || []) : [];
+    const permissions = adminType === 'custom'
+      ? (allPermissions || []).map(permissionKey).filter(Boolean)
+      : [];
     const groupedPermissions = PERMISSION_GROUPS.map(group => ({
       ...group,
       permissions: permissions.filter(permission => permission.startsWith(group.prefix))
@@ -110,6 +135,11 @@ const SubAdminFormModal = ({ onClose, editingSubAdmin, permissionTemplates, allP
           </div>
         </div>
         <form onSubmit={handleSubmit}>
+          {errorMessage && (
+            <div className="subadmin-form-error" role="alert">
+              {errorMessage}
+            </div>
+          )}
           <div className="subadmin-form-grid">
             <div className="subadmin-field">
               <label htmlFor="subadmin-name">Full Name</label>
