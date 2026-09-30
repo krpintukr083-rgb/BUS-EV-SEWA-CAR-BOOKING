@@ -87,7 +87,7 @@ router.get('/audit-logs', requirePermission('admin.view'), getAuditLogs);
 
 // 0. Dedicated Image Upload Endpoints
 router.post('/upload/single', handleSingleUpload('image'), uploadSingleImage);
-router.post('/upload/driver-photo', handleSingleUpload('driverPhoto'), uploadSingleImage);
+router.post('/upload/driver-photo', requirePermission('driver.create'), handleSingleUpload('driverPhoto'), uploadSingleImage);
 router.post('/upload/multiple', handleMultipleUpload('images', 5), uploadMultipleImages);
 router.post('/upload/vehicle-images', handleMultipleUpload('vehicleImages', 5), uploadMultipleImages);
 

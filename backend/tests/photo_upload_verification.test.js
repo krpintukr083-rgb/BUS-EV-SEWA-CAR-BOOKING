@@ -13,8 +13,13 @@ const jwtConfig = require('../src/config/jwt');
 
 describe('Super Admin Photo Upload & Management Integration Tests', () => {
   let adminToken = '';
+  let subAdminWithCreateToken = '';
+  let subAdminWithoutCreateToken = '';
+  let subAdminWithCreate;
+  let subAdminWithoutCreate;
   let testDriverId = '';
   let testVehicleId = '';
+  const uploadedSubAdminPhotoPaths = [];
   const testJpgPath = path.join(__dirname, 'test_sample.jpg');
   const testPngPath = path.join(__dirname, 'test_sample.png');
   const testLargePath = path.join(__dirname, 'test_large.jpg');
@@ -45,6 +50,36 @@ describe('Super Admin Photo Upload & Management Integration Tests', () => {
     adminToken = jwt.sign({ id: admin._id, role: 'admin' }, jwtConfig.secret, {
       expiresIn: '1d'
     });
+
+    const suffix = Date.now();
+    subAdminWithCreate = await User.create({
+      name: 'Photo Upload Sub-Admin',
+      email: `photo-upload-create-${suffix}@example.com`,
+      phone: `+1555${String(suffix).slice(-7)}`,
+      password: 'SubAdminPassword123',
+      role: 'sub_admin',
+      permissions: ['driver.create'],
+      status: 'Active'
+    });
+    subAdminWithoutCreate = await User.create({
+      name: 'Restricted Photo Sub-Admin',
+      email: `photo-upload-denied-${suffix}@example.com`,
+      phone: `+1666${String(suffix).slice(-7)}`,
+      password: 'SubAdminPassword123',
+      role: 'sub_admin',
+      permissions: ['driver.view'],
+      status: 'Active'
+    });
+    subAdminWithCreateToken = jwt.sign(
+      { id: subAdminWithCreate._id, role: 'sub_admin', permissionsVersion: 1 },
+      jwtConfig.secret,
+      { expiresIn: '1d' }
+    );
+    subAdminWithoutCreateToken = jwt.sign(
+      { id: subAdminWithoutCreate._id, role: 'sub_admin', permissionsVersion: 1 },
+      jwtConfig.secret,
+      { expiresIn: '1d' }
+    );
   }, 30000);
 
   afterAll(async () => {
@@ -60,6 +95,11 @@ describe('Super Admin Photo Upload & Management Integration Tests', () => {
     if (testVehicleId) {
       await Vehicle.findByIdAndDelete(testVehicleId);
     }
+    uploadedSubAdminPhotoPaths.forEach(filePath => {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    });
+    if (subAdminWithCreate) await User.findByIdAndDelete(subAdminWithCreate._id);
+    if (subAdminWithoutCreate) await User.findByIdAndDelete(subAdminWithoutCreate._id);
     await User.deleteMany({ email: { $in: ['test_photo_driver@test.com', 'test_photo_driver_updated@test.com'] } });
     await closeTestDB();
   }, 30000);
@@ -98,6 +138,36 @@ describe('Super Admin Photo Upload & Management Integration Tests', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.url).toMatch(/\/uploads\/.+\.jpg$/i);
+    });
+
+    it('should allow a Sub-Admin with driver.create to upload a driver photo', async () => {
+      const res = await request(app)
+        .post('/api/admin/upload/driver-photo')
+        .set('Authorization', `Bearer ${subAdminWithCreateToken}`)
+        .attach('driverPhoto', testJpgPath);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.url).toMatch(/\/uploads\/.+\.jpg$/i);
+      uploadedSubAdminPhotoPaths.push(path.join(__dirname, '..', res.body.url.replace(/^\//, '')));
+    });
+
+    it('should deny driver photo upload and driver creation without driver.create', async () => {
+      const photoResponse = await request(app)
+        .post('/api/admin/upload/driver-photo')
+        .set('Authorization', `Bearer ${subAdminWithoutCreateToken}`)
+        .attach('driverPhoto', testJpgPath);
+
+      expect(photoResponse.status).toBe(403);
+      expect(photoResponse.body.message).toContain('driver.create');
+
+      const driverResponse = await request(app)
+        .post('/api/admin/drivers')
+        .set('Authorization', `Bearer ${subAdminWithoutCreateToken}`)
+        .send({ name: 'Unauthorized Driver' });
+
+      expect(driverResponse.status).toBe(403);
+      expect(driverResponse.body.message).toContain('driver.create');
     });
 
     it('should create new driver with uploaded photo and save driverPhoto in MongoDB', async () => {

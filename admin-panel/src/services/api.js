@@ -41,13 +41,13 @@ const api = axios.create({
   }
 });
 
-// Attach Super Admin JWT token & Dynamic BaseURL
+// Attach the authenticated Admin or Sub-Admin JWT token & dynamic BaseURL
 api.interceptors.request.use(
   config => {
     config.baseURL = getApiBaseUrl();
     const token = localStorage.getItem('admin_token');
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers.set('Authorization', `Bearer ${token}`);
     }
 
     // Fix for Axios 1.x: Prevent serializing FormData to JSON due to instance default
@@ -68,7 +68,7 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   response => response,
   error => {
-    if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+    if (error.response?.status === 401) {
       if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
         localStorage.removeItem('admin_token');
         localStorage.removeItem('admin_user');

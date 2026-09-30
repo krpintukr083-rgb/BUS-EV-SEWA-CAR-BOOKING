@@ -1,8 +1,9 @@
 ﻿import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { adminService } from '../services/adminService';
+import { useAdminAuth } from '../context/AdminAuthContext';
 import StatusBadge from '../components/StatusBadge';
-import { UserCheck, UserPlus, Truck, Search, Check, AlertCircle, Edit, ShieldCheck, Upload, Trash2, Camera, Image as ImageIcon } from 'lucide-react';
+import { UserCheck, UserPlus, Truck, Search, Check, AlertCircle, Edit, ShieldCheck, Upload, Trash2, Camera, Image as ImageIcon, X } from 'lucide-react';
 
 export const getImageUrl = (url, fallback = 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?auto=format&fit=crop&w=300&q=80') => {
   if (!url) return fallback;
@@ -15,6 +16,13 @@ export const getImageUrl = (url, fallback = 'https://images.unsplash.com/photo-1
 };
 
 const DriverManagement = () => {
+  const { hasPermission, isSuperAdmin } = useAdminAuth();
+  const canViewVehicles = isSuperAdmin() || hasPermission('vehicle.view');
+  const canAssignVehicles = canViewVehicles && (isSuperAdmin() || hasPermission('vehicle.assign_driver'));
+  const canCreateDrivers = isSuperAdmin() || hasPermission('driver.create');
+  const canEditDrivers = isSuperAdmin() || hasPermission('driver.edit');
+  const canSuspendDrivers = isSuperAdmin() || hasPermission('driver.suspend');
+  const canActivateDrivers = isSuperAdmin() || hasPermission('driver.activate');
   const [drivers, setDrivers] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -45,9 +53,11 @@ const DriverManagement = () => {
 
   const fetchDriversAndVehicles = async () => {
     try {
-      const [dRes, vRes] = await Promise.all([adminService.getDrivers(), adminService.getVehicles()]);
+      const requests = [adminService.getDrivers()];
+      if (canViewVehicles) requests.push(adminService.getVehicles());
+      const [dRes, vRes] = await Promise.all(requests);
       if (dRes.success) setDrivers(dRes.data);
-      if (vRes.success) setVehicles(vRes.data);
+      if (vRes?.success) setVehicles(vRes.data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -57,7 +67,7 @@ const DriverManagement = () => {
 
   useEffect(() => {
     fetchDriversAndVehicles();
-  }, []);
+  }, [canViewVehicles]);
 
   const handlePhotoSelect = e => {
     const file = e.target.files?.[0];
@@ -234,9 +244,11 @@ const DriverManagement = () => {
           <Link to="/admin/driver-verification" className="btn btn-outline">
             <ShieldCheck size={16} /> Driver Verification Desk
           </Link>
-          <button onClick={handleOpenAddModal} className="btn btn-primary">
-            <UserPlus size={16} /> Add New Driver
-          </button>
+          {canCreateDrivers && (
+            <button onClick={handleOpenAddModal} className="btn btn-primary">
+              <UserPlus size={16} /> Add New Driver
+            </button>
+          )}
         </div>
       </div>
 
@@ -360,14 +372,16 @@ const DriverManagement = () => {
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                        <button
-                          onClick={() => handleOpenEditModal(d)}
-                          className="btn btn-sm btn-outline"
-                          title="Edit Driver"
-                        >
-                          <Edit size={13} /> Edit
-                        </button>
-                        {d.driverStatus !== 'Active' && (
+                        {canEditDrivers && (
+                          <button
+                            onClick={() => handleOpenEditModal(d)}
+                            className="btn btn-sm btn-outline"
+                            title="Edit Driver"
+                          >
+                            <Edit size={13} /> Edit
+                          </button>
+                        )}
+                        {canActivateDrivers && d.driverStatus !== 'Active' && (
                           <button
                             onClick={() => handleStatusChange(d._id, 'Active')}
                             className="btn btn-sm btn-outline"
@@ -376,7 +390,7 @@ const DriverManagement = () => {
                             Activate
                           </button>
                         )}
-                        {d.driverStatus !== 'Inactive' && (
+                        {canSuspendDrivers && d.driverStatus !== 'Inactive' && (
                           <button
                             onClick={() => handleStatusChange(d._id, 'Inactive')}
                             className="btn btn-sm btn-outline"
@@ -385,7 +399,7 @@ const DriverManagement = () => {
                             Deactivate
                           </button>
                         )}
-                        {d.driverStatus !== 'Blocked' && (
+                        {canSuspendDrivers && d.driverStatus !== 'Blocked' && (
                           <button
                             onClick={() => handleStatusChange(d._id, 'Blocked')}
                             className="btn btn-sm btn-outline"
@@ -416,8 +430,8 @@ const DriverManagement = () => {
           <div className="modal-content" style={{ maxWidth: '600px' }}>
             <div className="card-header-flex">
               <h3 className="card-title">Add New Fleet Driver</h3>
-              <button className="btn btn-outline btn-sm" onClick={() => setIsAddModalOpen(false)}>
-                âœ•
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => setIsAddModalOpen(false)} aria-label="Close">
+                <X size={15} />
               </button>
             </div>
 
@@ -556,21 +570,23 @@ const DriverManagement = () => {
                     required
                   />
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Assign Vehicle</label>
-                  <select
-                    className="form-control"
-                    value={assignedVehicle}
-                    onChange={e => setAssignedVehicle(e.target.value)}
-                  >
-                    <option value="">-- Leave Unassigned --</option>
-                    {vehicles.map(v => (
-                      <option key={v._id} value={v._id}>
-                        {v.vehicleName} ({v.vehicleNumber}) - {v.vehicleType}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {canAssignVehicles && (
+                  <div className="form-group">
+                    <label className="form-label">Assign Vehicle</label>
+                    <select
+                      className="form-control"
+                      value={assignedVehicle}
+                      onChange={e => setAssignedVehicle(e.target.value)}
+                    >
+                      <option value="">-- Leave Unassigned --</option>
+                      {vehicles.map(v => (
+                        <option key={v._id} value={v._id}>
+                          {v.vehicleName} ({v.vehicleNumber}) - {v.vehicleType}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '16px' }}>
@@ -592,8 +608,8 @@ const DriverManagement = () => {
           <div className="modal-content" style={{ maxWidth: '600px' }}>
             <div className="card-header-flex">
               <h3 className="card-title">Edit Driver: {currentDriver?.name}</h3>
-              <button className="btn btn-outline btn-sm" onClick={() => setIsEditModalOpen(false)}>
-                âœ•
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => setIsEditModalOpen(false)} aria-label="Close">
+                <X size={15} />
               </button>
             </div>
 
@@ -719,21 +735,23 @@ const DriverManagement = () => {
                 </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Assigned Vehicle</label>
-                <select
-                  className="form-control"
-                  value={assignedVehicle}
-                  onChange={e => setAssignedVehicle(e.target.value)}
-                >
-                  <option value="">-- No Vehicle Assigned --</option>
-                  {vehicles.map(v => (
-                    <option key={v._id} value={v._id}>
-                      {v.vehicleName} ({v.vehicleNumber}) - {v.vehicleType}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {canAssignVehicles && (
+                <div className="form-group">
+                  <label className="form-label">Assigned Vehicle</label>
+                  <select
+                    className="form-control"
+                    value={assignedVehicle}
+                    onChange={e => setAssignedVehicle(e.target.value)}
+                  >
+                    <option value="">-- No Vehicle Assigned --</option>
+                    {vehicles.map(v => (
+                      <option key={v._id} value={v._id}>
+                        {v.vehicleName} ({v.vehicleNumber}) - {v.vehicleType}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div className="form-group" style={{ marginTop: '14px' }}>
                 <label className="form-label">Customer Phone Visibility</label>
