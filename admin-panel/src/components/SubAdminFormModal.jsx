@@ -41,16 +41,17 @@ const SubAdminFormModal = ({ onClose, editingSubAdmin, permissionTemplates, allP
         name,
         email,
         phone,
-        password: password || undefined,
         adminType,
         permissions: adminType === 'custom' ? selectedPermissions : undefined
       };
+      if (password) payload.password = password;
+      let response;
       if (isEdit) {
-        await adminService.updateSubAdmin(editingSubAdmin._id, payload);
+        response = await adminService.updateSubAdmin(editingSubAdmin._id, payload);
       } else {
-        await adminService.createSubAdmin(payload);
+        response = await adminService.createSubAdmin(payload);
       }
-      onClose();
+      onClose(response?.message);
     } finally {
       setSubmitting(false);
     }
@@ -142,19 +143,19 @@ const SubAdminFormModal = ({ onClose, editingSubAdmin, permissionTemplates, allP
                 className="form-control"
               />
             </div>
-            {!isEdit && (
-              <div className="subadmin-field">
-                <label htmlFor="subadmin-password">Password</label>
-                <input
-                  id="subadmin-password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="form-control"
-                />
-              </div>
-            )}
+            <div className="subadmin-field">
+              <label htmlFor="subadmin-password">Password</label>
+              <input
+                id="subadmin-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={isEdit ? 'Enter new password' : ''}
+                required={!isEdit}
+                className="form-control"
+                autoComplete="new-password"
+              />
+            </div>
             <div className="subadmin-field">
               <label htmlFor="subadmin-role-type">Role Type</label>
               <select

@@ -933,6 +933,17 @@ input, select, textarea {
   white-space: nowrap;
 }
 
+.subadmin-success-message {
+  margin-bottom: 18px;
+  padding: 11px 14px;
+  color: #047857;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: var(--radius-sm);
+  font-size: .84rem;
+  font-weight: 600;
+}
+
 .subadmin-table-card {
   padding: 0;
   overflow: hidden;

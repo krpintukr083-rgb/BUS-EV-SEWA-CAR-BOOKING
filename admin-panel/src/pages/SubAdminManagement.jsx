@@ -15,6 +15,7 @@ const SubAdminManagement = () => {
   const [showForm, setShowForm] = useState(false);
   const [editingSubAdmin, setEditingSubAdmin] = useState(null);
   const [templates, setTemplates] = useState(null);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const fetchSubAdmins = async () => {
     try {
@@ -67,17 +68,20 @@ const SubAdminManagement = () => {
   };
 
   const openEdit = (subAdmin) => {
+    setSuccessMessage('');
     setEditingSubAdmin(subAdmin);
     setShowForm(true);
   };
 
   const openCreate = () => {
+    setSuccessMessage('');
     setEditingSubAdmin(null);
     setShowForm(true);
   };
 
-  const closeForm = () => {
+  const closeForm = (message) => {
     setShowForm(false);
+    if (message) setSuccessMessage(message);
     fetchSubAdmins();
   };
 
@@ -96,6 +100,12 @@ const SubAdminManagement = () => {
           <span>Create Sub-Admin</span>
         </button>
       </header>
+
+      {successMessage && (
+        <div className="subadmin-success-message" role="status">
+          {successMessage}
+        </div>
+      )}
 
       <section className="content-card subadmin-table-card">
         <div className="subadmin-table-heading">

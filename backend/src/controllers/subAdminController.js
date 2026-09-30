@@ -183,10 +183,18 @@ exports.createSubAdmin = async (req, res, next) => {
 // ======================================================
 exports.updateSubAdmin = async (req, res, next) => {
   try {
-    const { name, email, phone } = req.body;
+    const { name, email, phone, password } = req.body;
     const subAdmin = await User.findOne({ _id: req.params.id, role: 'sub_admin' });
     if (!subAdmin) {
       return res.status(404).json({ success: false, message: 'Sub-Admin not found' });
+    }
+
+    if (password !== undefined && password !== null && password !== '') {
+      if (typeof password !== 'string' || password.length < 6) {
+        return res.status(400).json({ success: false, message: 'New password must be at least 6 characters' });
+      }
+      subAdmin.password = password;
+      subAdmin.permissionsVersion = (subAdmin.permissionsVersion || 1) + 1;
     }
 
     if (name) subAdmin.name = name.trim();
