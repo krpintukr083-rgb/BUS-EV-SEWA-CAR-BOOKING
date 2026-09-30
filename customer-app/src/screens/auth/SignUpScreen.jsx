@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Alert
+  Alert,
+  TextInput
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useCustomerAuth } from '../../context/CustomerAuthContext';
@@ -31,7 +32,8 @@ const SignUpScreen = ({ navigation }) => {
     }
 
     setLoading(true);
-    const res = await register(name.trim(), email.trim(), phone.trim(), password);
+    const submittedPhone = `+977${phone.trim()}`;
+    const res = await register(name.trim(), email.trim(), submittedPhone, password);
     setLoading(false);
 
     if (!res.success) {
@@ -73,14 +75,42 @@ const SignUpScreen = ({ navigation }) => {
             icon={<Ionicons name="mail-outline" size={18} color="#94a3b8" />}
           />
 
-          <Input
-            label="Mobile Number"
-            placeholder="+91..."
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-            icon={<Ionicons name="call-outline" size={18} color="#94a3b8" />}
-          />
+          <View style={{ marginBottom: 16 }}>
+            <Text style={{ fontSize: 14, fontWeight: '600', color: COLORS.textPrimary, marginBottom: 6 }}>Mobile Number</Text>
+            <View style={{ position: 'relative', justifyContent: 'center' }}>
+              <View style={{ position: 'absolute', left: 12, zIndex: 1 }}>
+                <Ionicons name="call-outline" size={18} color="#94a3b8" />
+              </View>
+              <View style={{ position: 'absolute', left: 40, zIndex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                <Text style={{ fontSize: 15, color: COLORS.textPrimary, fontWeight: '500' }}>+977</Text>
+                <Text style={{ fontSize: 15, color: '#cbd5e1', marginHorizontal: 6 }}>|</Text>
+              </View>
+              <TextInput
+                style={{
+                  backgroundColor: '#ffffff',
+                  borderWidth: 1,
+                  borderColor: COLORS.border,
+                  borderRadius: 10,
+                  paddingHorizontal: 14,
+                  paddingVertical: 12,
+                  fontSize: 15,
+                  color: COLORS.textPrimary,
+                  paddingLeft: 96
+                }}
+                placeholder="98XXXXXXXX"
+                placeholderTextColor="#94a3b8"
+                value={phone}
+                onChangeText={(text) => {
+                  let cleaned = text.trim();
+                  if (cleaned.startsWith('+977')) cleaned = cleaned.substring(4);
+                  else if (cleaned.startsWith('977')) cleaned = cleaned.substring(3);
+                  cleaned = cleaned.replace(/[^\d]/g, '');
+                  setPhone(cleaned);
+                }}
+                keyboardType="phone-pad"
+              />
+            </View>
+          </View>
 
           <Input
             label="Create Password"

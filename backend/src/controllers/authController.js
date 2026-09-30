@@ -37,6 +37,8 @@ exports.login = async (req, res, next) => {
       const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
       const orConditions = [
         { phone: cleanId },
+        { phone: `+977${last10}` },
+        { phone: `977${last10}` },
         { phone: `+91${last10}` },
         { phone: `91${last10}` },
         { phone: last10 },
