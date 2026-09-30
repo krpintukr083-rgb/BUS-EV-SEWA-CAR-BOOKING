@@ -114,7 +114,7 @@ function AppRoutes() {
         <Route path="policies" element={<AdminPage superAdminOnly><PoliciesManagement /></AdminPage>} />
         <Route path="reports" element={<AdminPage permission="report.view"><BasicReports /></AdminPage>} />
         <Route path="service-control" element={<AdminPage superAdminOnly><ServiceControl /></AdminPage>} />
-        <Route path="subadmin-management" element={<AdminPage superAdminOnly><SubAdminManagement /></AdminPage>} />
+        <Route path="subadmin-management" element={<AdminPage permission="admin.view"><SubAdminManagement /></AdminPage>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

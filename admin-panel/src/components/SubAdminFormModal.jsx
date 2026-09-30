@@ -42,7 +42,14 @@ const getErrorMessage = (error) => {
  *   permissionTemplates: object – { templates: {...}, allPermissions: [...] }
  *   allPermissions: array – flat list of all permission strings (fallback)
  */
-const SubAdminFormModal = ({ onClose, editingSubAdmin, permissionTemplates, allPermissions }) => {
+const SubAdminFormModal = ({
+  onClose,
+  editingSubAdmin,
+  permissionTemplates,
+  allPermissions,
+  canEditProfile = true,
+  canEditPermissions = true
+}) => {
   const isEdit = !!editingSubAdmin;
   const [name, setName] = useState(editingSubAdmin?.name || '');
   const [email, setEmail] = useState(editingSubAdmin?.email || '');
@@ -58,19 +65,28 @@ const SubAdminFormModal = ({ onClose, editingSubAdmin, permissionTemplates, allP
     setSubmitting(true);
     setErrorMessage('');
     try {
-      const payload = {
-        name,
-        email,
-        phone,
-        adminType,
-        permissions: adminType === 'custom' ? selectedPermissions : undefined
-      };
-      if (password) payload.password = password;
       let response;
       if (isEdit) {
-        response = await adminService.updateSubAdmin(editingSubAdmin._id, payload);
+        if (canEditProfile) {
+          const profilePayload = { name, email, phone };
+          if (password) profilePayload.password = password;
+          response = await adminService.updateSubAdmin(editingSubAdmin._id, profilePayload);
+        }
+        if (canEditPermissions) {
+          response = await adminService.updateSubAdminPermissions(editingSubAdmin._id, {
+            adminType,
+            permissions: adminType === 'custom' ? selectedPermissions : undefined
+          });
+        }
       } else {
-        response = await adminService.createSubAdmin(payload);
+        response = await adminService.createSubAdmin({
+          name,
+          email,
+          phone,
+          password,
+          adminType,
+          permissions: adminType === 'custom' ? selectedPermissions : undefined
+        });
       }
       onClose(response?.message);
     } catch (error) {
@@ -112,6 +128,7 @@ const SubAdminFormModal = ({ onClose, editingSubAdmin, permissionTemplates, allP
                     type="checkbox"
                     checked={selectedPermissions.includes(perm)}
                     onChange={() => togglePermission(perm)}
+                    disabled={isEdit && !canEditPermissions}
                   />
                   <span>{perm}</span>
                 </label>
@@ -150,6 +167,7 @@ const SubAdminFormModal = ({ onClose, editingSubAdmin, permissionTemplates, allP
                 onChange={(e) => setName(e.target.value)}
                 required
                 className="form-control"
+                disabled={isEdit && !canEditProfile}
               />
             </div>
             <div className="subadmin-field">
@@ -161,6 +179,7 @@ const SubAdminFormModal = ({ onClose, editingSubAdmin, permissionTemplates, allP
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 className="form-control"
+                disabled={isEdit && !canEditProfile}
               />
             </div>
             <div className="subadmin-field">
@@ -171,21 +190,24 @@ const SubAdminFormModal = ({ onClose, editingSubAdmin, permissionTemplates, allP
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 className="form-control"
+                disabled={isEdit && !canEditProfile}
               />
             </div>
-            <div className="subadmin-field">
-              <label htmlFor="subadmin-password">Password</label>
-              <input
-                id="subadmin-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={isEdit ? 'Enter new password' : ''}
-                required={!isEdit}
-                className="form-control"
-                autoComplete="new-password"
-              />
-            </div>
+            {(!isEdit || canEditProfile) && (
+              <div className="subadmin-field">
+                <label htmlFor="subadmin-password">Password</label>
+                <input
+                  id="subadmin-password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={isEdit ? 'Enter new password' : ''}
+                  required={!isEdit}
+                  className="form-control"
+                  autoComplete="new-password"
+                />
+              </div>
+            )}
             <div className="subadmin-field">
               <label htmlFor="subadmin-role-type">Role Type</label>
               <select
@@ -193,6 +215,7 @@ const SubAdminFormModal = ({ onClose, editingSubAdmin, permissionTemplates, allP
                 value={adminType}
                 onChange={(e) => setAdminType(e.target.value)}
                 className="form-control"
+                disabled={isEdit && !canEditPermissions}
               >
                 {permissionTemplates?.templates && Object.keys(permissionTemplates.templates).map((key) => (
                   <option key={key} value={key}>{key.replace('_', ' ')}</option>

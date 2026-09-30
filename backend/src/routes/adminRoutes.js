@@ -70,17 +70,17 @@ const {
 router.use(verifyToken, adminAuth);
 
 // ============================================================
-// Sub-Admin Management (Super Admin Only)
+// Sub-Admin Management requires the matching explicit admin.* permission.
 // ============================================================
-router.get('/subadmins/permission-templates', superAdminOnly, getPermissionTemplates);
-router.get('/subadmins', superAdminOnly, getSubAdmins);
-router.post('/subadmins', superAdminOnly, createSubAdmin);
-router.get('/subadmins/:id', superAdminOnly, getSubAdminById);
-router.patch('/subadmins/:id', superAdminOnly, updateSubAdmin);
-router.patch('/subadmins/:id/permissions', superAdminOnly, updateSubAdminPermissions);
-router.patch('/subadmins/:id/status', superAdminOnly, updateSubAdminStatus);
-router.patch('/subadmins/:id/reset-password', superAdminOnly, resetSubAdminPassword);
-router.delete('/subadmins/:id', superAdminOnly, deleteSubAdmin);
+router.get('/subadmins/permission-templates', requirePermission('admin.view'), getPermissionTemplates);
+router.get('/subadmins', requirePermission('admin.view'), getSubAdmins);
+router.post('/subadmins', requirePermission('admin.create'), createSubAdmin);
+router.get('/subadmins/:id', requirePermission('admin.view'), getSubAdminById);
+router.patch('/subadmins/:id', requirePermission('admin.edit'), updateSubAdmin);
+router.patch('/subadmins/:id/permissions', requirePermission('admin.permissions'), updateSubAdminPermissions);
+router.patch('/subadmins/:id/status', requirePermission('admin.deactivate'), updateSubAdminStatus);
+router.patch('/subadmins/:id/reset-password', requirePermission('admin.edit'), resetSubAdminPassword);
+router.delete('/subadmins/:id', requirePermission('admin.deactivate'), deleteSubAdmin);
 
 // Audit Logs (Super Admin only, Sub-Admin can view own logs with admin.view permission)
 router.get('/audit-logs', requirePermission('admin.view'), getAuditLogs);

@@ -132,14 +132,6 @@ exports.createSubAdmin = async (req, res, next) => {
       resolvedPermissions = customPermissions.filter(p => ALL_PERMISSIONS.includes(p));
     }
 
-    // SECURITY: Sub-Admins can NEVER receive admin.* permissions that manage other admins
-    // unless explicitly intended. We strip admin.create and admin.permissions here
-    // because those are Super Admin-only actions.
-    // Keeping admin.view is allowed (read-only audit log access).
-    resolvedPermissions = resolvedPermissions.filter(p =>
-      p !== 'admin.create' && p !== 'admin.permissions' && p !== 'admin.edit' && p !== 'admin.deactivate'
-    );
-
     const subAdmin = await User.create({
       name: name.trim(),
       email: email.toLowerCase().trim(),
@@ -238,11 +230,6 @@ exports.updateSubAdminPermissions = async (req, res, next) => {
     } else if (Array.isArray(permissions)) {
       resolvedPermissions = permissions.filter(p => ALL_PERMISSIONS.includes(p));
     }
-
-    // Strip Super Admin-only permissions
-    resolvedPermissions = resolvedPermissions.filter(p =>
-      p !== 'admin.create' && p !== 'admin.permissions' && p !== 'admin.edit' && p !== 'admin.deactivate'
-    );
 
     subAdmin.permissions = resolvedPermissions;
     if (adminType) subAdmin.adminType = adminType;

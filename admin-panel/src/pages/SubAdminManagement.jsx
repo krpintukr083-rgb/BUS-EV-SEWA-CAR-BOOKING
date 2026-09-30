@@ -22,11 +22,16 @@ const getSuccessMessage = (value) => {
 };
 
 /**
- * Sub-Admin Management Page – accessible only to Super Admins.
+ * Sub-Admin Management Page – accessible to admins with admin.view.
  * Displays list of sub-admins with actions: view, edit, permissions, status toggle, suspend, delete.
  */
 const SubAdminManagement = () => {
-  const { adminUser } = useAdminAuth();
+  const { adminUser, hasPermission, isSuperAdmin } = useAdminAuth();
+  const canView = isSuperAdmin() || hasPermission('admin.view');
+  const canCreate = isSuperAdmin() || hasPermission('admin.create');
+  const canEdit = isSuperAdmin() || hasPermission('admin.edit');
+  const canEditPermissions = isSuperAdmin() || hasPermission('admin.permissions');
+  const canChangeStatus = isSuperAdmin() || hasPermission('admin.deactivate');
   const [subAdmins, setSubAdmins] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -57,13 +62,13 @@ const SubAdminManagement = () => {
   };
 
   useEffect(() => {
-    if (adminUser?.role === 'admin') {
+    if (canView) {
       fetchSubAdmins();
       fetchTemplates();
     }
   }, [adminUser]);
 
-  if (adminUser?.role !== 'admin') {
+  if (!canView) {
     return <div className="subadmin-access-denied">You do not have access to Sub-Admin Management.</div>;
   }
 
@@ -112,10 +117,12 @@ const SubAdminManagement = () => {
             Manage administrator accounts, roles, and platform permissions.
           </p>
         </div>
-        <button type="button" className="btn btn-primary subadmin-create-button" onClick={openCreate}>
-          <UserPlus size={17} />
-          <span>Create Sub-Admin</span>
-        </button>
+        {canCreate && (
+          <button type="button" className="btn btn-primary subadmin-create-button" onClick={openCreate}>
+            <UserPlus size={17} />
+            <span>Create Sub-Admin</span>
+          </button>
+        )}
       </header>
 
       {successMessage && (
@@ -156,7 +163,7 @@ const SubAdminManagement = () => {
                     <td className="subadmin-name-cell">{displayText(admin.name)}</td>
                     <td>{displayText(admin.email)}</td>
                     <td><span className="subadmin-role">{displayText(admin.adminType, 'Custom')}</span></td>
-                    <td><span className="subadmin-count-badge">{(admin.permissions || []).length}</span></td>
+                    <td>{(admin.permissions || []).map(displayText).join(', ') || '—'}</td>
                     <td>
                       <span className={`badge badge-${String(admin.status || '').toLowerCase()} subadmin-status subadmin-status-${String(admin.status || '').toLowerCase()}`}>
                         <span className="subadmin-status-dot" />
@@ -171,17 +178,21 @@ const SubAdminManagement = () => {
                     </td>
                     <td>
                       <div className="subadmin-actions">
-                        <button type="button" className="subadmin-action-button subadmin-action-edit" onClick={() => openEdit(admin)}>
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          className="subadmin-action-button subadmin-action-toggle"
-                          onClick={() => handleStatusToggle(admin)}
-                        >
-                          {admin.status === 'Active' ? 'Deactivate' : 'Activate'}
-                        </button>
-                        {admin.status !== 'Suspended' && (
+                        {(canEdit || canEditPermissions) && (
+                          <button type="button" className="subadmin-action-button subadmin-action-edit" onClick={() => openEdit(admin)}>
+                            Edit
+                          </button>
+                        )}
+                        {canChangeStatus && (
+                          <button
+                            type="button"
+                            className="subadmin-action-button subadmin-action-toggle"
+                            onClick={() => handleStatusToggle(admin)}
+                          >
+                            {admin.status === 'Active' ? 'Deactivate' : 'Activate'}
+                          </button>
+                        )}
+                        {canChangeStatus && admin.status !== 'Suspended' && (
                           <button
                             type="button"
                             className="subadmin-action-button subadmin-action-suspend"
@@ -190,9 +201,11 @@ const SubAdminManagement = () => {
                             Suspend
                           </button>
                         )}
-                        <button type="button" className="subadmin-action-button subadmin-action-delete" onClick={() => handleDelete(admin._id)}>
-                          Delete
-                        </button>
+                        {canChangeStatus && (
+                          <button type="button" className="subadmin-action-button subadmin-action-delete" onClick={() => handleDelete(admin._id)}>
+                            Delete
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -215,6 +228,8 @@ const SubAdminManagement = () => {
           editingSubAdmin={editingSubAdmin}
           permissionTemplates={templates?.templates}
           allPermissions={templates?.allPermissions}
+          canEditProfile={canEdit}
+          canEditPermissions={canEditPermissions}
         />
       )}
     </div>

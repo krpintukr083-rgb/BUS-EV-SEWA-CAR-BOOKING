@@ -33,7 +33,7 @@ const AdminSidebar = ({ onOpenLogout, isOpen, onClose }) => {
       title: 'User & Driver Management',
       items: [
         { to: '/customers', label: 'Customer Management', icon: Users, permission: 'customer.view' },
-        { to: '/subadmin-management', label: 'Admin Management', icon: UserPlus, superAdminOnly: true },
+        { to: '/subadmin-management', label: 'Admin Management', icon: UserPlus, permission: 'admin.view' },
         { to: '/drivers', label: 'Driver Management', icon: UserCheck, permission: 'driver.view' },
         { to: '/driver-verification', label: 'Driver Verification', icon: FileCheck2, permission: 'driver.kyc' }
       ]
