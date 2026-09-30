@@ -31,13 +31,45 @@ import VehicleApproval from './pages/VehicleApproval';
 import ScheduleApproval from './pages/ScheduleApproval';
 import SubAdminManagement from './pages/SubAdminManagement';
 
+const PermissionDenied = () => (
+  <div className="content-card" role="alert">
+    <h1 className="card-title">Permission denied</h1>
+    <p style={{ color: 'var(--text-muted)', marginTop: 8 }}>
+      Your account does not have permission to access this section.
+    </p>
+  </div>
+);
+
+const AdminPanelRoute = ({ children, permission, superAdminOnly = false }) => {
+  const { adminUser, loading, hasPermission, isSuperAdmin } = useAdminAuth();
+  if (loading) {
+    return <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Verifying admin session...</div>;
+  }
+  if (!adminUser || !['admin', 'super_admin', 'sub_admin'].includes(adminUser.role)) {
+    return <Navigate to="/login" replace />;
+  }
+  if (superAdminOnly && !isSuperAdmin()) return <PermissionDenied />;
+  if (permission && (
+    Array.isArray(permission)
+      ? permission.some(requiredPermission => !hasPermission(requiredPermission))
+      : !hasPermission(permission)
+  )) return <PermissionDenied />;
+  return children;
+};
+
+const AdminPage = ({ children, permission, superAdminOnly }) => (
+  <AdminPanelRoute permission={permission} superAdminOnly={superAdminOnly}>
+    {children}
+  </AdminPanelRoute>
+);
+
 // Admin Protected Route
 const AdminProtectedRoute = ({ children }) => {
   const { adminUser, loading } = useAdminAuth();
   if (loading) {
-    return <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Verifying Super Admin session...</div>;
+    return <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Verifying admin session...</div>;
   }
-  if (!adminUser || adminUser.role !== 'admin') {
+  if (!adminUser || !['admin', 'super_admin', 'sub_admin'].includes(adminUser.role)) {
     return <Navigate to="/login" replace />;
   }
   return children;
@@ -57,32 +89,32 @@ function AppRoutes() {
         }
       >
         <Route index element={<Navigate to="/dashboard" replace />} />
-        <Route path="dashboard" element={<Dashboard />} />
-        <Route path="customers" element={<CustomerManagement />} />
-        <Route path="drivers" element={<DriverManagement />} />
-        <Route path="driver-verification" element={<DriverVerification />} />
-        <Route path="vehicles" element={<VehicleManagement />} />
-        <Route path="approvals" element={<ApprovalManagement />} />
-        <Route path="vehicle-approval" element={<VehicleApproval />} />
-        <Route path="schedule-approval" element={<ScheduleApproval />} />
-        <Route path="bus-management" element={<BusManagement />} />
-        <Route path="ev-sewa-management" element={<EvSewaManagement />} />
-        <Route path="car-management" element={<CarManagement />} />
-        <Route path="driver-assignment" element={<DriverAssignment />} />
-        <Route path="document-records" element={<DocumentRecords />} />
-        <Route path="bookings" element={<BookingManagement />} />
-        <Route path="payments" element={<PaymentManagement />} />
-        <Route path="withdrawals" element={<WithdrawalManagement />} />
-        <Route path="cancellations" element={<CancellationManagement />} />
-        <Route path="banner-management" element={<BannerManagement />} />
-        <Route path="compensation" element={<BannerManagement />} />
-        <Route path="insurance" element={<AccidentInsurance />} />
-        <Route path="notifications" element={<Notifications />} />
-        <Route path="support-tickets" element={<CustomerSupport />} />
-        <Route path="policies" element={<PoliciesManagement />} />
-        <Route path="reports" element={<BasicReports />} />
-        <Route path="service-control" element={<ServiceControl />} />
-        <Route path="subadmin-management" element={<SubAdminManagement />} />
+        <Route path="dashboard" element={<AdminPage><Dashboard /></AdminPage>} />
+        <Route path="customers" element={<AdminPage permission="customer.view"><CustomerManagement /></AdminPage>} />
+        <Route path="drivers" element={<AdminPage permission="driver.view"><DriverManagement /></AdminPage>} />
+        <Route path="driver-verification" element={<AdminPage permission="driver.kyc"><DriverVerification /></AdminPage>} />
+        <Route path="vehicles" element={<AdminPage permission="vehicle.view"><VehicleManagement /></AdminPage>} />
+        <Route path="approvals" element={<AdminPage permission="vehicle.approve"><ApprovalManagement /></AdminPage>} />
+        <Route path="vehicle-approval" element={<AdminPage permission="vehicle.approve"><VehicleApproval /></AdminPage>} />
+        <Route path="schedule-approval" element={<AdminPage permission={['vehicle.view', 'vehicle.approve']}><ScheduleApproval /></AdminPage>} />
+        <Route path="bus-management" element={<AdminPage permission="vehicle.view"><BusManagement /></AdminPage>} />
+        <Route path="ev-sewa-management" element={<AdminPage permission="vehicle.view"><EvSewaManagement /></AdminPage>} />
+        <Route path="car-management" element={<AdminPage permission="vehicle.view"><CarManagement /></AdminPage>} />
+        <Route path="driver-assignment" element={<AdminPage permission="vehicle.assign_driver"><DriverAssignment /></AdminPage>} />
+        <Route path="document-records" element={<AdminPage permission="driver.kyc"><DocumentRecords /></AdminPage>} />
+        <Route path="bookings" element={<AdminPage permission="booking.view"><BookingManagement /></AdminPage>} />
+        <Route path="payments" element={<AdminPage permission="payment.view"><PaymentManagement /></AdminPage>} />
+        <Route path="withdrawals" element={<AdminPage permission="withdrawal.view"><WithdrawalManagement /></AdminPage>} />
+        <Route path="cancellations" element={<AdminPage permission="cancellation.view"><CancellationManagement /></AdminPage>} />
+        <Route path="banner-management" element={<AdminPage superAdminOnly><BannerManagement /></AdminPage>} />
+        <Route path="compensation" element={<AdminPage superAdminOnly><BannerManagement /></AdminPage>} />
+        <Route path="insurance" element={<AdminPage superAdminOnly><AccidentInsurance /></AdminPage>} />
+        <Route path="notifications" element={<AdminPage permission="notification.view"><Notifications /></AdminPage>} />
+        <Route path="support-tickets" element={<AdminPage permission="support.view"><CustomerSupport /></AdminPage>} />
+        <Route path="policies" element={<AdminPage superAdminOnly><PoliciesManagement /></AdminPage>} />
+        <Route path="reports" element={<AdminPage permission="report.view"><BasicReports /></AdminPage>} />
+        <Route path="service-control" element={<AdminPage superAdminOnly><ServiceControl /></AdminPage>} />
+        <Route path="subadmin-management" element={<AdminPage superAdminOnly><SubAdminManagement /></AdminPage>} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

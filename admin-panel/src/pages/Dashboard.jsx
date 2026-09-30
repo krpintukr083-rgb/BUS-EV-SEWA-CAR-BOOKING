@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useAdminAuth } from '../context/AdminAuthContext';
 import { adminService } from '../services/adminService';
 import StatCard from '../components/StatCard';
 import StatusBadge from '../components/StatusBadge';
@@ -21,12 +22,29 @@ import {
 } from 'lucide-react';
 
 const Dashboard = () => {
+  const { adminUser, hasPermission, isSuperAdmin } = useAdminAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [approvalCounts, setApprovalCounts] = useState({ vehicles: 0, schedules: 0 });
+  const [driverCount, setDriverCount] = useState(0);
 
   useEffect(() => {
     const fetchDashboard = async () => {
+      if (!isSuperAdmin()) {
+        try {
+          if (hasPermission('driver.view')) {
+            const res = await adminService.getDrivers();
+            const drivers = Array.isArray(res.data) ? res.data : Array.isArray(res) ? res : [];
+            setDriverCount(drivers.length);
+          }
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
+
       try {
         const [res, pendingVehicles, pendingSchedules] = await Promise.all([
           adminService.getDashboard(),
@@ -48,10 +66,28 @@ const Dashboard = () => {
     };
 
     fetchDashboard();
-  }, []);
+  }, [adminUser]);
 
   if (loading) {
-    return <div style={{ padding: '24px', color: '#64748b' }}>Loading Super Admin metrics...</div>;
+    return <div style={{ padding: '24px', color: '#64748b' }}>Loading admin metrics...</div>;
+  }
+
+  if (!isSuperAdmin()) {
+    return (
+      <div>
+        <section className="content-card">
+          <h1 className="card-title">Welcome, {adminUser?.name || 'Admin'}</h1>
+          <p style={{ marginTop: 6, color: '#64748b' }}>
+            Your dashboard and available sections are limited to your assigned permissions.
+          </p>
+        </section>
+        {hasPermission('driver.view') && (
+          <div className="stats-grid">
+            <StatCard title="Drivers Available to Manage" value={driverCount} icon={UserCheck} color="#059669" />
+          </div>
+        )}
+      </div>
+    );
   }
 
   const { counts, serviceControl, recentBookings } = data || {};

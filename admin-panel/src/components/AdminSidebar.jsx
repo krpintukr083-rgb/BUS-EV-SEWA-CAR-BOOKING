@@ -16,7 +16,6 @@ import {
   CreditCard,
   XOctagon,
   Image as ImageIcon,
-  Percent,
   ShieldAlert,
   Bell,
   Headphones,
@@ -28,7 +27,60 @@ import {
 } from 'lucide-react';
 
 const AdminSidebar = ({ onOpenLogout, isOpen, onClose }) => {
-  const { adminUser } = useAdminAuth();
+  const { hasPermission, isSuperAdmin } = useAdminAuth();
+  const sections = [
+    {
+      title: 'User & Driver Management',
+      items: [
+        { to: '/customers', label: 'Customer Management', icon: Users, permission: 'customer.view' },
+        { to: '/subadmin-management', label: 'Admin Management', icon: UserPlus, superAdminOnly: true },
+        { to: '/drivers', label: 'Driver Management', icon: UserCheck, permission: 'driver.view' },
+        { to: '/driver-verification', label: 'Driver Verification', icon: FileCheck2, permission: 'driver.kyc' }
+      ]
+    },
+    {
+      title: 'Fleet & Services',
+      items: [
+        { to: '/vehicles', label: 'Vehicle Management', icon: Truck, permission: 'vehicle.view' },
+        { to: '/vehicle-approval', label: 'Vehicle Approvals', icon: FileCheck2, permission: 'vehicle.approve' },
+        { to: '/schedule-approval', label: 'Schedule Approval', icon: CalendarCheck, permission: ['vehicle.view', 'vehicle.approve'] },
+        { to: '/bus-management', label: 'Bus Management', icon: Bus, permission: 'vehicle.view' },
+        { to: '/ev-sewa-management', label: 'EV-Sewa Management', icon: Zap, permission: 'vehicle.view' },
+        { to: '/car-management', label: 'Car Management', icon: Car, permission: 'vehicle.view' },
+        { to: '/driver-assignment', label: 'Driver Assignment', icon: GitPullRequest, permission: 'vehicle.assign_driver' },
+        { to: '/document-records', label: 'Compliance & Records', icon: FileCheck2, permission: 'driver.kyc' }
+      ]
+    },
+    {
+      title: 'Bookings & Financials',
+      items: [
+        { to: '/bookings', label: 'Booking Management', icon: CalendarCheck, permission: 'booking.view' },
+        { to: '/payments', label: 'Payment Management', icon: CreditCard, permission: 'payment.view' },
+        { to: '/withdrawals', label: 'Driver Withdrawals', icon: CreditCard, permission: 'withdrawal.view' },
+        { to: '/cancellations', label: 'Cancellation Records', icon: XOctagon, permission: 'cancellation.view' },
+        { to: '/banner-management', label: 'Banner & Bus Discount', icon: ImageIcon, superAdminOnly: true },
+        { to: '/insurance', label: 'Accident Insurance', icon: ShieldAlert, superAdminOnly: true }
+      ]
+    },
+    {
+      title: 'System & Governance',
+      items: [
+        { to: '/service-control', label: 'Service Control', icon: Sliders, superAdminOnly: true },
+        { to: '/notifications', label: 'Notifications', icon: Bell, permission: 'notification.view' },
+        { to: '/support-tickets', label: 'Customer Support', icon: Headphones, permission: 'support.view' },
+        { to: '/policies', label: 'Terms & Policies', icon: FileText, superAdminOnly: true },
+        { to: '/reports', label: 'Basic Reports', icon: BarChart3, permission: 'report.view' }
+      ]
+    }
+  ];
+  const canAccessItem = item => (
+    item.superAdminOnly
+      ? isSuperAdmin()
+    : isSuperAdmin() || (Array.isArray(item.permission)
+      ? item.permission.every(hasPermission)
+      : hasPermission(item.permission))
+  );
+
   return (
     <>
     <div className={`sidebar-backdrop ${isOpen ? 'visible' : ''}`} onClick={onClose} />
@@ -42,112 +94,31 @@ const AdminSidebar = ({ onOpenLogout, isOpen, onClose }) => {
       </div>
 
       <nav className="sidebar-nav">
-        <NavLink to="/dashboard" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+        <NavLink to="/dashboard" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`} onClick={onClose}>
           <LayoutDashboard size={17} />
           <span>Dashboard</span>
         </NavLink>
 
-        <div className="nav-section-title">User & Driver Management</div>
-        <NavLink to="/customers" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Users size={17} />
-          <span>Customer Management</span>
-        </NavLink>
-        {adminUser?.role === 'admin' && (
-          <NavLink to="/subadmin-management" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-            <UserPlus size={17} />
-            <span>Admin Management</span>
-          </NavLink>
-        )}
-        <NavLink to="/drivers" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <UserCheck size={17} />
-          <span>Driver Management</span>
-        </NavLink>
-        <NavLink to="/driver-verification" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <FileCheck2 size={17} />
-          <span>Driver Verification</span>
-        </NavLink>
-
-        <div className="nav-section-title">Fleet & Services</div>
-        <NavLink to="/vehicles" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Truck size={17} />
-          <span>Vehicle Management</span>
-        </NavLink>
-        <NavLink to="/vehicle-approval" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <FileCheck2 size={17} />
-          <span>Vehicle Approvals</span>
-        </NavLink>
-        <NavLink to="/schedule-approval" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <CalendarCheck size={17} />
-          <span>Schedule Approval</span>
-        </NavLink>
-        <NavLink to="/bus-management" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Bus size={17} />
-          <span>Bus Management</span>
-        </NavLink>
-        <NavLink to="/ev-sewa-management" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Zap size={17} />
-          <span>EV-Sewa Management</span>
-        </NavLink>
-        <NavLink to="/car-management" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Car size={17} />
-          <span>Car Management</span>
-        </NavLink>
-        <NavLink to="/driver-assignment" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <GitPullRequest size={17} />
-          <span>Driver Assignment</span>
-        </NavLink>
-        <NavLink to="/document-records" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <FileCheck2 size={17} />
-          <span>Compliance & Records</span>
-        </NavLink>
-
-        <div className="nav-section-title">Bookings & Financials</div>
-        <NavLink to="/bookings" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <CalendarCheck size={17} />
-          <span>Booking Management</span>
-        </NavLink>
-        <NavLink to="/payments" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <CreditCard size={17} />
-          <span>Payment Management</span>
-        </NavLink>
-        <NavLink to="/withdrawals" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <CreditCard size={17} />
-          <span>Driver Withdrawals</span>
-        </NavLink>
-        <NavLink to="/cancellations" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <XOctagon size={17} />
-          <span>Cancellation Records</span>
-        </NavLink>
-        <NavLink to="/banner-management" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <ImageIcon size={17} />
-          <span>Banner & Bus Discount</span>
-        </NavLink>
-        <NavLink to="/insurance" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <ShieldAlert size={17} />
-          <span>Accident Insurance</span>
-        </NavLink>
-
-        <div className="nav-section-title">System & Governance</div>
-        <NavLink to="/service-control" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Sliders size={17} />
-          <span>Service Control</span>
-        </NavLink>
-        <NavLink to="/notifications" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Bell size={17} />
-          <span>Notifications</span>
-        </NavLink>
-        <NavLink to="/support-tickets" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <Headphones size={17} />
-          <span>Customer Support</span>
-        </NavLink>
-        <NavLink to="/policies" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <FileText size={17} />
-          <span>Terms & Policies</span>
-        </NavLink>
-        <NavLink to="/reports" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
-          <BarChart3 size={17} />
-          <span>Basic Reports</span>
-        </NavLink>
+        {sections.map(section => {
+          const visibleItems = section.items.filter(canAccessItem);
+          if (!visibleItems.length) return null;
+          return (
+            <React.Fragment key={section.title}>
+              <div className="nav-section-title">{section.title}</div>
+              {visibleItems.map(({ to, label, icon: Icon }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+                  onClick={onClose}
+                >
+                  <Icon size={17} />
+                  <span>{label}</span>
+                </NavLink>
+              ))}
+            </React.Fragment>
+          );
+        })}
 
         <button
           onClick={onOpenLogout}
