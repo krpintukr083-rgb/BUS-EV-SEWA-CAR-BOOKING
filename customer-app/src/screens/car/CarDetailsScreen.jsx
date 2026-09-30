@@ -5,7 +5,8 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator
+  ActivityIndicator,
+  TextInput
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { customerService } from '../../services/customerService';
@@ -86,18 +87,23 @@ const CarDetailsScreen = ({ route, navigation }) => {
     );
   }
 
+  const [passengerCount, setPassengerCount] = useState(1);
+  const [travelDate, setTravelDate] = useState(new Date().toISOString().split('T')[0]);
+  const [travelTime, setTravelTime] = useState('10:00');
+
   const handleBookNow = () => {
     updateDraft({
       serviceType: 'Car',
       vehicle: car,
       baseFare: car.fareRate,
       totalFare: car.fareRate,
+      passengerCount: passengerCount,
+      travelDate: `${travelDate}T${travelTime}:00.000Z`,
       pickupLocation: car.schedule?.origin || car.pickupDropDetails?.pickupLocation || car.route?.origin || 'Airport T3, New Delhi',
-      dropLocation: car.schedule?.destination || car.pickupDropDetails?.dropLocation || car.route?.destination || 'Cyber Hub, Gurugram',
+      dropLocation: car.schedule?.destination || car.pickupDropDetails?.dropLocation || car.route?.destination || '',
       scheduleId: car.schedule?._id || null,
       schedule: car.schedule || null,
-      selectedSeats: [1],
-      passengerDetails: [{ name: '', phone: '', age: '', gender: 'Male' }]
+      passengerDetails: Array.from({ length: passengerCount }, () => ({ name: '', phone: '', age: '', gender: 'Male' }))
     });
     navigation.navigate('PickupDrop');
   };
@@ -155,6 +161,49 @@ const CarDetailsScreen = ({ route, navigation }) => {
               <Text style={styles.specLabel}>Comfort</Text>
               <Text style={styles.specVal}>Chauffeur AC</Text>
             </View>
+          </View>
+        </View>
+
+        {/* Private Hire Booking Details Card */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Booking Requirements</Text>
+          <View style={{ marginBottom: 16 }}>
+            <Text style={{ marginBottom: 8, color: '#475569', fontWeight: '500' }}>Passengers (Max {car.seatingCapacity})</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity
+                style={[styles.counterBtn, passengerCount <= 1 && { backgroundColor: '#e2e8f0' }]}
+                disabled={passengerCount <= 1}
+                onPress={() => setPassengerCount(prev => Math.max(1, prev - 1))}
+              >
+                <Ionicons name="remove" size={20} color={passengerCount <= 1 ? '#94a3b8' : '#ffffff'} />
+              </TouchableOpacity>
+              <Text style={{ marginHorizontal: 20, fontSize: 18, fontWeight: 'bold' }}>{passengerCount}</Text>
+              <TouchableOpacity
+                style={[styles.counterBtn, passengerCount >= (car.seatingCapacity || 4) && { backgroundColor: '#e2e8f0' }]}
+                disabled={passengerCount >= (car.seatingCapacity || 4)}
+                onPress={() => setPassengerCount(prev => Math.min(car.seatingCapacity || 4, prev + 1))}
+              >
+                <Ionicons name="add" size={20} color={passengerCount >= (car.seatingCapacity || 4) ? '#94a3b8' : '#ffffff'} />
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View style={{ marginBottom: 16 }}>
+            <Text style={{ marginBottom: 8, color: '#475569', fontWeight: '500' }}>Schedule Date (YYYY-MM-DD)</Text>
+            <TextInput
+              style={styles.inputField}
+              value={travelDate}
+              onChangeText={setTravelDate}
+              placeholder="2026-10-15"
+            />
+          </View>
+          <View style={{ marginBottom: 8 }}>
+            <Text style={{ marginBottom: 8, color: '#475569', fontWeight: '500' }}>Schedule Time (HH:MM)</Text>
+            <TextInput
+              style={styles.inputField}
+              value={travelTime}
+              onChangeText={setTravelTime}
+              placeholder="10:30"
+            />
           </View>
         </View>
 
@@ -254,6 +303,23 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 11,
     fontWeight: '700'
+  },
+  counterBtn: {
+    backgroundColor: '#ea580c',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  inputField: {
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#f8fafc',
+    color: '#1e293b'
   },
   mainCard: {
     backgroundColor: '#ffffff',

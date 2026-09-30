@@ -83,10 +83,10 @@ const createScheduleBooking = async (req, res, next) => {
   try {
     const { vehicleId, serviceType, pickupLocation, dropLocation, passengerDetails, passengerCount, selectedSeats, fare, travelDate, scheduleId, paymentMethod } = req.body;
     const bookingMode = 'SCHEDULE';
-    if (!vehicleId || !serviceType || !pickupLocation || !dropLocation) {
+    if (!vehicleId || !serviceType || !pickupLocation || (serviceType !== 'Car' && !dropLocation)) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required booking fields (vehicleId, serviceType, pickupLocation, dropLocation)'
+        message: 'Missing required booking fields (vehicleId, serviceType, pickupLocation' + (serviceType !== 'Car' ? ', dropLocation' : '') + ')'
       });
     }
 
@@ -168,6 +168,22 @@ const createScheduleBooking = async (req, res, next) => {
         });
       }
       evPassengerCount = requestedCount;
+    }
+    let carPassengerCount = 1;
+    if (serviceType === 'Car' && bookingMode !== 'INSTANT') {
+      const capacity = Number(vehicle.seatingCapacity);
+      const requestedCount = Number(passengerCount) || 1;
+      
+      if (!Number.isInteger(capacity) || capacity < 1) {
+         return res.status(400).json({ success: false, message: 'Car seating capacity is unavailable' });
+      }
+      if (!Number.isInteger(requestedCount) || requestedCount < 1) {
+         return res.status(400).json({ success: false, message: 'Passenger count must be at least 1' });
+      }
+      if (requestedCount > capacity) {
+         return res.status(400).json({ success: false, message: `Passenger count exceeds this car's capacity of ${capacity}` });
+      }
+      carPassengerCount = requestedCount;
     }
     // Attach a matching active schedule when the customer selected one. Schedules
     // are optional for this booking flow; vehicles remain bookable without one.
@@ -302,7 +318,7 @@ const createScheduleBooking = async (req, res, next) => {
           phone: req.user.phone,
           email: req.user.email
         },
-        driver: instantDriver?._id || (['Bus', 'Truck'].includes(serviceType) ? vehicle.assignedDriver : null),
+        driver: instantDriver?._id || (['Bus', 'Truck', 'Car'].includes(serviceType) ? vehicle.assignedDriver : null),
         vehicle: vehicle._id,
         scheduleId: scheduleIdToStore,
         serviceType,
@@ -384,7 +400,34 @@ const createScheduleBooking = async (req, res, next) => {
     });
     // Notify every matching online driver for normal Bus, EV-Sewa, and Car requests.
     if (bookingMode !== 'INSTANT') {
-      await notifyEligibleDriversForBooking(booking);
+      if (serviceType === 'Car' && vehicle.assignedDriver) {
+        const driverDoc = await Driver.findById(vehicle.assignedDriver).populate('user');
+        if (driverDoc && driverDoc.user) {
+          const recipientId = driverDoc.user._id || driverDoc.user;
+          const bookingOrigin = booking.pickupLocation || '';
+          const bookingDest = booking.dropLocation || '';
+          const routeText = `${bookingOrigin.split('(')[0].trim()}${bookingDest ? ' → ' + bookingDest.split('(')[0].trim() : ''}`;
+          
+          await Notification.create({
+            title: `New Car Booking Request`,
+            message: `New Car Booking Request ${booking.bookingId}: ${routeText}`,
+            recipient: `Driver: ${driverDoc.name || 'Driver'}`,
+            recipientRole: 'driver',
+            recipientId: recipientId,
+            eventType: 'BOOKING_REQUEST',
+            entityType: 'Booking',
+            entityId: booking._id,
+            status: 'Unread'
+          });
+          const { sendPushNotification } = require('../utils/notification');
+          const token = driverDoc.pushToken || driverDoc.fcmToken;
+          if (token) {
+            sendPushNotification(token, `New Car Booking Request`, `New Car Booking Request ${booking.bookingId}: ${routeText}`, { type: 'BOOKING_REQUEST', bookingId: booking.bookingId });
+          }
+        }
+      } else if (serviceType !== 'Car') {
+        await notifyEligibleDriversForBooking(booking);
+      }
     }
     const bookingObj = booking.toObject();
     bookingObj.confirmationOtp = rawOtp;

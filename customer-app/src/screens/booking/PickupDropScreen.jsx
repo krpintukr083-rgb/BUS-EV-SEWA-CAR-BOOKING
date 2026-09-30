@@ -49,8 +49,8 @@ const PickupDropScreen = ({ navigation }) => {
   const handleContinue = () => {
     let errs = {};
     if (!pickup.trim()) errs.pickup = 'Please enter a valid pickup location';
-    if (!drop.trim()) errs.drop = 'Please enter a valid dropping point';
-    if (hasPricedStops && routePoints.indexOf(drop) <= routePoints.indexOf(pickup)) {
+    if (!drop.trim() && bookingDraft.serviceType !== 'Car') errs.drop = 'Please enter a valid dropping point';
+    if (hasPricedStops && drop.trim() && routePoints.indexOf(drop) <= routePoints.indexOf(pickup)) {
       errs.drop = 'Choose a destination after the pickup point on this route';
     }
 
