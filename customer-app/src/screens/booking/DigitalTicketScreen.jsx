@@ -76,6 +76,37 @@ const DigitalTicketScreen = ({ route, navigation }) => {
     };
   }, [bookingId]);
 
+  // Polling mechanism for pending status
+  useEffect(() => {
+    let intervalId = null;
+    
+    const pendingStatuses = [
+      'Pending Driver Confirmation',
+      'Pending',
+      'Pending Admin Confirmation',
+      'PENDING_ADMIN_CONFIRMATION'
+    ];
+    
+    const isPending = booking && pendingStatuses.includes(booking.bookingStatus);
+    
+    if (isPending && bookingId) {
+      intervalId = setInterval(async () => {
+        try {
+          const res = await customerService.getBookingDetails(bookingId);
+          if (res.success) {
+            setBooking(res.data);
+          }
+        } catch (err) {
+          console.log('Polling error:', err);
+        }
+      }, 5000);
+    }
+    
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [booking?.bookingStatus, bookingId]);
+
   const { useFocusEffect } = require('@react-navigation/native');
   useFocusEffect(
     React.useCallback(() => {

@@ -4,6 +4,7 @@ const {
   getDashboardStats,
   getCustomers,
   updateCustomerStatus,
+  deleteCustomer,
   getDrivers,
   addDriver,
   updateDriver,
@@ -75,6 +76,7 @@ router.get('/dashboard', getDashboardStats);
 // 2. Customer Management
 router.get('/customers', getCustomers);
 router.put('/customers/:id/status', updateCustomerStatus);
+router.delete('/customers/:id', deleteCustomer);
 
 // 3. Driver Management & Verification
 router.get('/drivers', getDrivers);

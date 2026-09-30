@@ -78,6 +78,11 @@ export const adminService = {
     return res.data;
   },
 
+  deleteCustomer: async id => {
+    const res = await api.delete(`/admin/customers/${id}`);
+    return res.data;
+  },
+
   // 3. Driver Management & Verification
   getDrivers: async () => {
     const res = await api.get('/admin/drivers');

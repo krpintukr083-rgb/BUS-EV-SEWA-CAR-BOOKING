@@ -234,6 +234,27 @@ exports.updateCustomerStatus = async (req, res, next) => {
   }
 };
 
+exports.deleteCustomer = async (req, res, next) => {
+  try {
+    const customer = await User.findById(req.params.id);
+    if (!customer) {
+      return res.status(404).json({ success: false, message: 'Customer not found' });
+    }
+    
+    // Verify the requested user is strictly a 'customer'
+    if (customer.role !== 'customer') {
+      return res.status(403).json({ success: false, message: 'Cannot delete admin or driver accounts through this endpoint' });
+    }
+    
+    // Delete the customer record permanently
+    await User.findByIdAndDelete(req.params.id);
+    
+    res.json({ success: true, message: 'Customer deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // ==========================================
 // IMAGE & ASSET UPLOADS
 // ==========================================

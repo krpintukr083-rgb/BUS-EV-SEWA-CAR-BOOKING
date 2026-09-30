@@ -9,6 +9,7 @@ const CustomerManagement = () => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
   const [message, setMessage] = useState('');
+  const [deleteModal, setDeleteModal] = useState({ show: false, customer: null });
 
   // Bus Discount State
   const [offerStatus, setOfferStatus] = useState('active');
@@ -92,6 +93,26 @@ const CustomerManagement = () => {
       }
     } catch (err) {
       console.error(err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteModal.customer) return;
+    const cid = deleteModal.customer.id;
+    setActionLoading(cid);
+    setDeleteModal({ show: false, customer: null });
+    setMessage('');
+    try {
+      const res = await adminService.deleteCustomer(cid);
+      if (res.success) {
+        setMessage('Customer deleted successfully');
+        await fetchCustomers();
+      }
+    } catch (err) {
+      console.error(err);
+      setMessage(err.response?.data?.message || err.message || 'Failed to delete customer');
     } finally {
       setActionLoading(null);
     }
@@ -352,6 +373,14 @@ const CustomerManagement = () => {
                             Block
                           </button>
                         )}
+                        <button
+                          onClick={() => setDeleteModal({ show: true, customer: c })}
+                          className="btn btn-sm btn-outline"
+                          style={{ color: '#ffffff', backgroundColor: '#dc2626', borderColor: '#b91c1c' }}
+                          disabled={actionLoading === c.id}
+                        >
+                          Delete
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -366,7 +395,59 @@ const CustomerManagement = () => {
             </tbody>
           </table>
         </div>
-      </div>
+    </div>
+      
+      {/* Delete Confirmation Modal */}
+      {deleteModal.show && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            backgroundColor: '#fff',
+            padding: '24px',
+            borderRadius: '8px',
+            maxWidth: '400px',
+            width: '100%',
+            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+              <AlertCircle size={24} color="#ef4444" />
+              <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#0f172a' }}>Delete Customer?</h3>
+            </div>
+            <p style={{ color: '#475569', marginBottom: '8px' }}>
+              Are you sure you want to permanently delete this customer account?
+            </p>
+            <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '6px', marginBottom: '20px' }}>
+              <div style={{ fontWeight: '600', color: '#1e293b' }}>{deleteModal.customer?.name}</div>
+              <div style={{ fontSize: '0.9rem', color: '#64748b' }}>{deleteModal.customer?.email}</div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                className="btn btn-outline"
+                style={{ padding: '8px 16px', borderColor: '#cbd5e1', color: '#475569' }}
+                onClick={() => setDeleteModal({ show: false, customer: null })}
+                disabled={actionLoading === deleteModal.customer?.id}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn"
+                style={{ padding: '8px 16px', backgroundColor: '#dc2626', color: '#fff', border: 'none' }}
+                onClick={handleDeleteConfirm}
+                disabled={actionLoading === deleteModal.customer?.id}
+              >
+                {actionLoading === deleteModal.customer?.id ? 'Deleting...' : 'Delete Customer'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
