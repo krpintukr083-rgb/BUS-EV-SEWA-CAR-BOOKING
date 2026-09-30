@@ -305,31 +305,38 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
       Alert.alert('Select vehicle source', 'Choose Own Vehicle or Third-Party / Market Hired before continuing.');
       return;
     }
-    if (!form.vehicleNumber?.trim() || !form.origin?.trim() || !form.destination?.trim()) {
+    if (category === 'Car') {
+      if (!form.vehicleNumber?.trim()) {
+        Alert.alert('Required', 'Vehicle number is required.');
+        return;
+      }
+    } else if (!form.vehicleNumber?.trim() || !form.origin?.trim() || !form.destination?.trim()) {
       Alert.alert('Required', 'Vehicle number, origin, and destination are required.');
       return;
     }
-    const routePoints = [form.origin.trim(), ...routeStops.map(stop => stop.name.trim()), form.destination.trim()];
-    if (routePoints.some(point => !point) || new Set(routePoints.map(point => point.toLowerCase())).size !== routePoints.length) {
-      Alert.alert('Invalid route', 'Enter a unique name for each route stop.');
-      return;
-    }
-    const cumulativeFares = [
-      ...routeStops.map(stop => Number(stop.fareFromOrigin)),
-      ...(routeStops.length ? [Number(destinationFareFromOrigin)] : [])
-    ];
-    if (routeStops.length && cumulativeFares.some(value => !Number.isFinite(value) || value <= 0)) {
-      Alert.alert('Invalid route fare', 'Enter a positive customer fare from the origin for every stop and the destination.');
-      return;
-    }
-    if (cumulativeFares.some((value, index) => index > 0 && value < cumulativeFares[index - 1])) {
-      Alert.alert('Invalid route fare', 'Customer fare from origin must not decrease as the route moves forward.');
-      return;
-    }
-    const flatFare = Number(form.fareRate);
-    if (!routeStops.length && (!Number.isFinite(flatFare) || flatFare <= 0)) {
-      Alert.alert('Invalid fare', 'Enter a positive full-route fare or add route stops with segment fares.');
-      return;
+    if (category !== 'Car') {
+      const routePoints = [form.origin.trim(), ...routeStops.map(stop => stop.name.trim()), form.destination.trim()];
+      if (routePoints.some(point => !point) || new Set(routePoints.map(point => point.toLowerCase())).size !== routePoints.length) {
+        Alert.alert('Invalid route', 'Enter a unique name for each route stop.');
+        return;
+      }
+      const cumulativeFares = [
+        ...routeStops.map(stop => Number(stop.fareFromOrigin)),
+        ...(routeStops.length ? [Number(destinationFareFromOrigin)] : [])
+      ];
+      if (routeStops.length && cumulativeFares.some(value => !Number.isFinite(value) || value <= 0)) {
+        Alert.alert('Invalid route fare', 'Enter a positive customer fare from the origin for every stop and the destination.');
+        return;
+      }
+      if (cumulativeFares.some((value, index) => index > 0 && value < cumulativeFares[index - 1])) {
+        Alert.alert('Invalid route fare', 'Customer fare from origin must not decrease as the route moves forward.');
+        return;
+      }
+      const flatFare = Number(form.fareRate);
+      if (!routeStops.length && (!Number.isFinite(flatFare) || flatFare <= 0)) {
+        Alert.alert('Invalid fare', 'Enter a positive full-route fare or add route stops with segment fares.');
+        return;
+      }
     }
     if (category === 'Bus' && (!form.vehicleName?.trim() || !form.seatingCapacity)) {
       Alert.alert('Required', 'Bus Name and Seating Capacity are required for buses.');
@@ -366,20 +373,22 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
         vehicleCategory: form.vehicleCategory || (category === 'Bus' ? (form.busType || 'Bus') : undefined),
         acType: form.acType,
         seatingCapacity: form.seatingCapacity ? Number(form.seatingCapacity) : undefined,
-        route: {
-          origin: form.origin.trim(),
-          destination: form.destination.trim(),
-          ...(routeStops.length ? {
-            stops: routeStops.map(stop => ({
-              name: stop.name.trim(),
-              fareFromOrigin: Number(stop.fareFromOrigin)
-            })),
-            destinationFareFromOrigin: Number(destinationFareFromOrigin)
-          } : {})
-        },
-        fareRate: routeStops.length
-          ? Number(destinationFareFromOrigin)
-          : flatFare
+        ...(category !== 'Car' ? {
+          route: {
+            origin: form.origin.trim(),
+            destination: form.destination.trim(),
+            ...(routeStops.length ? {
+              stops: routeStops.map(stop => ({
+                name: stop.name.trim(),
+                fareFromOrigin: Number(stop.fareFromOrigin)
+              })),
+              destinationFareFromOrigin: Number(destinationFareFromOrigin)
+            } : {})
+          },
+          fareRate: routeStops.length
+            ? Number(destinationFareFromOrigin)
+            : Number(form.fareRate)
+        } : {})
       };
 
       if (category === 'Bus') {
@@ -564,6 +573,8 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
         ))}
       </View>
 
+      {category !== 'Car' && (
+        <>
       <Text style={styles.sectionTitle}>Route Details</Text>
       <TextInput
         value={form.origin}
@@ -655,6 +666,8 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
           keyboardType="decimal-pad"
           style={styles.input}
         />
+      )}
+        </>
       )}
 
       {vehicleSource === 'THIRD_PARTY' && (

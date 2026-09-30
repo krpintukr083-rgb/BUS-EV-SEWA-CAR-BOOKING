@@ -29,6 +29,7 @@ import BannerManagement from './pages/BannerManagement';
 import ApprovalManagement from './pages/ApprovalManagement';
 import VehicleApproval from './pages/VehicleApproval';
 import ScheduleApproval from './pages/ScheduleApproval';
+import SubAdminManagement from './pages/SubAdminManagement';
 
 // Admin Protected Route
 const AdminProtectedRoute = ({ children }) => {
@@ -81,6 +82,7 @@ function AppRoutes() {
         <Route path="policies" element={<PoliciesManagement />} />
         <Route path="reports" element={<BasicReports />} />
         <Route path="service-control" element={<ServiceControl />} />
+        <Route path="subadmin-management" element={<SubAdminManagement />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { adminService } from '../services/adminService';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import SubAdminFormModal from '../components/SubAdminFormModal';
-import PermissionTemplatesModal from '../components/PermissionTemplatesModal';
 
 /**
  * Sub-Admin Management Page – accessible only to Super Admins.

@@ -7,6 +7,7 @@ import { useAdminAuth } from '../context/AdminAuthContext';
 
 const titlesMap = {
   '/dashboard': 'Super Admin Platform Dashboard',
+  '/subadmin-management': 'Admin Management',
   '/customers': 'Customer Accounts Management',
   '/drivers': 'Driver Fleet Management',
   '/driver-verification': 'Driver & Document Verification Desk',
