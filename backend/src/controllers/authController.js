@@ -89,15 +89,9 @@ exports.login = async (req, res, next) => {
       user.email.toLowerCase().startsWith('admin@')
     );
 
-    if (isAdminAccount || role === 'admin') {
+    if (isAdminAccount) {
       if (user.role !== 'admin') {
         user.role = 'admin';
-        user.status = 'Active';
-        await user.save();
-      }
-    } else if (role === 'driver' || (user.email && user.email.toLowerCase().includes('driver'))) {
-      if (user.role !== 'driver') {
-        user.role = 'driver';
         user.status = 'Active';
         await user.save();
       }
