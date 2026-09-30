@@ -116,13 +116,16 @@ const notifyEligibleDriversForBooking = async (booking) => {
       vehicleQuery.vehicleType = serviceType;
     }
     const activeVehicles = await Vehicle.find(vehicleQuery)
-      .select('_id vehicleNumber vehicleName vehicleType vehicleStatus route pickupDropDetails hireDetails assignedDriver')
+      .select('_id vehicleNumber vehicleName vehicleType vehicleStatus route pickupDropDetails hireDetails assignedDriver routeActive')
       .lean();
 
     // Step B: Filter route matches directionally, including configured intermediate-stop segments.
-    const matchingVehicles = activeVehicles.filter(v =>
-      vehicleMatchesBookingRoute(v, booking, { allowOpposite })
-    );
+    // For Car vehicles: also enforce routeActive flag (Route ON/OFF toggle).
+    // routeActive defaults to true, so existing docs without the field remain eligible.
+    const matchingVehicles = activeVehicles.filter(v => {
+      if (v.vehicleType === 'Car' && v.routeActive === false) return false;
+      return vehicleMatchesBookingRoute(v, booking, { allowOpposite });
+    });
     const matchingVehicleIds = matchingVehicles.map(v => v._id);
     const assignedDriverIds = matchingVehicles.map(v => v.assignedDriver).filter(Boolean);
 

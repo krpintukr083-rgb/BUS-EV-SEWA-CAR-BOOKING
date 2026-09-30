@@ -33,6 +33,9 @@ export default function VehicleDetailsScreen({ navigation, route }) {
   const [newDepartureTime, setNewDepartureTime] = useState('');
   const [newArrivalTime, setNewArrivalTime] = useState('');
 
+  // Car Route ON/OFF toggle state (mirrors vehicle.routeActive from backend)
+  const [routeToggling, setRouteToggling] = useState(false);
+
   useEffect(() => {
     fetchVehicle(route?.params?.vehicleId);
   }, [route?.params?.vehicleId]);
@@ -75,6 +78,38 @@ export default function VehicleDetailsScreen({ navigation, route }) {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  /**
+   * Toggles the Car vehicle's Route ON/OFF state in the backend.
+   * Scheduled Car bookings are completely unaffected by this flag.
+   */
+  const handleToggleRouteStatus = async () => {
+    if (!vehicle?._id || routeToggling) return;
+    const newStatus = !vehicle.routeActive;
+    setRouteToggling(true);
+    try {
+      const res = await driverService.updateRouteStatus(vehicle._id, newStatus);
+      if (res?.data?.success) {
+        // Refresh from backend to ensure consistency
+        setVehicle(prev => ({
+          ...prev,
+          routeActive: res.data.data.routeActive
+        }));
+        Alert.alert(
+          'Route Status Updated',
+          `Route is now ${newStatus ? 'ACTIVE (ON)' : 'INACTIVE (OFF)'}\n\nInstant Car route-matching will ${
+            newStatus ? 'include' : 'exclude'
+          } this vehicle. Scheduled Car bookings are unaffected.`
+        );
+      } else {
+        Alert.alert('Error', res?.data?.message || 'Failed to update route status');
+      }
+    } catch (err) {
+      Alert.alert('Error', err?.response?.data?.message || err?.message || 'Failed to update route status');
+    } finally {
+      setRouteToggling(false);
     }
   };
 
@@ -273,7 +308,8 @@ export default function VehicleDetailsScreen({ navigation, route }) {
                     <Text style={styles.reverseRouteButtonText}>Reverse Route</Text>
                   </TouchableOpacity>
                   {isReversing && (
-                    <View style={{ marginTop: 16, width: '100%' }}>
+                    // Route scheduling inputs hidden (commented out) for future restoration
+                    {/*
                       <Text style={[styles.specLabel, { color: COLORS.primaryLight, marginBottom: 8 }]}>Set New Route Schedule</Text>
                       <View style={{ gap: 8 }}>
                         <TextInput
@@ -298,7 +334,7 @@ export default function VehicleDetailsScreen({ navigation, route }) {
                           onChangeText={setNewArrivalTime}
                         />
                       </View>
-                    </View>
+                    */}
                   )}
                 </>
               )}
@@ -398,6 +434,57 @@ export default function VehicleDetailsScreen({ navigation, route }) {
                   {vehicle.route?.duration && (
                     <Text style={styles.specLabel}>Duration: {vehicle.route.duration}</Text>
                   )}
+                </View>
+              </View>
+            )}
+
+            {/* Car Route ON/OFF Toggle Card */}
+            {vehicle.vehicleType === 'Car' && (
+              <View style={styles.card}>
+                <Text style={styles.cardTitle}>Instant Route Availability</Text>
+                <Text style={[styles.specLabel, { marginBottom: SPACING.m, lineHeight: 20 }]}>
+                  Controls whether this car appears in Instant Car route-matching.{`\n`}
+                  Scheduled/Private Car bookings are NOT affected by this toggle.
+                </Text>
+                <View style={styles.routeToggleRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.specLabel}>Route Status</Text>
+                    <View style={[
+                      styles.routeStatusBadge,
+                      { backgroundColor: vehicle.routeActive !== false ? '#16a34a22' : '#dc262622' }
+                    ]}>
+                      <MaterialCommunityIcons
+                        name={vehicle.routeActive !== false ? 'check-circle' : 'close-circle'}
+                        size={16}
+                        color={vehicle.routeActive !== false ? '#16a34a' : '#dc2626'}
+                      />
+                      <Text style={[
+                        styles.routeStatusText,
+                        { color: vehicle.routeActive !== false ? '#16a34a' : '#dc2626' }
+                      ]}>
+                        {vehicle.routeActive !== false ? 'ACTIVE' : 'INACTIVE'}
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={[
+                      styles.routeToggleBtn,
+                      vehicle.routeActive !== false
+                        ? styles.routeToggleBtnOff
+                        : styles.routeToggleBtnOn,
+                    ]}
+                    onPress={handleToggleRouteStatus}
+                    disabled={routeToggling}
+                    activeOpacity={0.8}
+                  >
+                    {routeToggling ? (
+                      <ActivityIndicator size="small" color={COLORS.white} />
+                    ) : (
+                      <Text style={styles.routeToggleBtnText}>
+                        {vehicle.routeActive !== false ? 'Turn OFF' : 'Turn ON'}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
                 </View>
               </View>
             )}
@@ -768,5 +855,46 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     letterSpacing: 0.5,
+  },
+  routeToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.m,
+    marginTop: SPACING.xs,
+  },
+  routeStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: RADIUS.full,
+    marginTop: SPACING.xs,
+    alignSelf: 'flex-start',
+  },
+  routeStatusText: {
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+  },
+  routeToggleBtn: {
+    paddingHorizontal: SPACING.l,
+    paddingVertical: 12,
+    borderRadius: RADIUS.m,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 90,
+    ...SHADOWS.card,
+  },
+  routeToggleBtnOn: {
+    backgroundColor: '#16a34a',
+  },
+  routeToggleBtnOff: {
+    backgroundColor: '#dc2626',
+  },
+  routeToggleBtnText: {
+    color: COLORS.white,
+    fontWeight: '700',
+    fontSize: 14,
   },
 });

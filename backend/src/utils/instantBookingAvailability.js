@@ -21,6 +21,10 @@ const getAvailableInstantVehicleDrivers = async (
     vehicle.vehicleStatus === 'Active' &&
     vehicle.vehicleSource !== 'THIRD_PARTY' &&
     vehicle.vehicleType === serviceType &&
+    // For Car: respect the driver's Route ON/OFF toggle.
+    // routeActive defaults to true, so vehicles without the field are still eligible.
+    // Non-Car vehicles (Bus, EV-Sewa) always pass this check.
+    (vehicle.vehicleType !== 'Car' || vehicle.routeActive !== false) &&
     vehicleMatchesBookingRoute(vehicle, route)
   );
 

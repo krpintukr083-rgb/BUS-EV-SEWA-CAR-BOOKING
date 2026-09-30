@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { useAdminAuth } from '../context/AdminAuthContext';
 import {
   LayoutDashboard,
   Users,
@@ -27,6 +28,7 @@ import {
 } from 'lucide-react';
 
 const AdminSidebar = ({ onOpenLogout, isOpen, onClose }) => {
+  const { adminUser } = useAdminAuth();
   return (
     <>
     <div className={`sidebar-backdrop ${isOpen ? 'visible' : ''}`} onClick={onClose} />
@@ -50,6 +52,12 @@ const AdminSidebar = ({ onOpenLogout, isOpen, onClose }) => {
           <Users size={17} />
           <span>Customer Management</span>
         </NavLink>
+        {adminUser?.role === 'admin' && (
+          <NavLink to="/subadmin-management" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
+            <UserPlus size={17} />
+            <span>Admin Management</span>
+          </NavLink>
+        )}
         <NavLink to="/drivers" className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}>
           <UserCheck size={17} />
           <span>Driver Management</span>

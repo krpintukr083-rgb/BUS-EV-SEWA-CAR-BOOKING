@@ -41,6 +41,8 @@ export const driverService = {
   removeVehicle: (vehicleId) => apiClient.delete(`/driver/vehicles/${vehicleId}`),
   updateVehicleEVDetails: (vehicleId, batteryPercentage, estimatedRangeKm) =>
     apiClient.put(`/driver/vehicles/${vehicleId}/ev-details`, { batteryPercentage, estimatedRangeKm }),
+  updateRouteStatus: (vehicleId, routeActive) =>
+    apiClient.patch(`/driver/vehicles/${vehicleId}/route-status`, { routeActive }),
   createSchedule: (data) => apiClient.post('/driver/schedules', data),
   getMySchedules: () => apiClient.get('/driver/schedules'),
   removeSchedule: (scheduleId) => apiClient.delete(`/driver/schedules/${scheduleId}`),

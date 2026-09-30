@@ -339,5 +339,54 @@ export const adminService = {
   deleteBanner: async (id) => {
     const res = await api.delete(`/admin/banners/${id}`);
     return res.data;
+  },
+
+  // ── Sub-Admin Management (Super Admin only) ──────────────────────────
+  getPermissionTemplates: async () => {
+    const res = await api.get('/admin/subadmins/permission-templates');
+    return res.data;
+  },
+  getSubAdmins: async () => {
+    const res = await api.get('/admin/subadmins');
+    return res.data;
+  },
+  getSubAdminById: async (id) => {
+    const res = await api.get(`/admin/subadmins/${id}`);
+    return res.data;
+  },
+  createSubAdmin: async (data) => {
+    const res = await api.post('/admin/subadmins', data);
+    return res.data;
+  },
+  updateSubAdmin: async (id, data) => {
+    const res = await api.patch(`/admin/subadmins/${id}`, data);
+    return res.data;
+  },
+  updateSubAdminPermissions: async (id, data) => {
+    const res = await api.patch(`/admin/subadmins/${id}/permissions`, data);
+    return res.data;
+  },
+  updateSubAdminStatus: async (id, status) => {
+    const res = await api.patch(`/admin/subadmins/${id}/status`, { status });
+    return res.data;
+  },
+  resetSubAdminPassword: async (id, newPassword) => {
+    const res = await api.patch(`/admin/subadmins/${id}/reset-password`, { newPassword });
+    return res.data;
+  },
+  deleteSubAdmin: async (id) => {
+    const res = await api.delete(`/admin/subadmins/${id}`);
+    return res.data;
+  },
+
+  // ── Audit Logs ────────────────────────────────────────────────────────
+  getAuditLogs: async ({ adminId, module, limit = 100, page = 1 } = {}) => {
+    const params = new URLSearchParams();
+    if (adminId) params.append('adminId', adminId);
+    if (module) params.append('module', module);
+    params.append('limit', limit);
+    params.append('page', page);
+    const res = await api.get(`/admin/audit-logs?${params}`);
+    return res.data;
   }
 };

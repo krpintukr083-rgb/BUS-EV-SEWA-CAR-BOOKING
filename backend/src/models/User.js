@@ -17,9 +17,9 @@ const userSchema = new mongoose.Schema(
     },
     phone: {
       type: String,
-      required: [true, 'Phone number is required'],
-      unique: true,
-      trim: true
+      trim: true,
+      sparse: true,  // allows null for Sub-Admins without phone
+      default: null
     },
     password: {
       type: String,
@@ -29,12 +29,39 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['admin', 'driver', 'customer'],
+      enum: ['admin', 'sub_admin', 'driver', 'customer'],
       default: 'customer'
+    },
+    // Sub-Admin: predefined type template or 'custom'
+    adminType: {
+      type: String,
+      enum: [
+        'driver_management', 'customer_management', 'vehicle_management',
+        'booking_management', 'payment_management', 'support_management',
+        'notification_management', 'reports_management', 'custom'
+      ],
+      default: null
+    },
+    // Granular permissions array — only meaningful when role === 'sub_admin'
+    permissions: {
+      type: [String],
+      default: []
+    },
+    // Permission version — increment to invalidate old JWT tokens on permission change
+    permissionsVersion: {
+      type: Number,
+      default: 1
+    },
+    // Admin metadata
+    adminMeta: {
+      createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+      lastLoginAt: { type: Date, default: null },
+      suspendedAt: { type: Date, default: null },
+      suspendedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null }
     },
     status: {
       type: String,
-      enum: ['Active', 'Inactive', 'Blocked', 'Pending Verification'],
+      enum: ['Active', 'Inactive', 'Blocked', 'Pending Verification', 'Suspended'],
       default: 'Active'
     },
     profilePhoto: {
@@ -66,6 +93,13 @@ userSchema.pre('save', async function (next) {
 // Compare password method
 userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
+};
+
+// Check if user has a specific permission (Super Admin always returns true)
+userSchema.methods.hasPermission = function (permission) {
+  if (this.role === 'admin') return true;
+  if (this.role !== 'sub_admin') return false;
+  return this.permissions.includes(permission);
 };
 
 module.exports = mongoose.model('User', userSchema);

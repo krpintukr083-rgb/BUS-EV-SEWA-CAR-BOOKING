@@ -428,3 +428,57 @@ exports.approveVehicle = review('vehicle', 'Active');
 exports.rejectVehicle = review('vehicle', 'Rejected');
 exports.approveSchedule = review('schedule', 'Active');
 exports.rejectSchedule = review('schedule', 'Rejected');
+
+/**
+ * PATCH /api/driver/vehicles/:vehicleId/route-status
+ * Toggle routeActive on/off for the authenticated driver's Car vehicle.
+ * Only the assigned driver may change this. Bus/EV-Sewa vehicles are not affected
+ * by this flag but we still persist it for consistency.
+ */
+exports.updateVehicleRouteStatus = async (req, res, next) => {
+  try {
+    const { vehicleId } = req.params;
+    const { routeActive } = req.body;
+
+    if (typeof routeActive !== 'boolean') {
+      return res.status(400).json({ success: false, message: 'routeActive must be a boolean (true or false)' });
+    }
+
+    const Vehicle = require('../models/Vehicle');
+    const Driver = require('../models/Driver');
+
+    // Identify the requesting driver
+    const driver = await Driver.findOne({ user: req.user._id }).lean();
+    if (!driver) {
+      return res.status(403).json({ success: false, message: 'Driver profile not found' });
+    }
+
+    const vehicle = await Vehicle.findById(vehicleId);
+    if (!vehicle) {
+      return res.status(404).json({ success: false, message: 'Vehicle not found' });
+    }
+
+    // Authorization: vehicle must be assigned to this driver OR driver submitted it
+    const isAssigned = vehicle.assignedDriver && String(vehicle.assignedDriver) === String(driver._id);
+    const isSubmitter = vehicle.submission?.submittedByDriver && String(vehicle.submission.submittedByDriver) === String(driver._id);
+    if (!isAssigned && !isSubmitter) {
+      return res.status(403).json({ success: false, message: 'Not authorized to change this vehicle\'s route status' });
+    }
+
+    vehicle.routeActive = routeActive;
+    await vehicle.save();
+
+    return res.json({
+      success: true,
+      message: `Route status set to ${routeActive ? 'ACTIVE (ON)' : 'INACTIVE (OFF)'}`,
+      data: {
+        _id: vehicle._id,
+        vehicleNumber: vehicle.vehicleNumber,
+        vehicleType: vehicle.vehicleType,
+        routeActive: vehicle.routeActive
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};

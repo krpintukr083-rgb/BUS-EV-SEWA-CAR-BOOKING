@@ -163,6 +163,13 @@ const vehicleSchema = new mongoose.Schema(
       batteryPercentage: { type: Number, min: 0, max: 100 },
       rangeKm: { type: Number, default: 280 }
     },
+    // Car Route ON/OFF — controls Instant Car route-matching eligibility.
+    // true  = vehicle can appear in Instant Car route-matching notifications.
+    // false = vehicle is excluded from Instant Car route-matching (Scheduled Car is unaffected).
+    routeActive: {
+      type: Boolean,
+      default: true
+    },
     // Car Specifics
     carDetails: {
       ac: { type: Boolean, default: true },

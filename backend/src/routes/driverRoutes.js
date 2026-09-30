@@ -39,7 +39,8 @@ const {
 } = require('../controllers/driverController');
 const {
   registerVehicle, getDriverVehicles, deleteDriverVehicle, updateDriverVehicleEVDetails,
-  createSchedule, getDriverSchedules, deleteDriverSchedule
+  createSchedule, getDriverSchedules, deleteDriverSchedule,
+  updateVehicleRouteStatus
 } = require('../controllers/workflowController');
 const { verifyToken, driverAuth } = require('../middleware/auth');
 const { handleSingleUpload, handleMultipleUpload, handleProfileImageUpload } = require('../middleware/upload');
@@ -61,6 +62,8 @@ router.put('/vehicle/fare', updateVehicleFare);
 router.get('/vehicles', getDriverVehicles);
 router.delete('/vehicles/:vehicleId', deleteDriverVehicle);
 router.put('/vehicles/:vehicleId/ev-details', updateDriverVehicleEVDetails);
+// Car Route ON/OFF toggle — only affects Instant Car route-matching eligibility
+router.patch('/vehicles/:vehicleId/route-status', updateVehicleRouteStatus);
 router.post('/schedules', createSchedule);
 router.post('/schedule', createSchedule);
 router.get('/schedules', getDriverSchedules);

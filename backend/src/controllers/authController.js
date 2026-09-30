@@ -4,9 +4,9 @@ const jwt = require('jsonwebtoken');
 const jwtConfig = require('../config/jwt');
 const mongoose = require('mongoose');
 
-// Generate JWT token
-const generateToken = (id, role) => {
-  return jwt.sign({ id, role }, jwtConfig.secret, {
+// Generate JWT token — includes permissionsVersion so stale tokens can be detected
+const generateToken = (id, role, permissionsVersion = 1) => {
+  return jwt.sign({ id, role, permissionsVersion }, jwtConfig.secret, {
     expiresIn: jwtConfig.expiresIn
   });
 };
@@ -95,11 +95,14 @@ exports.login = async (req, res, next) => {
         user.status = 'Active';
         await user.save();
       }
-    } else if (role && role !== 'customer' && user.role !== role) {
-      return res.status(403).json({
-        success: false,
-        message: `Access denied. This account does not have '${role}' access privileges.`
-      });
+    } else if (role && role !== 'customer' && role !== 'sub_admin' && user.role !== role) {
+      // Sub-Admin login: accept role='admin' login request for sub_admin accounts too
+      if (!(role === 'admin' && user.role === 'sub_admin')) {
+        return res.status(403).json({
+          success: false,
+          message: `Access denied. This account does not have '${role}' access privileges.`
+        });
+      }
     }
 
     if (user.status === 'Blocked') {
@@ -136,8 +139,15 @@ exports.login = async (req, res, next) => {
       driverData = await Driver.findOne({ user: user._id }).populate('assignedVehicle');
     }
 
-    // Generate Token
-    const token = generateToken(user._id, user.role);
+    // Track last login for Sub-Admins
+    if (user.role === 'sub_admin') {
+      user.adminMeta = user.adminMeta || {};
+      user.adminMeta.lastLoginAt = new Date();
+      await user.save();
+    }
+
+    // Generate Token — embed permissionsVersion for Sub-Admins
+    const token = generateToken(user._id, user.role, user.permissionsVersion || 1);
 
     res.json({
       success: true,
@@ -150,6 +160,8 @@ exports.login = async (req, res, next) => {
         email: user.email,
         phone: user.phone,
         role: user.role,
+        adminType: user.adminType || null,
+        permissions: user.role === 'sub_admin' ? (user.permissions || []) : undefined,
         status: user.status,
         profilePhoto: user.profilePhoto,
         driverInfo: driverData
@@ -184,6 +196,8 @@ exports.getMe = async (req, res, next) => {
         email: user.email,
         phone: user.phone,
         role: user.role,
+        adminType: user.adminType || null,
+        permissions: user.role === 'sub_admin' ? (user.permissions || []) : undefined,
         status: user.status,
         profilePhoto: user.profilePhoto,
         driverInfo: driverData
