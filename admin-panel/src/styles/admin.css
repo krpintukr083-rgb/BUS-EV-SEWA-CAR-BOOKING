@@ -887,6 +887,397 @@ input, select, textarea {
   }
 }
 
+/* Sub-Admin Management */
+.subadmin-page {
+  width: 100%;
+  min-width: 0;
+}
+
+.subadmin-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.subadmin-page-header h1 {
+  color: var(--text-main);
+  font-size: 1.65rem;
+  font-weight: 800;
+  letter-spacing: -.035em;
+  line-height: 1.2;
+}
+
+.subadmin-eyebrow {
+  color: var(--primary-blue);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+.subadmin-page-description,
+.subadmin-table-heading p {
+  color: var(--text-muted);
+  font-size: .86rem;
+  margin-top: 7px;
+}
+
+.subadmin-create-button {
+  min-height: 42px;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 3px 8px rgba(37, 99, 235, .18);
+  white-space: nowrap;
+}
+
+.subadmin-table-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.subadmin-table-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.subadmin-table-heading p {
+  margin-top: 4px;
+}
+
+.subadmin-count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 4px 10px;
+  color: #344054;
+  background: #f2f4f7;
+  border: 1px solid #eaecf0;
+  border-radius: 999px;
+  font-size: .72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.subadmin-table-scroll {
+  padding: 0 12px 8px;
+}
+
+.subadmin-table {
+  min-width: 1050px;
+}
+
+.subadmin-table td {
+  vertical-align: middle;
+}
+
+.subadmin-name-cell {
+  min-width: 150px;
+  font-weight: 700;
+}
+
+.subadmin-role {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 9px;
+  color: #344054;
+  background: #f8fafc;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  font-size: .75rem;
+  font-weight: 650;
+  text-transform: capitalize;
+}
+
+.subadmin-status {
+  gap: 6px;
+  text-transform: capitalize;
+}
+
+.subadmin-status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.subadmin-status-suspended {
+  color: #b42318;
+  background: #fef3f2;
+  border: 1px solid #fecdca;
+}
+
+.subadmin-status-inactive {
+  color: #667085;
+  background: #f2f4f7;
+  border: 1px solid #eaecf0;
+}
+
+.subadmin-muted {
+  color: #98a2b3;
+}
+
+.subadmin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 280px;
+}
+
+.subadmin-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 5px 8px;
+  color: #344054;
+  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  font: inherit;
+  font-size: .72rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.subadmin-action-button:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.subadmin-action-edit {
+  color: var(--primary-blue);
+}
+
+.subadmin-action-toggle {
+  color: #047857;
+}
+
+.subadmin-action-suspend {
+  color: #b54708;
+}
+
+.subadmin-action-delete {
+  color: #b42318;
+}
+
+.subadmin-empty-state,
+.subadmin-loading {
+  padding: 34px 20px !important;
+  color: var(--text-muted) !important;
+  text-align: center;
+}
+
+.subadmin-access-denied {
+  padding: 20px;
+  color: #b42318;
+  background: #fef3f2;
+  border: 1px solid #fecdca;
+  border-radius: var(--radius-md);
+}
+
+.subadmin-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, .58);
+  backdrop-filter: blur(3px);
+}
+
+.subadmin-modal {
+  width: min(900px, 100%);
+  max-height: min(92vh, 900px);
+  margin: 0;
+  padding: 26px;
+  overflow-y: auto;
+  box-shadow: 0 24px 60px rgba(16, 24, 40, .22);
+}
+
+.subadmin-modal-header {
+  align-items: flex-start;
+  margin-bottom: 22px;
+}
+
+.subadmin-modal-title {
+  font-size: 1.25rem;
+}
+
+.subadmin-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.subadmin-field {
+  min-width: 0;
+}
+
+.subadmin-field label {
+  display: block;
+  margin-bottom: 6px;
+  color: #344054;
+  font-size: .8rem;
+  font-weight: 700;
+}
+
+.subadmin-field .form-control {
+  min-height: 42px;
+}
+
+.subadmin-permissions {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+.subadmin-permissions-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.subadmin-permissions-heading h3 {
+  color: var(--text-main);
+  font-size: .95rem;
+  font-weight: 750;
+}
+
+.subadmin-permissions-heading p {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: .78rem;
+}
+
+.subadmin-permission-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.subadmin-permission-group {
+  min-width: 0;
+  padding: 14px;
+  background: #fbfcfe;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.subadmin-permission-group-title {
+  margin-bottom: 10px;
+  color: #344054;
+  font-size: .8rem;
+  font-weight: 750;
+}
+
+.subadmin-permission-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+}
+
+.subadmin-permission-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
+  color: #475467;
+  font-size: .74rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.subadmin-permission-option input {
+  flex: 0 0 auto;
+  width: 15px;
+  height: 15px;
+  margin: 1px 0 0;
+  accent-color: var(--primary-blue);
+}
+
+.subadmin-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-color);
+}
+
+.subadmin-form-actions .btn {
+  min-width: 98px;
+  justify-content: center;
+}
+
+.subadmin-form-actions .btn:disabled {
+  opacity: .58;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+@media (max-width: 767px) {
+  .subadmin-page-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .subadmin-page-header h1 {
+    font-size: 1.4rem;
+  }
+
+  .subadmin-create-button {
+    align-self: flex-start;
+  }
+
+  .subadmin-table-heading {
+    padding: 17px 16px;
+  }
+
+  .subadmin-table-scroll {
+    padding: 0 8px 8px;
+  }
+
+  .subadmin-modal-overlay {
+    align-items: flex-start;
+    padding: 12px;
+  }
+
+  .subadmin-modal {
+    max-height: calc(100vh - 24px);
+    padding: 20px 16px;
+  }
+
+  .subadmin-form-grid,
+  .subadmin-permission-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .subadmin-permission-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .subadmin-permission-options {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* =========================================================
    LARGE MOBILE RESPONSIVE (max-width: 480px)
 ========================================================= */

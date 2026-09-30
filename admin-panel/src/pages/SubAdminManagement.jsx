@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { UserPlus } from 'lucide-react';
 import { adminService } from '../services/adminService';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import SubAdminFormModal from '../components/SubAdminFormModal';
@@ -45,7 +46,7 @@ const SubAdminManagement = () => {
   }, [adminUser]);
 
   if (adminUser?.role !== 'admin') {
-    return <div className="p-8 text-red-600">You do not have access to Sub‑Admin Management.</div>;
+    return <div className="subadmin-access-denied">You do not have access to Sub-Admin Management.</div>;
   }
 
   const handleDelete = async (id) => {
@@ -81,71 +82,105 @@ const SubAdminManagement = () => {
   };
 
   return (
-    <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-4">Sub‑Admin Management</h1>
-      <button
-        className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition"
-        onClick={openCreate}
-      >
-        + Create Sub‑Admin
-      </button>
+    <div className="subadmin-page">
+      <header className="subadmin-page-header">
+        <div>
+          <p className="subadmin-eyebrow">Access control</p>
+          <h1>Sub-Admin Management</h1>
+          <p className="subadmin-page-description">
+            Manage administrator accounts, roles, and platform permissions.
+          </p>
+        </div>
+        <button type="button" className="btn btn-primary subadmin-create-button" onClick={openCreate}>
+          <UserPlus size={17} />
+          <span>Create Sub-Admin</span>
+        </button>
+      </header>
 
-      {loading ? (
-        <p className="mt-4">Loading…</p>
-      ) : (
-        <table className="mt-4 w-full table-auto border-collapse">
-          <thead className="bg-gray-100">
-            <tr>
-              <th className="border p-2">Name</th>
-              <th className="border p-2">Email</th>
-              <th className="border p-2">Role Type</th>
-              <th className="border p-2">Permissions</th>
-              <th className="border p-2">Status</th>
-              <th className="border p-2">Created By</th>
-              <th className="border p-2">Last Login</th>
-              <th className="border p-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {subAdmins.map((admin) => (
-              <tr key={admin._id} className="hover:bg-gray-50">
-                <td className="border p-2">{admin.name}</td>
-                <td className="border p-2">{admin.email}</td>
-                <td className="border p-2">{admin.adminType || 'Custom'}</td>
-                <td className="border p-2 text-sm">{(admin.permissions || []).length}</td>
-                <td className="border p-2">{admin.status}</td>
-                <td className="border p-2">
-                  {admin.adminMeta?.createdBy?.name || '-'}
-                </td>
-                <td className="border p-2">
-                  {admin.adminMeta?.lastLoginAt
-                    ? new Date(admin.adminMeta.lastLoginAt).toLocaleString()
-                    : '-'}
-                </td>
-                <td className="border p-2 space-x-1">
-                  <button className="text-blue-600" onClick={() => openEdit(admin)}>
-                    Edit
-                  </button>
-                  <button
-                    className="text-green-600"
-                    onClick={() => handleStatusToggle(admin)}
-                  >
-                    {admin.status === 'Active' ? 'Deactivate' : 'Activate'}
-                  </button>
-                  {admin.status !== 'Suspended' && (
-                    <button className="text-orange-600" onClick={() => handleSuspend(admin)}>
-                      Suspend
-                    </button>
-                  )}
-                  <button className="text-red-600" onClick={() => handleDelete(admin._id)}>
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <section className="content-card subadmin-table-card">
+        <div className="subadmin-table-heading">
+          <div>
+            <h2 className="card-title">Administrator accounts</h2>
+            <p>Review account access and manage administrator status.</p>
+          </div>
+          {!loading && <span className="subadmin-count-badge">{subAdmins.length} total</span>}
+        </div>
+
+        {loading ? (
+          <div className="subadmin-loading" role="status">Loading administrators...</div>
+        ) : (
+          <div className="table-responsive subadmin-table-scroll">
+            <table className="data-table subadmin-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role Type</th>
+                  <th>Permissions</th>
+                  <th>Status</th>
+                  <th>Created By</th>
+                  <th>Last Login</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subAdmins.length > 0 ? subAdmins.map((admin) => (
+                  <tr key={admin._id}>
+                    <td className="subadmin-name-cell">{admin.name}</td>
+                    <td>{admin.email}</td>
+                    <td><span className="subadmin-role">{admin.adminType || 'Custom'}</span></td>
+                    <td><span className="subadmin-count-badge">{(admin.permissions || []).length}</span></td>
+                    <td>
+                      <span className={`badge badge-${String(admin.status || '').toLowerCase()} subadmin-status subadmin-status-${String(admin.status || '').toLowerCase()}`}>
+                        <span className="subadmin-status-dot" />
+                        {admin.status}
+                      </span>
+                    </td>
+                    <td>{admin.adminMeta?.createdBy?.name || '—'}</td>
+                    <td>
+                      {admin.adminMeta?.lastLoginAt
+                        ? new Date(admin.adminMeta.lastLoginAt).toLocaleString()
+                        : <span className="subadmin-muted">Never</span>}
+                    </td>
+                    <td>
+                      <div className="subadmin-actions">
+                        <button type="button" className="subadmin-action-button subadmin-action-edit" onClick={() => openEdit(admin)}>
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="subadmin-action-button subadmin-action-toggle"
+                          onClick={() => handleStatusToggle(admin)}
+                        >
+                          {admin.status === 'Active' ? 'Deactivate' : 'Activate'}
+                        </button>
+                        {admin.status !== 'Suspended' && (
+                          <button
+                            type="button"
+                            className="subadmin-action-button subadmin-action-suspend"
+                            onClick={() => handleSuspend(admin)}
+                          >
+                            Suspend
+                          </button>
+                        )}
+                        <button type="button" className="subadmin-action-button subadmin-action-delete" onClick={() => handleDelete(admin._id)}>
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan="8" className="subadmin-empty-state">
+                      No sub-admin accounts found. Create an account to grant delegated access.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       {showForm && (
         <SubAdminFormModal
