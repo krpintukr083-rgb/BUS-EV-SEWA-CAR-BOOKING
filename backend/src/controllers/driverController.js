@@ -1522,9 +1522,51 @@ const acceptInstantBookingRequest = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Booking request not found' });
     }
 
-    // Driver Data Isolation & Vehicle Assignment Security Barrier
-    const isAuthorized = await verifyDriverVehicleAccess(driver, booking);
+    if (booking.driver && String(booking.driver._id || booking.driver) !== String(driver._id)) {
+      return res.status(409).json({
+        success: false,
+        message: 'This booking request has already been accepted by another driver.'
+      });
+    }
+
+    const isUnassignedInstantBooking = booking.bookingMode === 'INSTANT' && !booking.driver && !booking.driverAssigned;
+    const driverStatus = String(driver.driverStatus || '').trim().toLowerCase();
+    const isEligibleDriver = ['active', 'approved'].includes(driverStatus) && driver.isOnline === true;
+    let requestVehicle = null;
+    let routeMatchedVehicle = false;
+
+    if (isUnassignedInstantBooking && isEligibleDriver) {
+      const requestVehicles = await getActiveRequestVehiclesForDriver(driver);
+      const serviceControl = await ServiceControl.findOne().select('oppositeRouteNotifications').lean();
+      const allowOpposite = serviceControl?.oppositeRouteNotifications === true;
+      const requestedSeats = booking.passengerDetails?.length || 1;
+
+      for (const vehicle of requestVehicles) {
+        if (!vehicleMatchesBookingRoute(vehicle, booking, { allowOpposite })) continue;
+        routeMatchedVehicle = true;
+
+        const activeReservedSeats = await getActiveReservedSeats(vehicle._id);
+        const capacity = vehicle.seatingCapacity || 4;
+        if (activeReservedSeats + requestedSeats <= capacity) {
+          requestVehicle = vehicle;
+          break;
+        }
+      }
+    }
+
+    // Unassigned Instant requests resolve an eligible active vehicle from either
+    // assignment direction; assigned and scheduled bookings retain prior checks.
+    const isAuthorized = isUnassignedInstantBooking
+      ? Boolean(isEligibleDriver && requestVehicle)
+      : await verifyDriverVehicleAccess(driver, booking);
     if (!isAuthorized) {
+      if (isUnassignedInstantBooking && isEligibleDriver && routeMatchedVehicle) {
+        return res.status(409).json({
+          success: false,
+          code: 'VEHICLE_CAPACITY_FULL',
+          message: 'Vehicle does not have enough available seats.'
+        });
+      }
       return res.status(403).json({
         success: false,
         message: 'You are not authorized to accept bookings for this vehicle'
@@ -1554,7 +1596,7 @@ const acceptInstantBookingRequest = async (req, res, next) => {
       // Capacity check instead of single active booking check
       const reqSeats = booking.passengerDetails ? booking.passengerDetails.length : 1;
       
-      let vehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
+      let vehicleId = requestVehicle?._id || (driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null);
       if (!vehicleId) {
         let vByDriver = await Vehicle.findOne({ assignedDriver: driver._id, vehicleStatus: 'Active' }).select('_id').lean();
         if (!vByDriver) {
@@ -1571,16 +1613,18 @@ const acceptInstantBookingRequest = async (req, res, next) => {
         });
       }
       
-      const vDoc = await Vehicle.findById(vehicleId).lean();
-      const activeReservedSeats = await getActiveReservedSeats(vehicleId);
-      const capacity = vDoc.seatingCapacity || 4;
-      
-      if (activeReservedSeats + reqSeats > capacity) {
-        return res.status(409).json({
-          success: false,
-          code: 'VEHICLE_CAPACITY_FULL',
-          message: 'Vehicle does not have enough available seats.'
-        });
+      if (!requestVehicle) {
+        const vDoc = await Vehicle.findById(vehicleId).lean();
+        const activeReservedSeats = await getActiveReservedSeats(vehicleId);
+        const capacity = vDoc.seatingCapacity || 4;
+
+        if (activeReservedSeats + reqSeats > capacity) {
+          return res.status(409).json({
+            success: false,
+            code: 'VEHICLE_CAPACITY_FULL',
+            message: 'Vehicle does not have enough available seats.'
+          });
+        }
       }
     } else {
       // SCHEDULE BOOKING CONFLICT RULE:
@@ -1595,15 +1639,18 @@ const acceptInstantBookingRequest = async (req, res, next) => {
       }
     }
 
-    let assignedVehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
-    if (!assignedVehicleId) {
-      let vByDriver = await Vehicle.findOne({ assignedDriver: driver._id, vehicleStatus: 'Active' }).select('_id').lean();
-      if (!vByDriver) {
-         vByDriver = await Vehicle.findOne({ assignedDriver: driver._id }).sort({ createdAt: -1 }).select('_id').lean();
+    let assignedVehicle = requestVehicle;
+    if (!assignedVehicle) {
+      let assignedVehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
+      if (!assignedVehicleId) {
+        let vByDriver = await Vehicle.findOne({ assignedDriver: driver._id, vehicleStatus: 'Active' }).select('_id').lean();
+        if (!vByDriver) {
+           vByDriver = await Vehicle.findOne({ assignedDriver: driver._id }).sort({ createdAt: -1 }).select('_id').lean();
+        }
+        if (vByDriver) assignedVehicleId = vByDriver._id;
       }
-      if (vByDriver) assignedVehicleId = vByDriver._id;
+      assignedVehicle = assignedVehicleId ? await Vehicle.findById(assignedVehicleId).lean() : null;
     }
-    const assignedVehicle = assignedVehicleId ? await Vehicle.findById(assignedVehicleId).lean() : null;
 
     const finalServiceType = booking.serviceType === 'Any' && assignedVehicle ? assignedVehicle.vehicleType : booking.serviceType;
     const isBus = finalServiceType === 'Bus';
@@ -1632,7 +1679,7 @@ const acceptInstantBookingRequest = async (req, res, next) => {
       bookingStatus: nextBookingStatus
     };
 
-    if (booking.bookingMode === 'INSTANT' && (booking.serviceType === 'Any' || !booking.vehicle) && assignedVehicle) {
+    if (booking.bookingMode === 'INSTANT' && requestVehicle) {
       updateSet.vehicle = assignedVehicle._id;
       updateSet.serviceType = assignedVehicle.vehicleType;
       

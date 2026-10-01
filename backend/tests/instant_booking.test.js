@@ -27,6 +27,9 @@ describe('Optional Instant Booking', () => {
   let serviceControl;
   let previousServiceControl;
   let createdServiceControl = false;
+  const claimTestDrivers = [];
+  const claimTestVehicles = [];
+  const claimTestUsers = [];
   const suffix = Date.now().toString().slice(-8);
 
   beforeAll(async () => {
@@ -37,7 +40,8 @@ describe('Optional Instant Booking', () => {
     if (serviceControl) {
       previousServiceControl = {
         busService: serviceControl.busService,
-        instantBookingEnabled: serviceControl.instantBookingEnabled
+        instantBookingEnabled: serviceControl.instantBookingEnabled,
+        oppositeRouteNotifications: serviceControl.oppositeRouteNotifications
       };
     } else {
       serviceControl = await ServiceControl.create({ busService: 'Active' });
@@ -139,8 +143,21 @@ describe('Optional Instant Booking', () => {
       await Payment.deleteMany({ booking: { $in: bookingIds } });
       await Booking.deleteMany({ _id: { $in: bookingIds } });
     }
+    if (claimTestVehicles.length > 0) {
+      await Vehicle.deleteMany({ _id: { $in: claimTestVehicles } });
+      claimTestVehicles.length = 0;
+    }
+    if (claimTestDrivers.length > 0) {
+      await Driver.deleteMany({ _id: { $in: claimTestDrivers } });
+      claimTestDrivers.length = 0;
+    }
+    if (claimTestUsers.length > 0) {
+      await User.deleteMany({ _id: { $in: claimTestUsers } });
+      claimTestUsers.length = 0;
+    }
     vehicle.route = { origin: 'Delhi', destination: 'Jaipur' };
     vehicle.vehicleStatus = 'Active';
+    vehicle.vehicleType = 'Bus';
     await vehicle.save();
     driver.isOnline = true;
     driver.driverStatus = 'Active';
@@ -170,6 +187,9 @@ describe('Optional Instant Booking', () => {
     if (otherServiceVehicles.length > 0) {
       await Vehicle.deleteMany({ _id: { $in: otherServiceVehicles.map(item => item._id) } });
     }
+    if (claimTestVehicles.length > 0) await Vehicle.deleteMany({ _id: { $in: claimTestVehicles } });
+    if (claimTestDrivers.length > 0) await Driver.deleteMany({ _id: { $in: claimTestDrivers } });
+    if (claimTestUsers.length > 0) await User.deleteMany({ _id: { $in: claimTestUsers } });
     if (driver) await Driver.deleteOne({ _id: driver._id });
     if (customer || secondCustomer || driverUser || adminUser) {
       await User.deleteMany({
@@ -189,7 +209,7 @@ describe('Optional Instant Booking', () => {
   });
 
   const submitBooking = (token, bookingMode = 'INSTANT', additionalFields = {}) => request(app)
-    .post('/api/bookings')
+    .post(bookingMode === 'INSTANT' ? '/api/bookings/instant' : '/api/bookings')
     .set('Authorization', `Bearer ${token}`)
     .send({
       vehicleId: vehicle._id,
@@ -202,7 +222,7 @@ describe('Optional Instant Booking', () => {
     });
 
   const submitInstantRequest = (token, additionalFields = {}) => request(app)
-    .post('/api/bookings')
+    .post('/api/bookings/instant')
     .set('Authorization', `Bearer ${token}`)
     .send({
       serviceType: 'Any',
@@ -223,6 +243,87 @@ describe('Optional Instant Booking', () => {
       { new: true }
     );
   };
+
+  const createClaimDriver = async ({
+    vehicleType = 'Bus',
+    route = { origin: 'Jaipur', destination: 'Delhi' },
+    seatingCapacity = 12,
+    assignmentDirection = 'vehicle',
+    driverStatus = 'Active',
+    isOnline = true
+  } = {}) => {
+    const discriminator = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const uniqueDigits = crypto.randomInt(10000000, 99999999).toString();
+    const user = await User.create({
+      name: `Instant Claim Driver ${discriminator}`,
+      email: `instant_claim_${discriminator}@test.com`,
+      phone: `95${uniqueDigits}`,
+      password: 'password123',
+      role: 'driver',
+      status: 'Active'
+    });
+    claimTestUsers.push(user._id);
+    const claimDriver = await Driver.create({
+      user: user._id,
+      name: user.name,
+      mobileNumber: user.phone,
+      drivingLicenceNumber: `DL-CLAIM-${discriminator}`,
+      driverStatus,
+      isOnline
+    });
+    claimTestDrivers.push(claimDriver._id);
+    const claimVehicle = await Vehicle.create({
+      vehicleNumber: `C${uniqueDigits}${Date.now().toString().slice(-8)}`,
+      vehicleType,
+      vehicleCategory: `Test ${vehicleType}`,
+      vehicleModel: `Claim Test ${vehicleType}`,
+      vehicleName: `Claim Test ${vehicleType}`,
+      ownerName: 'Test Owner',
+      ownerMobileNumber: user.phone,
+      assignedDriver: assignmentDirection === 'vehicle' ? claimDriver._id : null,
+      vehicleStatus: 'Active',
+      seatingCapacity,
+      fareRate: 500,
+      route
+    });
+    claimTestVehicles.push(claimVehicle._id);
+    if (assignmentDirection === 'driver') {
+      claimDriver.assignedVehicle = claimVehicle._id;
+      await claimDriver.save();
+    }
+
+    return {
+      driver: claimDriver,
+      vehicle: claimVehicle,
+      token: jwt.sign({ id: user._id, role: 'driver' }, jwtConfig.secret, { expiresIn: '1h' })
+    };
+  };
+
+  const createUnassignedInstantBooking = async (passengerCount = 1) => Booking.create({
+    bookingId: `BK-CLAIM-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    user: customer._id,
+    customer: { name: customer.name, phone: customer.phone },
+    bookingMode: 'INSTANT',
+    serviceType: 'Any',
+    pickupLocation: 'Jaipur',
+    dropLocation: 'Delhi',
+    passengerDetails: Array.from({ length: passengerCount }, (_, index) => ({
+      name: `Claim Passenger ${index + 1}`,
+      age: 30,
+      gender: 'Male'
+    })),
+    fare: 0,
+    paymentMethod: 'Offline Cash',
+    paymentStatus: 'Pending Cash',
+    bookingStatus: 'Pending Driver Confirmation',
+    driverConfirmationStatus: 'Pending',
+    driverConfirmed: false,
+    rideStatus: 'None'
+  });
+
+  const acceptInstantBookingAs = (bookingId, token) => request(app)
+    .post(`/api/driver/booking-requests/${bookingId}/accept`)
+    .set('Authorization', `Bearer ${token}`);
 
   test('exposes the optional switch through the admin-only service-control API', async () => {
     const denied = await request(app)
@@ -342,6 +443,147 @@ describe('Optional Instant Booking', () => {
     expect(active.status).toBe(200);
     expect(active.body.data.some(booking => booking._id === bookingId)).toBe(true);
   });
+
+  test.each(['Active', 'Approved'])(
+    'allows an %s same-route driver linked through Vehicle.assignedDriver to claim an unassigned Instant booking',
+    async driverStatus => {
+      const claimant = await createClaimDriver({ assignmentDirection: 'vehicle', driverStatus });
+      const booking = await createUnassignedInstantBooking();
+
+      const accepted = await acceptInstantBookingAs(booking._id, claimant.token);
+
+      expect(accepted.status).toBe(200);
+      const claimed = await Booking.findById(booking._id).lean();
+      expect(String(claimed.driver)).toBe(String(claimant.driver._id));
+      expect(String(claimed.vehicle)).toBe(String(claimant.vehicle._id));
+      expect(claimed.serviceType).toBe('Bus');
+      expect(claimed.fare).toBe(500);
+    }
+  );
+
+  test('allows Driver B to claim when same-route Driver A has not claimed the request', async () => {
+    const driverA = await createClaimDriver({ assignmentDirection: 'vehicle' });
+    const driverB = await createClaimDriver({ assignmentDirection: 'driver' });
+    const booking = await createUnassignedInstantBooking();
+
+    const visibleToA = await request(app)
+      .get('/api/driver/booking-requests')
+      .set('Authorization', `Bearer ${driverA.token}`);
+    expect(visibleToA.status).toBe(200);
+    expect(visibleToA.body.data.some(item => item._id === booking._id.toString())).toBe(true);
+
+    const accepted = await acceptInstantBookingAs(booking._id, driverB.token);
+
+    expect(accepted.status).toBe(200);
+    const claimed = await Booking.findById(booking._id).lean();
+    expect(String(claimed.driver)).toBe(String(driverB.driver._id));
+    expect(String(claimed.vehicle)).toBe(String(driverB.vehicle._id));
+    expect(String(claimed.driver)).not.toBe(String(driverA.driver._id));
+  });
+
+  test('atomically lets only the first eligible same-route driver claim an Instant booking', async () => {
+    const driverA = await createClaimDriver();
+    const driverB = await createClaimDriver();
+    const booking = await createUnassignedInstantBooking();
+
+    const claims = await Promise.all([
+      acceptInstantBookingAs(booking._id, driverA.token),
+      acceptInstantBookingAs(booking._id, driverB.token)
+    ]);
+
+    expect(claims.map(response => response.status).sort()).toEqual([200, 409]);
+    const winnerIndex = claims.findIndex(response => response.status === 200);
+    const winner = winnerIndex === 0 ? driverA : driverB;
+    const claimed = await Booking.findById(booking._id).lean();
+    expect(String(claimed.driver)).toBe(String(winner.driver._id));
+    expect(String(claimed.vehicle)).toBe(String(winner.vehicle._id));
+  });
+
+  test('rejects an opposite-route driver when opposite-route notifications are disabled', async () => {
+    const originalOppositeRouteSetting = serviceControl.oppositeRouteNotifications;
+    serviceControl = await ServiceControl.findByIdAndUpdate(
+      serviceControl._id,
+      { $set: { oppositeRouteNotifications: false } },
+      { new: true }
+    );
+    const claimant = await createClaimDriver({
+      route: { origin: 'Delhi', destination: 'Jaipur' }
+    });
+    const booking = await createUnassignedInstantBooking();
+
+    const accepted = await acceptInstantBookingAs(booking._id, claimant.token);
+
+    expect(accepted.status).toBe(403);
+    expect(await Booking.findById(booking._id).select('driver vehicle').lean()).toMatchObject({
+      driver: null,
+      vehicle: null
+    });
+    serviceControl = await ServiceControl.findByIdAndUpdate(
+      serviceControl._id,
+      { $set: { oppositeRouteNotifications: originalOppositeRouteSetting } },
+      { new: true }
+    );
+  });
+
+  test('rejects an unrelated-route driver for an unassigned Instant booking', async () => {
+    const claimant = await createClaimDriver({
+      route: { origin: 'Jaipur', destination: 'Agra' }
+    });
+    const booking = await createUnassignedInstantBooking();
+
+    const accepted = await acceptInstantBookingAs(booking._id, claimant.token);
+
+    expect(accepted.status).toBe(403);
+    expect(await Booking.findById(booking._id).select('driver vehicle').lean()).toMatchObject({
+      driver: null,
+      vehicle: null
+    });
+  });
+
+  test.each([
+    ['offline', { isOnline: false }],
+    ['suspended', { driverStatus: 'Suspended' }]
+  ])('rejects an %s driver claiming an unassigned Instant booking', async (_state, driverOptions) => {
+    const claimant = await createClaimDriver(driverOptions);
+    const booking = await createUnassignedInstantBooking();
+
+    const accepted = await acceptInstantBookingAs(booking._id, claimant.token);
+
+    expect(accepted.status).toBe(403);
+    expect(await Booking.findById(booking._id).select('driver vehicle').lean()).toMatchObject({
+      driver: null,
+      vehicle: null
+    });
+  });
+
+  test('rejects an otherwise eligible same-route vehicle with insufficient seats', async () => {
+    const claimant = await createClaimDriver({ seatingCapacity: 1 });
+    const booking = await createUnassignedInstantBooking(2);
+
+    const accepted = await acceptInstantBookingAs(booking._id, claimant.token);
+
+    expect(accepted.status).toBe(409);
+    expect(accepted.body.code).toBe('VEHICLE_CAPACITY_FULL');
+    expect(await Booking.findById(booking._id).select('driver vehicle').lean()).toMatchObject({
+      driver: null,
+      vehicle: null
+    });
+  });
+
+  test.each(['Bus', 'Car', 'EV-Sewa'])(
+    'allows serviceType Any Instant bookings to be claimed by a %s vehicle',
+    async vehicleType => {
+      const claimant = await createClaimDriver({ vehicleType });
+      const booking = await createUnassignedInstantBooking();
+
+      const accepted = await acceptInstantBookingAs(booking._id, claimant.token);
+
+      expect(accepted.status).toBe(200);
+      const claimed = await Booking.findById(booking._id).lean();
+      expect(String(claimed.vehicle)).toBe(String(claimant.vehicle._id));
+      expect(claimed.serviceType).toBe(vehicleType);
+    }
+  );
 
   test('shows the newly accepted instant booking first in OTP confirmation and verifies its OTP', async () => {
     await setInstantBookingEnabled(true);
