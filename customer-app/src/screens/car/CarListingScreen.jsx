@@ -25,12 +25,11 @@ const CarListingScreen = ({ navigation }) => {
 
   const fetchCars = async () => {
     try {
-      const travelDate = bookingDraft?.travelDate || new Date().toISOString().split('T')[0];
       const res = await customerService.getVehicles(
         'car',
         bookingDraft?.pickupLocation,
         bookingDraft?.dropLocation,
-        travelDate,
+        undefined,
         true
       );
       if (res.success) {
@@ -59,7 +58,8 @@ const CarListingScreen = ({ navigation }) => {
       pickupLocation: schedule?.origin || car.pickupDropDetails?.pickupLocation || car.route?.origin || 'IGI Airport T3, Delhi',
       dropLocation: schedule?.destination || car.pickupDropDetails?.dropLocation || car.route?.destination || 'Cyber City Gurugram',
       scheduleId: schedule?._id || null,
-      schedule: schedule || null
+      schedule: schedule || null,
+      ...(schedule?.travelDate ? { travelDate: schedule.travelDate } : {})
     });
     navigation.navigate('CarDetails', { carId: car._id });
   };

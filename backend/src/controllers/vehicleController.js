@@ -71,6 +71,10 @@ exports.getVehicles = async (req, res, next) => {
           endOfDay.setHours(23, 59, 59, 999);
           scheduleQuery.travelDate = { $gte: startOfDay, $lte: endOfDay };
         }
+      } else if (query.vehicleType === 'Car') {
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        scheduleQuery.travelDate = { $gte: startOfToday };
       }
 
       const schedules = vehicleIds.length

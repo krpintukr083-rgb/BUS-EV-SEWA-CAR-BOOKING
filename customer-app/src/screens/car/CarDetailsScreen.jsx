@@ -88,21 +88,29 @@ const CarDetailsScreen = ({ route, navigation }) => {
   }
 
   const [passengerCount, setPassengerCount] = useState(1);
-  const [travelDate, setTravelDate] = useState(new Date().toISOString().split('T')[0]);
-  const [travelTime, setTravelTime] = useState('10:00');
+  const selectedSchedule = car?.schedule || bookingDraft.schedule;
+  const [travelDate, setTravelDate] = useState(
+    selectedSchedule?.travelDate
+      ? new Date(selectedSchedule.travelDate).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0]
+  );
+  const [travelTime, setTravelTime] = useState(
+    selectedSchedule?.departureTime || '10:00'
+  );
 
   const handleBookNow = () => {
+    const schedule = car.schedule || bookingDraft.schedule;
     updateDraft({
       serviceType: 'Car',
       vehicle: car,
       baseFare: car.fareRate,
       totalFare: car.fareRate,
       passengerCount: passengerCount,
-      travelDate: `${travelDate}T${travelTime}:00.000Z`,
-      pickupLocation: car.schedule?.origin || car.pickupDropDetails?.pickupLocation || car.route?.origin || 'Airport T3, New Delhi',
-      dropLocation: car.schedule?.destination || car.pickupDropDetails?.dropLocation || car.route?.destination || '',
-      scheduleId: car.schedule?._id || null,
-      schedule: car.schedule || null,
+      travelDate: schedule?.travelDate || `${travelDate}T${travelTime}:00.000Z`,
+      pickupLocation: schedule?.origin || car.pickupDropDetails?.pickupLocation || car.route?.origin || 'Airport T3, New Delhi',
+      dropLocation: schedule?.destination || car.pickupDropDetails?.dropLocation || car.route?.destination || '',
+      scheduleId: schedule?._id || null,
+      schedule: schedule || null,
       passengerDetails: Array.from({ length: passengerCount }, () => ({ name: '', phone: '', age: '', gender: 'Male' }))
     });
     navigation.navigate('PickupDrop');
@@ -194,6 +202,7 @@ const CarDetailsScreen = ({ route, navigation }) => {
               value={travelDate}
               onChangeText={setTravelDate}
               placeholder="2026-10-15"
+              editable={!selectedSchedule}
             />
           </View>
           <View style={{ marginBottom: 8 }}>
@@ -203,6 +212,7 @@ const CarDetailsScreen = ({ route, navigation }) => {
               value={travelTime}
               onChangeText={setTravelTime}
               placeholder="10:30"
+              editable={!selectedSchedule}
             />
           </View>
         </View>
@@ -216,7 +226,7 @@ const CarDetailsScreen = ({ route, navigation }) => {
               <View style={styles.timelineTextContainer}>
                 <Text style={styles.timelineLabel}>Pickup / Boarding Area</Text>
                 <Text style={styles.timelineValue}>
-                  {car.pickupDropDetails?.pickupLocation || car.route?.origin || 'Airport T3 / City Hub'}
+                  {selectedSchedule?.origin || car.pickupDropDetails?.pickupLocation || car.route?.origin || 'Airport T3 / City Hub'}
                 </Text>
               </View>
             </View>
@@ -226,7 +236,7 @@ const CarDetailsScreen = ({ route, navigation }) => {
               <View style={styles.timelineTextContainer}>
                 <Text style={styles.timelineLabel}>Drop-off Destination</Text>
                 <Text style={styles.timelineValue}>
-                  {car.pickupDropDetails?.dropLocation || car.route?.destination || 'City Outstation / Drop Point'}
+                  {selectedSchedule?.destination || car.pickupDropDetails?.dropLocation || car.route?.destination || 'City Outstation / Drop Point'}
                 </Text>
               </View>
             </View>

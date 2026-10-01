@@ -1521,17 +1521,31 @@ const getScheduleBookingRequests = async (req, res, next) => {
       }
 
       if (reqItem.bookingMode === 'SCHEDULE') {
+        const schedule = reqItem.scheduleId
+          ? activeScheduleById.get(String(reqItem.scheduleId._id || reqItem.scheduleId))
+          : null;
         const scheduledDriverId = reqItem.scheduleId
-          ? activeScheduleById.get(String(reqItem.scheduleId._id || reqItem.scheduleId))?.driver
+          ? schedule?.driver
           : reqItem.driver?._id || reqItem.driver || reqItem.vehicle?.assignedDriver;
         const scheduledVehicleId = reqItem.scheduleId
-          ? activeScheduleById.get(String(reqItem.scheduleId._id || reqItem.scheduleId))?.vehicle
+          ? schedule?.vehicle
           : reqItem.vehicle?._id || reqItem.vehicle;
         if (
           !scheduledDriverId ||
           String(scheduledDriverId) !== String(driver._id) ||
           String(scheduledVehicleId || '') !== String(reqItem.vehicle?._id || reqItem.vehicle || '')
         ) return exclude('schedule-assignment-does-not-match-booking-or-driver');
+        if (reqItem.serviceType === 'Car' && schedule) {
+          const bookingDate = new Date(reqItem.travelDate);
+          const scheduleDate = new Date(schedule.travelDate);
+          if (
+            Number.isNaN(bookingDate.getTime()) ||
+            Number.isNaN(scheduleDate.getTime()) ||
+            bookingDate.getFullYear() !== scheduleDate.getFullYear() ||
+            bookingDate.getMonth() !== scheduleDate.getMonth() ||
+            bookingDate.getDate() !== scheduleDate.getDate()
+          ) return exclude('schedule-travel-date-mismatch');
+        }
         scheduledVehicle = requestVehicles.find(vehicle =>
           String(vehicle._id) === String(scheduledVehicleId)
         );
@@ -1539,6 +1553,15 @@ const getScheduleBookingRequests = async (req, res, next) => {
           scheduledVehicle.assignedDriver &&
           String(scheduledVehicle.assignedDriver) !== String(driver._id)
         )) return exclude('schedule-vehicle-not-active-or-not-assigned-to-driver');
+        if (reqItem.serviceType === 'Car' && schedule) {
+          scheduledVehicle = {
+            ...scheduledVehicle,
+            route: {
+              origin: schedule.origin,
+              destination: schedule.destination
+            }
+          };
+        }
       }
 
       if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(reqItem.bookingStatus)) {
