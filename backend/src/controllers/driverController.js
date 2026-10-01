@@ -179,6 +179,50 @@ const getEligibleRequestVehicle = (booking, vehicles, driverId, reservedSeatsByV
   });
 };
 
+const verifyClaimedInstantVehicleAccess = async (driver, booking) => {
+  if (!driver || !booking?.driver || !booking.vehicle) return false;
+  if (String(booking.driver._id || booking.driver) !== String(driver._id)) return false;
+
+  const driverStatus = String(driver.driverStatus || '').trim().toLowerCase();
+  if (!['active', 'approved'].includes(driverStatus) || driver.isOnline !== true) return false;
+
+  const vehicles = await getActiveRequestVehiclesForDriver(driver);
+  const assignedVehicleId = String(booking.vehicle._id || booking.vehicle);
+  const vehicle = vehicles.find(candidate => String(candidate._id) === assignedVehicleId);
+  if (!vehicle) return false;
+
+  const serviceControl = await ServiceControl.findOne().select('oppositeRouteNotifications').lean();
+  const allowOpposite = serviceControl?.oppositeRouteNotifications === true;
+  if (!vehicleMatchesBookingRoute(vehicle, booking, { allowOpposite })) return false;
+
+  const reservedSeats = await getActiveReservedSeats(vehicle._id);
+  const capacity = vehicle.seatingCapacity || 4;
+  return reservedSeats <= capacity;
+};
+
+const verifyAssignedBookingVehicleAccess = async (driver, booking) => {
+  if (!driver || !booking?.driver || !booking.vehicle) return false;
+
+  const assignedDriverId = String(booking.driver._id || booking.driver);
+  const driverIds = [driver._id, driver.user?._id || driver.user]
+    .filter(Boolean)
+    .map(String);
+  if (!driverIds.includes(assignedDriverId)) return false;
+
+  const vehicles = await getActiveRequestVehiclesForDriver(driver);
+  const assignedVehicleId = String(booking.vehicle._id || booking.vehicle);
+  const vehicle = vehicles.find(candidate => String(candidate._id) === assignedVehicleId);
+  if (!vehicle) return false;
+
+  if (
+    booking.serviceType &&
+    booking.serviceType !== 'Any' &&
+    String(booking.serviceType).trim().toLowerCase() !== String(vehicle.vehicleType || '').trim().toLowerCase()
+  ) return false;
+
+  return vehicleMatchesBookingRoute(vehicle, booking);
+};
+
 // @desc    Get Driver Dashboard Summary
 // @route   GET /api/driver/dashboard
 // @access  Private (Driver Only)
@@ -2160,7 +2204,12 @@ exports.rejectBookingRequest = async (req, res, next) => {
 const verifyInstantRideOtp = async (req, res, next) => {
   try {
     const driver = req.driver;
-    if (!driver || driver.driverStatus !== 'Active') {
+    const instantDriverStatus = String(driver?.driverStatus || '').trim().toLowerCase();
+    if (
+      !driver ||
+      !['active', 'approved'].includes(instantDriverStatus) ||
+      driver.isOnline !== true
+    ) {
       return res.status(403).json({ success: false, message: 'Forbidden: Only active/approved drivers can verify customer OTP' });
     }
 
@@ -2198,8 +2247,11 @@ const verifyInstantRideOtp = async (req, res, next) => {
       });
     }
 
-    // 2. Strict authorization & route matching check
-    const isAuthorized = await verifyDriverVehicleAccess(driver, booking);
+    // Instant claims must be verified against the winning booking's vehicle,
+    // not a possibly stale legacy Driver.assignedVehicle reference.
+    const isAuthorized = booking.bookingMode === 'INSTANT'
+      ? await verifyClaimedInstantVehicleAccess(driver, booking)
+      : await verifyAssignedBookingVehicleAccess(driver, booking);
     if (!isAuthorized) {
       return res.status(403).json({
         success: false,
@@ -2244,7 +2296,7 @@ const verifyInstantRideOtp = async (req, res, next) => {
     booking.driver = driver._id;
     booking.assignedDriverId = driver._id;
 
-    if (driver.assignedVehicle) {
+    if (booking.bookingMode !== 'INSTANT' && driver.assignedVehicle) {
       const vId = driver.assignedVehicle._id || driver.assignedVehicle;
       booking.vehicle = vId;
       booking.assignedVehicleId = vId;
@@ -3349,8 +3401,8 @@ const verifyScheduleRideOtp = async (req, res, next) => {
       });
     }
 
-    // 2. Strict authorization & route matching check
-    const isAuthorized = await verifyDriverVehicleAccess(driver, booking);
+    // Scheduled OTPs remain bound to the assigned driver and selected vehicle.
+    const isAuthorized = await verifyAssignedBookingVehicleAccess(driver, booking);
     if (!isAuthorized) {
       return res.status(403).json({
         success: false,

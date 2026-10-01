@@ -481,6 +481,142 @@ describe('Optional Instant Booking', () => {
     expect(String(claimed.driver)).not.toBe(String(driverA.driver._id));
   });
 
+  test('Instant OTP uses the claimed route vehicle instead of a mismatched legacy assignedVehicle', async () => {
+    const claimant = await createClaimDriver();
+    const uniqueDigits = crypto.randomInt(10000000, 99999999).toString();
+    const legacyVehicle = await Vehicle.create({
+      vehicleNumber: `LEG${uniqueDigits}`,
+      vehicleType: 'Car',
+      vehicleCategory: 'Legacy Test Car',
+      vehicleModel: 'Legacy Test Car',
+      vehicleName: 'Legacy Test Car',
+      ownerName: 'Test Owner',
+      ownerMobileNumber: claimant.driver.mobileNumber,
+      assignedDriver: claimant.driver._id,
+      vehicleStatus: 'Active',
+      seatingCapacity: 4,
+      fareRate: 500,
+      route: { origin: 'Agra', destination: 'Jaipur' }
+    });
+    claimTestVehicles.push(legacyVehicle._id);
+    claimant.driver.assignedVehicle = legacyVehicle._id;
+    await claimant.driver.save();
+
+    const booking = await createUnassignedInstantBooking();
+    booking.customerViewOtp = '654321';
+    booking.confirmationOtpExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
+    await booking.save();
+
+    const accepted = await acceptInstantBookingAs(booking._id, claimant.token);
+    expect(accepted.status).toBe(200);
+    expect(String(accepted.body.data.vehicle)).toBe(String(claimant.vehicle._id));
+
+    const verified = await request(app)
+      .post(`/api/driver/bookings/${booking._id}/verify-otp`)
+      .set('Authorization', `Bearer ${claimant.token}`)
+      .send({ otp: '654321' });
+
+    expect(verified.status).toBe(200);
+    expect(verified.body.data.driverConfirmed).toBe(true);
+    expect(String(verified.body.data.vehicle)).toBe(String(claimant.vehicle._id));
+    const savedBooking = await Booking.findById(booking._id).lean();
+    expect(String(savedBooking.vehicle)).toBe(String(claimant.vehicle._id));
+    expect(String(savedBooking.driver)).toBe(String(claimant.driver._id));
+  });
+
+  test('scheduled OTP succeeds only for the assigned driver and assigned route vehicle', async () => {
+    const booking = await Booking.create({
+      bookingId: `BK-SCHEDULE-OTP-${Date.now()}-${crypto.randomInt(1000, 9999)}`,
+      user: customer._id,
+      customer: { name: customer.name, phone: customer.phone },
+      bookingMode: 'SCHEDULE',
+      serviceType: 'Bus',
+      pickupLocation: 'Delhi',
+      dropLocation: 'Jaipur',
+      passengerDetails: [{ name: 'Schedule OTP Passenger', age: 30, gender: 'Male' }],
+      fare: 500,
+      paymentMethod: 'Offline Cash',
+      paymentStatus: 'Pending Cash',
+      bookingStatus: 'Pending Driver Confirmation',
+      driver: driver._id,
+      vehicle: vehicle._id,
+      driverConfirmationStatus: 'Pending',
+      driverConfirmed: false,
+      rideStatus: 'Accepted',
+      customerViewOtp: '654321',
+      confirmationOtpExpiresAt: new Date(Date.now() + 60 * 60 * 1000)
+    });
+
+    const assignedDriverResponse = await request(app)
+      .post(`/api/driver/bookings/${booking._id}/verify-otp`)
+      .set('Authorization', `Bearer ${driverToken}`)
+      .send({ otp: '654321' });
+    expect(assignedDriverResponse.status).toBe(200);
+
+    const otherDriver = await createClaimDriver({
+      route: { origin: 'Delhi', destination: 'Jaipur' }
+    });
+    const unverifiedBooking = await Booking.create({
+      bookingId: `BK-SCHEDULE-WRONG-DRIVER-${Date.now()}-${crypto.randomInt(1000, 9999)}`,
+      user: customer._id,
+      customer: { name: customer.name, phone: customer.phone },
+      bookingMode: 'SCHEDULE',
+      serviceType: 'Bus',
+      pickupLocation: 'Delhi',
+      dropLocation: 'Jaipur',
+      passengerDetails: [{ name: 'Schedule OTP Passenger', age: 30, gender: 'Male' }],
+      fare: 500,
+      paymentMethod: 'Offline Cash',
+      paymentStatus: 'Pending Cash',
+      bookingStatus: 'Pending Driver Confirmation',
+      driver: driver._id,
+      vehicle: vehicle._id,
+      driverConfirmationStatus: 'Pending',
+      driverConfirmed: false,
+      rideStatus: 'Accepted',
+      customerViewOtp: '654321',
+      confirmationOtpExpiresAt: new Date(Date.now() + 60 * 60 * 1000)
+    });
+    const wrongDriverResponse = await request(app)
+      .post(`/api/driver/bookings/${unverifiedBooking._id}/verify-otp`)
+      .set('Authorization', `Bearer ${otherDriver.token}`)
+      .send({ otp: '654321' });
+    expect(wrongDriverResponse.status).toBe(403);
+    expect(wrongDriverResponse.body.message).toMatch(/assigned vehicle route does not match/i);
+  });
+
+  test('scheduled OTP rejects the assigned driver when the assigned vehicle route does not match', async () => {
+    const booking = await Booking.create({
+      bookingId: `BK-SCHEDULE-ROUTE-${Date.now()}-${crypto.randomInt(1000, 9999)}`,
+      user: customer._id,
+      customer: { name: customer.name, phone: customer.phone },
+      bookingMode: 'SCHEDULE',
+      serviceType: 'Bus',
+      pickupLocation: 'Agra',
+      dropLocation: 'Jaipur',
+      passengerDetails: [{ name: 'Schedule Route Passenger', age: 30, gender: 'Male' }],
+      fare: 500,
+      paymentMethod: 'Offline Cash',
+      paymentStatus: 'Pending Cash',
+      bookingStatus: 'Pending Driver Confirmation',
+      driver: driver._id,
+      vehicle: vehicle._id,
+      driverConfirmationStatus: 'Pending',
+      driverConfirmed: false,
+      rideStatus: 'Accepted',
+      customerViewOtp: '654321',
+      confirmationOtpExpiresAt: new Date(Date.now() + 60 * 60 * 1000)
+    });
+
+    const response = await request(app)
+      .post(`/api/driver/bookings/${booking._id}/verify-otp`)
+      .set('Authorization', `Bearer ${driverToken}`)
+      .send({ otp: '654321' });
+
+    expect(response.status).toBe(403);
+    expect(response.body.message).toMatch(/assigned vehicle route does not match/i);
+  });
+
   test('atomically lets only the first eligible same-route driver claim an Instant booking', async () => {
     const driverA = await createClaimDriver();
     const driverB = await createClaimDriver();
