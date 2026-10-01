@@ -279,6 +279,9 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
       const otherCar = await createDriverWithVehicle('Car', 5);
       const wrongRouteBus = await createDriverWithVehicle('Bus', 4, { origin: 'Delhi', destination: 'Agra' });
 
+      bus.driver.assignedVehicle = otherCar.vehicle._id;
+      await bus.driver.save();
+
       const activeTripsByDriverId = new Map();
       for (const group of [bus, ev, car, wrongRouteBus]) {
         const activeTrip = await Booking.create({
