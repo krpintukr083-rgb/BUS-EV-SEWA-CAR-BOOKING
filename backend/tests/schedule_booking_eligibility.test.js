@@ -670,6 +670,55 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
     expect(pushMock).toHaveBeenCalledTimes(1);
   });
 
+  test.each([
+    ['Bus', 'busScheduled'],
+    ['EV-Sewa', 'evScheduled']
+  ])('%s schedule booking notifies only its assigned driver', async (serviceType, vehicleKey) => {
+    const originalPushToken = driver.pushToken;
+    driver.pushToken = `ExponentPushToken[Schedule${serviceType.replace('-', '')}Test]`;
+    await driver.save();
+
+    const originalFetch = global.fetch;
+    const submittedPushes = [];
+    global.fetch = jest.fn(async (_url, options) => {
+      submittedPushes.push(JSON.parse(options.body));
+      return { ok: true, json: async () => ({ data: [{ status: 'ok', id: 'test-push-ticket' }] }) };
+    });
+    let response;
+    try {
+      response = await request(app)
+        .post('/api/bookings/schedule')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({
+          vehicleId: vehicles[vehicleKey]._id,
+          scheduleId: schedules[vehicleKey]._id,
+          serviceType,
+          pickupLocation: 'Delhi',
+          dropLocation: 'Jaipur',
+          travelDate,
+          paymentMethod: 'Offline Cash',
+          fare: 1
+        });
+    } finally {
+      global.fetch = originalFetch;
+      driver.pushToken = originalPushToken;
+      await driver.save();
+    }
+
+    expect(response.status).toBe(201);
+    const booking = response.body.data;
+    bookingIds.push(booking._id);
+    expect(String(booking.driver)).toBe(String(driver._id));
+    expect(submittedPushes).toHaveLength(1);
+    expect(submittedPushes[0].to).toMatch(/Schedule(?:Bus|EVSewa)Test/);
+    const driverRequests = await Notification.find({
+      entityId: booking._id,
+      eventType: 'BOOKING_REQUEST'
+    }).lean();
+    expect(driverRequests).toHaveLength(1);
+    expect(String(driverRequests[0].recipientId)).toBe(String(driverUser._id));
+  });
+
   test('Car schedule booking succeeds when the push provider fails', async () => {
     const originalFetch = global.fetch;
     global.fetch = jest.fn().mockRejectedValue(new Error('Push provider unavailable'));

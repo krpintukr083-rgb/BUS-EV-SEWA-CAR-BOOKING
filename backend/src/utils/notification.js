@@ -455,39 +455,64 @@ const notifyEligibleDriversForBooking = async (booking) => {
   }
 };
 
-const notifyAssignedCarDriverForScheduleBooking = async (booking) => {
+const notifyAssignedDriverForScheduleBooking = async (booking) => {
   try {
-    if (!booking?._id || booking.serviceType !== 'Car' || booking.bookingMode !== 'SCHEDULE' || !booking.vehicle) return;
+    if (!booking?._id || booking.bookingMode !== 'SCHEDULE' || !booking.vehicle) return;
 
-    const vehicle = await Vehicle.findById(booking.vehicle).select('assignedDriver').lean();
-    if (!vehicle?.assignedDriver) {
-      console.warn(`Car schedule booking ${booking.bookingId} has no assigned driver; push notification skipped.`);
+    const schedule = booking.scheduleId
+      ? await Schedule.findOne({
+        _id: booking.scheduleId._id || booking.scheduleId,
+        vehicle: booking.vehicle._id || booking.vehicle,
+        status: 'Active'
+      }).select('driver vehicle').lean()
+      : null;
+    if (booking.scheduleId && !schedule) {
+      console.warn(`Schedule booking ${booking.bookingId} has no active matching schedule; push notification skipped.`);
       return;
     }
 
-    const driver = await Driver.findById(vehicle.assignedDriver)
+    const vehicle = await Vehicle.findById(booking.vehicle._id || booking.vehicle)
+      .select('assignedDriver vehicleStatus vehicleType')
+      .lean();
+    if (!vehicle || vehicle.vehicleStatus !== 'Active' || vehicle.vehicleType !== booking.serviceType) {
+      console.warn(`Schedule booking ${booking.bookingId} has no active matching vehicle; push notification skipped.`);
+      return;
+    }
+
+    const assignedDriverId = schedule?.driver || booking.driver || vehicle.assignedDriver;
+    if (!assignedDriverId || (booking.driver && String(booking.driver._id || booking.driver) !== String(assignedDriverId))) {
+      console.warn(`Schedule booking ${booking.bookingId} has inconsistent driver assignment; push notification skipped.`);
+      return;
+    }
+    if (vehicle.assignedDriver && String(vehicle.assignedDriver) !== String(assignedDriverId)) {
+      console.warn(`Schedule booking ${booking.bookingId} vehicle has a conflicting assigned driver; push notification skipped.`);
+      return;
+    }
+
+    const driver = await Driver.findById(assignedDriverId)
       .select('_id name user pushToken fcmToken driverStatus isOnline')
       .populate('user', '_id status')
       .lean();
     if (!driver) {
-      console.warn(`Assigned driver ${vehicle.assignedDriver} for Car booking ${booking.bookingId} was not found.`);
+      console.warn(`Assigned driver ${assignedDriverId} for schedule booking ${booking.bookingId} was not found.`);
       return;
     }
     if (!['Active', 'Approved'].includes(driver.driverStatus) || !driver.isOnline || driver.user?.status === 'Blocked') {
-      console.warn(`Assigned driver ${driver._id} is not eligible for Car booking ${booking.bookingId}; push notification skipped.`);
+      console.warn(`Assigned driver ${driver._id} is not eligible for schedule booking ${booking.bookingId}; push notification skipped.`);
       return;
     }
 
     const recipientId = driver.user?._id;
     if (!recipientId) {
-      console.warn(`Assigned driver ${driver._id} for Car booking ${booking.bookingId} has no registered user.`);
+      console.warn(`Assigned driver ${driver._id} for schedule booking ${booking.bookingId} has no registered user.`);
       return;
     }
 
-    const title = 'New Private Car Booking Request';
+    const serviceLabel = booking.serviceType === 'Car' ? 'Private Car' : booking.serviceType;
+    const title = `New ${serviceLabel} Schedule Booking Request`;
     const origin = booking.pickupLocation || '';
     const destination = booking.dropLocation || '';
-    const message = `Service: Private Car. Booking ${booking.bookingId} from ${booking.customer?.name || 'Customer'}: ${origin} → ${destination}. Fare: ${booking.fare}.`;
+    const message = `Service: ${serviceLabel}. Booking ${booking.bookingId} from ${booking.customer?.name || 'Customer'}: ${origin} → ${destination}. Fare: ${booking.fare}.`;
     const result = await Notification.updateOne(
       {
         recipientRole: 'driver',
@@ -515,7 +540,7 @@ const notifyAssignedCarDriverForScheduleBooking = async (booking) => {
 
     const token = (driver.pushToken || driver.fcmToken || '').trim();
     if (!token) {
-      console.warn(`Assigned driver ${driver._id} has no push token for Car booking ${booking.bookingId}.`);
+      console.warn(`Assigned driver ${driver._id} has no push token for schedule booking ${booking.bookingId}.`);
       return;
     }
 
@@ -532,7 +557,7 @@ const notifyAssignedCarDriverForScheduleBooking = async (booking) => {
         data: {
           bookingId: booking.bookingId || String(booking._id),
           eventType: 'BOOKING_REQUEST',
-          serviceType: 'Car',
+          serviceType: booking.serviceType,
           screen: 'Requests'
         },
         sound: 'default',
@@ -550,13 +575,16 @@ const notifyAssignedCarDriverForScheduleBooking = async (booking) => {
     }
   } catch (error) {
     if (error.code === 11000) return;
-    console.warn(`Could not notify assigned driver for Car booking ${booking?.bookingId || booking?._id}:`, error.message);
+    console.warn(`Could not notify assigned driver for schedule booking ${booking?.bookingId || booking?._id}:`, error.message);
   }
 };
+
+const notifyAssignedCarDriverForScheduleBooking = notifyAssignedDriverForScheduleBooking;
 
 module.exports = {
   vehicleMatchesBookingRoute,
   notifyEligibleDriversForBooking,
+  notifyAssignedDriverForScheduleBooking,
   notifyAssignedCarDriverForScheduleBooking,
   notifyEligibleDriversForBusBooking: notifyEligibleDriversForBooking
 };

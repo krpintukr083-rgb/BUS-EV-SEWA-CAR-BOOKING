@@ -8,6 +8,7 @@ const User = require('../src/models/User');
 const Driver = require('../src/models/Driver');
 const Vehicle = require('../src/models/Vehicle');
 const Booking = require('../src/models/Booking');
+const Schedule = require('../src/models/Schedule');
 const Payment = require('../src/models/Payment');
 const Notification = require('../src/models/Notification');
 const ServiceControl = require('../src/models/ServiceControl');
@@ -30,6 +31,7 @@ describe('Optional Instant Booking', () => {
   const claimTestDrivers = [];
   const claimTestVehicles = [];
   const claimTestUsers = [];
+  const scheduleTestIds = [];
   const suffix = Date.now().toString().slice(-8);
 
   beforeAll(async () => {
@@ -130,6 +132,10 @@ describe('Optional Instant Booking', () => {
   });
 
   beforeEach(async () => {
+    if (scheduleTestIds.length > 0) {
+      await Schedule.deleteMany({ _id: { $in: scheduleTestIds } });
+      scheduleTestIds.length = 0;
+    }
     const bookings = await Booking.find({
       $or: [
         { user: { $in: [customer._id, secondCustomer._id] } },
@@ -159,6 +165,10 @@ describe('Optional Instant Booking', () => {
     vehicle.vehicleStatus = 'Active';
     vehicle.vehicleType = 'Bus';
     await vehicle.save();
+    await Promise.all(otherServiceVehicles.map(async item => {
+      item.route = { origin: 'Delhi', destination: 'Jaipur' };
+      await item.save();
+    }));
     driver.isOnline = true;
     driver.driverStatus = 'Active';
     driver.assignedVehicle = vehicle._id;
@@ -173,6 +183,7 @@ describe('Optional Instant Booking', () => {
       ]
     }).select('_id').lean();
     const bookingIds = bookings.map(booking => booking._id);
+    if (scheduleTestIds.length > 0) await Schedule.deleteMany({ _id: { $in: scheduleTestIds } });
     await Notification.deleteMany({
       $or: [
         { recipientId: { $in: [customer._id, secondCustomer._id, driver._id] } },
@@ -320,6 +331,20 @@ describe('Optional Instant Booking', () => {
     driverConfirmed: false,
     rideStatus: 'None'
   });
+
+  const createActiveSchedule = async (assignedDriver, assignedVehicle, origin = 'Delhi', destination = 'Jaipur') => {
+    const schedule = await Schedule.create({
+      vehicle: assignedVehicle._id,
+      driver: assignedDriver._id,
+      origin,
+      destination,
+      travelDate: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      departureTime: '07:00 AM',
+      status: 'Active'
+    });
+    scheduleTestIds.push(schedule._id);
+    return schedule;
+  };
 
   const acceptInstantBookingAs = (bookingId, token) => request(app)
     .post(`/api/driver/booking-requests/${bookingId}/accept`)
@@ -525,6 +550,13 @@ describe('Optional Instant Booking', () => {
   });
 
   test('scheduled OTP succeeds only for the assigned driver and assigned route vehicle', async () => {
+    const schedule = await createActiveSchedule(driver, vehicle);
+    const legacyVehicle = otherServiceVehicles.find(item => item.vehicleType === 'Car');
+    legacyVehicle.route = { origin: '', destination: '' };
+    await legacyVehicle.save();
+    driver.assignedVehicle = legacyVehicle._id;
+    await driver.save();
+
     const booking = await Booking.create({
       bookingId: `BK-SCHEDULE-OTP-${Date.now()}-${crypto.randomInt(1000, 9999)}`,
       user: customer._id,
@@ -540,12 +572,18 @@ describe('Optional Instant Booking', () => {
       bookingStatus: 'Pending Driver Confirmation',
       driver: driver._id,
       vehicle: vehicle._id,
+      scheduleId: schedule._id,
       driverConfirmationStatus: 'Pending',
       driverConfirmed: false,
-      rideStatus: 'Accepted',
+      rideStatus: 'None',
       customerViewOtp: '654321',
       confirmationOtpExpiresAt: new Date(Date.now() + 60 * 60 * 1000)
     });
+
+    const assignedDriverAccept = await request(app)
+      .post(`/api/driver/booking-requests/${booking._id}/accept`)
+      .set('Authorization', `Bearer ${driverToken}`);
+    expect(assignedDriverAccept.status).toBe(200);
 
     const assignedDriverResponse = await request(app)
       .post(`/api/driver/bookings/${booking._id}/verify-otp`)
@@ -556,6 +594,7 @@ describe('Optional Instant Booking', () => {
     const otherDriver = await createClaimDriver({
       route: { origin: 'Delhi', destination: 'Jaipur' }
     });
+    const otherSchedule = await createActiveSchedule(driver, vehicle);
     const unverifiedBooking = await Booking.create({
       bookingId: `BK-SCHEDULE-WRONG-DRIVER-${Date.now()}-${crypto.randomInt(1000, 9999)}`,
       user: customer._id,
@@ -571,12 +610,27 @@ describe('Optional Instant Booking', () => {
       bookingStatus: 'Pending Driver Confirmation',
       driver: driver._id,
       vehicle: vehicle._id,
+      scheduleId: otherSchedule._id,
       driverConfirmationStatus: 'Pending',
       driverConfirmed: false,
-      rideStatus: 'Accepted',
+      rideStatus: 'None',
       customerViewOtp: '654321',
       confirmationOtpExpiresAt: new Date(Date.now() + 60 * 60 * 1000)
     });
+    const assignedDriverRequests = await request(app)
+      .get('/api/driver/booking-requests')
+      .set('Authorization', `Bearer ${driverToken}`);
+    const otherDriverRequests = await request(app)
+      .get('/api/driver/booking-requests')
+      .set('Authorization', `Bearer ${otherDriver.token}`);
+    expect(assignedDriverRequests.body.data.some(item => String(item._id) === String(unverifiedBooking._id))).toBe(true);
+    expect(otherDriverRequests.body.data.some(item => String(item._id) === String(unverifiedBooking._id))).toBe(false);
+
+    const wrongDriverAccept = await request(app)
+      .post(`/api/driver/booking-requests/${unverifiedBooking._id}/accept`)
+      .set('Authorization', `Bearer ${otherDriver.token}`);
+    expect(wrongDriverAccept.status).toBe(403);
+
     const wrongDriverResponse = await request(app)
       .post(`/api/driver/bookings/${unverifiedBooking._id}/verify-otp`)
       .set('Authorization', `Bearer ${otherDriver.token}`)
@@ -586,6 +640,7 @@ describe('Optional Instant Booking', () => {
   });
 
   test('scheduled OTP rejects the assigned driver when the assigned vehicle route does not match', async () => {
+    const schedule = await createActiveSchedule(driver, vehicle);
     const booking = await Booking.create({
       bookingId: `BK-SCHEDULE-ROUTE-${Date.now()}-${crypto.randomInt(1000, 9999)}`,
       user: customer._id,
@@ -601,6 +656,7 @@ describe('Optional Instant Booking', () => {
       bookingStatus: 'Pending Driver Confirmation',
       driver: driver._id,
       vehicle: vehicle._id,
+      scheduleId: schedule._id,
       driverConfirmationStatus: 'Pending',
       driverConfirmed: false,
       rideStatus: 'Accepted',

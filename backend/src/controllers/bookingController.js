@@ -13,7 +13,7 @@ const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
 const driverBookingResponse = require('../utils/driverBookingResponse');
 const {
   notifyEligibleDriversForBooking,
-  notifyAssignedCarDriverForScheduleBooking
+  notifyAssignedDriverForScheduleBooking
 } = require('../utils/notification');
 const { getRouteSegmentFare, isRouteSegmentWithin } = require('../utils/routeFares');
 const { getAvailableInstantVehicleDrivers } = require('../utils/instantBookingAvailability');
@@ -320,7 +320,7 @@ const createScheduleBooking = async (req, res, next) => {
           phone: req.user.phone,
           email: req.user.email
         },
-        driver: instantDriver?._id || (['Bus', 'Truck', 'Car'].includes(serviceType) ? vehicle.assignedDriver : null),
+        driver: instantDriver?._id || activeSchedule?.driver || (['Bus', 'Truck', 'Car'].includes(serviceType) ? vehicle.assignedDriver : null),
         vehicle: vehicle._id,
         scheduleId: scheduleIdToStore,
         serviceType,
@@ -400,16 +400,10 @@ const createScheduleBooking = async (req, res, next) => {
       recipientId: req.user._id,
       status: 'Unread'
     });
-    // Route scheduled Cars only to their selected vehicle's assigned driver.
+    // Schedule bookings go only to the driver assigned by their schedule/vehicle.
     if (bookingMode !== 'INSTANT') {
-      if (serviceType === 'Car' && req.route?.path === '/schedule') {
-        await notifyAssignedCarDriverForScheduleBooking(booking);
-      } else if (
-        req.route?.path === '/schedule' &&
-        (serviceType === 'Bus' || serviceType === 'EV-Sewa')
-      ) {
-        // The notification utility applies the booking's Bus/EV-Sewa type and route.
-        await notifyEligibleDriversForBooking(booking);
+      if (bookingMode === 'SCHEDULE') {
+        await notifyAssignedDriverForScheduleBooking(booking);
       } else {
         await notifyEligibleDriversForBooking(booking);
       }
@@ -820,7 +814,11 @@ exports.confirmOfflineCashBooking = async (req, res, next) => {
     });
 
     if (booking.bookingMode !== 'INSTANT') {
-      await notifyEligibleDriversForBooking(booking);
+      if (booking.bookingMode === 'SCHEDULE') {
+        await notifyAssignedDriverForScheduleBooking(booking);
+      } else {
+        await notifyEligibleDriversForBooking(booking);
+      }
     }
 
     res.json({
