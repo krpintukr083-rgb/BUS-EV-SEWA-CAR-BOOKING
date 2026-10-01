@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, RefreshControl, Alert, Modal, TouchableOpacity, TextInput } from 'react-native';
+import React, { useState, useCallback, useRef } from 'react';
+import { AppState, View, Text, StyleSheet, FlatList, RefreshControl, Alert, Modal, TouchableOpacity, TextInput } from 'react-native';
 
 import { useFocusEffect } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
@@ -10,7 +10,7 @@ import { driverService } from '../../services/driverService';
 import { checkAndNotifyBookingRequests } from '../../services/notificationService';
 import DriverHeader from '../../components/DriverHeader';
 import RideRequestCard from '../../components/RideRequestCard';
-import { getAcceptedBookingId, filterIncomingRequests } from '../../utils/bookingHandoff';
+import { getAcceptedBookingId, normalizeIncomingRequests } from '../../utils/bookingHandoff';
 
 const REJECTION_REASONS = [
   'Customer did not arrive',
@@ -31,47 +31,83 @@ const BookingRequestsScreen = ({ navigation }) => {
   const [selectedBookingId, setSelectedBookingId] = useState(null);
   const [selectedReason, setSelectedReason] = useState(REJECTION_REASONS[0]);
   const [customReason, setCustomReason] = useState('');
+  const latestRequestIdRef = useRef(0);
+  const screenFocusedRef = useRef(false);
+  const hiddenRequestIdsRef = useRef(new Set());
 
-  const loadRequests = async () => {
+  const loadRequests = useCallback(async () => {
+    const requestId = ++latestRequestIdRef.current;
     try {
       const response = await driverService.getBookingRequests();
       if (response.data?.success && Array.isArray(response.data.data)) {
-        const validRequests = filterIncomingRequests(response.data.data);
+        if (requestId !== latestRequestIdRef.current || !screenFocusedRef.current) return;
+        const validRequests = normalizeIncomingRequests(response.data.data)
+          .filter(request => !hiddenRequestIdsRef.current.has(String(request._id)));
+        const latest = validRequests[0];
+        if (__DEV__) {
+          console.info(
+            `[BOOKING_REQUESTS] count=${validRequests.length}` +
+            ` latest=${latest?.bookingId || latest?._id || 'none'}` +
+            ` createdAt=${latest?.createdAt || 'none'}` +
+            ` mode=${latest?.bookingMode || 'none'}` +
+            ` scheduleId=${latest?.scheduleId || 'none'}` +
+            ` route=${latest ? `${latest.pickupLocation || ''} -> ${latest.dropLocation || ''}` : 'none'}`
+          );
+        }
         setRequestLoadError(false);
         setRequests(validRequests);
         checkAndNotifyBookingRequests(validRequests, user?._id || driver?._id);
       } else {
+        if (requestId !== latestRequestIdRef.current || !screenFocusedRef.current) return;
         setRequestLoadError(true);
         setRequests([]);
       }
     } catch (error) {
+      if (requestId !== latestRequestIdRef.current || !screenFocusedRef.current) return;
       console.warn('Error loading requests', error);
       setRequestLoadError(true);
     }
-  };
+  }, [driver?._id, user?._id]);
 
   useFocusEffect(
     useCallback(() => {
+      screenFocusedRef.current = true;
       loadRequests();
       const interval = setInterval(loadRequests, 6000);
-      
+      const previousAppState = { current: AppState.currentState };
+      const appStateSub = AppState.addEventListener('change', nextState => {
+        if (nextState === 'active' && previousAppState.current !== 'active') loadRequests();
+        previousAppState.current = nextState;
+      });
       const notifSub = Notifications.addNotificationReceivedListener(() => {
+        loadRequests();
+      });
+      const notifResponseSub = Notifications.addNotificationResponseReceivedListener(() => {
         loadRequests();
       });
 
       return () => {
+        screenFocusedRef.current = false;
+        latestRequestIdRef.current += 1;
         clearInterval(interval);
+        appStateSub.remove();
         if (notifSub && notifSub.remove) {
           notifSub.remove();
         }
+        if (notifResponseSub && notifResponseSub.remove) {
+          notifResponseSub.remove();
+        }
       };
-    }, [isOnline])
+    }, [isOnline, loadRequests])
   );
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadRequests();
-    setRefreshing(false);
+    try {
+      await loadRequests();
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handleAccept = async (bookingId) => {
@@ -88,9 +124,13 @@ const BookingRequestsScreen = ({ navigation }) => {
         await loadRequests();
         return;
       }
+      hiddenRequestIdsRef.current.add(String(acceptedBookingId));
       console.log('ACCEPT SUCCESS\nbookingId:', acceptedBookingId, '\nbookingStatus:', res?.data?.data?.bookingStatus, '\ndriverConfirmed:', res?.data?.data?.driverConfirmed);
       // Remove accepted booking from pending requests list so it is no longer actionable
-      setRequests((prev) => prev.filter((r) => r._id !== bookingId && r.bookingId !== bookingId));
+      setRequests((prev) => prev.filter((r) =>
+        String(r._id) !== String(acceptedBookingId) &&
+        String(r.bookingId) !== String(acceptedBookingId)
+      ));
       navigation.navigate('BusConfirmation', {
         bookingId: acceptedBookingId,
         highlightBookingId: acceptedBookingId
@@ -123,7 +163,8 @@ const BookingRequestsScreen = ({ navigation }) => {
     try {
       const res = await driverService.rejectRide(selectedBookingId, finalReason);
       if (res.data?.success) {
-        setRequests((prev) => prev.filter((r) => r._id !== selectedBookingId));
+        hiddenRequestIdsRef.current.add(String(selectedBookingId));
+        setRequests((prev) => prev.filter((r) => String(r._id) !== String(selectedBookingId)));
         setRejectModalVisible(false);
         setSelectedBookingId(null);
       }

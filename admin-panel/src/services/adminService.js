@@ -63,7 +63,10 @@ export const adminService = {
 
   // 1. Dashboard
   getDashboard: async () => {
-    const res = await api.get('/admin/dashboard');
+    const res = await api.get('/admin/dashboard', {
+      params: { _t: Date.now() },
+      headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache' }
+    });
     return res.data;
   },
 
@@ -131,10 +134,16 @@ export const adminService = {
     const res = await api.put(`/admin/vehicles/${id}/status`, { status });
     return res.data;
   },
-  getPendingVehicles: async () => (await api.get('/admin/pending-vehicles')).data,
+  getPendingVehicles: async () => (await api.get('/admin/pending-vehicles', {
+    params: { _t: Date.now() },
+    headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache' }
+  })).data,
   approveVehicle: async id => (await api.patch(`/admin/vehicles/${id}/approve`)).data,
   rejectVehicle: async (id, reason) => (await api.patch(`/admin/vehicles/${id}/reject`, { reason })).data,
-  getPendingSchedules: async () => (await api.get('/admin/pending-schedules')).data,
+  getPendingSchedules: async () => (await api.get('/admin/pending-schedules', {
+    params: { _t: Date.now() },
+    headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache' }
+  })).data,
   getSchedules: async status => (await api.get('/admin/schedules', { params: { status } })).data,
   approveSchedule: async id => (await api.patch(`/admin/schedules/${id}/approve`)).data,
   rejectSchedule: async (id, reason) => (await api.patch(`/admin/schedules/${id}/reject`, { reason })).data,

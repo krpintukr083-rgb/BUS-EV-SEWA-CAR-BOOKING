@@ -1411,6 +1411,12 @@ const getInstantBookingRequests = async (req, res, next) => {
 // @access  Private (Driver Only)
 
 const getScheduleBookingRequests = async (req, res, next) => {
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
+
   try {
     const driver = req.driver;
 
@@ -1483,7 +1489,7 @@ const getScheduleBookingRequests = async (req, res, next) => {
       .map(booking => booking.scheduleId._id || booking.scheduleId);
     const activeSchedules = candidateScheduleIds.length > 0
       ? await Schedule.find({ _id: { $in: candidateScheduleIds }, status: 'Active' })
-        .select('_id driver vehicle')
+        .select('_id driver vehicle origin destination travelDate departureTime')
         .lean()
       : [];
     const activeScheduleById = new Map(activeSchedules.map(schedule => [String(schedule._id), schedule]));
@@ -1495,15 +1501,23 @@ const getScheduleBookingRequests = async (req, res, next) => {
 
     // Filter candidate bookings by route match & eligibility
     const requests = candidateBookings.filter(reqItem => {
+      const exclude = reason => {
+        if (process.env.NODE_ENV !== 'production') {
+          console.debug(
+            `[BOOKING_REQUESTS_FILTERED] bookingId=${reqItem.bookingId || reqItem._id} reason=${reason}`
+          );
+        }
+        return false;
+      };
       let scheduledVehicle = null;
       // Direct canonical exclusion check
       if (reqItem.driverConfirmed || reqItem.driverConfirmationStatus === 'Confirmed' || reqItem.confirmationOtpVerifiedAt || reqItem.otpVerified || reqItem.cashCollected || reqItem.rideStatus === 'Accepted') {
-        return false;
+        return exclude('already-confirmed-or-accepted');
       }
 
       // If directly assigned to another driver, exclude it for ALL booking modes (first driver wins)
       if (reqItem.driver && (reqItem.driver._id || reqItem.driver).toString() !== driver._id.toString()) {
-        return false;
+        return exclude('assigned-to-another-driver');
       }
 
       if (reqItem.bookingMode === 'SCHEDULE') {
@@ -1517,26 +1531,28 @@ const getScheduleBookingRequests = async (req, res, next) => {
           !scheduledDriverId ||
           String(scheduledDriverId) !== String(driver._id) ||
           String(scheduledVehicleId || '') !== String(reqItem.vehicle?._id || reqItem.vehicle || '')
-        ) return false;
+        ) return exclude('schedule-assignment-does-not-match-booking-or-driver');
         scheduledVehicle = requestVehicles.find(vehicle =>
           String(vehicle._id) === String(scheduledVehicleId)
         );
         if (!scheduledVehicle || (
           scheduledVehicle.assignedDriver &&
           String(scheduledVehicle.assignedDriver) !== String(driver._id)
-        )) return false;
+        )) return exclude('schedule-vehicle-not-active-or-not-assigned-to-driver');
       }
 
       if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(reqItem.bookingStatus)) {
-        return false;
+        return exclude(`booking-status-${reqItem.bookingStatus}`);
       }
-      return Boolean(getEligibleRequestVehicle(
+      const eligibleVehicle = getEligibleRequestVehicle(
         reqItem,
         scheduledVehicle ? [scheduledVehicle] : requestVehicles,
         driver._id,
         reservedSeatsByVehicle,
         reqItem.bookingMode === 'SCHEDULE' ? false : allowOpposite
-      ));
+      );
+      if (!eligibleVehicle) return exclude('no-eligible-vehicle-route-service-or-capacity');
+      return true;
     });
 
     // Map requests with external navigation links and countdown metadata
@@ -1567,11 +1583,28 @@ const getScheduleBookingRequests = async (req, res, next) => {
       };
     });
 
-    res.set({
-      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0'
-    });
+    if (process.env.NODE_ENV !== 'production') {
+      const latest = enrichedRequests[0];
+      const scheduleId = latest?.scheduleId?._id || latest?.scheduleId;
+      const schedule = scheduleId ? activeScheduleById.get(String(scheduleId)) : null;
+      console.info(
+        `[BOOKING_REQUESTS] count=${enrichedRequests.length}` +
+        ` latest=${latest?.bookingId || latest?._id || 'none'}` +
+        ` createdAt=${latest?.createdAt || 'none'}` +
+        ` mode=${latest?.bookingMode || 'none'}` +
+        ` scheduleId=${scheduleId || 'none'}` +
+        ` route=${latest ? `${latest.pickupLocation || ''} -> ${latest.dropLocation || ''}` : 'none'}`
+      );
+      if (schedule) {
+        console.info(
+          `[BOOKING_REQUESTS_SCHEDULE] vehicle=${schedule.vehicle}` +
+          ` driver=${schedule.driver}` +
+          ` route=${schedule.origin} -> ${schedule.destination}` +
+          ` travelDate=${schedule.travelDate}` +
+          ` departureTime=${schedule.departureTime}`
+        );
+      }
+    }
 
     res.json({
       success: true,

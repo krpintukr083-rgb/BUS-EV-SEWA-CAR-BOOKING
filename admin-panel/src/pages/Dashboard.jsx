@@ -21,11 +21,18 @@ import {
   Sliders
 } from 'lucide-react';
 
+const DashboardStatLink = ({ to, children }) => (
+  <Link to={to} style={{ display: 'block', color: 'inherit', textDecoration: 'none', cursor: 'pointer' }}>
+    {children}
+  </Link>
+);
+
 const Dashboard = () => {
   const { adminUser, hasPermission, isSuperAdmin } = useAdminAuth();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [approvalCounts, setApprovalCounts] = useState({ vehicles: 0, schedules: 0 });
+  const [dashboardError, setDashboardError] = useState(null);
+  const [approvalCounts, setApprovalCounts] = useState(null);
   const [driverCount, setDriverCount] = useState(0);
 
   useEffect(() => {
@@ -45,21 +52,47 @@ const Dashboard = () => {
         return;
       }
 
+      setDashboardError(null);
       try {
         const [res, pendingVehicles, pendingSchedules] = await Promise.all([
           adminService.getDashboard(),
           adminService.getPendingVehicles(),
           adminService.getPendingSchedules()
         ]);
-        if (res.success) {
-          setData(res.data);
+        const countKeys = [
+          'customers',
+          'drivers',
+          'vehicles',
+          'activeVehicles',
+          'inactiveVehicles',
+          'blockedVehicles',
+          'bookings',
+          'totalPaymentsAmount',
+          'pendingDriverVerification',
+          'pendingDocuments',
+          'cancellationRecords',
+          'accidentInsuranceRecords'
+        ];
+        if (
+          !res?.success ||
+          !res.data?.counts ||
+          countKeys.some(key => !Number.isFinite(res.data.counts[key])) ||
+          !pendingVehicles?.success ||
+          !Array.isArray(pendingVehicles.data) ||
+          !pendingSchedules?.success ||
+          !Array.isArray(pendingSchedules.data)
+        ) {
+          throw new Error('Dashboard metrics response was incomplete.');
         }
+
+        setData(res.data);
         setApprovalCounts({
-          vehicles: pendingVehicles?.data?.length || 0,
-          schedules: pendingSchedules?.data?.length || 0
+          vehicles: pendingVehicles.data.length,
+          schedules: pendingSchedules.data.length
         });
       } catch (err) {
         console.error(err);
+        setDashboardError(err?.response?.data?.message || err.message || 'Unable to load dashboard metrics.');
       } finally {
         setLoading(false);
       }
@@ -87,6 +120,17 @@ const Dashboard = () => {
           </div>
         )}
       </div>
+    );
+  }
+
+  if (dashboardError || !data || !approvalCounts) {
+    return (
+      <section className="content-card" role="alert">
+        <h1 className="card-title">Unable to Load Dashboard Metrics</h1>
+        <p style={{ marginTop: 6, color: '#64748b' }}>
+          {dashboardError || 'Dashboard metrics are unavailable. Refresh the page to try again.'}
+        </p>
+      </section>
     );
   }
 
@@ -132,46 +176,70 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* 13 Key Platform Counters Grid */}
+      {/* 14 Key Platform Counters Grid */}
       <div className="stats-grid">
-        <Link to="/vehicle-approval" style={{ textDecoration: 'none' }}>
+        <DashboardStatLink to="/vehicle-approval">
           <StatCard title="Pending Vehicle Approvals" value={approvalCounts.vehicles} icon={Truck} color="#f59e0b" />
-        </Link>
-        <Link to="/schedule-approval" style={{ textDecoration: 'none' }}>
+        </DashboardStatLink>
+        <DashboardStatLink to="/schedule-approval">
           <StatCard title="Pending Schedule Approvals" value={approvalCounts.schedules} icon={CalendarCheck} color="#d97706" />
-        </Link>
-        <StatCard title="Total Customers" value={counts?.customers ?? 0} icon={Users} color="#1d4ed8" />
-        <StatCard title="Total Drivers" value={counts?.drivers ?? 0} icon={UserCheck} color="#059669" />
-        <StatCard title="Total Vehicles" value={counts?.vehicles ?? 0} icon={Truck} color="#475569" />
-        <StatCard title="Active Vehicles" value={counts?.activeVehicles ?? 0} icon={CheckCircle2} color="#10b981" />
-        <StatCard title="Inactive Vehicles" value={counts?.inactiveVehicles ?? 0} icon={AlertTriangle} color="#f59e0b" />
-        <StatCard title="Blocked Vehicles" value={counts?.blockedVehicles ?? 0} icon={XCircle} color="#ef4444" />
-        <StatCard title="Total Bookings" value={counts?.bookings ?? 0} icon={CalendarCheck} color="#2563eb" />
-        <StatCard
-          title="Total Payments (₹)"
-          value={`₹${(counts?.totalPaymentsAmount || 0).toLocaleString('en-IN')}`}
-          icon={CreditCard}
-          color="#10b981"
-        />
-        <StatCard
-          title="Pending Driver Verification"
-          value={counts?.pendingDriverVerification ?? 0}
-          icon={FileCheck2}
-          color="#f59e0b"
-        />
-        <StatCard
-          title="Pending Documents"
-          value={counts?.pendingDocuments ?? 0}
-          icon={FileCheck2}
-          color="#d97706"
-        />
-        <StatCard title="Cancellation Records" value={counts?.cancellationRecords ?? 0} icon={XOctagon} color="#ef4444" />
-        <StatCard
-          title="Accident Insurance Policies"
-          value={counts?.accidentInsuranceRecords ?? 0}
-          icon={ShieldAlert}
-          color="#0284c7"
-        />
+        </DashboardStatLink>
+        <DashboardStatLink to="/customers">
+          <StatCard title="Total Customers" value={counts.customers} icon={Users} color="#1d4ed8" />
+        </DashboardStatLink>
+        <DashboardStatLink to="/drivers">
+          <StatCard title="Total Drivers" value={counts.drivers} icon={UserCheck} color="#059669" />
+        </DashboardStatLink>
+        <DashboardStatLink to="/vehicles">
+          <StatCard title="Total Vehicles" value={counts.vehicles} icon={Truck} color="#475569" />
+        </DashboardStatLink>
+        <DashboardStatLink to="/vehicles">
+          <StatCard title="Active Vehicles" value={counts.activeVehicles} icon={CheckCircle2} color="#10b981" />
+        </DashboardStatLink>
+        <DashboardStatLink to="/vehicles">
+          <StatCard title="Inactive Vehicles" value={counts.inactiveVehicles} icon={AlertTriangle} color="#f59e0b" />
+        </DashboardStatLink>
+        <DashboardStatLink to="/vehicles">
+          <StatCard title="Blocked Vehicles" value={counts.blockedVehicles} icon={XCircle} color="#ef4444" />
+        </DashboardStatLink>
+        <DashboardStatLink to="/bookings">
+          <StatCard title="Total Bookings" value={counts.bookings} icon={CalendarCheck} color="#2563eb" />
+        </DashboardStatLink>
+        <DashboardStatLink to="/payments">
+          <StatCard
+            title="Total Payments (₹)"
+            value={`₹${counts.totalPaymentsAmount.toLocaleString('en-IN')}`}
+            icon={CreditCard}
+            color="#10b981"
+          />
+        </DashboardStatLink>
+        <DashboardStatLink to="/driver-verification">
+          <StatCard
+            title="Pending Driver Verification"
+            value={counts.pendingDriverVerification}
+            icon={FileCheck2}
+            color="#f59e0b"
+          />
+        </DashboardStatLink>
+        <DashboardStatLink to="/driver-verification">
+          <StatCard
+            title="Pending Documents"
+            value={counts.pendingDocuments}
+            icon={FileCheck2}
+            color="#d97706"
+          />
+        </DashboardStatLink>
+        <DashboardStatLink to="/cancellations">
+          <StatCard title="Cancellation Records" value={counts.cancellationRecords} icon={XOctagon} color="#ef4444" />
+        </DashboardStatLink>
+        <DashboardStatLink to="/insurance">
+          <StatCard
+            title="Accident Insurance Policies"
+            value={counts.accidentInsuranceRecords}
+            icon={ShieldAlert}
+            color="#0284c7"
+          />
+        </DashboardStatLink>
       </div>
 
       {/* Recent Bookings Feed */}

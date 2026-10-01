@@ -59,10 +59,33 @@ const filterIncomingRequests = (requests) => requests.filter(
     && !request.cashCollected
 );
 
+const normalizeIncomingRequests = (requests) => {
+  const byId = new Map();
+
+  filterIncomingRequests(Array.isArray(requests) ? requests : []).forEach(request => {
+    if (!request || request._id == null) return;
+    const id = String(request._id);
+    const existing = byId.get(id);
+    if (
+      !existing ||
+      new Date(request.createdAt).getTime() > new Date(existing.createdAt).getTime()
+    ) byId.set(id, request);
+  });
+
+  return [...byId.values()].sort((left, right) => {
+    const leftCreatedAt = new Date(left.createdAt).getTime();
+    const rightCreatedAt = new Date(right.createdAt).getTime();
+    const leftTime = Number.isFinite(leftCreatedAt) ? leftCreatedAt : 0;
+    const rightTime = Number.isFinite(rightCreatedAt) ? rightCreatedAt : 0;
+    return rightTime - leftTime;
+  });
+};
+
 module.exports = {
   getAcceptedBookingId,
   findBookingById,
   getConfirmationBookings,
   getOtpBookingId,
-  filterIncomingRequests
+  filterIncomingRequests,
+  normalizeIncomingRequests
 };

@@ -4,7 +4,8 @@ const {
   getAcceptedBookingId,
   getConfirmationBookings,
   getOtpBookingId,
-  filterIncomingRequests
+  filterIncomingRequests,
+  normalizeIncomingRequests
 } = require('../src/utils/bookingHandoff');
 
 const accepted = (bookingMode, _id, bookingId) => ({
@@ -54,6 +55,18 @@ test('accepted bookings remain excluded from incoming actionable requests', () =
   const pending = { _id: 'pending', rideStatus: 'None', driverConfirmed: false, bookingStatus: 'Pending' };
   const acceptedBooking = { _id: 'accepted', rideStatus: 'Accepted', driverConfirmed: false, bookingStatus: 'Pending Driver Confirmation' };
   assert.deepEqual(filterIncomingRequests([pending, acceptedBooking]), [pending]);
+});
+
+test('incoming requests are deduplicated by Mongo ID and sorted newest first by createdAt', () => {
+  const oldest = { _id: 'old', bookingId: 'BK-9', createdAt: '2026-09-01T10:00:00.000Z' };
+  const current = { _id: 'new', bookingId: 'BK-1', createdAt: '2026-09-01T12:00:00.000Z' };
+  const duplicate = { _id: 'old', bookingId: 'BK-9', createdAt: '2026-09-01T11:00:00.000Z', routeVersion: 2 };
+
+  assert.deepEqual(
+    normalizeIncomingRequests([oldest, current, duplicate]).map(request => request._id),
+    ['new', 'old']
+  );
+  assert.equal(normalizeIncomingRequests([oldest, current, duplicate])[1].routeVersion, 2);
 });
 
 test('OTP verification uses the explicit accepted booking ID', () => {

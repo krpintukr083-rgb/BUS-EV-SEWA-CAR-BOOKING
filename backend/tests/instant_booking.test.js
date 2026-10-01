@@ -413,7 +413,6 @@ describe('Optional Instant Booking', () => {
       .set('Authorization', `Bearer ${driverToken}`);
     expect(requests.status).toBe(200);
     expect(requests.body.data.some(booking => booking._id === bookingId)).toBe(true);
-
     const accepted = await request(app)
       .post(`/api/driver/booking-requests/${bookingId}/accept`)
       .set('Authorization', `Bearer ${driverToken}`);
@@ -469,6 +468,34 @@ describe('Optional Instant Booking', () => {
     expect(active.body.data.some(booking => booking._id === bookingId)).toBe(true);
   });
 
+  test('returns eligible requests newest-first with no-cache headers', async () => {
+    const older = await createUnassignedInstantBooking();
+    const newer = await createUnassignedInstantBooking();
+    const olderCreatedAt = new Date('2026-09-30T10:00:00.000Z');
+    const newerCreatedAt = new Date('2026-09-30T11:00:00.000Z');
+    await Promise.all([
+      Booking.collection.updateOne({ _id: older._id }, {
+        $set: { createdAt: olderCreatedAt, pickupLocation: 'Delhi', dropLocation: 'Jaipur' }
+      }),
+      Booking.collection.updateOne({ _id: newer._id }, {
+        $set: { createdAt: newerCreatedAt, pickupLocation: 'Delhi', dropLocation: 'Jaipur' }
+      })
+    ]);
+
+    const response = await request(app)
+      .get('/api/driver/booking-requests')
+      .set('Authorization', `Bearer ${driverToken}`);
+
+    expect(response.status).toBe(200);
+    expect(response.headers['cache-control']).toBe('no-store, no-cache, must-revalidate, proxy-revalidate');
+    expect(response.headers.pragma).toBe('no-cache');
+    expect(response.headers.expires).toBe('0');
+    const visibleBookings = response.body.data.filter(item =>
+      [String(older._id), String(newer._id)].includes(String(item._id))
+    );
+    expect(visibleBookings.map(item => item._id)).toEqual([String(newer._id), String(older._id)]);
+    expect(new Date(visibleBookings[0].createdAt).getTime()).toBe(newerCreatedAt.getTime());
+  });
   test.each(['Active', 'Approved'])(
     'allows an %s same-route driver linked through Vehicle.assignedDriver to claim an unassigned Instant booking',
     async driverStatus => {
@@ -595,6 +622,30 @@ describe('Optional Instant Booking', () => {
       route: { origin: 'Delhi', destination: 'Jaipur' }
     });
     const otherSchedule = await createActiveSchedule(driver, vehicle);
+    const olderScheduleRequest = await Booking.create({
+      bookingId: `BK-SCHEDULE-OLDER-${Date.now()}-${crypto.randomInt(1000, 9999)}`,
+      user: customer._id,
+      customer: { name: customer.name, phone: customer.phone },
+      bookingMode: 'SCHEDULE',
+      serviceType: 'Bus',
+      pickupLocation: 'Delhi',
+      dropLocation: 'Jaipur',
+      passengerDetails: [{ name: 'Earlier Schedule Passenger', age: 30, gender: 'Male' }],
+      fare: 500,
+      paymentMethod: 'Offline Cash',
+      paymentStatus: 'Pending Cash',
+      bookingStatus: 'Pending Driver Confirmation',
+      driver: driver._id,
+      vehicle: vehicle._id,
+      scheduleId: otherSchedule._id,
+      driverConfirmationStatus: 'Pending',
+      driverConfirmed: false,
+      rideStatus: 'None'
+    });
+    await Booking.collection.updateOne(
+      { _id: olderScheduleRequest._id },
+      { $set: { createdAt: new Date(Date.now() - 60_000) } }
+    );
     const unverifiedBooking = await Booking.create({
       bookingId: `BK-SCHEDULE-WRONG-DRIVER-${Date.now()}-${crypto.randomInt(1000, 9999)}`,
       user: customer._id,
@@ -625,6 +676,14 @@ describe('Optional Instant Booking', () => {
       .set('Authorization', `Bearer ${otherDriver.token}`);
     expect(assignedDriverRequests.body.data.some(item => String(item._id) === String(unverifiedBooking._id))).toBe(true);
     expect(otherDriverRequests.body.data.some(item => String(item._id) === String(unverifiedBooking._id))).toBe(false);
+    expect(assignedDriverRequests.headers['cache-control']).toBe('no-store, no-cache, must-revalidate, proxy-revalidate');
+    const scheduledRequests = assignedDriverRequests.body.data.filter(item =>
+      [String(olderScheduleRequest._id), String(unverifiedBooking._id)].includes(String(item._id))
+    );
+    expect(scheduledRequests.map(item => item._id)).toEqual([
+      String(unverifiedBooking._id),
+      String(olderScheduleRequest._id)
+    ]);
 
     const wrongDriverAccept = await request(app)
       .post(`/api/driver/booking-requests/${unverifiedBooking._id}/accept`)

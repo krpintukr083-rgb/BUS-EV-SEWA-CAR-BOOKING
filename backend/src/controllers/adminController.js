@@ -26,15 +26,13 @@ const getBookingQuery = (id) => {
 // 1. ADMIN DASHBOARD
 // ==========================================
 exports.getDashboardStats = async (req, res, next) => {
-  try {
-    const cachedData = dashboardCache.get('admin_dashboard_stats');
-    if (cachedData) {
-      return res.json({
-        success: true,
-        data: cachedData
-      });
-    }
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
 
+  try {
     const [
       customersCount,
       driversCount,
@@ -171,9 +169,6 @@ exports.getDashboardStats = async (req, res, next) => {
       serviceControl,
       recentBookings
     };
-
-    // Cache non-sensitive aggregate metrics for 30 seconds
-    dashboardCache.set('admin_dashboard_stats', responsePayload, 30000);
 
     res.json({
       success: true,
