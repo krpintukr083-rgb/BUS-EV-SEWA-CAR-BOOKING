@@ -225,6 +225,161 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
     }
   });
 
+  test('Drivers with an active trip still receive eligible Instant and Schedule requests', async () => {
+    const createdDriverIds = [];
+    const createdUserIds = [];
+    const createdVehicleIds = [];
+    const createdBookingIds = [];
+    const createDriverWithVehicle = async (vehicleType, index, route = { origin: 'Delhi', destination: 'Jaipur' }) => {
+      const user = await User.create({
+        name: `Active Trip ${vehicleType} Driver ${index}`,
+        email: `active_trip_${vehicleType}_${index}_${suffix}@test.com`,
+        phone: `95${String(Number(suffix.slice(-8)) + index).slice(-8)}`,
+        password: 'password123',
+        role: 'driver',
+        status: 'Active'
+      });
+      extraUserIds.push(user._id);
+      createdUserIds.push(user._id);
+      const assignedDriver = await Driver.create({
+        user: user._id,
+        name: user.name,
+        mobileNumber: user.phone,
+        drivingLicenceNumber: `DL-ACTIVE-TRIP-${suffix}-${vehicleType}-${index}`,
+        driverStatus: 'Active',
+        isOnline: true
+      });
+      extraDriverIds.push(assignedDriver._id);
+      createdDriverIds.push(assignedDriver._id);
+      const vehicle = await Vehicle.create({
+        vehicleNumber: `AT${suffix.slice(-5)}${index}`.toUpperCase(),
+        vehicleType,
+        vehicleCategory: `Active trip test ${vehicleType}`,
+        vehicleModel: `Active trip test ${vehicleType} model`,
+        vehicleName: `Active trip test ${vehicleType}`,
+        ownerName: user.name,
+        ownerMobileNumber: user.phone,
+        vehicleStatus: 'Active',
+        seatingCapacity: 4,
+        assignedDriver: assignedDriver._id,
+        route
+      });
+      vehicleIds.push(vehicle._id);
+      createdVehicleIds.push(vehicle._id);
+      assignedDriver.assignedVehicle = vehicle._id;
+      await assignedDriver.save();
+      const token = jwt.sign({ id: user._id, role: 'driver' }, jwtConfig.secret, { expiresIn: '1h' });
+      return { user, driver: assignedDriver, vehicle, token, vehicleType };
+    };
+
+    try {
+    const bus = await createDriverWithVehicle('Bus', 1);
+    const ev = await createDriverWithVehicle('EV-Sewa', 2);
+    const car = await createDriverWithVehicle('Car', 3);
+    const wrongRouteBus = await createDriverWithVehicle('Bus', 4, { origin: 'Delhi', destination: 'Agra' });
+
+    const activeTripsByDriverId = new Map();
+    for (const group of [bus, ev, car, wrongRouteBus]) {
+      const activeTrip = await Booking.create({
+        bookingId: `ACTIVE-${group.vehicleType}-${suffix}-${group.driver._id.toString().slice(-4)}`,
+        user: customer._id,
+        customer: { name: customer.name, phone: customer.phone },
+        driver: group.driver._id,
+        vehicle: group.vehicle._id,
+        serviceType: group.vehicleType,
+        bookingMode: 'SCHEDULE',
+        pickupLocation: 'Delhi',
+        dropLocation: 'Jaipur',
+        fare: 500,
+        bookingStatus: 'Ongoing',
+        rideStatus: 'Started',
+        driverConfirmed: true,
+        driverConfirmationStatus: 'Confirmed',
+        paymentStatus: 'Paid',
+        travelDate: new Date(travelDate)
+      });
+      bookingIds.push(activeTrip._id);
+      createdBookingIds.push(activeTrip._id);
+      activeTripsByDriverId.set(String(group.driver._id), activeTrip);
+    }
+
+    const scheduleRequests = [];
+    for (const group of [bus, ev, car]) {
+      const scheduleRequest = await Booking.create({
+        bookingId: `REQUEST-${group.vehicleType}-${suffix}-${group.driver._id.toString().slice(-4)}`,
+        user: customer._id,
+        customer: { name: customer.name, phone: customer.phone },
+        driver: group.vehicleType === 'Car' ? group.driver._id : null,
+        vehicle: group.vehicle._id,
+        serviceType: group.vehicleType,
+        bookingMode: 'SCHEDULE',
+        pickupLocation: 'Delhi',
+        dropLocation: 'Jaipur',
+        fare: 500,
+        bookingStatus: 'Pending Driver Confirmation',
+        rideStatus: 'None',
+        paymentStatus: 'Pending Cash',
+        travelDate: new Date(travelDate)
+      });
+      bookingIds.push(scheduleRequest._id);
+      createdBookingIds.push(scheduleRequest._id);
+      scheduleRequests.push(scheduleRequest);
+    }
+    const instantRequest = await Booking.create({
+      bookingId: `INSTANT-ACTIVE-${suffix}`,
+      user: customer._id,
+      customer: { name: customer.name, phone: customer.phone },
+      serviceType: 'Any',
+      bookingMode: 'INSTANT',
+      pickupLocation: 'Delhi',
+      dropLocation: 'Jaipur',
+      passengerDetails: [{ name: customer.name, age: 28, gender: 'Male' }],
+      fare: 0,
+      bookingStatus: 'Pending Driver Confirmation',
+      rideStatus: 'None',
+      paymentStatus: 'Pending Cash',
+      travelDate: new Date(travelDate)
+    });
+    bookingIds.push(instantRequest._id);
+    createdBookingIds.push(instantRequest._id);
+
+    for (const group of [bus, ev, car]) {
+      const activeBookingsResponse = await request(app)
+        .get('/api/driver/active-bookings')
+        .set('Authorization', `Bearer ${group.token}`);
+      expect(activeBookingsResponse.status).toBe(200);
+      expect(activeBookingsResponse.body.data.map(item => String(item._id)))
+        .toContain(String(activeTripsByDriverId.get(String(group.driver._id))._id));
+
+      const response = await request(app)
+        .get('/api/driver/booking-requests')
+        .set('Authorization', `Bearer ${group.token}`);
+      expect(response.status).toBe(200);
+      const visibleBookingIds = response.body.data.map(item => String(item._id));
+      expect(visibleBookingIds).toContain(String(instantRequest._id));
+      const matchingScheduleRequest = scheduleRequests.find(item => item.serviceType === group.vehicleType);
+      expect(visibleBookingIds).toContain(String(matchingScheduleRequest._id));
+      expect(scheduleRequests
+        .filter(item => item._id !== matchingScheduleRequest._id)
+        .every(item => !visibleBookingIds.includes(String(item._id)))).toBe(true);
+    }
+
+    const wrongRouteResponse = await request(app)
+      .get('/api/driver/booking-requests')
+      .set('Authorization', `Bearer ${wrongRouteBus.token}`);
+    expect(wrongRouteResponse.status).toBe(200);
+    expect(wrongRouteResponse.body.data.map(item => String(item._id))).not.toContain(String(instantRequest._id));
+    expect(wrongRouteResponse.body.data.map(item => String(item._id))).not.toContain(String(scheduleRequests[0]._id));
+    } finally {
+      await Notification.deleteMany({ entityId: { $in: createdBookingIds } });
+      await Payment.deleteMany({ booking: { $in: createdBookingIds } });
+      await Booking.deleteMany({ _id: { $in: createdBookingIds } });
+      await Driver.deleteMany({ _id: { $in: createdDriverIds } });
+      await User.deleteMany({ _id: { $in: createdUserIds } });
+      await Vehicle.deleteMany({ _id: { $in: createdVehicleIds } });
+    }
+  });
+
   test('Instant booking without a selected service notifies same-route Bus, EV-Sewa, and Car drivers', async () => {
     const addedDrivers = [];
     const addedUsers = [];

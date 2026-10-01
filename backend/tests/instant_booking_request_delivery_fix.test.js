@@ -117,6 +117,7 @@ describe('Instant Booking Driver Request Delivery & Stale Booking Isolation', ()
       ownerMobileNumber: `91${suffix}`,
       vehicleStatus: 'Active',
       fareRate: 500,
+      seatingCapacity: 4,
       assignedDriver: driver1._id,
       route: { origin: 'Delhi', destination: 'Jaipur' }
     });
@@ -247,7 +248,7 @@ describe('Instant Booking Driver Request Delivery & Stale Booking Isolation', ()
     expect(res.body.data.some(req => req.bookingId === freshBooking.bookingId)).toBe(true);
   });
 
-  test('TEST 3: Fresh Instant booking does NOT appear when driver has genuine active Instant ride', async () => {
+  test('TEST 3: Fresh Instant booking remains visible during active Instant ride while acceptance stays protected', async () => {
     // Create genuinely active Instant booking for driver1 with rideStatus: 'Started'
     await createBooking({
       driver: driver1._id,
@@ -262,7 +263,7 @@ describe('Instant Booking Driver Request Delivery & Stale Booking Isolation', ()
       .set('Authorization', `Bearer ${driver1Token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.some(req => req.bookingId === freshBooking.bookingId)).toBe(false);
+    expect(res.body.data.some(req => req.bookingId === freshBooking.bookingId)).toBe(true);
     const acceptRes = await request(app)
       .post(`/api/driver/booking-requests/${freshBooking._id}/accept`)
       .set('Authorization', `Bearer ${driver1Token}`);

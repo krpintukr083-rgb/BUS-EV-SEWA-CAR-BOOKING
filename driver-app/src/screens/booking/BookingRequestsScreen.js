@@ -35,32 +35,33 @@ const BookingRequestsScreen = ({ navigation }) => {
   const [customReason, setCustomReason] = useState('');
 
   const loadRequests = async () => {
-    try {
-      const res = await driverService.getBookingRequests();
-      if (res.data?.success && Array.isArray(res.data.data)) {
-        const validRequests = filterIncomingRequests(res.data.data);
+    const [requestsResult, activeBookingsResult] = await Promise.allSettled([
+      driverService.getBookingRequests(),
+      driverService.getActiveBookings()
+    ]);
+
+    if (requestsResult.status === 'fulfilled') {
+      const response = requestsResult.value;
+      if (response.data?.success && Array.isArray(response.data.data)) {
+        const validRequests = filterIncomingRequests(response.data.data);
         setRequests(validRequests);
         checkAndNotifyBookingRequests(validRequests, user?._id || driver?._id);
-
-        if (validRequests.length === 0) {
-          try {
-            const activeRes = await driverService.getActiveBookings();
-            const active = (activeRes.data?.data || []).find(
-              b => b.bookingStatus !== 'Cancelled' && b.bookingStatus !== 'Completed' && b.rideStatus !== 'Completed'
-            );
-            setActiveTrip(active || null);
-          } catch (_) {
-            setActiveTrip(null);
-          }
-        } else {
-          setActiveTrip(null);
-        }
       } else {
         setRequests([]);
-        setActiveTrip(null);
       }
-    } catch (e) {
-      console.warn('Error loading requests', e);
+    } else {
+      console.warn('Error loading requests', requestsResult.reason);
+    }
+
+    if (activeBookingsResult.status === 'fulfilled') {
+      const active = (activeBookingsResult.value.data?.data || []).find(
+        booking => booking.bookingStatus !== 'Cancelled'
+          && booking.bookingStatus !== 'Completed'
+          && booking.rideStatus !== 'Completed'
+      );
+      setActiveTrip(active || null);
+    } else {
+      console.warn('Error loading active trip', activeBookingsResult.reason);
     }
   };
 
@@ -173,6 +174,27 @@ const BookingRequestsScreen = ({ navigation }) => {
         keyExtractor={(item) => item._id || item.bookingId}
         contentContainerStyle={styles.listContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
+        ListHeaderComponent={activeTrip ? (
+          <View style={styles.activeTripBanner}>
+            <View style={styles.activeTripInfo}>
+              <Ionicons name="time-outline" size={22} color={COLORS.warning || '#f59e0b'} />
+              <View style={styles.activeTripText}>
+                <Text style={styles.activeTripTitle}>Active Trip: {activeTrip.bookingId || 'Active Booking'}</Text>
+                <Text style={styles.activeTripSub}>New eligible booking requests remain available below.</Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={styles.viewTripBtn}
+              onPress={() => navigation.navigate('BusConfirmation', {
+                bookingId: activeTrip._id || activeTrip.bookingId,
+                highlightBookingId: activeTrip._id || activeTrip.bookingId
+              })}
+            >
+              <Ionicons name="navigate-outline" size={16} color="#000" />
+              <Text style={styles.viewTripBtnText}>Open Active Trip</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
         renderItem={({ item }) => (
           <RideRequestCard
             request={item}
@@ -181,35 +203,15 @@ const BookingRequestsScreen = ({ navigation }) => {
           />
         )}
         ListEmptyComponent={
-          activeTrip ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="time-outline" size={64} color={COLORS.warning || '#f59e0b'} />
-              <Text style={styles.emptyTitle}>Active Trip in Progress</Text>
-              <Text style={styles.emptySub}>
-                You have an ongoing trip ({activeTrip.bookingId || 'Active Booking'}). New incoming instant booking requests are suppressed until your current ride is verified and completed.
-              </Text>
-              <TouchableOpacity
-                style={styles.viewTripBtn}
-                onPress={() => navigation.navigate('BusConfirmation', {
-                  bookingId: activeTrip._id || activeTrip.bookingId,
-                  highlightBookingId: activeTrip._id || activeTrip.bookingId
-                })}
-              >
-                <Ionicons name="navigate-outline" size={16} color="#000" />
-                <Text style={styles.viewTripBtnText}>Open Active Trip</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="car-outline" size={64} color={COLORS.surfaceHighlight} />
-              <Text style={styles.emptyTitle}>{t('noRequests') || 'No active bookings available'}</Text>
-              <Text style={styles.emptySub}>
-                {isOnline
-                  ? 'No active booking requests available right now on your assigned route. Stay active and near popular transport hubs to receive incoming trip requests.'
-                  : 'Turn on your online switch to start receiving ride dispatches.'}
-              </Text>
-            </View>
-          )
+          <View style={styles.emptyContainer}>
+            <Ionicons name="car-outline" size={64} color={COLORS.surfaceHighlight} />
+            <Text style={styles.emptyTitle}>{t('noRequests') || 'No active bookings available'}</Text>
+            <Text style={styles.emptySub}>
+              {isOnline
+                ? 'No active booking requests available right now on your assigned route. Stay active and near popular transport hubs to receive incoming trip requests.'
+                : 'Turn on your online switch to start receiving ride dispatches.'}
+            </Text>
+          </View>
         }
       />
 
@@ -315,6 +317,32 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 6,
     lineHeight: 18
+  },
+  activeTripBanner: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.warning || '#f59e0b',
+    borderRadius: 14,
+    padding: SPACING.md,
+    marginBottom: SPACING.lg
+  },
+  activeTripInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm
+  },
+  activeTripText: {
+    flex: 1
+  },
+  activeTripTitle: {
+    color: COLORS.textPrimary,
+    fontSize: 14,
+    fontWeight: '800'
+  },
+  activeTripSub: {
+    color: COLORS.textMuted,
+    fontSize: 12,
+    marginTop: 3
   },
   viewTripBtn: {
     flexDirection: 'row',

@@ -147,7 +147,7 @@ exports.getDriverDashboard = async (req, res, next) => {
       driver.isOnline && ['Active', 'Approved'].includes(driver.driverStatus)
         ? (async () => {
             const candidates = await Booking.find({
-              serviceType: { $in: ['Bus', 'EV-Sewa', 'Car'] },
+              serviceType: { $in: ['Bus', 'EV-Sewa', 'Car', 'Any'] },
               driverConfirmed: { $ne: true },
               driverConfirmationStatus: { $ne: 'Confirmed' },
               confirmationOtpVerifiedAt: null,
