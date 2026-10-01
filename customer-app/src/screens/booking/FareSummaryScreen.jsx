@@ -77,20 +77,23 @@ const FareSummaryScreen = ({ navigation }) => {
     try {
       setLoading(true);
 
+      const selectedCarSchedule = bookingDraft.serviceType === 'Car'
+        ? bookingDraft.schedule || bookingDraft.vehicle?.schedule
+        : null;
       const payload = {
-        vehicleId: bookingDraft.vehicle?._id,
+        vehicleId: selectedCarSchedule?.vehicle?._id || selectedCarSchedule?.vehicle || bookingDraft.vehicle?._id,
         serviceType: bookingDraft.serviceType,
-        pickupLocation: bookingDraft.pickupLocation,
-        dropLocation: bookingDraft.dropLocation,
+        pickupLocation: selectedCarSchedule?.origin || bookingDraft.pickupLocation,
+        dropLocation: selectedCarSchedule?.destination || bookingDraft.dropLocation,
         passengerDetails: bookingDraft.passengerDetails,
         selectedSeats: bookingDraft.selectedSeats,
-        bookingMode,
+        bookingMode: selectedCarSchedule ? 'SCHEDULE' : bookingMode,
         paymentMethod: 'Offline Cash',
         ...((bookingDraft.serviceType === 'EV-Sewa' || bookingMode === 'INSTANT') ? { passengerCount: fareUnitCount } : {}),
         fare: totalPayable,
-        travelDate: bookingDraft.travelDate,
-        ...(bookingMode === 'NORMAL' && bookingDraft.scheduleId
-          ? { scheduleId: bookingDraft.scheduleId }
+        travelDate: selectedCarSchedule?.travelDate || bookingDraft.travelDate,
+        ...((selectedCarSchedule?._id || (bookingMode === 'NORMAL' && bookingDraft.scheduleId))
+          ? { scheduleId: selectedCarSchedule?._id || bookingDraft.scheduleId }
           : {})
       };
 

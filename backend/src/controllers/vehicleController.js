@@ -88,7 +88,11 @@ exports.getVehicles = async (req, res, next) => {
 
         let routeMatches = true;
         if (from || to) {
-          if (Array.isArray(vehicle.route?.stops) && vehicle.route.stops.length > 0) {
+          if (
+            vehicle.vehicleType !== 'Car' &&
+            Array.isArray(vehicle.route?.stops) &&
+            vehicle.route.stops.length > 0
+          ) {
             routeMatches = isRouteSegmentWithin(
               vehicle.route,
               schedule.origin,
@@ -122,7 +126,7 @@ exports.getVehicles = async (req, res, next) => {
       const formattedVehicles = vehicles.map(vehicle => ({
         ...formatVehicle(vehicle, req),
         schedule: scheduleByVehicle.get(String(vehicle._id)) || null
-      }));
+      })).filter(vehicle => query.vehicleType !== 'Car' || vehicle.schedule);
 
       return res.json({
         success: true,

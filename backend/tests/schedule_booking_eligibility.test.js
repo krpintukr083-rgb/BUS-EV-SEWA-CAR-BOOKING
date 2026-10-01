@@ -188,7 +188,7 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
     ['Bus', 'busScheduled', 'busUnscheduled'],
     ['EV-Sewa', 'evScheduled', 'evUnscheduled'],
     ['Car', 'carScheduled', 'carUnscheduled']
-  ])('%s listing includes scheduled and unscheduled active vehicles, with real schedule metadata only', async (type, scheduledKey, unscheduledKey) => {
+  ])('%s listing applies its schedule availability rules', async (type, scheduledKey, unscheduledKey) => {
     const response = await getScheduleVehicles(type);
     expect(response.status).toBe(200);
 
@@ -207,8 +207,12 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
       status: 'Active'
     });
     expect(new Date(scheduled.schedule.travelDate).toISOString().slice(0, 10)).toBe(travelDate);
-    expect(unscheduled).toBeDefined();
-    expect(unscheduled.schedule).toBeNull();
+    if (type === 'Car') {
+      expect(unscheduled).toBeUndefined();
+    } else {
+      expect(unscheduled).toBeDefined();
+      expect(unscheduled.schedule).toBeNull();
+    }
   });
 
   test('wrong route/date and pending/rejected schedules do not hide active vehicles or expose nonmatching schedule data', async () => {
@@ -756,12 +760,69 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
     expect(String(booking.driver)).toBe(String(driver._id));
     expect(new Date(booking.travelDate).toISOString()).toBe(carSchedule.travelDate.toISOString());
 
+    const invalidRouteResponse = await request(app)
+      .post('/api/bookings/schedule')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        vehicleId: carWithoutRoute._id,
+        scheduleId: carSchedule._id,
+        serviceType: 'Car',
+        pickupLocation: 'Agra',
+        dropLocation: carSchedule.destination,
+        travelDate: carSchedule.travelDate,
+        paymentMethod: 'Offline Cash'
+      });
+    expect(invalidRouteResponse.status).toBe(400);
+
+    const invalidDateResponse = await request(app)
+      .post('/api/bookings/schedule')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        vehicleId: carWithoutRoute._id,
+        scheduleId: carSchedule._id,
+        serviceType: 'Car',
+        pickupLocation: carSchedule.origin,
+        dropLocation: carSchedule.destination,
+        travelDate: new Date(carSchedule.travelDate.getTime() + 24 * 60 * 60 * 1000),
+        paymentMethod: 'Offline Cash'
+      });
+    expect(invalidDateResponse.status).toBe(400);
+
+    const mismatchedVehicleResponse = await request(app)
+      .post('/api/bookings/schedule')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        vehicleId: vehicles.carScheduled._id,
+        scheduleId: carSchedule._id,
+        serviceType: 'Car',
+        pickupLocation: carSchedule.origin,
+        dropLocation: carSchedule.destination,
+        travelDate: carSchedule.travelDate,
+        paymentMethod: 'Offline Cash'
+      });
+    expect(mismatchedVehicleResponse.status).toBe(400);
+
     const customerBookings = await request(app)
       .get('/api/bookings')
       .set('Authorization', `Bearer ${customerToken}`)
     expect(customerBookings.status).toBe(200);
-    expect(customerBookings.body.data.all.some(item => String(item._id) === String(booking._id))).toBe(true);
-    expect(customerBookings.body.data.upcoming.some(item => String(item._id) === String(booking._id))).toBe(true);
+    const customerBooking = customerBookings.body.data.all.find(item =>
+      String(item._id) === String(booking._id)
+    );
+    expect(customerBooking).toMatchObject({
+      bookingMode: 'SCHEDULE',
+      serviceType: 'Car',
+      pickupLocation: carSchedule.origin,
+      dropLocation: carSchedule.destination,
+      bookingStatus: 'Pending Driver Confirmation'
+    });
+    expect(String(customerBooking.scheduleId)).toBe(String(carSchedule._id));
+    expect(String(customerBooking.vehicle._id)).toBe(String(carWithoutRoute._id));
+    expect(String(customerBooking.driver._id)).toBe(String(driver._id));
+    expect(new Date(customerBooking.travelDate).toISOString()).toBe(carSchedule.travelDate.toISOString());
+    expect(customerBookings.body.data.upcoming.some(item =>
+      String(item._id) === String(booking._id)
+    )).toBe(true);
 
     const driverToken = jwt.sign({ id: driverUser._id, role: 'driver' }, jwtConfig.secret, { expiresIn: '1h' });
     const driverRequests = await request(app)
@@ -781,6 +842,81 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
       recipientId: driverUser._id,
       eventType: 'BOOKING_REQUEST'
     })).toBe(1);
+
+    const wrongRouteUser = await User.create({
+      name: 'Wrong Route Schedule Driver',
+      email: `wrong_route_driver_${suffix}@test.com`,
+      phone: `97${suffix.slice(-8)}`,
+      password: 'password123',
+      role: 'driver',
+      status: 'Active'
+    });
+    extraUserIds.push(wrongRouteUser._id);
+    const wrongRouteDriver = await Driver.create({
+      user: wrongRouteUser._id,
+      name: wrongRouteUser.name,
+      mobileNumber: wrongRouteUser.phone,
+      drivingLicenceNumber: `DL-CAR-WRONG-ROUTE-${suffix}`,
+      driverStatus: 'Active',
+      isOnline: true
+    });
+    extraDriverIds.push(wrongRouteDriver._id);
+    const wrongRouteVehicle = await Vehicle.create({
+      vehicleNumber: `S${suffix.slice(-6)}-CAR-WRONG-ROUTE`.slice(0, 20).toUpperCase(),
+      vehicleType: 'Car',
+      vehicleCategory: 'Test Car',
+      vehicleModel: 'Schedule Test Car',
+      vehicleName: 'Schedule Test Car Wrong Route',
+      ownerName: wrongRouteUser.name,
+      ownerMobileNumber: wrongRouteUser.phone,
+      assignedDriver: wrongRouteDriver._id,
+      vehicleStatus: 'Active',
+      seatingCapacity: 4,
+      fareRate: 500,
+      route: { origin: 'Agra', destination: 'Jaipur' }
+    });
+    vehicleIds.push(wrongRouteVehicle._id);
+    wrongRouteDriver.assignedVehicle = wrongRouteVehicle._id;
+    await wrongRouteDriver.save();
+    const wrongRouteSchedule = await Schedule.create({
+      vehicle: wrongRouteVehicle._id,
+      driver: wrongRouteDriver._id,
+      origin: 'Agra',
+      destination: 'Jaipur',
+      travelDate: carSchedule.travelDate,
+      departureTime: '06:00 PM',
+      arrivalTime: '10:45 PM',
+      status: 'Active'
+    });
+    const wrongRouteBooking = await Booking.create({
+      bookingId: `BK-CAR-WRONG-ROUTE-${suffix}`,
+      user: customer._id,
+      customer: { name: customer.name, phone: customer.phone },
+      vehicle: wrongRouteVehicle._id,
+      scheduleId: wrongRouteSchedule._id,
+      serviceType: 'Car',
+      bookingMode: 'SCHEDULE',
+      pickupLocation: 'Delhi',
+      dropLocation: 'Jaipur',
+      travelDate: carSchedule.travelDate,
+      fare: wrongRouteVehicle.fareRate,
+      paymentMethod: 'Offline Cash',
+      paymentStatus: 'Pending Cash',
+      bookingStatus: 'Pending Driver Confirmation'
+    });
+    bookingIds.push(wrongRouteBooking._id);
+    const wrongRouteToken = jwt.sign(
+      { id: wrongRouteUser._id, role: 'driver' },
+      jwtConfig.secret,
+      { expiresIn: '1h' }
+    );
+    const wrongRouteRequests = await request(app)
+      .get('/api/driver/booking-requests')
+      .set('Authorization', `Bearer ${wrongRouteToken}`);
+    expect(wrongRouteRequests.status).toBe(200);
+    expect(wrongRouteRequests.body.data.some(item =>
+      String(item._id) === String(wrongRouteBooking._id)
+    )).toBe(false);
 
     const mismatchedDateBooking = await Booking.create({
       bookingId: `BK-CAR-SCHEDULE-WRONG-DATE-${suffix}`,
@@ -885,11 +1021,8 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
     expect(response.body.payment.paymentStatus).toBe('Pending Cash');
   });
 
-  test('Car schedule booking without an assigned driver does not broadcast', async () => {
+  test('Car schedule booking cannot be created without a selected schedule', async () => {
     const car = vehicles.carUnscheduled;
-    const originalAssignedDriver = car.assignedDriver;
-    car.assignedDriver = null;
-    await car.save();
 
     const originalFetch = global.fetch;
     const pushMock = jest.fn();
@@ -909,12 +1042,9 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
         });
     } finally {
       global.fetch = originalFetch;
-      car.assignedDriver = originalAssignedDriver;
-      await car.save();
     }
 
-    expect(response.status).toBe(201);
-    bookingIds.push(response.body.data._id);
+    expect(response.status).toBe(400);
     expect(pushMock).not.toHaveBeenCalled();
   });
 
@@ -922,9 +1052,7 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
     ['Bus', 'busScheduled'],
     ['Bus', 'busUnscheduled'],
     ['EV-Sewa', 'evScheduled'],
-    ['EV-Sewa', 'evUnscheduled'],
-    ['Car', 'carScheduled'],
-    ['Car', 'carUnscheduled']
+    ['EV-Sewa', 'evUnscheduled']
   ])('%s scheduled and unscheduled vehicles remain bookable through the existing booking and driver notification flow', async (serviceType, vehicleKey) => {
     const schedule = vehicleKey.endsWith('Scheduled') ? schedules[vehicleKey] : null;
     const bookingResponse = await request(app)

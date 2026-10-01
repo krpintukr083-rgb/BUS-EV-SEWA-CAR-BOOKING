@@ -129,7 +129,11 @@ const createScheduleBooking = async (req, res, next) => {
       });
     }
     let routeSegmentFare = null;
-    if (Array.isArray(vehicle.route?.stops) && vehicle.route.stops.length > 0) {
+    if (
+      !(serviceType === 'Car' && bookingMode === 'SCHEDULE') &&
+      Array.isArray(vehicle.route?.stops) &&
+      vehicle.route.stops.length > 0
+    ) {
       routeSegmentFare = getRouteSegmentFare(vehicle.route, pickupLocation, dropLocation);
       if (routeSegmentFare == null) {
         return res.status(400).json({
@@ -187,10 +191,47 @@ const createScheduleBooking = async (req, res, next) => {
       }
       carPassengerCount = requestedCount;
     }
-    // Attach a matching active schedule when the customer selected one. Schedules
-    // are optional for this booking flow; vehicles remain bookable without one.
+    // Car schedule bookings require an active selected schedule; other service
+    // types keep their existing optional schedule matching behavior.
     let activeSchedule = null;
-    if (serviceType === 'Bus' && bookingMode !== 'INSTANT') {
+    if (serviceType === 'Car' && bookingMode === 'SCHEDULE') {
+      if (!scheduleId) {
+        return res.status(400).json({ success: false, message: 'Select an active Car schedule before booking' });
+      }
+      activeSchedule = await Schedule.findOne({
+        _id: scheduleId,
+        vehicle: vehicle._id,
+        status: 'Active'
+      }).lean();
+      if (
+        vehicle.vehicleType !== 'Car' ||
+        !activeSchedule ||
+        !activeSchedule.driver ||
+        !String(activeSchedule.origin || '').trim() ||
+        !String(activeSchedule.destination || '').trim()
+      ) {
+        return res.status(400).json({ success: false, message: 'Selected Car schedule is not active or is incomplete' });
+      }
+      const scheduleDriver = await Driver.findById(activeSchedule.driver).select('driverStatus').lean();
+      if (
+        !scheduleDriver ||
+        !['Active', 'Approved'].includes(scheduleDriver.driverStatus) ||
+        (vehicle.assignedDriver && String(vehicle.assignedDriver) !== String(activeSchedule.driver))
+      ) {
+        return res.status(400).json({ success: false, message: 'Selected Car schedule driver is not eligible for this vehicle' });
+      }
+      const bookingDate = travelDate ? new Date(travelDate) : null;
+      const scheduleDate = new Date(activeSchedule.travelDate);
+      const sameDate = bookingDate && !Number.isNaN(bookingDate.getTime())
+        && bookingDate.getFullYear() === scheduleDate.getFullYear()
+        && bookingDate.getMonth() === scheduleDate.getMonth()
+        && bookingDate.getDate() === scheduleDate.getDate();
+      const sameRoute = String(activeSchedule.origin).trim().toLowerCase() === String(pickupLocation).trim().toLowerCase()
+        && String(activeSchedule.destination).trim().toLowerCase() === String(dropLocation).trim().toLowerCase();
+      if (!sameDate || !sameRoute) {
+        return res.status(400).json({ success: false, message: 'Selected Car schedule does not match this route and travel date' });
+      }
+    } else if (serviceType === 'Bus' && bookingMode !== 'INSTANT') {
       const schedules = await Schedule.find({ vehicle: vehicle._id }).sort({ travelDate: 1 }).lean();
       const bookingDate = travelDate ? new Date(travelDate) : new Date();
       activeSchedule = schedules.find(schedule => {
@@ -304,6 +345,11 @@ const createScheduleBooking = async (req, res, next) => {
       loadCapacity: vehicle.loadCapacity || '',
       notes: vehicle.hireDetails?.notes || ''
     } : undefined;
+    const bookingPickupLocation = serviceType === 'Car' && activeSchedule ? activeSchedule.origin : pickupLocation;
+    const bookingDropLocation = serviceType === 'Car' && activeSchedule ? activeSchedule.destination : dropLocation;
+    const bookingTravelDate = serviceType === 'Car' && activeSchedule
+      ? activeSchedule.travelDate
+      : travelDate ? new Date(travelDate) : new Date();
     let booking;
     try {
       // Determine schedule ID to store: prefer the explicitly provided scheduleId if valid,
@@ -324,8 +370,8 @@ const createScheduleBooking = async (req, res, next) => {
         vehicle: vehicle._id,
         scheduleId: scheduleIdToStore,
         serviceType,
-        pickupLocation,
-        dropLocation,
+        pickupLocation: bookingPickupLocation,
+        dropLocation: bookingDropLocation,
         passengerDetails: (passengerDetails && passengerDetails.length > 0)
           ? passengerDetails
           : [{ name: req.user.name, age: 28, gender: 'Male' }],
@@ -351,7 +397,7 @@ const createScheduleBooking = async (req, res, next) => {
         driverConfirmed: Boolean(instantDriver),
         driverConfirmedAt: instantDriver ? new Date() : null,
         driverConfirmedBy: instantDriver?._id || null,
-        travelDate: travelDate ? new Date(travelDate) : new Date(),
+        travelDate: bookingTravelDate,
         busSeatNumbers: selectedSeats || []
       });
     } catch (error) {
