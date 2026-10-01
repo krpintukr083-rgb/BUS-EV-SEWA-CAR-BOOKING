@@ -12,7 +12,8 @@ const User = require('../models/User');
 const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
 const driverBookingResponse = require('../utils/driverBookingResponse');
 const {
-  notifyEligibleDriversForBooking
+  notifyEligibleDriversForBooking,
+  notifyAssignedCarDriverForScheduleBooking
 } = require('../utils/notification');
 const { getRouteSegmentFare, isRouteSegmentWithin } = require('../utils/routeFares');
 const { getAvailableInstantVehicleDrivers } = require('../utils/instantBookingAvailability');
@@ -65,6 +66,7 @@ const createInstantBooking = async (req, res, next) => {
       customerViewOtp: rawOtp,
       travelDate: travelDate ? new Date(travelDate) : new Date()
     });
+    // Instant requests are broadcast by route; the notification utility deliberately ignores vehicle type.
     await notifyEligibleDriversForBooking(booking);
     const bookingObj = booking.toObject();
     bookingObj.confirmationOtp = rawOtp;
@@ -398,34 +400,17 @@ const createScheduleBooking = async (req, res, next) => {
       recipientId: req.user._id,
       status: 'Unread'
     });
-    // Notify every matching online driver for normal Bus, EV-Sewa, and Car requests.
+    // Route scheduled Cars only to their selected vehicle's assigned driver.
     if (bookingMode !== 'INSTANT') {
-      if (serviceType === 'Car' && vehicle.assignedDriver) {
-        const driverDoc = await Driver.findById(vehicle.assignedDriver).populate('user');
-        if (driverDoc && driverDoc.user) {
-          const recipientId = driverDoc.user._id || driverDoc.user;
-          const bookingOrigin = booking.pickupLocation || '';
-          const bookingDest = booking.dropLocation || '';
-          const routeText = `${bookingOrigin.split('(')[0].trim()}${bookingDest ? ' → ' + bookingDest.split('(')[0].trim() : ''}`;
-          
-          await Notification.create({
-            title: `New Car Booking Request`,
-            message: `New Car Booking Request ${booking.bookingId}: ${routeText}`,
-            recipient: `Driver: ${driverDoc.name || 'Driver'}`,
-            recipientRole: 'driver',
-            recipientId: recipientId,
-            eventType: 'BOOKING_REQUEST',
-            entityType: 'Booking',
-            entityId: booking._id,
-            status: 'Unread'
-          });
-          const { sendPushNotification } = require('../utils/notification');
-          const token = driverDoc.pushToken || driverDoc.fcmToken;
-          if (token) {
-            sendPushNotification(token, `New Car Booking Request`, `New Car Booking Request ${booking.bookingId}: ${routeText}`, { type: 'BOOKING_REQUEST', bookingId: booking.bookingId });
-          }
-        }
-      } else if (serviceType !== 'Car') {
+      if (serviceType === 'Car' && req.route?.path === '/schedule') {
+        await notifyAssignedCarDriverForScheduleBooking(booking);
+      } else if (
+        req.route?.path === '/schedule' &&
+        (serviceType === 'Bus' || serviceType === 'EV-Sewa')
+      ) {
+        // The notification utility applies the booking's Bus/EV-Sewa type and route.
+        await notifyEligibleDriversForBooking(booking);
+      } else {
         await notifyEligibleDriversForBooking(booking);
       }
     }

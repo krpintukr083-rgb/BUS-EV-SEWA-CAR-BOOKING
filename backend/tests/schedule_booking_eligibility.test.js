@@ -17,6 +17,8 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
   const travelDate = '2030-05-01';
   const vehicleIds = [];
   const bookingIds = [];
+  const extraDriverIds = [];
+  const extraUserIds = [];
   let customer;
   let driverUser;
   let driver;
@@ -153,6 +155,8 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
       await Payment.deleteMany({ booking: { $in: bookingIds } });
       await Booking.deleteMany({ _id: { $in: bookingIds } });
     }
+    if (extraDriverIds.length > 0) await Driver.deleteMany({ _id: { $in: extraDriverIds } });
+    if (extraUserIds.length > 0) await User.deleteMany({ _id: { $in: extraUserIds } });
     if (vehicleIds.length > 0) {
       await Schedule.deleteMany({ vehicle: { $in: vehicleIds } });
       await Vehicle.deleteMany({ _id: { $in: vehicleIds } });
@@ -219,6 +223,256 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
     for (const key of ['busInactive', 'evUnapproved', 'carRejected']) {
       expect(resultById.has(String(vehicles[key]._id))).toBe(false);
     }
+  });
+
+  test('Instant booking without a selected service notifies same-route Bus, EV-Sewa, and Car drivers', async () => {
+    const addedDrivers = [];
+    const addedUsers = [];
+    const addedVehicles = [];
+    const expectedTokens = [
+      'ExponentPushToken[InstantBus]',
+      'ExponentPushToken[InstantEvSewa]',
+      'ExponentPushToken[InstantCar]'
+    ];
+    const originalInstantBookingEnabled = serviceControl.instantBookingEnabled;
+    const originalFetch = global.fetch;
+    const submittedPushes = [];
+
+    try {
+      serviceControl.instantBookingEnabled = true;
+      await serviceControl.save();
+
+      for (const [index, vehicleType] of ['Bus', 'EV-Sewa', 'Car'].entries()) {
+        const user = await User.create({
+          name: `Instant ${vehicleType} Driver`,
+          email: `instant_${index}_${suffix}@test.com`,
+          phone: `94${String(Number(suffix.slice(-8)) + index + 1).slice(-8)}`,
+          password: 'password123',
+          role: 'driver',
+          status: 'Active'
+        });
+        addedUsers.push(user._id);
+        const assignedDriver = await Driver.create({
+          user: user._id,
+          name: user.name,
+          mobileNumber: user.phone,
+          drivingLicenceNumber: `DL-INSTANT-${suffix}-${index}`,
+          driverStatus: index === 1 ? 'Approved' : 'Active',
+          isOnline: true,
+          pushToken: expectedTokens[index]
+        });
+        addedDrivers.push(assignedDriver._id);
+        const vehicle = await Vehicle.create({
+          vehicleNumber: `I${suffix.slice(-5)}-${index}`.toUpperCase(),
+          vehicleType,
+          vehicleCategory: `Instant test ${vehicleType}`,
+          vehicleModel: `Instant test ${vehicleType} model`,
+          vehicleName: `Instant test ${vehicleType}`,
+          ownerName: user.name,
+          ownerMobileNumber: user.phone,
+          vehicleStatus: 'Active',
+          assignedDriver: assignedDriver._id,
+          route: { origin: 'Delhi', destination: 'Jaipur', stops: [] }
+        });
+        addedVehicles.push(vehicle._id);
+        assignedDriver.assignedVehicle = vehicle._id;
+        await assignedDriver.save();
+      }
+
+      global.fetch = jest.fn(async (_url, options) => {
+        submittedPushes.push(...JSON.parse(options.body));
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ data: JSON.parse(options.body).map(() => ({ status: 'ok' })) })
+        };
+      });
+
+      const response = await request(app)
+        .post('/api/bookings/instant')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({
+          pickupLocation: 'Delhi',
+          dropLocation: 'Jaipur',
+          travelDate,
+          paymentMethod: 'Offline Cash'
+        });
+
+      expect(response.status).toBe(201);
+      const booking = response.body.data;
+      bookingIds.push(booking._id);
+      expect(booking.bookingMode).toBe('INSTANT');
+      expect(booking.serviceType).toBe('Any');
+      expect(submittedPushes.map(message => message.to).sort()).toEqual(expectedTokens.sort());
+      expect(submittedPushes.every(message => message.data.bookingId === booking.bookingId)).toBe(true);
+      expect(submittedPushes.every(message => message.data.screen === 'Requests')).toBe(true);
+      const requests = await Notification.find({
+        entityId: booking._id,
+        eventType: 'BOOKING_REQUEST'
+      }).lean();
+      expect(requests).toHaveLength(4);
+      expect(new Set(requests.map(item => String(item.recipientId))))
+        .toEqual(new Set([...addedUsers, driverUser._id].map(String)));
+    } finally {
+      global.fetch = originalFetch;
+      serviceControl.instantBookingEnabled = originalInstantBookingEnabled;
+      await serviceControl.save();
+      if (addedVehicles.length) await Vehicle.deleteMany({ _id: { $in: addedVehicles } });
+      if (addedDrivers.length) await Driver.deleteMany({ _id: { $in: addedDrivers } });
+      if (addedUsers.length) await User.deleteMany({ _id: { $in: addedUsers } });
+    }
+  });
+
+  test('Car schedule booking notifies only its assigned driver', async () => {
+    driver.pushToken = 'ExponentPushToken[ScheduleBookingTest]';
+    await driver.save();
+    const extraDrivers = [];
+    for (const [index, token] of ['ExponentPushToken[OtherDriver1]', 'ExponentPushToken[OtherDriver2]'].entries()) {
+      const user = await User.create({
+        name: `Unassigned Schedule Driver ${index + 1}`,
+        email: `schedule_unassigned_${index}_${suffix}@test.com`,
+        phone: `93${String(Number(suffix.slice(-8)) + index + 1).slice(-8)}`,
+        password: 'password123',
+        role: 'driver',
+        status: 'Active'
+      });
+      extraUserIds.push(user._id);
+      const otherDriver = await Driver.create({
+        user: user._id,
+        name: user.name,
+        mobileNumber: user.phone,
+        drivingLicenceNumber: `DL-SCHEDULE-OTHER-${suffix}-${index}`,
+        driverStatus: 'Active',
+        isOnline: true,
+        pushToken: token
+      });
+      extraDriverIds.push(otherDriver._id);
+      extraDrivers.push(otherDriver);
+    }
+
+    const originalFetch = global.fetch;
+    const submittedPushes = [];
+    const pushMock = jest.fn(async (_url, options) => {
+      submittedPushes.push(JSON.parse(options.body));
+      return { ok: true, json: async () => ({ data: [{ status: 'ok', id: 'test-push-ticket' }] }) };
+    });
+    global.fetch = pushMock;
+    let response;
+    try {
+      response = await request(app)
+        .post('/api/bookings/schedule')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({
+          vehicleId: vehicles.carScheduled._id,
+          scheduleId: schedules.carScheduled._id,
+          serviceType: 'Car',
+          pickupLocation: 'Delhi',
+          dropLocation: 'Jaipur',
+          travelDate,
+          paymentMethod: 'Offline Cash',
+          fare: 1
+        });
+    } finally {
+      global.fetch = originalFetch;
+    }
+
+    expect(response.status).toBe(201);
+    const booking = response.body.data;
+    bookingIds.push(booking._id);
+    expect(booking.bookingMode).toBe('SCHEDULE');
+    expect(booking.serviceType).toBe('Car');
+    expect(booking.fare).toBe(vehicles.carScheduled.fareRate);
+    expect(response.body.payment.paymentMethod).toBe('Offline Cash');
+    expect(response.body.payment.paymentStatus).toBe('Pending Cash');
+
+    expect(submittedPushes).toHaveLength(1);
+    expect(submittedPushes[0].to).toBe('ExponentPushToken[ScheduleBookingTest]');
+    expect(submittedPushes[0].data).toMatchObject({
+      bookingId: booking.bookingId,
+      eventType: 'BOOKING_REQUEST',
+      serviceType: 'Car',
+      screen: 'Requests'
+    });
+    expect(extraDrivers.some(otherDriver => submittedPushes[0].to === otherDriver.pushToken)).toBe(false);
+
+    const driverRequests = await Notification.find({
+      entityId: booking._id,
+      eventType: 'BOOKING_REQUEST'
+    }).lean();
+    expect(driverRequests).toHaveLength(1);
+    expect(String(driverRequests[0].recipientId)).toBe(String(driverUser._id));
+    expect(driverRequests[0].message).toContain('Service: Private Car');
+    expect(driverRequests[0].message).toContain('Schedule Booking Customer');
+    expect(driverRequests[0].message).toContain(booking.bookingId);
+    expect(driverRequests[0].message).toContain(booking.pickupLocation);
+    expect(driverRequests[0].message).toContain(booking.dropLocation);
+    expect(driverRequests[0].message).toContain(`Fare: ${booking.fare}`);
+
+    const { notifyAssignedCarDriverForScheduleBooking } = require('../src/utils/notification');
+    await notifyAssignedCarDriverForScheduleBooking(await Booking.findById(booking._id));
+    expect(submittedPushes).toHaveLength(1);
+    expect(pushMock).toHaveBeenCalledTimes(1);
+  });
+
+  test('Car schedule booking succeeds when the push provider fails', async () => {
+    const originalFetch = global.fetch;
+    global.fetch = jest.fn().mockRejectedValue(new Error('Push provider unavailable'));
+    let response;
+    try {
+      response = await request(app)
+        .post('/api/bookings/schedule')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({
+          vehicleId: vehicles.carScheduled._id,
+          scheduleId: schedules.carScheduled._id,
+          serviceType: 'Car',
+          pickupLocation: 'Delhi',
+          dropLocation: 'Jaipur',
+          travelDate,
+          paymentMethod: 'Offline Cash',
+          fare: 1
+        });
+    } finally {
+      global.fetch = originalFetch;
+    }
+
+    expect(response.status).toBe(201);
+    bookingIds.push(response.body.data._id);
+    expect(response.body.data.serviceType).toBe('Car');
+    expect(response.body.payment.paymentStatus).toBe('Pending Cash');
+  });
+
+  test('Car schedule booking without an assigned driver does not broadcast', async () => {
+    const car = vehicles.carUnscheduled;
+    const originalAssignedDriver = car.assignedDriver;
+    car.assignedDriver = null;
+    await car.save();
+
+    const originalFetch = global.fetch;
+    const pushMock = jest.fn();
+    global.fetch = pushMock;
+    let response;
+    try {
+      response = await request(app)
+        .post('/api/bookings/schedule')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({
+          vehicleId: car._id,
+          serviceType: 'Car',
+          pickupLocation: 'Delhi',
+          dropLocation: 'Jaipur',
+          travelDate,
+          paymentMethod: 'Offline Cash'
+        });
+    } finally {
+      global.fetch = originalFetch;
+      car.assignedDriver = originalAssignedDriver;
+      await car.save();
+    }
+
+    expect(response.status).toBe(201);
+    bookingIds.push(response.body.data._id);
+    expect(pushMock).not.toHaveBeenCalled();
   });
 
   test.each([

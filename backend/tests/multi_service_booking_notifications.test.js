@@ -7,6 +7,7 @@ const Driver = require('../src/models/Driver');
 const Vehicle = require('../src/models/Vehicle');
 const Booking = require('../src/models/Booking');
 const Notification = require('../src/models/Notification');
+const ServiceControl = require('../src/models/ServiceControl');
 const jwtConfig = require('../src/config/jwt');
 const { connectTestDB, closeTestDB } = require('./setup');
 const { notifyEligibleDriversForBooking } = require('../src/utils/notification');
@@ -24,6 +25,7 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
   let evVehicle;
   let secondEvDriver;
   let secondEvVehicle;
+  let allowOppositeRoutes = false;
 
   const route = {
     origin: 'Delhi',
@@ -105,16 +107,23 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
       createDriverAndVehicle('Bus', 3)
     ]);
     await createDriverAndVehicle('Bus', 4, { isOnline: false });
-    await createDriverAndVehicle('Bus', 5, {
+    const unrelatedBusPair = await createDriverAndVehicle('Bus', 5, {
       route: { origin: 'Mumbai', destination: 'Pune', stops: [], destinationFareFromOrigin: 400 }
     });
     const evPair = await createDriverAndVehicle('EV-Sewa', 6);
     evDriver = evPair.driver;
     evVehicle = evPair.vehicle;
-    const secondEvPair = await createDriverAndVehicle('EV-Sewa', 7);
+    const secondEvPair = await createDriverAndVehicle('EV-Sewa', 7, { driverStatus: 'Approved' });
     secondEvDriver = secondEvPair.driver;
     secondEvVehicle = secondEvPair.vehicle;
     const carPair = await createDriverAndVehicle('Car', 8);
+    await createDriverAndVehicle('Bus', 10, { driverStatus: 'Inactive' });
+    await createDriverAndVehicle('Bus', 11, { driverStatus: 'Pending Verification' });
+    const reverseBusPair = await createDriverAndVehicle('Bus', 9, {
+      route: { origin: 'Jaipur', destination: 'Delhi', stops: [], destinationFareFromOrigin: 400 }
+    });
+    const serviceControl = await ServiceControl.findOne().lean();
+    allowOppositeRoutes = serviceControl?.oppositeRouteNotifications === true;
 
     const eligibleBusBooking = {
       _id: new mongoose.Types.ObjectId(),
@@ -135,12 +144,32 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
       ...eligibleBusBooking,
       _id: new mongoose.Types.ObjectId(),
       bookingId: `RR-BUS-INSTANT-${suffix}`,
-      bookingMode: 'INSTANT'
+      bookingMode: 'INSTANT',
+      pickupLocation: 'Delhi',
+      dropLocation: 'Jaipur'
+    };
+    const instantAnyBooking = {
+      ...instantBusBooking,
+      _id: new mongoose.Types.ObjectId(),
+      bookingId: `RR-INSTANT-ANY-${suffix}`,
+      serviceType: 'Any'
+    };
+    const scheduledBusBooking = {
+      ...eligibleBusBooking,
+      _id: new mongoose.Types.ObjectId(),
+      bookingId: `RR-SCHEDULE-BUS-${suffix}`,
+      bookingMode: 'SCHEDULE'
     };
     const eligibleEvBooking = {
       ...eligibleBusBooking,
       _id: new mongoose.Types.ObjectId(),
       bookingId: `RR-EV-${suffix}`,
+      serviceType: 'EV-Sewa'
+    };
+    const scheduledEvBooking = {
+      ...scheduledBusBooking,
+      _id: new mongoose.Types.ObjectId(),
+      bookingId: `RR-SCHEDULE-EV-${suffix}`,
       serviceType: 'EV-Sewa'
     };
     const eligibleCarBooking = {
@@ -153,6 +182,9 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
       eligibleBusBooking._id,
       reverseBusBooking._id,
       instantBusBooking._id,
+      instantAnyBooking._id,
+      scheduledBusBooking._id,
+      scheduledEvBooking._id,
       eligibleEvBooking._id,
       eligibleCarBooking._id
     );
@@ -169,20 +201,54 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
       };
     });
 
+    busDrivers[0].driver.assignedVehicle = unrelatedBusPair.vehicle._id;
+    await busDrivers[0].driver.save();
     await notifyEligibleDriversForBooking(eligibleBusBooking);
     await notifyEligibleDriversForBooking(eligibleBusBooking);
     await notifyEligibleDriversForBooking(reverseBusBooking);
     await notifyEligibleDriversForBooking(instantBusBooking);
+    await notifyEligibleDriversForBooking(instantAnyBooking);
+    await notifyEligibleDriversForBooking(scheduledBusBooking);
+    await notifyEligibleDriversForBooking(scheduledEvBooking);
     await notifyEligibleDriversForBooking(eligibleEvBooking);
     await notifyEligibleDriversForBooking(eligibleCarBooking);
+    busDrivers[0].driver.assignedVehicle = busDrivers[0].vehicle._id;
+    await busDrivers[0].driver.save();
 
     expect(fetchBodies.flat().filter(message => message.data.bookingId === eligibleBusBooking.bookingId)).toHaveLength(3);
     expect(fetchBodies.flat().filter(message => message.data.bookingId === reverseBusBooking.bookingId)).toHaveLength(0);
-    expect(fetchBodies.flat().filter(message => message.data.bookingId === instantBusBooking.bookingId)).toHaveLength(0);
+    expect(fetchBodies.flat().filter(message => message.data.bookingId === instantBusBooking.bookingId))
+      .toHaveLength(6 + Number(allowOppositeRoutes));
+    expect(fetchBodies.flat().filter(message => message.data.bookingId === instantAnyBooking.bookingId))
+      .toHaveLength(6 + Number(allowOppositeRoutes));
+    expect(fetchBodies.flat().filter(message => message.data.bookingId === scheduledBusBooking.bookingId)).toHaveLength(3);
+    expect(fetchBodies.flat().filter(message => message.data.bookingId === scheduledEvBooking.bookingId)).toHaveLength(2);
     expect(fetchBodies.flat().filter(message => message.data.bookingId === eligibleEvBooking.bookingId)).toHaveLength(2);
     expect(fetchBodies.flat().filter(message => message.data.bookingId === eligibleCarBooking.bookingId)).toHaveLength(1);
-    expect(fetchBodies.flat().every(message => ['Bus', 'EV-Sewa', 'Car'].includes(message.data.serviceType))).toBe(true);
+    expect(fetchBodies.flat().every(message => ['Bus', 'EV-Sewa', 'Car', 'Any'].includes(message.data.serviceType))).toBe(true);
     expect(fetchBodies.flat().every(message => message.title === `New ${message.data.serviceType} Booking Request`)).toBe(true);
+    const instantTokens = fetchBodies.flat()
+      .filter(message => message.data.bookingId === instantBusBooking.bookingId)
+      .map(message => message.to);
+    expect(instantTokens).toEqual(expect.arrayContaining([
+      'ExponentPushToken[RouteRequest1]',
+      'ExponentPushToken[RouteRequest2]',
+      'ExponentPushToken[RouteRequest3]',
+      'ExponentPushToken[RouteRequest6]',
+      'ExponentPushToken[RouteRequest7]',
+      'ExponentPushToken[RouteRequest8]'
+    ]));
+    if (allowOppositeRoutes) {
+      expect(instantTokens).toContain('ExponentPushToken[RouteRequest9]');
+    } else {
+      expect(instantTokens).not.toContain('ExponentPushToken[RouteRequest9]');
+    }
+    expect(fetchBodies.flat()
+      .filter(message => message.data.bookingId === scheduledBusBooking.bookingId)
+      .every(message => message.data.serviceType === 'Bus')).toBe(true);
+    expect(fetchBodies.flat()
+      .filter(message => message.data.bookingId === scheduledEvBooking.bookingId)
+      .every(message => message.data.serviceType === 'EV-Sewa')).toBe(true);
 
     const busRequestNotifications = await Notification.find({
       eventType: 'BOOKING_REQUEST',
