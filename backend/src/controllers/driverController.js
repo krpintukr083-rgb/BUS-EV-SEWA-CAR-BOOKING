@@ -162,12 +162,13 @@ exports.getDriverDashboard = async (req, res, next) => {
             })
               .select('bookingId bookingMode user customer serviceType pickupLocation dropLocation fare driverPaymentAmount paymentStatus bookingStatus rideStatus travelDate passengerDetails busSeatNumbers vehicle driver createdAt')
               .populate('user', 'phone')
-              .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory vehicleStatus seatingCapacity fuelType route pickupDropDetails hireDetails')
+              .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory vehicleStatus seatingCapacity fuelType route pickupDropDetails hireDetails assignedDriver')
               .sort({ createdAt: -1 })
               .limit(20)
               .lean();
 
             const driverVeh = assignedVehicleId ? await Vehicle.findById(assignedVehicleId).lean() : null;
+            const activeReservedSeats = driverVeh ? await getActiveReservedSeats(driverVeh._id) : 0;
 
             return candidates.filter(b => {
               if (b.driverConfirmed || b.driverConfirmationStatus === 'Confirmed' || b.confirmationOtpVerifiedAt || b.otpVerified || b.cashCollected || b.rideStatus === 'Accepted') return false;
@@ -177,6 +178,15 @@ exports.getDriverDashboard = async (req, res, next) => {
               if (b.bookingMode === 'NORMAL' || b.bookingMode === 'SCHEDULE') {
                 if (b.serviceType !== driverVeh?.vehicleType) return false;
                 if (b.serviceType !== 'Bus' && b.driver && (b.driver._id || b.driver).toString() !== driver._id.toString()) return false;
+                if (b.bookingMode === 'SCHEDULE' && b.serviceType === 'Car') {
+                  const selectedVehicleId = b.vehicle?._id || b.vehicle;
+                  const selectedDriverId = b.vehicle?.assignedDriver?._id || b.vehicle?.assignedDriver;
+                  if (
+                    !driverVeh ||
+                    String(selectedVehicleId) !== String(driverVeh._id) ||
+                    String(selectedDriverId) !== String(driver._id)
+                  ) return false;
+                }
                 if (driverVeh) {
                   return vehicleMatchesBookingRoute(driverVeh, b);
                 }
@@ -186,6 +196,9 @@ exports.getDriverDashboard = async (req, res, next) => {
               if (b.bookingMode === 'INSTANT') {
                 // Instant bookings: ignore service type, only route match required
                 if (!driverVeh) return false;
+                const requestedSeats = b.passengerDetails?.length || 1;
+                const capacity = driverVeh.seatingCapacity || 4;
+                if (activeReservedSeats + requestedSeats > capacity) return false;
                 return vehicleMatchesBookingRoute(driverVeh, b);
               }
 
@@ -1352,7 +1365,7 @@ const getScheduleBookingRequests = async (req, res, next) => {
       driver: { $in: [null, driver._id] }
     })
       .populate('user', 'phone')
-      .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory fuelType fareRate route pickupDropDetails hireDetails')
+      .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory fuelType fareRate route pickupDropDetails hireDetails assignedDriver')
       .sort({ createdAt: -1 })
       .lean();
 
@@ -1386,6 +1399,16 @@ const getScheduleBookingRequests = async (req, res, next) => {
       // If directly assigned to another driver, exclude it for ALL booking modes (first driver wins)
       if (reqItem.driver && (reqItem.driver._id || reqItem.driver).toString() !== driver._id.toString()) {
         return false;
+      }
+
+      if (reqItem.bookingMode === 'SCHEDULE' && reqItem.serviceType === 'Car') {
+        const selectedVehicleId = reqItem.vehicle?._id || reqItem.vehicle;
+        const selectedDriverId = reqItem.vehicle?.assignedDriver?._id || reqItem.vehicle?.assignedDriver;
+        if (
+          !selectedVehicleId ||
+          String(selectedVehicleId) !== String(assignedVehicle._id) ||
+          String(selectedDriverId) !== String(driver._id)
+        ) return false;
       }
 
       if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(reqItem.bookingStatus)) {
