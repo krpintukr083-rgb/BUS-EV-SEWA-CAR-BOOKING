@@ -23,7 +23,6 @@ import {
   BarChart3,
   Sliders,
   LogOut,
-  ShieldCheck
 } from 'lucide-react';
 
 const AdminSidebar = ({ onOpenLogout, isOpen, onClose }) => {
@@ -87,8 +86,13 @@ const AdminSidebar = ({ onOpenLogout, isOpen, onClose }) => {
     <aside className={`sidebar ${isOpen ? 'sidebar-open' : ''}`}>
       <div className="sidebar-header">
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <div className="brand-mark"><ShieldCheck size={18} /></div>
-          <div><div className="sidebar-brand-title">TransitOS</div>
+          <img
+            src="/logo.png"
+            alt="YatraSewanp.com"
+            className="brand-mark"
+            style={{ objectFit: 'contain', backgroundColor: '#ffffff' }}
+          />
+          <div><div className="sidebar-brand-title">YatraSewanp.com</div>
           <span className="sidebar-brand-badge">Admin workspace</span></div>
         </div>
       </div>

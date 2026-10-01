@@ -279,7 +279,7 @@ const HomeScreen = ({ navigation }) => {
                           <Text style={styles.heroBannerBadgeText}>PROMOTIONAL OFFER</Text>
                         </View>
                         <Text style={styles.heroBannerTitle}>
-                          {item.title || 'Travel Nepal With TravelSewa'}
+                          {item.title || 'Travel Nepal With YatraSewanp.com'}
                         </Text>
                         <Text style={styles.heroBannerSubtitle}>
                           {item.subtitle || 'Book your journey today with verified luxury fleet'}

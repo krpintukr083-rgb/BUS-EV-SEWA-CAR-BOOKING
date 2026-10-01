@@ -497,7 +497,7 @@ export default function DriverProfileScreen({ navigation }) {
           <Text style={styles.logoutBtnText}>{t('logout')}</Text>
         </TouchableOpacity>
 
-        <Text style={styles.versionText}>TravelSewa Driver Partner App v2.4.0</Text>
+        <Text style={styles.versionText}>YatraSewanp.com Driver App v2.4.0</Text>
       </ScrollView>
 
       {/* Language Switch Modal */}

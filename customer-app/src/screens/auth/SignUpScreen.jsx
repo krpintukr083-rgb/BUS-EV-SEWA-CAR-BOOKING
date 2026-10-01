@@ -53,7 +53,7 @@ const SignUpScreen = ({ navigation }) => {
 
         <View style={styles.header}>
           <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join TravelSewa for instant Bus, EV & Car reservations</Text>
+          <Text style={styles.subtitle}>Join YatraSewanp.com for instant Bus, EV & Car reservations</Text>
         </View>
 
         <View style={styles.card}>

@@ -1,6 +1,6 @@
 export const TRANSLATIONS = {
   en: {
-    appName: 'TravelSewa Driver',
+    appName: 'YatraSewanp.com',
     online: 'ONLINE',
     offline: 'OFFLINE',
     switchOnline: 'Go Online to receive rides',

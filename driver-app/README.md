@@ -1,4 +1,4 @@
-# TravelEase Driver App (Android / Expo)
+# YatraSewanp.com Driver App (Android / Expo)
 
 A completely independent, dedicated mobile application for Drivers & Conductors across Bus, EV-Sewa, and Car/Cab booking operations.
 

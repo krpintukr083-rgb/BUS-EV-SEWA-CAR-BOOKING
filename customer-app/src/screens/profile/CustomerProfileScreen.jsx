@@ -47,14 +47,14 @@ const CustomerProfileScreen = ({ navigation }) => {
 
   const handleLogout = async () => {
     if (Platform.OS === 'web') {
-      const confirmed = window.confirm('Are you sure you want to log out of your TravelSewa account?');
+      const confirmed = window.confirm('Are you sure you want to log out of your YatraSewanp.com account?');
       if (confirmed) {
         await logout();
       }
     } else {
       Alert.alert(
         'Log Out',
-        'Are you sure you want to log out of your TravelSewa account?',
+        'Are you sure you want to log out of your YatraSewanp.com account?',
         [
           { text: 'Cancel', style: 'cancel' },
           {
@@ -450,7 +450,7 @@ const CustomerProfileScreen = ({ navigation }) => {
         </TouchableOpacity>
 
         {/* Version info */}
-        <Text style={styles.versionText}>TravelSewa Customer App v1.0.0 (Production Build)</Text>
+        <Text style={styles.versionText}>YatraSewanp.com v1.0.0 (Production Build)</Text>
       </ScrollView>
 
         <Modal visible={photoPickerVisible} transparent animationType="fade" onRequestClose={() => setPhotoPickerVisible(false)}>

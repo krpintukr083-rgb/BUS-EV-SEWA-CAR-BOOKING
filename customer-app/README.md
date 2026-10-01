@@ -1,4 +1,4 @@
-# TravelEase - Customer Android Application
+# YatraSewanp.com - Customer Android Application
 
 A complete, production-grade Customer Mobile Application for **Bus Booking + EV-Sewa + Car Booking Platform**, built using **React Native**, **Expo**, **JavaScript ONLY (JSX)**, **React Navigation**, and connected to the common **Node.js + Express.js + MongoDB backend**.
 

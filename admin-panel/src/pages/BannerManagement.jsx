@@ -48,7 +48,7 @@ const BannerManagement = () => {
   // Discount % Configuration State (100% UNTOUCHED LOGIC)
   const [discountStatus, setDiscountStatus] = useState('active');
   const [discountPercentage, setDiscountPercentage] = useState(15);
-  const [discountTitle, setDiscountTitle] = useState('Travel Nepal With TravelSewa');
+  const [discountTitle, setDiscountTitle] = useState('Travel Nepal With YatraSewanp.com');
   const [discountSubtitle, setDiscountSubtitle] = useState('Book your journey today with verified luxury fleet');
   const [discountImageFile, setDiscountImageFile] = useState(null);
   const [discountImagePreview, setDiscountImagePreview] = useState('');
@@ -77,7 +77,7 @@ const BannerManagement = () => {
           const data = dRes.data;
           setDiscountStatus(data.offerStatus || data.discountStatus || 'active');
           setDiscountPercentage(data.discountPercentage !== undefined ? data.discountPercentage : 15);
-          setDiscountTitle(data.offerTitle || 'Travel Nepal With TravelSewa');
+          setDiscountTitle(data.offerTitle || 'Travel Nepal With YatraSewanp.com');
           setDiscountSubtitle(data.offerSubtitle || 'Book your journey today with verified luxury fleet');
           setDiscountImagePreview(data.bannerImage || data.imageUrl || '');
           setLastUpdatedBy(data.lastUpdatedBy || 'Super Admin');

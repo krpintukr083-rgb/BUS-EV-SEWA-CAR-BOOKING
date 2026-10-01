@@ -126,8 +126,8 @@ const LoginScreen = ({ navigation }) => {
             style={styles.logoImage}
             resizeMode="contain"
           />
-          <Text style={styles.brandTitle}>TravelSewa</Text>
-          <Text style={styles.brandSubtitle}>Bus • EV-Sewa • Car Booking Platform</Text>
+          <Text style={styles.brandTitle}>YatraSewanp.com</Text>
+          <Text style={styles.brandSubtitle}>Your Travel Partner in Nepal</Text>
         </View>
 
         {/* Card Form */}
@@ -241,7 +241,7 @@ const LoginScreen = ({ navigation }) => {
             </View>
 
             <Text style={styles.modalSub}>
-              TravelSewa uses high-speed cloud servers. You can also connect to a custom server IP.
+              YatraSewanp.com uses high-speed cloud servers. You can also connect to a custom server IP.
             </Text>
 
             <Text style={styles.fieldLabel}>Active Server URL</Text>

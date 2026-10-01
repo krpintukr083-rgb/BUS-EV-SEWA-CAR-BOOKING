@@ -58,8 +58,8 @@ const LoginScreen = ({ navigation }) => {
             style={styles.logoImage}
             resizeMode="contain"
           />
-          <Text style={styles.brandTitle}>TravelSewa Driver</Text>
-          <Text style={styles.brandSub}>Official Driver & Conductor Platform</Text>
+          <Text style={styles.brandTitle}>YatraSewanp.com</Text>
+          <Text style={styles.brandSub}>Your Travel Partner in Nepal</Text>
         </View>
 
         {/* Login Form Card */}

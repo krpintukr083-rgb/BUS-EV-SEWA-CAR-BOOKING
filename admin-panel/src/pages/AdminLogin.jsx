@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdminAuth } from '../context/AdminAuthContext';
-import { ShieldCheck, LogIn, AlertCircle } from 'lucide-react';
+import { LogIn, AlertCircle } from 'lucide-react';
 
 const AdminLogin = () => {
   const [identifier, setIdentifier] = useState('admin@platform.com');
@@ -49,24 +49,14 @@ const AdminLogin = () => {
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-          <div
-            style={{
-              width: '54px',
-              height: '54px',
-              borderRadius: '12px',
-              backgroundColor: '#fee2e2',
-              color: '#dc2626',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: '12px'
-            }}
-          >
-            <ShieldCheck size={28} />
-          </div>
-          <h2 style={{ fontSize: '1.4rem', fontWeight: '800', color: '#0f172a' }}>Super Admin Portal</h2>
+          <img
+            src="/logo.png"
+            alt="YatraSewanp.com"
+            style={{ width: '54px', height: '54px', borderRadius: '12px', objectFit: 'contain', marginBottom: '12px' }}
+          />
+          <h2 style={{ fontSize: '1.4rem', fontWeight: '800', color: '#0f172a' }}>YatraSewanp.com</h2>
           <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '4px' }}>
-            Unified Bus + EV-Sewa + Car Booking Platform
+            Your Travel Partner in Nepal · Super Admin Portal
           </p>
         </div>
 
