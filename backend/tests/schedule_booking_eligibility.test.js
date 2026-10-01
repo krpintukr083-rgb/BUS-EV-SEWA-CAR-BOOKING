@@ -174,14 +174,15 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
     await closeTestDB();
   });
 
-  const getScheduleVehicles = (type) => request(app)
+  const getScheduleVehicles = (type, scheduleId) => request(app)
     .get('/api/vehicles')
     .query({
       type,
       from: 'Delhi',
       to: 'Jaipur',
       travelDate,
-      scheduleBooking: 'true'
+      scheduleBooking: 'true',
+      ...(scheduleId ? { scheduleId: String(scheduleId) } : {})
     });
 
   test.each([
@@ -189,7 +190,16 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
     ['EV-Sewa', 'evScheduled', 'evUnscheduled'],
     ['Car', 'carScheduled', 'carUnscheduled']
   ])('%s listing applies its schedule availability rules', async (type, scheduledKey, unscheduledKey) => {
-    const response = await getScheduleVehicles(type);
+    const response = await getScheduleVehicles(
+      type,
+      type === 'Car' ? schedules[scheduledKey]._id : undefined
+    );
+    if (type === 'Car') {
+      expect(response.status).toBe(200);
+      expect(response.body.data).toHaveLength(1);
+      expect(String(response.body.data[0]._id)).toBe(String(vehicles[scheduledKey]._id));
+      return;
+    }
     expect(response.status).toBe(200);
 
     const resultById = new Map(response.body.data.map(vehicle => [vehicle._id, vehicle]));
@@ -207,12 +217,14 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
       status: 'Active'
     });
     expect(new Date(scheduled.schedule.travelDate).toISOString().slice(0, 10)).toBe(travelDate);
-    if (type === 'Car') {
-      expect(unscheduled).toBeUndefined();
-    } else {
-      expect(unscheduled).toBeDefined();
-      expect(unscheduled.schedule).toBeNull();
-    }
+    expect(unscheduled).toBeDefined();
+    expect(unscheduled.schedule).toBeNull();
+  });
+
+  test('Car schedule listing requires an explicit selected schedule', async () => {
+    const response = await getScheduleVehicles('Car');
+    expect(response.status).toBe(400);
+    expect(response.body.message).toContain('Select an active Car schedule');
   });
 
   test('wrong route/date and pending/rejected schedules do not hide active vehicles or expose nonmatching schedule data', async () => {

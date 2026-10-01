@@ -62,6 +62,15 @@ exports.getVehicles = async (req, res, next) => {
       if (scheduleId && (!mongoose.isValidObjectId(scheduleId) || query.vehicleType !== 'Car')) {
         return res.status(400).json({ success: false, message: 'Invalid Car schedule selection' });
       }
+      if (query.vehicleType === 'Car' && !scheduleId) {
+        return res.status(400).json({ success: false, message: 'Select an active Car schedule to list vehicles' });
+      }
+      if (scheduleId && (!from || !to || !travelDate)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Car schedule ID, route, and travel date are required'
+        });
+      }
       const vehicleIds = vehicles.map(vehicle => vehicle._id);
       const scheduleQuery = {
         vehicle: { $in: vehicleIds },

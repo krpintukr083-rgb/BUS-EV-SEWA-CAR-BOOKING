@@ -20,41 +20,47 @@ import { formatBookingDate } from '../../utils/bookingDate';
 const CarListingScreen = ({ navigation, route }) => {
   const { updateDraft, bookingDraft } = useBooking();
   const navigationSchedule = route.params?.selectedSchedule || route.params?.schedule;
-  const selectedSchedule = navigationSchedule || bookingDraft.schedule || bookingDraft.vehicle?.schedule || null;
-  const selectedScheduleId = selectedSchedule?._id || route.params?.scheduleId || bookingDraft.scheduleId || null;
-  const scheduleOrigin = selectedSchedule?.origin
-    || route.params?.origin
-    || route.params?.from
-    || (selectedScheduleId ? bookingDraft.pickupLocation : '');
-  const scheduleDestination = selectedSchedule?.destination
-    || route.params?.destination
-    || route.params?.to
-    || (selectedScheduleId ? bookingDraft.dropLocation : '');
-  const scheduleTravelDate = selectedSchedule?.travelDate
-    || route.params?.travelDate
-    || (selectedScheduleId ? bookingDraft.travelDate : undefined);
-  const selectedVehicleId = selectedSchedule?.vehicle?._id
-    || selectedSchedule?.vehicle
-    || route.params?.vehicleId;
+  const initialSchedule = navigationSchedule || bookingDraft.schedule || bookingDraft.vehicle?.schedule || null;
+  const requestedScheduleId = route.params?.scheduleId || bookingDraft.scheduleId;
+  const [selectedSchedule, setSelectedSchedule] = useState(initialSchedule);
+  const [scheduleOptions, setScheduleOptions] = useState([]);
+  const [scheduleLoading, setScheduleLoading] = useState(!initialSchedule);
+  const [scheduleError, setScheduleError] = useState('');
   const [cars, setCars] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  const fetchCars = async () => {
+  const fetchCars = async (schedule = selectedSchedule) => {
+    if (!schedule?._id) {
+      setCars([]);
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
+
+    const scheduleId = String(schedule._id);
+    const origin = schedule.origin || route.params?.origin || route.params?.from || '';
+    const destination = schedule.destination || route.params?.destination || route.params?.to || '';
+    const travelDate = schedule.travelDate || route.params?.travelDate;
+    const scheduleVehicleId = schedule.vehicle?._id || schedule.vehicle || route.params?.vehicleId;
     try {
       const res = await customerService.getVehicles(
         'car',
-        scheduleOrigin,
-        scheduleDestination,
-        scheduleTravelDate,
+        origin,
+        destination,
+        travelDate,
         true,
-        selectedScheduleId
+        scheduleId
       );
       if (res.success) {
         const listedCars = res.data || [];
-        setCars(selectedVehicleId
-          ? listedCars.filter(car => String(car._id) === String(selectedVehicleId))
+        setCars(scheduleVehicleId
+          ? listedCars.filter(car => String(car._id) === String(scheduleVehicleId))
           : listedCars);
+        setScheduleError('');
+      } else {
+        setCars([]);
+        setScheduleError(res.message || 'Unable to load vehicles for this Car schedule.');
       }
     } catch (err) {
       console.log('Error fetching cars:', err);
@@ -64,23 +70,118 @@ const CarListingScreen = ({ navigation, route }) => {
     }
   };
 
+  const fetchSchedules = async () => {
+    setScheduleLoading(true);
+    setScheduleError('');
+    try {
+      const res = await customerService.getSchedules();
+      if (!res?.success || !Array.isArray(res.data)) {
+        throw new Error(res?.message || 'Unable to load active Car schedules.');
+      }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const carSchedules = res.data.filter(schedule => {
+        if (
+          schedule.status !== 'Active' ||
+          schedule.vehicle?.vehicleType !== 'Car' ||
+          schedule.vehicle?.vehicleStatus !== 'Active' ||
+          !schedule._id ||
+          !schedule.origin ||
+          !schedule.destination ||
+          !schedule.travelDate ||
+          !schedule.driver
+        ) return false;
+        const scheduleDate = new Date(schedule.travelDate);
+        if (Number.isNaN(scheduleDate.getTime()) || scheduleDate < today) return false;
+        const assignedDriverId = schedule.vehicle.assignedDriver?._id || schedule.vehicle.assignedDriver;
+        const scheduleDriverId = schedule.driver?._id || schedule.driver;
+        if (assignedDriverId && String(assignedDriverId) !== String(scheduleDriverId)) return false;
+        if (
+          schedule.vehicle.assignedDriver?.driverStatus &&
+          !['Active', 'Approved'].includes(schedule.vehicle.assignedDriver.driverStatus)
+        ) return false;
+        return true;
+      });
+      if (requestedScheduleId) {
+        const requestedSchedule = carSchedules.find(schedule =>
+          String(schedule._id) === String(requestedScheduleId)
+        );
+        if (requestedSchedule) {
+          setSelectedSchedule(requestedSchedule);
+          updateDraft({
+            serviceType: 'Car',
+            schedule: requestedSchedule,
+            scheduleId: requestedSchedule._id,
+            pickupLocation: requestedSchedule.origin,
+            dropLocation: requestedSchedule.destination,
+            travelDate: requestedSchedule.travelDate
+          });
+          setScheduleOptions([]);
+          await fetchCars(requestedSchedule);
+          return;
+        }
+        setScheduleError('The selected Car schedule is no longer active or eligible.');
+        setScheduleOptions([]);
+        return;
+      }
+      setScheduleOptions(carSchedules);
+    } catch (error) {
+      console.error('Error fetching active Car schedules:', error);
+      setScheduleError(error.message || 'Unable to load active Car schedules.');
+    } finally {
+      setScheduleLoading(false);
+      setLoading(false);
+    }
+  };
+
+  const handleSelectSchedule = schedule => {
+    setSelectedSchedule(schedule);
+    setScheduleError('');
+    updateDraft({
+      serviceType: 'Car',
+      schedule,
+      scheduleId: schedule._id,
+      vehicle: null,
+      pickupLocation: schedule.origin,
+      dropLocation: schedule.destination,
+      travelDate: schedule.travelDate
+    });
+    navigation.setParams({
+      schedule,
+      scheduleId: schedule._id,
+      origin: schedule.origin,
+      from: schedule.origin,
+      destination: schedule.destination,
+      to: schedule.destination,
+      travelDate: schedule.travelDate,
+      vehicleId: schedule.vehicle?._id || schedule.vehicle
+    });
+    setCars([]);
+    setLoading(true);
+    fetchCars(schedule);
+  };
+
   useEffect(() => {
-    console.log('[CAR LISTING] SCREEN MOUNTED');
-    fetchCars();
+    if (initialSchedule?._id) {
+      fetchCars(initialSchedule);
+    } else {
+      fetchSchedules();
+    }
   }, []);
 
   const handleSelectCar = (car) => {
     const schedule = car.schedule;
+    if (!schedule?._id) return;
     updateDraft({
       serviceType: 'Car',
       vehicle: car,
       baseFare: car.fareRate,
       totalFare: car.fareRate,
-      pickupLocation: schedule?.origin || car.pickupDropDetails?.pickupLocation || car.route?.origin || 'IGI Airport T3, Delhi',
-      dropLocation: schedule?.destination || car.pickupDropDetails?.dropLocation || car.route?.destination || 'Cyber City Gurugram',
-      scheduleId: schedule?._id || null,
-      schedule: schedule || null,
-      ...(schedule?.travelDate ? { travelDate: schedule.travelDate } : {})
+      pickupLocation: schedule.origin,
+      dropLocation: schedule.destination,
+      scheduleId: schedule._id,
+      schedule,
+      travelDate: schedule.travelDate
     });
     navigation.navigate('CarDetails', {
       carId: car._id,
@@ -97,18 +198,68 @@ const CarListingScreen = ({ navigation, route }) => {
         <Text style={styles.carBanner}>🚗 Premium Sedans, SUVs & Chauffeur Cabs</Text>
       </View>
 
+      {!selectedSchedule && (
+        <View style={styles.schedulePicker}>
+          <Text style={styles.pickerTitle}>Select an active Car schedule</Text>
+          <Text style={styles.pickerSubtitle}>Choose a route and travel date to see its assigned vehicle.</Text>
+          {scheduleLoading ? (
+            <ActivityIndicator size="large" color="#ea580c" />
+          ) : scheduleError ? (
+            <Text style={styles.emptyText}>{scheduleError}</Text>
+          ) : scheduleOptions.length === 0 ? (
+            <Text style={styles.emptyText}>No active Car schedules are currently available.</Text>
+          ) : (
+            <FlatList
+              data={scheduleOptions}
+              keyExtractor={item => String(item._id)}
+              contentContainerStyle={styles.scheduleList}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.scheduleOption}
+                  onPress={() => handleSelectSchedule(item)}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.scheduleTitle}>
+                    {item.origin} → {item.destination}
+                  </Text>
+                  <Text style={styles.scheduleTime}>
+                    {formatBookingDate(item.travelDate)} • {item.departureTime}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            />
+          )}
+        </View>
+      )}
+
+      {selectedSchedule && (
+        <View style={styles.selectedSchedule}>
+          <Text style={styles.scheduleTitle}>
+            {selectedSchedule.origin} → {selectedSchedule.destination}
+          </Text>
+          <Text style={styles.scheduleTime}>
+            {formatBookingDate(selectedSchedule.travelDate)} • {selectedSchedule.departureTime}
+          </Text>
+        </View>
+      )}
+
       {loading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#ea580c" />
           <Text style={styles.loadingText}>Loading available cars...</Text>
         </View>
-      ) : (
+      ) : selectedSchedule ? (
         <FlatList
           data={cars}
           keyExtractor={item => item._id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); fetchCars(); }} />}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>
+              {scheduleError || 'No eligible vehicle is available for this Car schedule.'}
+            </Text>
+          }
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.card}
@@ -169,7 +320,7 @@ const CarListingScreen = ({ navigation, route }) => {
                 <View style={styles.routeBox}>
                   <Ionicons name="location-outline" size={14} color={COLORS.primary} />
                   <Text style={styles.routeText} numberOfLines={1}>
-                    {item.route?.origin || item.pickupDropDetails?.pickupLocation || 'Airport / Point Pickup'} → {item.route?.destination || item.pickupDropDetails?.dropLocation || 'Citywide / Outstation'}
+                    {item.schedule?.origin} → {item.schedule?.destination}
                   </Text>
                 </View>
 
@@ -181,7 +332,7 @@ const CarListingScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           )}
         />
-      )}
+      ) : null}
     </View>
   );
 };
@@ -208,6 +359,25 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 30
   },
+  schedulePicker: { flex: 1, padding: 16, gap: 10 },
+  pickerTitle: { color: COLORS.darkNavy, fontSize: 17, fontWeight: '800' },
+  pickerSubtitle: { color: COLORS.textSecondary, fontSize: 13, marginBottom: 4 },
+  scheduleList: { paddingBottom: 20 },
+  scheduleOption: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#fed7aa',
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 10
+  },
+  selectedSchedule: {
+    backgroundColor: '#fff7ed',
+    borderBottomWidth: 1,
+    borderBottomColor: '#fed7aa',
+    padding: 12
+  },
+  emptyText: { color: COLORS.textSecondary, fontSize: 14, paddingVertical: 18, textAlign: 'center' },
   card: {
     backgroundColor: '#ffffff',
     borderRadius: 14,
