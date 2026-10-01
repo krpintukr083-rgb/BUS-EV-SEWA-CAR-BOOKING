@@ -55,9 +55,16 @@ export const customerService = {
   },
 
   // Vehicles (Bus, EV-Sewa, Car)
-  getVehicles: async (type, from, to, travelDate, scheduleBooking = false) => {
+  getVehicles: async (type, from, to, travelDate, scheduleBooking = false, scheduleId) => {
     const res = await api.get('/vehicles', {
-      params: { type, from, to, travelDate, ...(scheduleBooking ? { scheduleBooking: 'true' } : {}) }
+      params: {
+        type,
+        from,
+        to,
+        travelDate,
+        ...(scheduleBooking ? { scheduleBooking: 'true' } : {}),
+        ...(scheduleId ? { scheduleId } : {})
+      }
     });
     return res.data;
   },

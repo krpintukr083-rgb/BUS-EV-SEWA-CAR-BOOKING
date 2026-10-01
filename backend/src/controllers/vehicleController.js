@@ -1,6 +1,8 @@
 const Vehicle = require('../models/Vehicle');
 const Booking = require('../models/Booking');
 const Schedule = require('../models/Schedule');
+const Driver = require('../models/Driver');
+const mongoose = require('mongoose');
 const { normalizeScheduleTime } = require('../utils/timeFormat');
 const { isRouteSegmentWithin, normalizeLocation } = require('../utils/routeFares');
 
@@ -32,7 +34,7 @@ const formatVehicle = (vehicleDoc, req) => {
 // @access  Public
 exports.getVehicles = async (req, res, next) => {
   try {
-    const { type, from, to, travelDate } = req.query;
+    const { type, from, to, travelDate, scheduleId } = req.query;
     const scheduleBooking = req.query.scheduleBooking === 'true';
 
     const query = { vehicleStatus: 'Active' };
@@ -57,14 +59,22 @@ exports.getVehicles = async (req, res, next) => {
     const vehicles = await Vehicle.find(query).populate('assignedDriver').sort({ createdAt: -1 });
 
     if (scheduleBooking) {
+      if (scheduleId && (!mongoose.isValidObjectId(scheduleId) || query.vehicleType !== 'Car')) {
+        return res.status(400).json({ success: false, message: 'Invalid Car schedule selection' });
+      }
       const vehicleIds = vehicles.map(vehicle => vehicle._id);
       const scheduleQuery = {
         vehicle: { $in: vehicleIds },
         status: 'Active'
       };
+      if (scheduleId) scheduleQuery._id = scheduleId;
       if (travelDate) {
         const date = new Date(travelDate);
-        if (!Number.isNaN(date.getTime())) {
+        if (Number.isNaN(date.getTime())) {
+          if (scheduleId) {
+            return res.status(400).json({ success: false, message: 'Invalid Car schedule travel date' });
+          }
+        } else {
           const startOfDay = new Date(date);
           startOfDay.setHours(0, 0, 0, 0);
           const endOfDay = new Date(date);
@@ -85,10 +95,26 @@ exports.getVehicles = async (req, res, next) => {
       for (const schedule of schedules) {
         const vehicle = vehicles.find(candidate => String(candidate._id) === String(schedule.vehicle));
         if (!vehicle || scheduleByVehicle.has(String(schedule.vehicle))) continue;
+        if (scheduleId) {
+          const assignedDriverId = vehicle.assignedDriver?._id || vehicle.assignedDriver;
+          const scheduleDriverId = schedule.driver?._id || schedule.driver;
+          const activeScheduleDriver = await Driver.findOne({
+            _id: scheduleDriverId,
+            driverStatus: { $in: ['Active', 'Approved'] }
+          }).select('_id').lean();
+          if (
+            !activeScheduleDriver ||
+            (assignedDriverId && String(assignedDriverId) !== String(scheduleDriverId)) ||
+            (vehicle.assignedDriver && !['Active', 'Approved'].includes(vehicle.assignedDriver.driverStatus))
+          ) continue;
+        }
 
         let routeMatches = true;
         if (from || to) {
-          if (
+          if (scheduleId) {
+            routeMatches = normalizeLocation(schedule.origin) === normalizeLocation(from)
+              && normalizeLocation(schedule.destination) === normalizeLocation(to);
+          } else if (
             vehicle.vehicleType !== 'Car' &&
             Array.isArray(vehicle.route?.stops) &&
             vehicle.route.stops.length > 0

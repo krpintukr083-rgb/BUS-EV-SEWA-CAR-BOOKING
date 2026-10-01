@@ -17,8 +17,25 @@ import { COLORS } from '../../constants/colors';
 import { getPrimaryVehicleImage } from '../../utils/imageUrl';
 import { formatBookingDate } from '../../utils/bookingDate';
 
-const CarListingScreen = ({ navigation }) => {
+const CarListingScreen = ({ navigation, route }) => {
   const { updateDraft, bookingDraft } = useBooking();
+  const navigationSchedule = route.params?.selectedSchedule || route.params?.schedule;
+  const selectedSchedule = navigationSchedule || bookingDraft.schedule || bookingDraft.vehicle?.schedule || null;
+  const selectedScheduleId = selectedSchedule?._id || route.params?.scheduleId || bookingDraft.scheduleId || null;
+  const scheduleOrigin = selectedSchedule?.origin
+    || route.params?.origin
+    || route.params?.from
+    || (selectedScheduleId ? bookingDraft.pickupLocation : '');
+  const scheduleDestination = selectedSchedule?.destination
+    || route.params?.destination
+    || route.params?.to
+    || (selectedScheduleId ? bookingDraft.dropLocation : '');
+  const scheduleTravelDate = selectedSchedule?.travelDate
+    || route.params?.travelDate
+    || (selectedScheduleId ? bookingDraft.travelDate : undefined);
+  const selectedVehicleId = selectedSchedule?.vehicle?._id
+    || selectedSchedule?.vehicle
+    || route.params?.vehicleId;
   const [cars, setCars] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -27,13 +44,17 @@ const CarListingScreen = ({ navigation }) => {
     try {
       const res = await customerService.getVehicles(
         'car',
-        bookingDraft?.pickupLocation,
-        bookingDraft?.dropLocation,
-        undefined,
-        true
+        scheduleOrigin,
+        scheduleDestination,
+        scheduleTravelDate,
+        true,
+        selectedScheduleId
       );
       if (res.success) {
-        setCars(res.data);
+        const listedCars = res.data || [];
+        setCars(selectedVehicleId
+          ? listedCars.filter(car => String(car._id) === String(selectedVehicleId))
+          : listedCars);
       }
     } catch (err) {
       console.log('Error fetching cars:', err);
@@ -61,7 +82,11 @@ const CarListingScreen = ({ navigation }) => {
       schedule: schedule || null,
       ...(schedule?.travelDate ? { travelDate: schedule.travelDate } : {})
     });
-    navigation.navigate('CarDetails', { carId: car._id });
+    navigation.navigate('CarDetails', {
+      carId: car._id,
+      ...(schedule ? { schedule } : {}),
+      ...(schedule?._id ? { scheduleId: schedule._id } : {})
+    });
   };
 
   return (

@@ -14,7 +14,7 @@ const services = [
 
 const BookingServiceSelectionScreen = ({ route, navigation }) => {
   const bookingMode = route.params?.bookingMode === 'INSTANT' ? 'INSTANT' : 'NORMAL';
-  const { updateDraft } = useBooking();
+  const { updateDraft, bookingDraft } = useBooking();
   const [serviceStatus, setServiceStatus] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -36,6 +36,16 @@ const BookingServiceSelectionScreen = ({ route, navigation }) => {
   }, []);
 
   const chooseService = service => {
+    const selectedSchedule = service.type === 'Car'
+      ? route.params?.selectedSchedule || route.params?.schedule || bookingDraft.schedule
+      : null;
+    const selectedScheduleId = selectedSchedule?._id || route.params?.scheduleId || bookingDraft.scheduleId;
+    const scheduleOrigin = selectedSchedule?.origin || route.params?.origin || route.params?.from || bookingDraft.pickupLocation;
+    const scheduleDestination = selectedSchedule?.destination || route.params?.destination || route.params?.to || bookingDraft.dropLocation;
+    const scheduleTravelDate = selectedSchedule?.travelDate
+      || route.params?.travelDate
+      || (bookingDraft.scheduleId ? bookingDraft.travelDate : undefined);
+
     console.log('[CAR DEBUG 1] entered chooseService');
     console.log('[CAR DEBUG 2] service:', service);
     console.log('[CAR DEBUG 3] service type:', service?.type);
@@ -70,6 +80,15 @@ const BookingServiceSelectionScreen = ({ route, navigation }) => {
         passengerDetails: [{ name: '', phone: '', age: '', gender: 'Male' }],
         ...(bookingMode === 'INSTANT'
           ? { travelDate: new Date().toISOString().split('T')[0] }
+          : {}),
+        ...(selectedScheduleId && bookingMode !== 'INSTANT' && service.type === 'Car'
+          ? {
+              schedule: selectedSchedule || null,
+              scheduleId: selectedScheduleId,
+              pickupLocation: scheduleOrigin || '',
+              dropLocation: scheduleDestination || '',
+              travelDate: scheduleTravelDate
+            }
           : {})
       });
     } catch (error) {
@@ -89,8 +108,16 @@ const BookingServiceSelectionScreen = ({ route, navigation }) => {
     } else if (service.type === 'Car' || service.type === 'car') {
       console.log('[SCHEDULE CAR] Evaluating navigation...');
       console.log('[SCHEDULE CAR] navigation target: CarListing');
-      console.log('[SCHEDULE CAR] params: undefined');
-      navigation.navigate('CarListing');
+      navigation.navigate('CarListing', {
+        ...(selectedSchedule ? { schedule: selectedSchedule } : {}),
+        ...(selectedScheduleId ? { scheduleId: selectedScheduleId } : {}),
+        ...(scheduleTravelDate ? { travelDate: scheduleTravelDate } : {}),
+        ...(scheduleOrigin ? { origin: scheduleOrigin, from: scheduleOrigin } : {}),
+        ...(scheduleDestination ? { destination: scheduleDestination, to: scheduleDestination } : {}),
+        ...(selectedSchedule?.vehicle?._id || selectedSchedule?.vehicle || route.params?.vehicleId
+          ? { vehicleId: selectedSchedule?.vehicle?._id || selectedSchedule?.vehicle || route.params?.vehicleId }
+          : {})
+      });
     }
   };
 

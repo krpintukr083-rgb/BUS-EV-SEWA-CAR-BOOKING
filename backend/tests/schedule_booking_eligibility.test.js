@@ -703,9 +703,17 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
 
     const listedCars = await request(app)
       .get('/api/vehicles')
-      .query({ type: 'car', scheduleBooking: 'true', from: 'Delhi', to: 'Jaipur' });
+      .query({
+        type: 'car',
+        scheduleBooking: 'true',
+        scheduleId: String(carSchedule._id),
+        from: carSchedule.origin,
+        to: carSchedule.destination,
+        travelDate: carSchedule.travelDate.toISOString()
+      });
     expect(listedCars.status).toBe(200);
     const listedCar = listedCars.body.data.find(item => String(item._id) === String(carWithoutRoute._id));
+    expect(listedCars.body.data).toHaveLength(1);
     expect(listedCar.schedule).toMatchObject({
       _id: String(carSchedule._id),
       origin: 'Delhi',
@@ -714,6 +722,32 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
     });
     expect(listedCar.route.origin).toBe('');
     expect(listedCar.route.destination).toBe('');
+
+    const wrongRouteListing = await request(app)
+      .get('/api/vehicles')
+      .query({
+        type: 'car',
+        scheduleBooking: 'true',
+        scheduleId: String(carSchedule._id),
+        from: 'Agra',
+        to: carSchedule.destination,
+        travelDate: carSchedule.travelDate.toISOString()
+      });
+    expect(wrongRouteListing.status).toBe(200);
+    expect(wrongRouteListing.body.data).toHaveLength(0);
+
+    const wrongDateListing = await request(app)
+      .get('/api/vehicles')
+      .query({
+        type: 'car',
+        scheduleBooking: 'true',
+        scheduleId: String(carSchedule._id),
+        from: carSchedule.origin,
+        to: carSchedule.destination,
+        travelDate: new Date(carSchedule.travelDate.getTime() + 24 * 60 * 60 * 1000).toISOString()
+      });
+    expect(wrongDateListing.status).toBe(200);
+    expect(wrongDateListing.body.data).toHaveLength(0);
 
     const originalPushToken = driver.pushToken;
     driver.pushToken = 'ExponentPushToken[CarScheduleNoVehicleRoute]';

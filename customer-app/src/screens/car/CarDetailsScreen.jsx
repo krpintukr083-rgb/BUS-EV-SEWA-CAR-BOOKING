@@ -6,7 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  TextInput
+  TextInput,
+  Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { customerService } from '../../services/customerService';
@@ -88,7 +89,12 @@ const CarDetailsScreen = ({ route, navigation }) => {
   }
 
   const [passengerCount, setPassengerCount] = useState(1);
-  const selectedSchedule = car?.schedule || bookingDraft.schedule;
+  const selectedSchedule = (route.params?.scheduleId && car?.schedule?._id === route.params.scheduleId
+    ? car.schedule
+    : null)
+    || (route.params?.schedule && route.params.schedule._id === car?.schedule?._id ? car.schedule : route.params?.schedule)
+    || car?.schedule
+    || bookingDraft.schedule;
   const [travelDate, setTravelDate] = useState(
     selectedSchedule?.travelDate
       ? new Date(selectedSchedule.travelDate).toISOString().split('T')[0]
@@ -99,7 +105,11 @@ const CarDetailsScreen = ({ route, navigation }) => {
   );
 
   const handleBookNow = () => {
-    const schedule = car.schedule || bookingDraft.schedule;
+    const schedule = selectedSchedule;
+    if (!schedule?._id) {
+      Alert.alert('Schedule unavailable', 'Select an active Car schedule before continuing.');
+      return;
+    }
     updateDraft({
       serviceType: 'Car',
       vehicle: car,
@@ -107,10 +117,10 @@ const CarDetailsScreen = ({ route, navigation }) => {
       totalFare: car.fareRate,
       passengerCount: passengerCount,
       travelDate: schedule?.travelDate || `${travelDate}T${travelTime}:00.000Z`,
-      pickupLocation: schedule?.origin || car.pickupDropDetails?.pickupLocation || car.route?.origin || 'Airport T3, New Delhi',
-      dropLocation: schedule?.destination || car.pickupDropDetails?.dropLocation || car.route?.destination || '',
-      scheduleId: schedule?._id || null,
-      schedule: schedule || null,
+      pickupLocation: schedule.origin,
+      dropLocation: schedule.destination,
+      scheduleId: schedule._id,
+      schedule,
       passengerDetails: Array.from({ length: passengerCount }, () => ({ name: '', phone: '', age: '', gender: 'Male' }))
     });
     navigation.navigate('PickupDrop');
