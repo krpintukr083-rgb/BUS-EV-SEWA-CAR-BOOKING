@@ -536,6 +536,40 @@ describe('Optional Instant Booking', () => {
     expect(String(claimed.driver)).not.toBe(String(driverA.driver._id));
   });
 
+  test('customer booking details include assigned driver, vehicle registration, travel date, and schedule time', async () => {
+    const schedule = await createActiveSchedule(driver, vehicle);
+    const booking = await Booking.create({
+      bookingId: `BK-CONFIRMATION-DETAILS-${Date.now()}-${crypto.randomInt(1000, 9999)}`,
+      user: customer._id,
+      customer: {
+        name: customer.name,
+        phone: customer.phone,
+        email: customer.email
+      },
+      bookingMode: 'SCHEDULE',
+      serviceType: 'Bus',
+      driver: driver._id,
+      vehicle: vehicle._id,
+      scheduleId: schedule._id,
+      pickupLocation: schedule.origin,
+      dropLocation: schedule.destination,
+      passengerDetails: [{ name: 'Confirmation Details Passenger', age: 30, gender: 'Male' }],
+      fare: 500,
+      travelDate: schedule.travelDate,
+      bookingStatus: 'Pending Driver Confirmation'
+    });
+
+    const response = await request(app)
+      .get(`/api/bookings/${booking._id}`)
+      .set('Authorization', 'Bearer ' + customerToken);
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.driver.name).toBe(driver.name);
+    expect(response.body.data.vehicle.vehicleNumber).toBe(vehicle.vehicleNumber);
+    expect(new Date(response.body.data.travelDate).getTime()).toBe(schedule.travelDate.getTime());
+    expect(response.body.data.scheduleId.departureTime).toBe(schedule.departureTime);
+  });
+
   test('Instant OTP uses the claimed route vehicle instead of a mismatched legacy assignedVehicle', async () => {
     const claimant = await createClaimDriver();
     const uniqueDigits = crypto.randomInt(10000000, 99999999).toString();

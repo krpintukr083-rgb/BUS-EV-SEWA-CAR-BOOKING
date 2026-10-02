@@ -588,9 +588,13 @@ exports.getMyBookings = async (req, res, next) => {
 // @access  Private (Customer/Admin)
 exports.getBookingById = async (req, res, next) => {
   try {
-    const booking = await Booking.findOne(getBookingQuery(req.params.id))
+    const bookingQuery = Booking.findOne(getBookingQuery(req.params.id))
       .populate('vehicle')
       .populate('driver', '-canViewCustomerPhone');
+    if (req.user.role === 'customer') {
+      bookingQuery.populate('scheduleId', 'origin destination travelDate departureTime');
+    }
+    const booking = await bookingQuery;
 
     if (!booking) {
       return res.status(404).json({

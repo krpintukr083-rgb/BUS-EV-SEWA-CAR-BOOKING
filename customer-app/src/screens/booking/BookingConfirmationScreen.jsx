@@ -13,6 +13,40 @@ import StatusBadge from '../../components/StatusBadge';
 import { COLORS } from '../../constants/colors';
 import { customerService } from '../../services/customerService';
 
+const formatTravelDate = value => {
+  if (!value) return 'Not available';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Not available';
+  return date.toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  });
+};
+
+const formatPickupTime = value => {
+  if (!value || typeof value !== 'string') return 'Not available';
+  const time = value.trim();
+  const twelveHourTime = time.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)$/i);
+  if (
+    twelveHourTime &&
+    Number(twelveHourTime[1]) >= 1 &&
+    Number(twelveHourTime[1]) <= 12 &&
+    Number(twelveHourTime[2]) <= 59
+  ) {
+    return `${twelveHourTime[1].padStart(2, '0')}:${twelveHourTime[2]} ${twelveHourTime[3].toUpperCase()}`;
+  }
+
+  const twentyFourHourTime = time.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if (twentyFourHourTime) {
+    const hours = Number(twentyFourHourTime[1]);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    return `${String(hours % 12 || 12).padStart(2, '0')}:${twentyFourHourTime[2]} ${period}`;
+  }
+
+  return 'Not available';
+};
+
 const BookingConfirmationScreen = ({ route, navigation }) => {
   const { booking: initialBooking, payment } = route.params || {};
   const [booking, setBooking] = useState(initialBooking);
@@ -150,9 +184,41 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
           </View>
 
           <View style={styles.row}>
+            <Text style={styles.rowLabel}>Driver Name</Text>
+            <Text style={[styles.rowValue, styles.emphasizedValue]} numberOfLines={2}>
+              {booking?.driver?.name || booking?.hiredVehicleDetails?.driverName || 'Not assigned'}
+            </Text>
+          </View>
+
+          <View style={styles.row}>
             <Text style={styles.rowLabel}>Vehicle</Text>
             <Text style={styles.rowValue}>
-              {booking?.vehicle?.busName || booking?.vehicle?.vehicleName || 'Commercial Transport'}
+              {booking?.vehicle?.busName || booking?.vehicle?.vehicleName || 'Not assigned'}
+            </Text>
+          </View>
+
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Vehicle Number</Text>
+            <Text style={[styles.rowValue, styles.emphasizedValue]} numberOfLines={1}>
+              {booking?.vehicle?.vehicleNumber || booking?.vehicle?.busNumber || 'Not assigned'}
+            </Text>
+          </View>
+
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Travel Date</Text>
+            <Text style={styles.rowValue}>
+              {formatTravelDate(booking?.travelDate)}
+            </Text>
+          </View>
+
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Pickup Time</Text>
+            <Text style={styles.rowValue}>
+              {formatPickupTime(
+                booking?.pickupTime ||
+                booking?.departureTime ||
+                booking?.scheduleId?.departureTime
+              )}
             </Text>
           </View>
 
@@ -334,14 +400,20 @@ const styles = StyleSheet.create({
   },
   rowLabel: {
     fontSize: 12,
-    color: COLORS.textSecondary
+    color: COLORS.textSecondary,
+    flex: 1,
+    paddingRight: 8
   },
   rowValue: {
     fontSize: 13,
     fontWeight: '600',
     color: COLORS.darkNavy,
-    maxWidth: '60%',
+    flex: 1,
     textAlign: 'right'
+  },
+  emphasizedValue: {
+    fontSize: 14,
+    fontWeight: '700'
   },
   divider: {
     height: 1,
