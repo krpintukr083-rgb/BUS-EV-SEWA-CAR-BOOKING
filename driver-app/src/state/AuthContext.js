@@ -47,8 +47,10 @@ export const AuthProvider = ({ children }) => {
           setDriver(parsedDriver);
           setIsOnline(Boolean(parsedDriver?.isOnline));
         }
-        // Fetch fresh profile from backend
-        fetchFreshProfile();
+        // Await fresh profile so loading stays true until auth is fully restored.
+        // This prevents the Dashboard from mounting (and firing protected polls)
+        // before the token is confirmed valid.
+        await fetchFreshProfile();
       }
     } catch (e) {
       console.warn('Error loading auth state', e);

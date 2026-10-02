@@ -205,7 +205,7 @@ export default function DriverKYCScreen({ navigation }) {
     {
       key: 'citizenship',
       title: t('citizenshipTitle'),
-      icon: 'account-badge',
+      icon: 'card-account-details-outline',
       desc: 'National Identity Card or Citizenship Certificate',
     },
     {

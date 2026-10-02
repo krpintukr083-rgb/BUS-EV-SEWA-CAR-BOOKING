@@ -54,6 +54,12 @@ export const resetServerUrl = async () => {
  * Returns current effective base URL
  */
 export const getEffectiveBaseUrl = async () => {
+  try {
+    const saved = await AsyncStorage.getItem('custom_driver_server_url');
+    if (saved && saved.trim()) return sanitizeApiUrl(saved);
+  } catch (e) {
+    // fall through to default
+  }
   return getDefaultBaseUrl();
 };
 
@@ -131,12 +137,22 @@ apiClient.interceptors.response.use(
       }
     }
 
+    // Only clear stored credentials when the backend explicitly says the token is missing/invalid.
+    // Do NOT clear on any 401 — cold-start races, transient 401s, or rate limits would otherwise
+    // permanently destroy the session and cause an endless 401 loop.
     if (error.response && error.response.status === 401 && !originalRequest.url?.includes('/auth/login')) {
-      try {
-        await AsyncStorage.removeItem('@driver_jwt_token');
-        await AsyncStorage.removeItem('@driver_user_data');
-      } catch (e) {
-        // ignore
+      const msg = error.response?.data?.message || '';
+      const isTokenGone =
+        msg.includes('No authentication token') ||
+        msg.includes('Invalid or expired token') ||
+        msg.includes('User no longer exists');
+      if (isTokenGone) {
+        try {
+          await AsyncStorage.removeItem('@driver_jwt_token');
+          await AsyncStorage.removeItem('@driver_user_data');
+        } catch (e) {
+          // ignore
+        }
       }
     }
     return Promise.reject(error);

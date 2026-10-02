@@ -1,5 +1,9 @@
 {
   "dependencies": {
     "nodemon": "^3.1.14"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "webdriverio": "^9.32.0"
   }
 }
