@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+﻿const mongoose = require('mongoose');
 const crypto = require('crypto');
 const Driver = require('../models/Driver');
 const Vehicle = require('../models/Vehicle');
@@ -1545,11 +1545,29 @@ const getScheduleBookingRequests = async (req, res, next) => {
           String(scheduledVehicle.assignedDriver) !== String(driver._id)
         )) return exclude('schedule-vehicle-not-active-or-not-assigned-to-driver');
         if (reqItem.serviceType === 'Car' && schedule) {
+          // Override vehicle route with active schedule's origin/destination
           scheduledVehicle = {
             ...scheduledVehicle,
             route: {
               origin: schedule.origin,
               destination: schedule.destination
+            }
+          };
+        } else if (reqItem.serviceType === 'Car' && !schedule && reqItem.pickupLocation && reqItem.dropLocation) {
+          // scheduleId was null: the vehicle's static route is irrelevant for this booking.
+          // Use the booking's own pickupLocation/dropLocation as the canonical route so that
+          // vehicleMatchesBookingRoute always returns true for the assigned driver's vehicle.
+          console.log(
+            '[SCHEDULE_FILTER_ROUTE_OVERRIDE] bookingId=' + reqItem.bookingId +
+            ' vehicle=' + String(scheduledVehicle._id) +
+            ' vehicleRoute=' + ((scheduledVehicle.route && scheduledVehicle.route.origin) || '') + '->' + ((scheduledVehicle.route && scheduledVehicle.route.destination) || '') +
+            ' bookingRoute=' + reqItem.pickupLocation + '->' + reqItem.dropLocation
+          );
+          scheduledVehicle = {
+            ...scheduledVehicle,
+            route: {
+              origin: reqItem.pickupLocation,
+              destination: reqItem.dropLocation
             }
           };
         }
@@ -1979,7 +1997,7 @@ const acceptInstantBookingRequest = async (req, res, next) => {
               body: JSON.stringify({
                 to: custToken,
                 title: 'Instant Booking Fare Calculated',
-                body: `Driver ${driver.name} accepted. Final fare is ₹${updateSet.finalFare}. Tap to view.`,
+                body: `Driver ${driver.name} accepted. Final fare is â‚¹${updateSet.finalFare}. Tap to view.`,
                 data: {
                   type: 'INSTANT_BOOKING_FARE_UPDATED',
                   bookingId: booking._id.toString()
@@ -2225,7 +2243,7 @@ const acceptScheduleBookingRequest = async (req, res, next) => {
               body: JSON.stringify({
                 to: custToken,
                 title: 'Instant Booking Fare Calculated',
-                body: `Driver ${driver.name} accepted. Final fare is ₹${updateSet.finalFare}. Tap to view.`,
+                body: `Driver ${driver.name} accepted. Final fare is â‚¹${updateSet.finalFare}. Tap to view.`,
                 data: {
                   type: 'INSTANT_BOOKING_FARE_UPDATED',
                   bookingId: booking._id.toString()
@@ -2824,7 +2842,7 @@ exports.collectCash = async (req, res, next) => {
     const customerName = booking.customer?.name || 'Customer';
     await Notification.create({
       title: 'Cash Payment Verified',
-      message: `Driver ${driver.name} has confirmed cash payment of ₹${booking.fare} for booking #${booking.bookingId}. Your ticket is now fully confirmed.`,
+      message: `Driver ${driver.name} has confirmed cash payment of â‚¹${booking.fare} for booking #${booking.bookingId}. Your ticket is now fully confirmed.`,
       recipient: `Customer: ${customerName}`,
       recipientRole: 'customer',
       ...(customerId ? { recipientId: customerId } : {}),
@@ -3038,7 +3056,7 @@ exports.requestWithdrawal = async (req, res, next) => {
     if (!withdrawAmount || withdrawAmount < 100) {
       return res.status(400).json({
         success: false,
-        message: 'Minimum withdrawal amount is ₹100'
+        message: 'Minimum withdrawal amount is â‚¹100'
       });
     }
 
@@ -3046,7 +3064,7 @@ exports.requestWithdrawal = async (req, res, next) => {
     if (availableBalance < withdrawAmount) {
       return res.status(400).json({
         success: false,
-        message: `Insufficient wallet balance. Current balance: ₹${availableBalance}`
+        message: `Insufficient wallet balance. Current balance: â‚¹${availableBalance}`
       });
     }
 
@@ -3071,16 +3089,16 @@ exports.requestWithdrawal = async (req, res, next) => {
     if (!updatedDriver) {
       return res.status(400).json({
         success: false,
-        message: `Insufficient wallet balance. Current balance: ₹${driver.walletBalance || 0}`
+        message: `Insufficient wallet balance. Current balance: â‚¹${driver.walletBalance || 0}`
       });
     }
 
     const isEsewaConfigured = Boolean(process.env.ESEWA_MERCHANT_CODE);
     const isKhaltiConfigured = Boolean(process.env.KHALTI_SECRET_KEY);
     const gatewayStatus = payoutMethod === 'eSewa' && !isEsewaConfigured
-      ? 'BLOCKED — PAYMENT PROVIDER CONFIGURATION REQUIRED (eSewa merchant credentials missing)'
+      ? 'BLOCKED â€” PAYMENT PROVIDER CONFIGURATION REQUIRED (eSewa merchant credentials missing)'
       : payoutMethod === 'Khalti' && !isKhaltiConfigured
-      ? 'BLOCKED — PAYMENT PROVIDER CONFIGURATION REQUIRED (Khalti merchant secret key missing)'
+      ? 'BLOCKED â€” PAYMENT PROVIDER CONFIGURATION REQUIRED (Khalti merchant secret key missing)'
       : 'READY';
 
     let withdrawal;
@@ -3161,7 +3179,7 @@ exports.triggerSOS = async (req, res, next) => {
     const emergencyContact = driver.emergencyContact || { name: 'Emergency Services', phone: '112 / 100' };
 
     await Notification.create({
-      title: '🚨 DRIVER SOS EMERGENCY ALERT',
+      title: 'ðŸš¨ DRIVER SOS EMERGENCY ALERT',
       message: `Driver ${driver.name} (Phone: ${driver.mobileNumber}) triggered an Emergency Alert. Vehicle: ${driver.assignedVehicle?.vehicleNumber || 'N/A'}.`,
       recipient: 'All Admins',
       recipientRole: 'admin',
@@ -3975,7 +3993,7 @@ exports.collectCash = async (req, res, next) => {
     const customerName = booking.customer?.name || 'Customer';
     await Notification.create({
       title: 'Cash Payment Verified',
-      message: `Driver ${driver.name} has confirmed cash payment of ₹${booking.fare} for booking #${booking.bookingId}. Your ticket is now fully confirmed.`,
+      message: `Driver ${driver.name} has confirmed cash payment of â‚¹${booking.fare} for booking #${booking.bookingId}. Your ticket is now fully confirmed.`,
       recipient: `Customer: ${customerName}`,
       recipientRole: 'customer',
       ...(customerId ? { recipientId: customerId } : {}),
@@ -4189,7 +4207,7 @@ exports.requestWithdrawal = async (req, res, next) => {
     if (!withdrawAmount || withdrawAmount < 100) {
       return res.status(400).json({
         success: false,
-        message: 'Minimum withdrawal amount is ₹100'
+        message: 'Minimum withdrawal amount is â‚¹100'
       });
     }
 
@@ -4197,7 +4215,7 @@ exports.requestWithdrawal = async (req, res, next) => {
     if (availableBalance < withdrawAmount) {
       return res.status(400).json({
         success: false,
-        message: `Insufficient wallet balance. Current balance: ₹${availableBalance}`
+        message: `Insufficient wallet balance. Current balance: â‚¹${availableBalance}`
       });
     }
 
@@ -4222,16 +4240,16 @@ exports.requestWithdrawal = async (req, res, next) => {
     if (!updatedDriver) {
       return res.status(400).json({
         success: false,
-        message: `Insufficient wallet balance. Current balance: ₹${driver.walletBalance || 0}`
+        message: `Insufficient wallet balance. Current balance: â‚¹${driver.walletBalance || 0}`
       });
     }
 
     const isEsewaConfigured = Boolean(process.env.ESEWA_MERCHANT_CODE);
     const isKhaltiConfigured = Boolean(process.env.KHALTI_SECRET_KEY);
     const gatewayStatus = payoutMethod === 'eSewa' && !isEsewaConfigured
-      ? 'BLOCKED — PAYMENT PROVIDER CONFIGURATION REQUIRED (eSewa merchant credentials missing)'
+      ? 'BLOCKED â€” PAYMENT PROVIDER CONFIGURATION REQUIRED (eSewa merchant credentials missing)'
       : payoutMethod === 'Khalti' && !isKhaltiConfigured
-      ? 'BLOCKED — PAYMENT PROVIDER CONFIGURATION REQUIRED (Khalti merchant secret key missing)'
+      ? 'BLOCKED â€” PAYMENT PROVIDER CONFIGURATION REQUIRED (Khalti merchant secret key missing)'
       : 'READY';
 
     let withdrawal;
@@ -4312,7 +4330,7 @@ exports.triggerSOS = async (req, res, next) => {
     const emergencyContact = driver.emergencyContact || { name: 'Emergency Services', phone: '112 / 100' };
 
     await Notification.create({
-      title: '🚨 DRIVER SOS EMERGENCY ALERT',
+      title: 'ðŸš¨ DRIVER SOS EMERGENCY ALERT',
       message: `Driver ${driver.name} (Phone: ${driver.mobileNumber}) triggered an Emergency Alert. Vehicle: ${driver.assignedVehicle?.vehicleNumber || 'N/A'}.`,
       recipient: 'All Admins',
       recipientRole: 'admin',

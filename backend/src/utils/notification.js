@@ -1,4 +1,4 @@
-const Notification = require('../models/Notification');
+﻿const Notification = require('../models/Notification');
 const Vehicle = require('../models/Vehicle');
 const Driver = require('../models/Driver');
 const Schedule = require('../models/Schedule');
@@ -99,7 +99,7 @@ const notifyEligibleDriversForBooking = async (booking) => {
       if (!activeSchedule) return;
     }
 
-    const routeText = `${bookingOrigin.split('(')[0].trim()} → ${bookingDest.split('(')[0].trim()}`;
+    const routeText = `${bookingOrigin.split('(')[0].trim()} â†’ ${bookingDest.split('(')[0].trim()}`;
     const notifTitle = `New ${serviceType} Booking Request`;
     const notifBody = `${routeText} booking request. Tap to view.`;
 
@@ -164,7 +164,7 @@ const notifyEligibleDriversForBooking = async (booking) => {
       
       if (!activeVehicle) {
         console.log(`[NOTIFY DEBUG] Driver Route: NONE`);
-        console.log(`[NOTIFY DEBUG] Booking Route: ${bookingOrigin} → ${bookingDest}`);
+        console.log(`[NOTIFY DEBUG] Booking Route: ${bookingOrigin} â†’ ${bookingDest}`);
         console.log(`[NOTIFY DEBUG] Service Type: ${serviceType}`);
         console.log(`[NOTIFY DEBUG] Route Match: false`);
         console.log(`[NOTIFY DEBUG] Eligible: false`);
@@ -183,6 +183,12 @@ const notifyEligibleDriversForBooking = async (booking) => {
     const tQueryEnd = Date.now();
     console.log(`[NOTIFY] eligible driver query completed: ${tQueryEnd - tQueryStart} ms`);
     console.log(`[NOTIFY] eligible drivers: ${eligibleDrivers.length}`);
+
+    // Structured audit log for debugging route-matching pipeline
+    console.log('[BOOKING_NOTIFY_AUDIT] customerOrigin=' + bookingOrigin + ' customerDestination=' + bookingDest + ' serviceType=' + serviceType + ' bookingId=' + bookingIdStr + ' matchedDriverCount=' + eligibleDrivers.length);
+    if (eligibleDrivers.length > 0) {
+      console.log('[BOOKING_NOTIFY_AUDIT] matchedDriverIds=' + JSON.stringify(eligibleDrivers.map(function(d) { return String(d._id); })));
+    }
 
     if (eligibleDrivers.length === 0) {
       console.log(`[Notification Engine] 0 eligible drivers found for route ${routeText}`);
@@ -247,12 +253,12 @@ const notifyEligibleDriversForBooking = async (booking) => {
 
       console.log(`\n[ROUTE-NOTIFICATION-TRACE]`);
       console.log(`Booking: ${bookingIdStr}`);
-      console.log(`Route: ${bookingOrigin} → ${bookingDest}`);
+      console.log(`Route: ${bookingOrigin} â†’ ${bookingDest}`);
       console.log(`Service Type: ${serviceType}`);
       console.log(`Driver: ${driver.name || 'Unknown'}`);
       console.log(`Driver ID: ${driver._id}`);
       console.log(`Active Vehicle: ${actualVehicleId || 'NONE'}`);
-      console.log(`Vehicle Route: ${vOrigin} → ${vDest}`);
+      console.log(`Vehicle Route: ${vOrigin} â†’ ${vDest}`);
       console.log(`Route Match: ${routeMatches}`);
       console.log(`Eligible: ${routeMatches}`);
       console.log(`Notification function name: notifyEligibleDriversForBooking`);
@@ -416,7 +422,7 @@ const notifyEligibleDriversForBooking = async (booking) => {
 
     // 5. Structured Console Audit Output
     console.log('\n================================================================');
-    console.log(`🔔 ${serviceType.toUpperCase()} BOOKING REQUEST BROADCAST`);
+    console.log(`ðŸ”” ${serviceType.toUpperCase()} BOOKING REQUEST BROADCAST`);
     console.log(`Booking: ${bookingIdStr}`);
     console.log(`Route: ${routeText}`);
     console.log(`Eligible drivers found: ${eligibleDrivers.length}\n`);
@@ -512,7 +518,7 @@ const notifyAssignedDriverForScheduleBooking = async (booking) => {
     const title = `New ${serviceLabel} Schedule Booking Request`;
     const origin = booking.pickupLocation || '';
     const destination = booking.dropLocation || '';
-    const message = `Service: ${serviceLabel}. Booking ${booking.bookingId} from ${booking.customer?.name || 'Customer'}: ${origin} → ${destination}. Fare: ${booking.fare}.`;
+    const message = `Service: ${serviceLabel}. Booking ${booking.bookingId} from ${booking.customer?.name || 'Customer'}: ${origin} â†’ ${destination}. Fare: ${booking.fare}.`;
     const result = await Notification.updateOne(
       {
         recipientRole: 'driver',
