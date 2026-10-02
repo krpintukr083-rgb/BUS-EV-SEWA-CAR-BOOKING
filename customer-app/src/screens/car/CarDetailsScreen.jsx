@@ -106,10 +106,7 @@ const CarDetailsScreen = ({ route, navigation }) => {
 
   const handleBookNow = () => {
     const schedule = selectedSchedule;
-    if (!schedule?._id) {
-      Alert.alert('Schedule unavailable', 'Select an active Car schedule before continuing.');
-      return;
-    }
+
     updateDraft({
       serviceType: 'Car',
       vehicle: car,
@@ -117,9 +114,9 @@ const CarDetailsScreen = ({ route, navigation }) => {
       totalFare: car.fareRate,
       passengerCount: passengerCount,
       travelDate: schedule?.travelDate || `${travelDate}T${travelTime}:00.000Z`,
-      pickupLocation: schedule.origin,
-      dropLocation: schedule.destination,
-      scheduleId: schedule._id,
+      pickupLocation: schedule?.origin || bookingDraft.pickupLocation || car?.route?.origin || '',
+      dropLocation: schedule?.destination || bookingDraft.dropLocation || car?.route?.destination || '',
+      scheduleId: schedule?._id || null,
       schedule,
       passengerDetails: Array.from({ length: passengerCount }, () => ({ name: '', phone: '', age: '', gender: 'Male' }))
     });
