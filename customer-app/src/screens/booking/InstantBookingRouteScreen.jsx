@@ -8,9 +8,9 @@ import Input from '../../components/Input';
 import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
 
-const InstantBookingRouteScreen = ({ navigation }) => {
+const InstantBookingRouteScreen = ({ navigation, route }) => {
   const { user } = useCustomerAuth();
-  const { updateDraft } = useBooking();
+  const { updateDraft, bookingDraft } = useBooking();
   const [pickupLocation, setPickupLocation] = useState('');
   const [dropLocation, setDropLocation] = useState('');
   const [passengerCount, setPassengerCount] = useState(1);
@@ -22,7 +22,8 @@ const InstantBookingRouteScreen = ({ navigation }) => {
     }
     updateDraft({
       bookingMode: 'INSTANT',
-      serviceType: 'Any',
+      serviceType: route.params?.serviceType || 'Any',
+      ...(route.params?.carId ? { vehicle: { ...bookingDraft?.vehicle, _id: route.params.carId } } : {}),
       pickupLocation: pickupLocation.trim(),
       dropLocation: dropLocation.trim(),
       passengerCount: passengerCount,

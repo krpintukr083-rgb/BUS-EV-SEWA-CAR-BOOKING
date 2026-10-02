@@ -100,7 +100,11 @@ const BookingServiceSelectionScreen = ({ route, navigation }) => {
     console.log('[CAR DEBUG 8] before navigation');
 
     if (bookingMode === 'INSTANT') {
-      navigation.navigate('InstantBookingRoute', { serviceType: service.type });
+      if (service.type === 'Car' || service.type === 'car') {
+        navigation.navigate('CarListing');
+      } else {
+        navigation.navigate('InstantBookingRoute', { serviceType: service.type });
+      }
     } else if (service.type === 'Bus') {
       navigation.navigate('BusSearch');
     } else if (service.type === 'EV-Sewa') {

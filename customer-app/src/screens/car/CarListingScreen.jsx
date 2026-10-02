@@ -30,31 +30,33 @@ const CarListingScreen = ({ navigation, route }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const isInstant = bookingDraft?.bookingMode === 'INSTANT';
+
   const fetchCars = async (schedule = selectedSchedule) => {
-    if (!schedule?._id) {
+    if (!isInstant && !schedule?._id) {
       setCars([]);
       setLoading(false);
       setRefreshing(false);
       return;
     }
 
-    const scheduleId = String(schedule._id);
-    const origin = schedule.origin || route.params?.origin || route.params?.from || '';
-    const destination = schedule.destination || route.params?.destination || route.params?.to || '';
-    const travelDate = schedule.travelDate || route.params?.travelDate;
-    const scheduleVehicleId = schedule.vehicle?._id || schedule.vehicle || route.params?.vehicleId;
+    const scheduleId = schedule ? String(schedule._id) : undefined;
+    const origin = schedule?.origin || route.params?.origin || bookingDraft?.pickupLocation || '';
+    const destination = schedule?.destination || route.params?.destination || bookingDraft?.dropLocation || '';
+    const travelDate = schedule?.travelDate || route.params?.travelDate || bookingDraft?.travelDate;
+    const scheduleVehicleId = schedule?.vehicle?._id || schedule?.vehicle || route.params?.vehicleId;
     try {
       const res = await customerService.getVehicles(
         'car',
         origin,
         destination,
         travelDate,
-        true,
+        !isInstant,
         scheduleId
       );
       if (res.success) {
         const listedCars = res.data || [];
-        setCars(scheduleVehicleId
+        setCars(scheduleVehicleId && !isInstant
           ? listedCars.filter(car => String(car._id) === String(scheduleVehicleId))
           : listedCars);
         setScheduleError('');
@@ -162,7 +164,9 @@ const CarListingScreen = ({ navigation, route }) => {
   };
 
   useEffect(() => {
-    if (initialSchedule?._id) {
+    if (isInstant) {
+      fetchCars();
+    } else if (initialSchedule?._id) {
       fetchCars(initialSchedule);
     } else {
       fetchSchedules();
@@ -171,23 +175,29 @@ const CarListingScreen = ({ navigation, route }) => {
 
   const handleSelectCar = (car) => {
     const schedule = car.schedule;
-    if (!schedule?._id) return;
+    if (!isInstant && !schedule?._id) return;
+    
     updateDraft({
       serviceType: 'Car',
       vehicle: car,
       baseFare: car.fareRate,
       totalFare: car.fareRate,
-      pickupLocation: schedule.origin,
-      dropLocation: schedule.destination,
-      scheduleId: schedule._id,
-      schedule,
-      travelDate: schedule.travelDate
+      pickupLocation: schedule?.origin || route.params?.origin || bookingDraft?.pickupLocation || '',
+      dropLocation: schedule?.destination || route.params?.destination || bookingDraft?.dropLocation || '',
+      scheduleId: schedule?._id || null,
+      schedule: schedule || null,
+      travelDate: schedule?.travelDate || route.params?.travelDate || bookingDraft?.travelDate || new Date().toISOString()
     });
-    navigation.navigate('CarDetails', {
-      carId: car._id,
-      ...(schedule ? { schedule } : {}),
-      ...(schedule?._id ? { scheduleId: schedule._id } : {})
-    });
+    
+    if (isInstant) {
+      navigation.navigate('InstantBookingRoute', { serviceType: 'Car', carId: car._id });
+    } else {
+      navigation.navigate('CarDetails', {
+        carId: car._id,
+        ...(schedule ? { schedule } : {}),
+        ...(schedule?._id ? { scheduleId: schedule._id } : {})
+      });
+    }
   };
 
   return (
@@ -198,7 +208,7 @@ const CarListingScreen = ({ navigation, route }) => {
         <Text style={styles.carBanner}>🚗 Premium Sedans, SUVs & Chauffeur Cabs</Text>
       </View>
 
-      {!selectedSchedule && (
+      {!isInstant && !selectedSchedule && (
         <View style={styles.schedulePicker}>
           <Text style={styles.pickerTitle}>Select an active Car schedule</Text>
           <Text style={styles.pickerSubtitle}>Choose a route and travel date to see its assigned vehicle.</Text>
@@ -248,7 +258,7 @@ const CarListingScreen = ({ navigation, route }) => {
           <ActivityIndicator size="large" color="#ea580c" />
           <Text style={styles.loadingText}>Loading available cars...</Text>
         </View>
-      ) : selectedSchedule ? (
+      ) : (isInstant || selectedSchedule) ? (
         <FlatList
           data={cars}
           keyExtractor={item => item._id}
