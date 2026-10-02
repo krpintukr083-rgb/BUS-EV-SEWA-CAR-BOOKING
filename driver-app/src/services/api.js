@@ -94,6 +94,7 @@ apiClient.interceptors.request.use(
     try {
       const effectiveUrl = await getEffectiveBaseUrl();
       config.baseURL = effectiveUrl;
+      console.log('[API_DEBUG] effective base URL:', effectiveUrl);
 
       config.headers['bypass-tunnel-reminder'] = 'true';
       config.headers['Bypass-Tunnel-Reminder'] = 'true';

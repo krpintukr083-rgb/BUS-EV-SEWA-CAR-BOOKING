@@ -263,10 +263,9 @@ const verifyDriverRouteOtpAccess = async (driver, booking) => {
     ));
   }
 
-  const authorizedRecipient = isRequestRecipient ||
+  const authorizedRecipient = assignedToDriver || isRequestRecipient ||
     (!hasBookingRequests && (
-      assignedToDriver ||
-      (!bookingDriverId && (assignedBySchedule || assignedByVehicle))
+      !bookingDriverId && (assignedBySchedule || assignedByVehicle)
     ));
   if (!authorizedRecipient) return false;
 
@@ -2184,10 +2183,10 @@ const verifyInstantRideOtp = async (req, res, next) => {
   try {
     const driver = req.driver;
     const instantDriverStatus = String(driver?.driverStatus || '').trim().toLowerCase();
+    console.log('[OTP_DEBUG] Instant OTP status check', { driverId: driver && driver._id ? driver._id.toString() : null, driverStatus: driver?.driverStatus, instantDriverStatus });
     if (
       !driver ||
-      !['active', 'approved'].includes(instantDriverStatus) ||
-      driver.isOnline !== true
+      !['active', 'approved'].includes(instantDriverStatus)
     ) {
       return res.status(403).json({ success: false, message: 'Forbidden: Only active/approved drivers can verify customer OTP' });
     }
@@ -2226,6 +2225,7 @@ const verifyInstantRideOtp = async (req, res, next) => {
       });
     }
 
+    console.log('[OTP_DEBUG] verifyDriverRouteOtpAccess called', { driverId: driver && driver._id ? driver._id.toString() : null, driverStatus: driver?.driverStatus, bookingId: booking._id.toString(), route: driver.route, bookingRoute: booking.route });
     const isAuthorized = await verifyDriverRouteOtpAccess(driver, booking);
     if (!isAuthorized) {
       return res.status(403).json({
@@ -3283,7 +3283,9 @@ exports.registerPushToken = async (req, res, next) => {
 const verifyScheduleRideOtp = async (req, res, next) => {
   try {
     const driver = req.driver;
-    if (!driver || driver.driverStatus !== 'Active') {
+    const scheduleDriverStatus = String(driver?.driverStatus || '').trim().toLowerCase();
+    if (!driver || !['active', 'approved'].includes(scheduleDriverStatus)) {
+    console.log('[OTP_DEBUG_403] schedule driver status check failed', { driverId: driver && driver._id ? driver._id.toString() : null, driverStatus: driver?.driverStatus, scheduleDriverStatus });
       return res.status(403).json({ success: false, message: 'Forbidden: Only active/approved drivers can verify customer OTP' });
     }
 
@@ -4474,6 +4476,16 @@ exports.updateVehicleFare = async (req, res, next) => {
 };
 
 exports.verifyRideOtp = async (req, res, next) => {
+  console.log('[OTP_DEBUG] verifyRideOtp entry', { driverId: req.driver && req.driver._id ? req.driver._id.toString() : null, driverStatus: req.driver?.driverStatus, isOnline: req.driver?.isOnline, bookingIdParam: req.params.id, bookingIdBody: req.body.bookingId || req.body.id, endpoint: req.originalUrl, method: req.method });
+  console.log('[OTP_DEBUG] verifyRideOtp called', {
+    driverId: req.driver && req.driver._id ? req.driver._id.toString() : null,
+    driverStatus: req.driver?.driverStatus,
+    isOnline: req.driver?.isOnline,
+    bookingIdParam: req.params.id,
+    bookingIdBody: req.body.bookingId || req.body.id,
+    endpoint: req.originalUrl,
+    method: req.method
+  });
   const { id } = req.params;
   const targetBookingId = id || req.body.bookingId || req.body.id;
   const booking = await Booking.findOne(getBookingQuery(targetBookingId));

@@ -231,6 +231,9 @@ export const checkAndNotifyBookingRequests = async (requests, driverId) => {
   if (!Array.isArray(requests) || requests.length === 0) return;
 
   try {
+    // Ensure Android notification channel is initialized before scheduling
+    await initNotificationChannel();
+
     const key = getStorageKey(driverId);
     const stored = await AsyncStorage.getItem(key);
     const notifiedIds = new Set(stored ? JSON.parse(stored) : []);
@@ -261,24 +264,28 @@ export const checkAndNotifyBookingRequests = async (requests, driverId) => {
       const bodyText = `${origin} → ${dest} booking request. Tap to view.`;
       const serviceType = item.serviceType || 'Booking';
 
-      // Trigger Android Top Heads-Up Notification
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: `New ${serviceType} Booking Request`,
-          body: bodyText,
-          data: {
-            bookingId: bId,
-            bookingCode: item.bookingId || bId,
-            serviceType,
-            screen: 'Requests'
+      // Trigger Android Top Heads-Up Notification safely
+      try {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `New ${serviceType} Booking Request`,
+            body: bodyText,
+            data: {
+              bookingId: bId,
+              bookingCode: item.bookingId || bId,
+              serviceType,
+              screen: 'Requests'
+            },
+            sound: 'default',
+            priority: Notifications.AndroidNotificationPriority.HIGH,
           },
-          sound: 'default',
-          priority: Notifications.AndroidNotificationPriority.HIGH,
-        },
-        trigger: {
-          channelId: CHANNEL_ID, // FIX: Required for Android 13+ to avoid fallback silent channel
-        }
-      });
+          trigger: Platform.OS === 'android'
+            ? { channelId: CHANNEL_ID, seconds: 1 }
+            : { seconds: 1 }
+        });
+      } catch (notifErr) {
+        console.warn('[PUSH] Local notification scheduling failed:', notifErr?.message || notifErr);
+      }
 
       notifiedIds.add(bId);
       newNotifiedCount++;
