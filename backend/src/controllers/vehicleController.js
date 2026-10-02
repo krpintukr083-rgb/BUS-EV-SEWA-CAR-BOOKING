@@ -62,9 +62,7 @@ exports.getVehicles = async (req, res, next) => {
       if (scheduleId && (!mongoose.isValidObjectId(scheduleId) || query.vehicleType !== 'Car')) {
         return res.status(400).json({ success: false, message: 'Invalid Car schedule selection' });
       }
-      if (query.vehicleType === 'Car' && !scheduleId) {
-        return res.status(400).json({ success: false, message: 'Select an active Car schedule to list vehicles' });
-      }
+
       if (scheduleId && (!from || !to || !travelDate)) {
         return res.status(400).json({
           success: false,
@@ -161,7 +159,7 @@ exports.getVehicles = async (req, res, next) => {
       const formattedVehicles = vehicles.map(vehicle => ({
         ...formatVehicle(vehicle, req),
         schedule: scheduleByVehicle.get(String(vehicle._id)) || null
-      })).filter(vehicle => query.vehicleType !== 'Car' || vehicle.schedule);
+      }));
 
       return res.json({
         success: true,
