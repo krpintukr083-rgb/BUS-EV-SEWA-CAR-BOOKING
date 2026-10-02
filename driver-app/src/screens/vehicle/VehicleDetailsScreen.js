@@ -308,8 +308,7 @@ export default function VehicleDetailsScreen({ navigation, route }) {
                     <Text style={styles.reverseRouteButtonText}>Reverse Route</Text>
                   </TouchableOpacity>
                   {isReversing && (
-                    // Route scheduling inputs hidden (commented out) for future restoration
-                    {/*
+                    <>
                       <Text style={[styles.specLabel, { color: COLORS.primaryLight, marginBottom: 8 }]}>Set New Route Schedule</Text>
                       <View style={{ gap: 8 }}>
                         <TextInput
@@ -334,7 +333,7 @@ export default function VehicleDetailsScreen({ navigation, route }) {
                           onChangeText={setNewArrivalTime}
                         />
                       </View>
-                    */}
+                    </>
                   )}
                 </>
               )}
