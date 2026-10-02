@@ -261,12 +261,27 @@ describe('Instant Booking Driver Request Delivery & Stale Booking Isolation', ()
     });
 
     const freshBooking = await createBooking();
+    const scheduledBooking = await createBooking({
+      bookingMode: 'SCHEDULE',
+      serviceType: 'Bus'
+    });
+    const carBooking = await createBooking({
+      serviceType: 'Car'
+    });
+    const evSewaBooking = await createBooking({
+      serviceType: 'EV-Sewa'
+    });
     const res = await request(app)
       .get('/api/driver/booking-requests')
       .set('Authorization', `Bearer ${driver1Token}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.some(req => req.bookingId === freshBooking.bookingId)).toBe(true);
+    expect(res.body.data.map(req => req.bookingId)).toEqual(expect.arrayContaining([
+      freshBooking.bookingId,
+      scheduledBooking.bookingId,
+      carBooking.bookingId,
+      evSewaBooking.bookingId
+    ]));
     const acceptRes = await request(app)
       .post(`/api/driver/booking-requests/${freshBooking._id}/accept`)
       .set('Authorization', `Bearer ${driver1Token}`);
