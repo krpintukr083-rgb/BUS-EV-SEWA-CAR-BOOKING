@@ -162,8 +162,6 @@ const getEligibleRequestVehicle = (booking, vehicles, driverId, reservedSeatsByV
       const capacity = vehicle.seatingCapacity || 4;
       if ((reservedSeatsByVehicle.get(String(vehicle._id)) || 0) + requestedSeats > capacity) return false;
     } else if (bookingMode === 'NORMAL' || bookingMode === 'SCHEDULE') {
-      if (serviceType !== String(vehicle.vehicleType || '').trim().toLowerCase()) return false;
-
       if (bookingMode === 'SCHEDULE') {
         const selectedVehicleId = booking.vehicle?._id || booking.vehicle;
         if (String(selectedVehicleId) !== String(vehicle._id)) return false;
@@ -1451,17 +1449,10 @@ const getScheduleBookingRequests = async (req, res, next) => {
     }
 
     const requestServiceTypes = [...new Set(requestVehicles.map(vehicle => vehicle.vehicleType))];
-    const serviceTypeVariants = getRequestValueVariants([...requestServiceTypes, 'Any']);
     const instantModeVariants = getRequestValueVariants(['INSTANT']);
     const otherModeVariants = getRequestValueVariants(['NORMAL', 'SCHEDULE']);
     const candidateBookings = await Booking.find({
-      $or: [
-        { bookingMode: { $in: instantModeVariants } },
-        {
-          bookingMode: { $in: otherModeVariants },
-          serviceType: { $in: serviceTypeVariants }
-        }
-      ],
+      bookingMode: { $in: [...instantModeVariants, ...otherModeVariants] },
       driverConfirmed: { $ne: true },
       driverConfirmationStatus: { $ne: 'Confirmed' },
       confirmationOtpVerifiedAt: null,
