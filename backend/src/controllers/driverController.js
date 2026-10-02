@@ -100,20 +100,6 @@ const verifyDriverVehicleAccess = async (driver, booking) => {
     return false;
   }
 
-  // Vehicle category normalization & check ONLY for SCHEDULE mode (INSTANT mode allows all same-route vehicle categories)
-  if (booking.bookingMode === 'SCHEDULE' && booking.serviceType && booking.serviceType !== 'Any') {
-    const normBookingService = normalizeVehicleType(booking.serviceType);
-    let driverVehicleType = driver.assignedVehicle ? (driver.assignedVehicle.vehicleType || driver.assignedVehicle.type) : null;
-    if (!driverVehicleType) {
-      const vDoc = await Vehicle.findOne({ assignedDriver: driver._id, vehicleStatus: 'Active' }).select('vehicleType type').lean();
-      if (vDoc) driverVehicleType = vDoc.vehicleType || vDoc.type;
-    }
-    const normDriverVehicle = normalizeVehicleType(driverVehicleType);
-    if (normDriverVehicle && normDriverVehicle !== normBookingService) {
-      return false;
-    }
-  }
-
   const serviceControl = await ServiceControl.findOne().select('oppositeRouteNotifications').lean();
   return driverMatchesBookingRoute(driver, booking, {
     allowOpposite: serviceControl?.oppositeRouteNotifications === true
@@ -216,12 +202,6 @@ const verifyAssignedBookingVehicleAccess = async (driver, booking) => {
   if (hasAssignedSchedule && vehicle.assignedDriver && String(vehicle.assignedDriver) !== assignedDriverId) {
     return false;
   }
-
-  if (
-    booking.serviceType &&
-    booking.serviceType !== 'Any' &&
-    String(booking.serviceType).trim().toLowerCase() !== String(vehicle.vehicleType || '').trim().toLowerCase()
-  ) return false;
 
   if (!hasAssignedSchedule) {
     const directVehicleId = driver.assignedVehicle?._id || driver.assignedVehicle;
@@ -1466,14 +1446,6 @@ const getScheduleBookingRequests = async (req, res, next) => {
             bookingDate.getMonth() !== scheduleDate.getMonth() ||
             bookingDate.getDate() !== scheduleDate.getDate()
           ) return exclude('schedule-travel-date-mismatch');
-        }
-        if (reqItem.serviceType && reqItem.serviceType !== 'Any') {
-          const normBookingService = normalizeVehicleType(reqItem.serviceType);
-          const driverVehicleType = driver.assignedVehicle ? (driver.assignedVehicle.vehicleType || driver.assignedVehicle.type) : null;
-          const normDriverVehicle = normalizeVehicleType(driverVehicleType);
-          if (normDriverVehicle && normDriverVehicle !== normBookingService) {
-            return exclude('schedule-vehicle-category-mismatch');
-          }
         }
       }
 
