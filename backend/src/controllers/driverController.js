@@ -1,4 +1,4 @@
-﻿const mongoose = require('mongoose');
+const mongoose = require('mongoose');
 const crypto = require('crypto');
 const Driver = require('../models/Driver');
 const Vehicle = require('../models/Vehicle');
@@ -1576,47 +1576,23 @@ const acceptInstantBookingRequest = async (req, res, next) => {
       });
     }
 
-    const isUnassignedInstantBooking = booking.bookingMode === 'INSTANT' && !booking.driver && !booking.driverAssigned;
     const driverStatus = String(driver.driverStatus || '').trim().toLowerCase();
     const isEligibleDriver = ['active', 'approved'].includes(driverStatus) && driver.isOnline === true;
-    let requestVehicle = null;
-    let routeMatchedVehicle = false;
+    
+    const serviceControl = await ServiceControl.findOne().select('oppositeRouteNotifications').lean();
+    const allowOpposite = serviceControl?.oppositeRouteNotifications === true;
+    
+    // Authorization is purely based on route matching and driver status
+    const isAuthorized = isEligibleDriver && driverMatchesBookingRoute(driver, booking, { allowOpposite });
 
-    if (isUnassignedInstantBooking && isEligibleDriver) {
-      const requestVehicles = await getActiveRequestVehiclesForDriver(driver);
-      const serviceControl = await ServiceControl.findOne().select('oppositeRouteNotifications').lean();
-      const allowOpposite = serviceControl?.oppositeRouteNotifications === true;
-      const requestedSeats = booking.passengerDetails?.length || 1;
-      routeMatchedVehicle = driverMatchesBookingRoute(driver, booking, { allowOpposite });
-
-      for (const vehicle of routeMatchedVehicle ? requestVehicles : []) {
-        const activeReservedSeats = await getActiveReservedSeats(vehicle._id);
-        const capacity = vehicle.seatingCapacity || 4;
-        if (activeReservedSeats + requestedSeats <= capacity) {
-          requestVehicle = vehicle;
-          break;
-        }
-      }
-    }
-
-    // Unassigned Instant requests resolve an eligible active vehicle from either
-    // assignment direction; assigned and scheduled bookings retain prior checks.
-    const isAuthorized = isUnassignedInstantBooking
-      ? Boolean(isEligibleDriver && requestVehicle)
-      : await verifyDriverVehicleAccess(driver, booking);
     if (!isAuthorized) {
-      if (isUnassignedInstantBooking && isEligibleDriver && routeMatchedVehicle) {
-        return res.status(409).json({
-          success: false,
-          code: 'VEHICLE_CAPACITY_FULL',
-          message: 'Vehicle does not have enough available seats.'
-        });
-      }
       return res.status(403).json({
         success: false,
-        message: 'You are not authorized to accept bookings for this vehicle'
+        message: 'You are not authorized to accept this booking based on your assigned route.'
       });
     }
+
+    let requestVehicle = null;
 
     // Prevent accepting already accepted/confirmed bookings
     if (['Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(booking.bookingStatus) || booking.driverConfirmed || booking.confirmationOtpVerifiedAt || booking.rideStatus === 'Accepted') {
@@ -1627,9 +1603,9 @@ const acceptInstantBookingRequest = async (req, res, next) => {
           data: driverBookingResponse(booking, driver.canViewCustomerPhone === true)
         });
       }
-      return res.status(400).json({
+      return res.status(409).json({
         success: false,
-        message: `Booking is already in '${booking.bookingStatus}' status and cannot be accepted again.`
+        message: 'Booking no longer available.'
       });
     }
 
@@ -1898,15 +1874,19 @@ const acceptScheduleBookingRequest = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Booking request not found' });
     }
 
-    // Schedule authorization follows its assigned driver and selected vehicle;
-    // legacy Driver.assignedVehicle is not the source of schedule assignment.
-    const isAuthorized = booking.bookingMode === 'SCHEDULE'
-      ? await verifyAssignedBookingVehicleAccess(driver, booking)
-      : await verifyDriverVehicleAccess(driver, booking);
+    const driverStatus = String(driver.driverStatus || '').trim().toLowerCase();
+    const isEligibleDriver = ['active', 'approved'].includes(driverStatus) && driver.isOnline === true;
+    
+    const serviceControl = await ServiceControl.findOne().select('oppositeRouteNotifications').lean();
+    const allowOpposite = serviceControl?.oppositeRouteNotifications === true;
+    
+    // Authorization is purely based on route matching and driver status
+    const isAuthorized = isEligibleDriver && driverMatchesBookingRoute(driver, booking, { allowOpposite });
+
     if (!isAuthorized) {
       return res.status(403).json({
         success: false,
-        message: 'You are not authorized to accept bookings for this vehicle'
+        message: 'You are not authorized to accept this booking based on your assigned route.'
       });
     }
 
@@ -1919,9 +1899,9 @@ const acceptScheduleBookingRequest = async (req, res, next) => {
           data: driverBookingResponse(booking, driver.canViewCustomerPhone === true)
         });
       }
-      return res.status(400).json({
+      return res.status(409).json({
         success: false,
-        message: `Booking is already in '${booking.bookingStatus}' status and cannot be accepted again.`
+        message: 'Booking no longer available.'
       });
     }
 
