@@ -3307,62 +3307,7 @@ exports.registerPushToken = async (req, res, next) => {
 
 // @desc    Update Driver Vehicle Fare
 // @route   PUT /api/driver/vehicle/fare
-// @access  Private (Driver Only)
-exports.updateVehicleFare = async (req, res, next) => {
-  try {
-    const { fareRate, fare, vehicleId, route } = req.body;
-    const finalFare = fare !== undefined && fare !== null ? fare : fareRate;
-    const hasSegmentPricing = Array.isArray(route?.stops) && route.stops.length > 0;
-    const routePricing = hasSegmentPricing ? validateRoutePricing(route) : null;
-    if (hasSegmentPricing && !routePricing.valid) {
-      return res.status(400).json({ success: false, message: routePricing.message });
-    }
-    if (!hasSegmentPricing && (finalFare === undefined || finalFare === null || Number(finalFare) <= 0 || isNaN(Number(finalFare)))) {
-      return res.status(400).json({ success: false, message: 'Please provide a valid positive fare amount' });
-    }
-    if (vehicleId && !mongoose.isValidObjectId(vehicleId)) {
-      return res.status(400).json({ success: false, message: 'Invalid vehicleId' });
-    }
-
-    const ownershipQuery = getDriverVehicleOwnershipQuery(req.driver);
-    let vehicle;
-    if (vehicleId) {
-      vehicle = await Vehicle.findOne({ _id: vehicleId, ...ownershipQuery });
-    } else {
-      vehicle = await Vehicle.findOne({ assignedDriver: req.driver._id });
-      const assignedVehicleId = req.driver.assignedVehicle?._id || req.driver.assignedVehicle;
-      if (!vehicle && assignedVehicleId) {
-        vehicle = await Vehicle.findOne({ _id: assignedVehicleId, ...ownershipQuery });
-      }
-      if (!vehicle) {
-        vehicle = await Vehicle.findOne({ 'submission.submittedByDriver': req.driver._id });
-      }
-    }
-
-    if (!vehicle) {
-      return res.status(404).json({ success: false, message: 'Assigned vehicle not found or you are not authorized to edit this vehicle' });
-    }
-
-    if (hasSegmentPricing) {
-      vehicle.route = { ...(vehicle.route?.toObject?.() || vehicle.route || {}), ...route };
-      vehicle.fareRate = routePricing.totalFare;
-    } else {
-      if (Array.isArray(vehicle.route?.stops) && vehicle.route.stops.length > 0) {
-        return res.status(400).json({ success: false, message: 'Update each route segment fare for a vehicle with route stops.' });
-      }
-      vehicle.fareRate = Number(finalFare);
-    }
-    await vehicle.save();
-
-    res.json({
-      success: true,
-      message: 'Vehicle fare updated successfully',
-      data: vehicle
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+// Note: updateVehicleFare is exported near the bottom of this file.
 const verifyScheduleRideOtp = async (req, res, next) => {
   try {
     const driver = req.driver;
@@ -4517,6 +4462,19 @@ exports.updateVehicleFare = async (req, res, next) => {
     }
     
     await vehicle.save();
+
+    if (vehicle.route?.origin && vehicle.route?.destination) {
+      const driverRouteUpdate = {
+        'route.origin': vehicle.route.origin,
+        'route.destination': vehicle.route.destination
+      };
+      if (req.driver?._id) {
+        await Driver.updateOne({ _id: req.driver._id }, { $set: driverRouteUpdate });
+      }
+      if (vehicle.assignedDriver) {
+        await Driver.updateOne({ _id: vehicle.assignedDriver }, { $set: driverRouteUpdate });
+      }
+    }
 
     if (isRouteReversed) {
       const updatePayload = {
