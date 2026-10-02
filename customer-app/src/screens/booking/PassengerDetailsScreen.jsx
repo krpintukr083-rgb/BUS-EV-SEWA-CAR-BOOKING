@@ -19,30 +19,43 @@ import { COLORS } from '../../constants/colors';
 const PassengerDetailsScreen = ({ navigation }) => {
   const { bookingDraft, updateDraft } = useBooking();
 
-  const passengerCount = (bookingDraft.serviceType === 'EV-Sewa' || bookingDraft.bookingMode === 'INSTANT')
-    ? Math.max(1, Number(bookingDraft.passengerCount) || 1)
-    : bookingDraft.selectedSeats && bookingDraft.selectedSeats.length > 0
+  const maxAllowedPassengers = bookingDraft.selectedSeats && bookingDraft.selectedSeats.length > 0
     ? bookingDraft.selectedSeats.length
-    : 1;
+    : Math.max(1, Number(bookingDraft.passengerCount) || 1);
 
-  const buildPassengers = count => Array.from({ length: count }, (_, index) => ({
-    name: bookingDraft.passengerDetails?.[index]?.name || '',
-    phone: bookingDraft.passengerDetails?.[index]?.phone || '',
-    age: bookingDraft.passengerDetails?.[index]?.age || '',
-    gender: bookingDraft.passengerDetails?.[index]?.gender || 'Male',
-    ...(bookingDraft.selectedSeats?.[index] ? { seatNumber: bookingDraft.selectedSeats[index] } : {})
-  }));
-  const [passengers, setPassengers] = useState(() => buildPassengers(passengerCount));
+  const buildPassengers = () => {
+    const existing = bookingDraft.passengerDetails;
+    if (existing && existing.length > 0) {
+      return existing;
+    }
+    return [{
+      name: '',
+      phone: '',
+      age: '',
+      gender: 'Male',
+      ...(bookingDraft.selectedSeats?.[0] ? { seatNumber: bookingDraft.selectedSeats[0] } : {})
+    }];
+  };
 
-  useEffect(() => {
-    setPassengers(current => Array.from({ length: passengerCount }, (_, index) => ({
-      name: current[index]?.name ?? bookingDraft.passengerDetails?.[index]?.name ?? '',
-      phone: current[index]?.phone ?? bookingDraft.passengerDetails?.[index]?.phone ?? '',
-      age: current[index]?.age ?? bookingDraft.passengerDetails?.[index]?.age ?? '',
-      gender: current[index]?.gender ?? bookingDraft.passengerDetails?.[index]?.gender ?? 'Male',
-      ...(bookingDraft.selectedSeats?.[index] ? { seatNumber: bookingDraft.selectedSeats[index] } : {})
-    })));
-  }, [passengerCount]);
+  const [passengers, setPassengers] = useState(buildPassengers);
+
+  const addPassenger = () => {
+    if (passengers.length < maxAllowedPassengers) {
+      setPassengers([...passengers, {
+        name: '',
+        phone: '',
+        age: '',
+        gender: 'Male',
+        seatNumber: bookingDraft.selectedSeats?.[passengers.length] || undefined
+      }]);
+    }
+  };
+
+  const removePassenger = (indexToRemove) => {
+    if (indexToRemove === 0) return;
+    const updated = passengers.filter((_, idx) => idx !== indexToRemove);
+    setPassengers(updated);
+  };
 
   const [errors, setErrors] = useState({});
 
@@ -73,6 +86,11 @@ const PassengerDetailsScreen = ({ navigation }) => {
       }
     });
 
+    if (passengers.length !== maxAllowedPassengers) {
+      setErrors({ global: `Please add details for all ${maxAllowedPassengers} passengers.` });
+      return;
+    }
+
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       return;
@@ -80,7 +98,7 @@ const PassengerDetailsScreen = ({ navigation }) => {
 
     updateDraft({
       passengerDetails: passengers,
-      ...((bookingDraft.serviceType === 'EV-Sewa' || bookingDraft.bookingMode === 'INSTANT') ? { passengerCount: passengers.length } : {})
+      passengerCount: maxAllowedPassengers
     });
 
     navigation.navigate('FareSummary');
@@ -113,6 +131,13 @@ const PassengerDetailsScreen = ({ navigation }) => {
           </View>
         </View>
 
+        {errors.global && (
+          <View style={styles.errorBanner}>
+            <Ionicons name="warning" size={16} color="#ffffff" />
+            <Text style={styles.errorBannerText}>{errors.global}</Text>
+          </View>
+        )}
+
         {/* Passenger Cards */}
         {passengers.map((p, index) => (
           <View key={index} style={styles.passengerCard}>
@@ -120,12 +145,20 @@ const PassengerDetailsScreen = ({ navigation }) => {
               <View style={styles.indexBadge}>
                 <Text style={styles.indexBadgeText}>Passenger {index + 1}</Text>
               </View>
-              {p.seatNumber && (
-                <View style={styles.seatPill}>
-                  <Ionicons name="bus" size={12} color={COLORS.primary} />
-                  <Text style={styles.seatPillText}>Seat {p.seatNumber}</Text>
-                </View>
-              )}
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                {p.seatNumber && (
+                  <View style={styles.seatPill}>
+                    <Ionicons name="bus" size={12} color={COLORS.primary} />
+                    <Text style={styles.seatPillText}>Seat {p.seatNumber}</Text>
+                  </View>
+                )}
+                {index > 0 && (
+                  <TouchableOpacity onPress={() => removePassenger(index)} style={styles.removeBtn}>
+                    <Ionicons name="trash-outline" size={16} color="#ef4444" />
+                    <Text style={styles.removeBtnText}>Remove</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
 
             {/* Name */}
@@ -193,6 +226,13 @@ const PassengerDetailsScreen = ({ navigation }) => {
             </View>
           </View>
         ))}
+
+        {passengers.length < maxAllowedPassengers && (
+          <TouchableOpacity style={styles.addPassengerBtn} onPress={addPassenger}>
+            <Ionicons name="add-circle-outline" size={20} color={serviceColor} />
+            <Text style={[styles.addPassengerText, { color: serviceColor }]}>+ Add Passenger</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       {/* Continue Footer */}
@@ -322,6 +362,52 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
     elevation: 8
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ef4444',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    gap: 8
+  },
+  errorBannerText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600'
+  },
+  removeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#fee2e2',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginLeft: 8
+  },
+  removeBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#ef4444'
+  },
+  addPassengerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: '#ffffff',
+    borderStyle: 'dashed',
+    marginBottom: 16
+  },
+  addPassengerText: {
+    fontSize: 14,
+    fontWeight: '700'
   }
 });
 
