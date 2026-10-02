@@ -44,6 +44,17 @@ const getValidRecipientId = async (booking) => {
   return null;
 };
 
+// Helper to normalize vehicle category names
+const normalizeVehicleType = (val) => {
+  if (!val) return '';
+  const s = String(val).trim().toLowerCase().replace(/[\s_\-]+/g, '');
+  if (s.includes('bus')) return 'bus';
+  if (s.includes('car') || s.includes('sedan') || s.includes('suv') || s.includes('hatchback')) return 'car';
+  if (s.includes('evsewa') || s.includes('ev')) return 'ev-sewa';
+  if (s.includes('truck')) return 'truck';
+  return s;
+};
+
 // Helper to check Driver data isolation / vehicle authorization & route eligibility
 const verifyDriverVehicleAccess = async (driver, booking) => {
   if (!booking || !driver) return false;
@@ -67,7 +78,7 @@ const verifyDriverVehicleAccess = async (driver, booking) => {
     }
   }
 
-  if (booking.driver && booking.serviceType !== 'Bus') {
+  if (booking.bookingMode === 'SCHEDULE' && booking.driver) {
     const bookingDriverStr = (booking.driver._id || booking.driver).toString();
     if (bookingDriverStr !== driverIdStr && (!userIdStr || bookingDriverStr !== userIdStr)) {
       return false;
@@ -87,6 +98,20 @@ const verifyDriverVehicleAccess = async (driver, booking) => {
   // If booking is already confirmed by another driver -> forbidden
   if (booking.driverConfirmationStatus === 'Confirmed' || booking.driverConfirmed) {
     return false;
+  }
+
+  // Vehicle category normalization & check ONLY for SCHEDULE mode (INSTANT mode allows all same-route vehicle categories)
+  if (booking.bookingMode === 'SCHEDULE' && booking.serviceType && booking.serviceType !== 'Any') {
+    const normBookingService = normalizeVehicleType(booking.serviceType);
+    let driverVehicleType = driver.assignedVehicle ? (driver.assignedVehicle.vehicleType || driver.assignedVehicle.type) : null;
+    if (!driverVehicleType) {
+      const vDoc = await Vehicle.findOne({ assignedDriver: driver._id, vehicleStatus: 'Active' }).select('vehicleType type').lean();
+      if (vDoc) driverVehicleType = vDoc.vehicleType || vDoc.type;
+    }
+    const normDriverVehicle = normalizeVehicleType(driverVehicleType);
+    if (normDriverVehicle && normDriverVehicle !== normBookingService) {
+      return false;
+    }
   }
 
   const serviceControl = await ServiceControl.findOne().select('oppositeRouteNotifications').lean();
@@ -1441,6 +1466,14 @@ const getScheduleBookingRequests = async (req, res, next) => {
             bookingDate.getMonth() !== scheduleDate.getMonth() ||
             bookingDate.getDate() !== scheduleDate.getDate()
           ) return exclude('schedule-travel-date-mismatch');
+        }
+        if (reqItem.serviceType && reqItem.serviceType !== 'Any') {
+          const normBookingService = normalizeVehicleType(reqItem.serviceType);
+          const driverVehicleType = driver.assignedVehicle ? (driver.assignedVehicle.vehicleType || driver.assignedVehicle.type) : null;
+          const normDriverVehicle = normalizeVehicleType(driverVehicleType);
+          if (normDriverVehicle && normDriverVehicle !== normBookingService) {
+            return exclude('schedule-vehicle-category-mismatch');
+          }
         }
       }
 
