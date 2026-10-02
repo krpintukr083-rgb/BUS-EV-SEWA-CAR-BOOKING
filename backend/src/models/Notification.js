@@ -38,6 +38,10 @@ const notificationSchema = new mongoose.Schema(
     },
     entityType: { type: String, enum: ['Vehicle', 'Schedule', 'Booking'], default: null },
     entityId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    bookingId: { type: String, default: '' },
+    driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver', default: null },
+    origin: { type: String, default: '' },
+    destination: { type: String, default: '' },
     status: {
       type: String,
       enum: ['Unread', 'Read'],

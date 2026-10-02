@@ -53,6 +53,10 @@ const driverSchema = new mongoose.Schema(
       ref: 'Vehicle',
       default: null
     },
+    route: {
+      origin: { type: String, trim: true, default: '' },
+      destination: { type: String, trim: true, default: '' }
+    },
     // Citizenship / National ID Details
     citizenshipNumber: {
       type: String,

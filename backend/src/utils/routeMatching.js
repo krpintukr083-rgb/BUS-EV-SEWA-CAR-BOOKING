@@ -76,9 +76,21 @@ const isEligibleForBooking = (vOrigin, vDest, bOrigin, bDest, allowOpposite = fa
   return { normalMatch, reverseMatch, finalEligible };
 };
 
+const driverMatchesBookingRoute = (driver, booking, { allowOpposite = false } = {}) => {
+  if (!driver?.route || !booking) return false;
+  return isEligibleForBooking(
+    driver.route.origin,
+    driver.route.destination,
+    booking.pickupLocation || booking.origin || booking.route?.origin || '',
+    booking.dropLocation || booking.destination || booking.route?.destination || '',
+    allowOpposite
+  ).finalEligible;
+};
+
 module.exports = {
   normalizeRouteLocation,
   isSameRoute,
   isReverseRoute,
-  isEligibleForBooking
+  isEligibleForBooking,
+  driverMatchesBookingRoute
 };

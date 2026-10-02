@@ -10,7 +10,10 @@ const Notification = require('../src/models/Notification');
 const ServiceControl = require('../src/models/ServiceControl');
 const jwtConfig = require('../src/config/jwt');
 const { connectTestDB, closeTestDB } = require('./setup');
-const { notifyEligibleDriversForBooking } = require('../src/utils/notification');
+const {
+  notifyEligibleDriversForBooking,
+  notifyAssignedDriverForScheduleBooking
+} = require('../src/utils/notification');
 
 describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
   const suffix = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
@@ -51,6 +54,7 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
       drivingLicenceNumber: `DL-ROUTE-REQUEST-${suffix}-${index}`,
       driverStatus: options.driverStatus || 'Active',
       isOnline: options.isOnline !== false,
+      route: options.driverRoute || { origin: route.origin, destination: route.destination },
       pushToken: `ExponentPushToken[RouteRequest${index}]`
     });
     testDrivers.push(driver._id);
@@ -72,7 +76,7 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
     return { user, driver, vehicle };
   };
 
-  const createBooking = async (serviceType, vehicle, pickupLocation, dropLocation, index) => {
+  const createBooking = async (serviceType, vehicle, pickupLocation, dropLocation, index, overrides = {}) => {
     const booking = await Booking.create({
       bookingId: `RR-BOOKING-${suffix}-${index}`,
       user: customer._id,
@@ -82,7 +86,8 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
       pickupLocation,
       dropLocation,
       fare: 500,
-      bookingStatus: 'Pending Driver Confirmation'
+      bookingStatus: 'Pending Driver Confirmation',
+      ...overrides
     });
     testBookings.push(booking._id);
     return booking;
@@ -120,7 +125,8 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
     await createDriverAndVehicle('Bus', 10, { driverStatus: 'Inactive' });
     await createDriverAndVehicle('Bus', 11, { driverStatus: 'Pending Verification' });
     const reverseBusPair = await createDriverAndVehicle('Bus', 9, {
-      route: { origin: 'Jaipur', destination: 'Delhi', stops: [], destinationFareFromOrigin: 400 }
+      route: { origin: 'Jaipur', destination: 'Delhi', stops: [], destinationFareFromOrigin: 400 },
+      driverRoute: { origin: 'Jaipur', destination: 'Delhi' }
     });
     const serviceControl = await ServiceControl.findOne().lean();
     allowOppositeRoutes = serviceControl?.oppositeRouteNotifications === true;
@@ -131,7 +137,7 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
       serviceType: 'Bus',
       bookingMode: 'NORMAL',
       pickupLocation: 'Delhi',
-      dropLocation: 'Gurgaon'
+      dropLocation: 'Jaipur'
     };
     const reverseBusBooking = {
       ...eligibleBusBooking,
@@ -215,18 +221,23 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
     busDrivers[0].driver.assignedVehicle = busDrivers[0].vehicle._id;
     await busDrivers[0].driver.save();
 
-    expect(fetchBodies.flat().filter(message => message.data.bookingId === eligibleBusBooking.bookingId)).toHaveLength(3);
+    expect(fetchBodies.flat().filter(message => message.data.bookingId === eligibleBusBooking.bookingId))
+      .toHaveLength(7 + Number(allowOppositeRoutes));
     expect(fetchBodies.flat().filter(message => message.data.bookingId === reverseBusBooking.bookingId)).toHaveLength(0);
     expect(fetchBodies.flat().filter(message => message.data.bookingId === instantBusBooking.bookingId))
-      .toHaveLength(6 + Number(allowOppositeRoutes));
+      .toHaveLength(7 + Number(allowOppositeRoutes));
     expect(fetchBodies.flat().filter(message => message.data.bookingId === instantAnyBooking.bookingId))
-      .toHaveLength(6 + Number(allowOppositeRoutes));
-    expect(fetchBodies.flat().filter(message => message.data.bookingId === scheduledBusBooking.bookingId)).toHaveLength(3);
-    expect(fetchBodies.flat().filter(message => message.data.bookingId === scheduledEvBooking.bookingId)).toHaveLength(2);
-    expect(fetchBodies.flat().filter(message => message.data.bookingId === eligibleEvBooking.bookingId)).toHaveLength(2);
-    expect(fetchBodies.flat().filter(message => message.data.bookingId === eligibleCarBooking.bookingId)).toHaveLength(1);
+      .toHaveLength(7 + Number(allowOppositeRoutes));
+    expect(fetchBodies.flat().filter(message => message.data.bookingId === scheduledBusBooking.bookingId))
+      .toHaveLength(7 + Number(allowOppositeRoutes));
+    expect(fetchBodies.flat().filter(message => message.data.bookingId === scheduledEvBooking.bookingId))
+      .toHaveLength(7 + Number(allowOppositeRoutes));
+    expect(fetchBodies.flat().filter(message => message.data.bookingId === eligibleEvBooking.bookingId))
+      .toHaveLength(7 + Number(allowOppositeRoutes));
+    expect(fetchBodies.flat().filter(message => message.data.bookingId === eligibleCarBooking.bookingId))
+      .toHaveLength(7 + Number(allowOppositeRoutes));
     expect(fetchBodies.flat().every(message => ['Bus', 'EV-Sewa', 'Car', 'Any'].includes(message.data.serviceType))).toBe(true);
-    expect(fetchBodies.flat().every(message => message.title === `New ${message.data.serviceType} Booking Request`)).toBe(true);
+    expect(fetchBodies.flat().every(message => message.title.includes(message.data.serviceType))).toBe(true);
     const instantTokens = fetchBodies.flat()
       .filter(message => message.data.bookingId === instantBusBooking.bookingId)
       .map(message => message.to);
@@ -234,6 +245,7 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
       'ExponentPushToken[RouteRequest1]',
       'ExponentPushToken[RouteRequest2]',
       'ExponentPushToken[RouteRequest3]',
+      'ExponentPushToken[RouteRequest5]',
       'ExponentPushToken[RouteRequest6]',
       'ExponentPushToken[RouteRequest7]',
       'ExponentPushToken[RouteRequest8]'
@@ -254,8 +266,15 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
       eventType: 'BOOKING_REQUEST',
       entityId: eligibleBusBooking._id
     }).lean();
-    expect(busRequestNotifications).toHaveLength(3);
-    expect(new Set(busRequestNotifications.map(item => String(item.recipientId))).size).toBe(3);
+    expect(busRequestNotifications).toHaveLength(7 + Number(allowOppositeRoutes));
+    expect(new Set(busRequestNotifications.map(item => String(item.recipientId))).size)
+      .toBe(7 + Number(allowOppositeRoutes));
+    expect(busRequestNotifications.every(item =>
+      item.bookingId === eligibleBusBooking.bookingId &&
+      item.origin === eligibleBusBooking.pickupLocation &&
+      item.destination === eligibleBusBooking.dropLocation &&
+      item.driverId
+    )).toBe(true);
     expect(busDrivers).toHaveLength(3);
   });
 
@@ -272,10 +291,10 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
     jest.restoreAllMocks();
   });
 
-  test('driver request list is category-specific and includes forward route-stop requests', async () => {
-    const forwardBooking = await createBooking('EV-Sewa', evVehicle, 'Delhi', 'Gurgaon', 1);
+  test('driver request list uses driver route without vehicle category or vehicle route restrictions', async () => {
+    const forwardBooking = await createBooking('EV-Sewa', evVehicle, 'Delhi', 'Jaipur', 1);
     await createBooking('EV-Sewa', evVehicle, 'Gurgaon', 'Delhi', 2);
-    await createBooking('Bus', evVehicle, 'Delhi', 'Gurgaon', 3);
+    const busBooking = await createBooking('Bus', evVehicle, 'Delhi', 'Jaipur', 3);
 
     const driverToken = jwt.sign({ id: evDriver.user, role: 'driver' }, jwtConfig.secret, { expiresIn: '1h' });
     const response = await request(app)
@@ -285,7 +304,7 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
 
     expect(response.body.data.map(item => item._id)).toContain(String(forwardBooking._id));
     expect(response.body.data.some(item => item.pickupLocation === 'Gurgaon' && item.dropLocation === 'Delhi')).toBe(false);
-    expect(response.body.data.some(item => item.serviceType === 'Bus')).toBe(false);
+    expect(response.body.data.map(item => item._id)).toContain(String(busBooking._id));
     expect(response.body.data.find(item => item._id === String(forwardBooking._id)).serviceType).toBe('EV-Sewa');
 
     const matchingDriverToken = jwt.sign({ id: secondEvDriver.user, role: 'driver' }, jwtConfig.secret, { expiresIn: '1h' });
@@ -297,7 +316,7 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
   });
 
   test('only one matching driver can claim a request', async () => {
-    const booking = await createBooking('EV-Sewa', secondEvVehicle, 'Delhi', 'Gurgaon', 4);
+    const booking = await createBooking('EV-Sewa', secondEvVehicle, 'Delhi', 'Jaipur', 4);
     const firstToken = jwt.sign({ id: evDriver.user, role: 'driver' }, jwtConfig.secret, { expiresIn: '1h' });
     const secondToken = jwt.sign({ id: secondEvDriver.user, role: 'driver' }, jwtConfig.secret, { expiresIn: '1h' });
 
@@ -317,5 +336,67 @@ describe('same-route booking requests for Bus, EV-Sewa, and Car', () => {
     const storedBooking = await Booking.findById(booking._id).lean();
     expect(String(storedBooking.driver)).toBe(String(evDriver._id));
     expect(storedBooking.rideStatus).toBe('Accepted');
+  });
+
+  test('scheduleId-null Car schedule broadcasts by driver route across vehicle types without duplicates', async () => {
+    const booking = await createBooking('Car', evVehicle, 'Delhi', 'Jaipur', 5, {
+      bookingMode: 'SCHEDULE',
+      driver: evDriver._id,
+      scheduleId: null
+    });
+    notificationBookingIds.push(booking._id);
+
+    await notifyAssignedDriverForScheduleBooking(booking);
+    await notifyAssignedDriverForScheduleBooking(booking);
+
+    const requests = await Notification.find({
+      eventType: 'BOOKING_REQUEST',
+      entityId: booking._id
+    }).lean();
+    expect(requests).toHaveLength(7 + Number(allowOppositeRoutes));
+    expect(new Set(requests.map(item => String(item.driverId))).size)
+      .toBe(7 + Number(allowOppositeRoutes));
+    expect(requests.every(item =>
+      item.bookingId === booking.bookingId &&
+      item.origin === 'Delhi' &&
+      item.destination === 'Jaipur'
+    )).toBe(true);
+    const auditCall = console.log.mock.calls.find(([line]) =>
+      String(line).startsWith('[BOOKING_NOTIFY_AUDIT]') && String(line).includes(booking.bookingId)
+    );
+    expect(auditCall).toBeDefined();
+    const audit = JSON.parse(auditCall[0].slice('[BOOKING_NOTIFY_AUDIT] '.length));
+    expect(audit).toMatchObject({
+      bookingId: booking.bookingId,
+      customerOrigin: 'Delhi',
+      customerDestination: 'Jaipur',
+      matchedDriverCount: requests.length
+    });
+    expect(audit.matchedDriverIds).toHaveLength(requests.length);
+    expect(audit.matchedDriverRoutes).toEqual(
+      requests.map(() => 'Delhi → Jaipur')
+    );
+  });
+
+  test('driver profile API persists a complete configured route and rejects partial routes', async () => {
+    const driverToken = jwt.sign({ id: evDriver.user, role: 'driver' }, jwtConfig.secret, { expiresIn: '1h' });
+    await request(app)
+      .put('/api/driver/profile')
+      .set('Authorization', `Bearer ${driverToken}`)
+      .send({ route: { origin: 'Jaipur', destination: '' } })
+      .expect(400);
+
+    const update = await request(app)
+      .put('/api/driver/profile')
+      .set('Authorization', `Bearer ${driverToken}`)
+      .send({ route: { origin: ' Jaipur ', destination: ' Delhi ' } })
+      .expect(200);
+    expect(update.body.data.route).toEqual({ origin: 'Jaipur', destination: 'Delhi' });
+
+    const profile = await request(app)
+      .get('/api/driver/profile')
+      .set('Authorization', `Bearer ${driverToken}`)
+      .expect(200);
+    expect(profile.body.data.route).toEqual({ origin: 'Jaipur', destination: 'Delhi' });
   });
 });

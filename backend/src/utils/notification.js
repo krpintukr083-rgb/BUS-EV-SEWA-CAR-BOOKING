@@ -1,10 +1,9 @@
 ﻿const Notification = require('../models/Notification');
-const Vehicle = require('../models/Vehicle');
 const Driver = require('../models/Driver');
 const Schedule = require('../models/Schedule');
 const ServiceControl = require('../models/ServiceControl');
 const { getRouteSegmentFare } = require('./routeFares');
-const { isSameRoute, isEligibleForBooking } = require('./routeMatching');
+const { isSameRoute, isEligibleForBooking, driverMatchesBookingRoute } = require('./routeMatching');
 
 
 
@@ -63,17 +62,10 @@ const vehicleMatchesBookingRoute = (vehicle, booking, { allowOpposite = false } 
 };
 
 /**
- * Broadcasts a normal booking request to eligible drivers for its service and route.
- * 
- * Performance Optimizations:
- * 1. 2-Step Indexed Query: Discovers ALL eligible vehicles & drivers in 2 single DB operations (O(1) queries instead of N sequential lookups).
- * 2. Bi-directional Linkage: Resolves Driver.assignedVehicle and Vehicle.assignedDriver dynamically.
- * 3. Expo Batch HTTP Pipeline: Slices push messages into 100-item chunks and dispatches via single HTTP POSTs concurrently.
- * 4. Failure Isolation: One invalid token or network glitch never blocks remaining drivers.
- * 5. Non-Blocking Receipts & Logging: Push receipts and DB notification inserts run asynchronously in the background without holding up dispatch.
- * 6. Dynamic Scaling: Supports 1, 3, 10, 50, 100+ drivers with NO hardcoded limits or counts.
+ * Broadcasts a route request to every eligible driver with a matching configured route.
+ * Assigned vehicle identity, type, and route do not participate in driver matching.
  */
-const notifyEligibleDriversForBooking = async (booking) => {
+const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = false } = {}) => {
   try {
     if (!booking) return;
 
@@ -100,104 +92,54 @@ const notifyEligibleDriversForBooking = async (booking) => {
     }
 
     const routeText = `${bookingOrigin.split('(')[0].trim()} â†’ ${bookingDest.split('(')[0].trim()}`;
-    const notifTitle = `New ${serviceType} Booking Request`;
+    const serviceLabel = serviceType === 'Car' && scheduleBooking ? 'Private Car' : serviceType;
+    const notifTitle = `New ${serviceLabel}${scheduleBooking ? ' Schedule' : ''} Booking Request`;
     const notifBody = `${routeText} booking request. Tap to view.`;
 
     console.log(`[NOTIFY] booking: ${bookingIdStr}`);
     console.log(`[NOTIFY] route: ${routeText}`);
 
-    // 1. Discover matching vehicles and their active, online drivers.
+    // Match independently configured driver routes; vehicle assignment/type/routes are irrelevant.
     console.log('[NOTIFY] eligible driver query start');
     const tQueryStart = Date.now();
-
-    // Step A: Only approved vehicles in the requested service category may receive requests.
-    const vehicleQuery = { vehicleStatus: 'Active' };
-    if (serviceType !== 'Any' && booking.bookingMode !== 'INSTANT') {
-      vehicleQuery.vehicleType = serviceType;
-    }
-    const activeVehicles = await Vehicle.find(vehicleQuery)
-      .select('_id vehicleNumber vehicleName vehicleType vehicleStatus route pickupDropDetails hireDetails assignedDriver routeActive')
+    const eligibleDrivers = await Driver.find({
+      driverStatus: { $in: ['Active', 'Approved'] },
+      isOnline: true,
+      'route.origin': { $exists: true, $ne: '' },
+      'route.destination': { $exists: true, $ne: '' }
+    })
+      .select('_id name mobileNumber driverStatus isOnline route pushToken fcmToken user')
+      .populate('user', '_id name phone status')
       .lean();
-
-    // Step B: Filter route matches directionally, including configured intermediate-stop segments.
-    // For Car vehicles: also enforce routeActive flag (Route ON/OFF toggle).
-    // routeActive defaults to true, so existing docs without the field remain eligible.
-    const matchingVehicles = activeVehicles.filter(v => {
-      if (v.vehicleType === 'Car' && v.routeActive === false) return false;
-      return vehicleMatchesBookingRoute(v, booking, { allowOpposite });
-    });
-    const matchingVehicleIds = matchingVehicles.map(v => v._id);
-    const assignedDriverIds = matchingVehicles.map(v => v.assignedDriver).filter(Boolean);
-
-    // Step C: Discover active/approved drivers in one query (bidirectional vehicle linkage).
-    let eligibleDrivers = [];
-    if (matchingVehicleIds.length > 0 || assignedDriverIds.length > 0) {
-      const orConditions = [];
-      if (matchingVehicleIds.length > 0) {
-        orConditions.push({ assignedVehicle: { $in: matchingVehicleIds } });
-      }
-      if (assignedDriverIds.length > 0) {
-        orConditions.push({ _id: { $in: assignedDriverIds } });
-      }
-
-      eligibleDrivers = await Driver.find({
-        driverStatus: { $in: ['Active', 'Approved'] },
-        isOnline: true,
-        $or: orConditions
-      })
-        .select('_id name mobileNumber driverStatus isOnline assignedVehicle pushToken fcmToken user')
-        .populate('user', '_id name phone status')
-        .lean();
-    }
-
-    const finalEligibleDrivers = [];
-
-    for (const driver of eligibleDrivers) {
-      if (!driver.user || driver.user.status === 'Blocked') continue;
-
-      const activeVehicle = matchingVehicles.find(vehicle =>
-        String(vehicle.assignedDriver || '') === String(driver._id) ||
-        String(driver.assignedVehicle || '') === String(vehicle._id)
-      );
-
-      console.log(`\n[NOTIFY DEBUG] Driver: ${driver.name || driver._id}`);
-      
-      if (!activeVehicle) {
-        console.log(`[NOTIFY DEBUG] Driver Route: NONE`);
-        console.log(`[NOTIFY DEBUG] Booking Route: ${bookingOrigin} â†’ ${bookingDest}`);
-        console.log(`[NOTIFY DEBUG] Service Type: ${serviceType}`);
-        console.log(`[NOTIFY DEBUG] Route Match: false`);
-        console.log(`[NOTIFY DEBUG] Eligible: false`);
-        continue;
-      }
-
-      const routeMatches = vehicleMatchesBookingRoute(activeVehicle, booking, { allowOpposite });
-
-      if (routeMatches) {
-        finalEligibleDrivers.push(driver);
-      }
-    }
-    
-    eligibleDrivers = finalEligibleDrivers;
+    const matchedDrivers = eligibleDrivers.filter(driver =>
+      driver.user &&
+      driver.user.status !== 'Blocked' &&
+      driverMatchesBookingRoute(driver, booking, { allowOpposite })
+    );
 
     const tQueryEnd = Date.now();
     console.log(`[NOTIFY] eligible driver query completed: ${tQueryEnd - tQueryStart} ms`);
-    console.log(`[NOTIFY] eligible drivers: ${eligibleDrivers.length}`);
+    console.log(`[NOTIFY] eligible drivers: ${matchedDrivers.length}`);
 
-    // Structured audit log for debugging route-matching pipeline
-    console.log('[BOOKING_NOTIFY_AUDIT] customerOrigin=' + bookingOrigin + ' customerDestination=' + bookingDest + ' serviceType=' + serviceType + ' bookingId=' + bookingIdStr + ' matchedDriverCount=' + eligibleDrivers.length);
-    if (eligibleDrivers.length > 0) {
-      console.log('[BOOKING_NOTIFY_AUDIT] matchedDriverIds=' + JSON.stringify(eligibleDrivers.map(function(d) { return String(d._id); })));
-    }
+    console.log('[BOOKING_NOTIFY_AUDIT] ' + JSON.stringify({
+      bookingId: bookingIdStr,
+      customerOrigin: bookingOrigin,
+      customerDestination: bookingDest,
+      matchedDriverCount: matchedDrivers.length,
+      matchedDriverIds: matchedDrivers.map(driver => String(driver._id)),
+      matchedDriverRoutes: matchedDrivers.map(driver =>
+        `${driver.route.origin} → ${driver.route.destination}`
+      )
+    }));
 
-    if (eligibleDrivers.length === 0) {
+    if (matchedDrivers.length === 0) {
       console.log(`[Notification Engine] 0 eligible drivers found for route ${routeText}`);
       return;
     }
 
     // Persist one typed request per driver/booking; only newly inserted requests are pushed.
     const newRequestDrivers = [];
-    for (const driver of eligibleDrivers) {
+    for (const driver of matchedDrivers) {
       const recipientId = driver.user._id || driver.user;
       try {
         const result = await Notification.updateOne(
@@ -217,6 +159,10 @@ const notifyEligibleDriversForBooking = async (booking) => {
               eventType: 'BOOKING_REQUEST',
               entityType: 'Booking',
               entityId: booking._id,
+              bookingId: bookingIdStr,
+              driverId: driver._id,
+              origin: bookingOrigin,
+              destination: bookingDest,
               status: 'Unread'
             }
           },
@@ -240,40 +186,16 @@ const notifyEligibleDriversForBooking = async (booking) => {
       const driver = newRequestDrivers[i];
       const token = (driver.pushToken || driver.fcmToken || '').trim();
 
-      // HARD SAFETY BARRIER
-      const activeVehicle = matchingVehicles.find(vehicle =>
-        String(vehicle.assignedDriver || '') === String(driver._id) ||
-        String(driver.assignedVehicle || '') === String(vehicle._id)
-      );
-      const actualVehicleId = activeVehicle ? String(activeVehicle._id) : null;
-      const routeMatches = activeVehicle ? vehicleMatchesBookingRoute(activeVehicle, booking, { allowOpposite }) : false;
-
-      const vOrigin = activeVehicle ? (activeVehicle.route?.origin || activeVehicle.route?.from || activeVehicle.pickupDropDetails?.pickupLocation || activeVehicle.hireDetails?.pickup || '') : 'NONE';
-      const vDest = activeVehicle ? (activeVehicle.route?.destination || activeVehicle.route?.to || activeVehicle.pickupDropDetails?.dropLocation || activeVehicle.hireDetails?.destination || '') : 'NONE';
-
       console.log(`\n[ROUTE-NOTIFICATION-TRACE]`);
       console.log(`Booking: ${bookingIdStr}`);
       console.log(`Route: ${bookingOrigin} â†’ ${bookingDest}`);
       console.log(`Service Type: ${serviceType}`);
       console.log(`Driver: ${driver.name || 'Unknown'}`);
       console.log(`Driver ID: ${driver._id}`);
-      console.log(`Active Vehicle: ${actualVehicleId || 'NONE'}`);
-      console.log(`Vehicle Route: ${vOrigin} â†’ ${vDest}`);
-      console.log(`Route Match: ${routeMatches}`);
-      console.log(`Eligible: ${routeMatches}`);
+      console.log(`Driver Route: ${driver.route.origin} â†’ ${driver.route.destination}`);
+      console.log('Route Match: true');
+      console.log('Eligible: true');
       console.log(`Notification function name: notifyEligibleDriversForBooking`);
-
-      if (!routeMatches) {
-        console.log(`Push DISPATCH: BLOCKED (Hard Safety Barrier)`);
-        driverLogResults[i] = {
-          driver,
-          token: null,
-          status: 'BLOCKED (Route mismatch)',
-          ticketId: 'N/A',
-          error: null
-        };
-        continue;
-      }
 
       if (token) {
         console.log(`Push DISPATCH: PREPARING`);
@@ -425,7 +347,7 @@ const notifyEligibleDriversForBooking = async (booking) => {
     console.log(`ðŸ”” ${serviceType.toUpperCase()} BOOKING REQUEST BROADCAST`);
     console.log(`Booking: ${bookingIdStr}`);
     console.log(`Route: ${routeText}`);
-    console.log(`Eligible drivers found: ${eligibleDrivers.length}\n`);
+    console.log(`Eligible drivers found: ${matchedDrivers.length}\n`);
 
     let successfulCount = 0;
     let failedCount = 0;
@@ -451,7 +373,7 @@ const notifyEligibleDriversForBooking = async (booking) => {
 
     console.log('\n----------------------------------------------------------------');
     console.log(`Broadcast Summary for Booking ${bookingIdStr}:`);
-    console.log(`Total Eligible: ${eligibleDrivers.length} | Newly notified: ${newRequestDrivers.length}`);
+    console.log(`Total Eligible: ${matchedDrivers.length} | Newly notified: ${newRequestDrivers.length}`);
     console.log(`Successful: ${successfulCount} | Failed: ${failedCount}`);
     console.log(`Latency - Query: ${tQueryEnd - tQueryStart}ms | Dispatch: ${tDispatchEnd - tDispatchStart}ms`);
     console.log('================================================================\n');
@@ -462,127 +384,8 @@ const notifyEligibleDriversForBooking = async (booking) => {
 };
 
 const notifyAssignedDriverForScheduleBooking = async (booking) => {
-  try {
-    if (!booking?._id || booking.bookingMode !== 'SCHEDULE' || !booking.vehicle) return;
-
-    const schedule = booking.scheduleId
-      ? await Schedule.findOne({
-        _id: booking.scheduleId._id || booking.scheduleId,
-        vehicle: booking.vehicle._id || booking.vehicle,
-        status: 'Active'
-      }).select('driver vehicle').lean()
-      : null;
-    if (booking.scheduleId && !schedule) {
-      console.warn(`Schedule booking ${booking.bookingId} has no active matching schedule; push notification skipped.`);
-      return;
-    }
-
-    const vehicle = await Vehicle.findById(booking.vehicle._id || booking.vehicle)
-      .select('assignedDriver vehicleStatus vehicleType')
-      .lean();
-    if (!vehicle || vehicle.vehicleStatus !== 'Active' || vehicle.vehicleType !== booking.serviceType) {
-      console.warn(`Schedule booking ${booking.bookingId} has no active matching vehicle; push notification skipped.`);
-      return;
-    }
-
-    const assignedDriverId = schedule?.driver || booking.driver || vehicle.assignedDriver;
-    if (!assignedDriverId || (booking.driver && String(booking.driver._id || booking.driver) !== String(assignedDriverId))) {
-      console.warn(`Schedule booking ${booking.bookingId} has inconsistent driver assignment; push notification skipped.`);
-      return;
-    }
-    if (vehicle.assignedDriver && String(vehicle.assignedDriver) !== String(assignedDriverId)) {
-      console.warn(`Schedule booking ${booking.bookingId} vehicle has a conflicting assigned driver; push notification skipped.`);
-      return;
-    }
-
-    const driver = await Driver.findById(assignedDriverId)
-      .select('_id name user pushToken fcmToken driverStatus isOnline')
-      .populate('user', '_id status')
-      .lean();
-    if (!driver) {
-      console.warn(`Assigned driver ${assignedDriverId} for schedule booking ${booking.bookingId} was not found.`);
-      return;
-    }
-    if (!['Active', 'Approved'].includes(driver.driverStatus) || !driver.isOnline || driver.user?.status === 'Blocked') {
-      console.warn(`Assigned driver ${driver._id} is not eligible for schedule booking ${booking.bookingId}; push notification skipped.`);
-      return;
-    }
-
-    const recipientId = driver.user?._id;
-    if (!recipientId) {
-      console.warn(`Assigned driver ${driver._id} for schedule booking ${booking.bookingId} has no registered user.`);
-      return;
-    }
-
-    const serviceLabel = booking.serviceType === 'Car' ? 'Private Car' : booking.serviceType;
-    const title = `New ${serviceLabel} Schedule Booking Request`;
-    const origin = booking.pickupLocation || '';
-    const destination = booking.dropLocation || '';
-    const message = `Service: ${serviceLabel}. Booking ${booking.bookingId} from ${booking.customer?.name || 'Customer'}: ${origin} â†’ ${destination}. Fare: ${booking.fare}.`;
-    const result = await Notification.updateOne(
-      {
-        recipientRole: 'driver',
-        recipientId,
-        entityId: booking._id,
-        eventType: 'BOOKING_REQUEST'
-      },
-      {
-        $setOnInsert: {
-          title,
-          message,
-          recipient: `Driver: ${driver.name || 'Driver'}`,
-          recipientRole: 'driver',
-          recipientId,
-          eventType: 'BOOKING_REQUEST',
-          entityType: 'Booking',
-          entityId: booking._id,
-          status: 'Unread'
-        }
-      },
-      { upsert: true }
-    );
-
-    if (result.upsertedCount !== 1) return;
-
-    const token = (driver.pushToken || driver.fcmToken || '').trim();
-    if (!token) {
-      console.warn(`Assigned driver ${driver._id} has no push token for schedule booking ${booking.bookingId}.`);
-      return;
-    }
-
-    const pushResponse = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify({
-        to: token,
-        title,
-        body: message,
-        data: {
-          bookingId: booking.bookingId || String(booking._id),
-          eventType: 'BOOKING_REQUEST',
-          serviceType: booking.serviceType,
-          screen: 'Requests'
-        },
-        sound: 'default',
-        priority: 'high',
-        channelId: 'driver-booking-requests'
-      })
-    });
-    const pushResult = await pushResponse.json();
-    const ticket = Array.isArray(pushResult?.data) ? pushResult.data[0] : pushResult?.data;
-    if (!pushResponse.ok || ticket?.status !== 'ok') {
-      console.warn(
-        `Push notification failed for assigned driver ${driver._id}, booking ${booking.bookingId}:`,
-        ticket?.message || ticket?.details?.error || `HTTP ${pushResponse.status}`
-      );
-    }
-  } catch (error) {
-    if (error.code === 11000) return;
-    console.warn(`Could not notify assigned driver for schedule booking ${booking?.bookingId || booking?._id}:`, error.message);
-  }
+  if (!booking || booking.bookingMode !== 'SCHEDULE') return;
+  return notifyEligibleDriversForBooking(booking, { scheduleBooking: true });
 };
 
 const notifyAssignedCarDriverForScheduleBooking = notifyAssignedDriverForScheduleBooking;

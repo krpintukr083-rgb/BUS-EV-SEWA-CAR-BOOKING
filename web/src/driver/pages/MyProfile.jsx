@@ -13,6 +13,8 @@ const MyProfile = () => {
   const [mobileNumber, setMobileNumber] = useState('');
   const [profilePhoto, setProfilePhoto] = useState('');
   const [address, setAddress] = useState('');
+  const [routeOrigin, setRouteOrigin] = useState('');
+  const [routeDestination, setRouteDestination] = useState('');
   const [emergencyContact, setEmergencyContact] = useState({ name: '', phone: '', relation: 'Family' });
   const [payoutMethods, setPayoutMethods] = useState({ bankName: '', accountNumber: '', accountHolderName: '', esewaId: '', khaltiId: '' });
   const [loading, setLoading] = useState(true);
@@ -31,6 +33,8 @@ const MyProfile = () => {
           setMobileNumber(d.mobileNumber || '');
           setProfilePhoto(d.profilePhoto || '');
           setAddress(d.address || '');
+          setRouteOrigin(d.route?.origin || '');
+          setRouteDestination(d.route?.destination || '');
           if (d.emergencyContact) setEmergencyContact(d.emergencyContact);
           if (d.payoutMethods) setPayoutMethods(d.payoutMethods);
         }
@@ -56,6 +60,7 @@ const MyProfile = () => {
         mobileNumber,
         profilePhoto,
         address,
+        route: { origin: routeOrigin, destination: routeDestination },
         emergencyContact,
         payoutMethods,
         language: lang
@@ -164,6 +169,31 @@ const MyProfile = () => {
               placeholder="e.g. Ward No. 4, Thamel, Kathmandu / Sector 15, Noida"
               style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
             />
+          </div>
+
+          <div style={{ padding: '16px', backgroundColor: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+            <div style={{ fontSize: '0.9rem', fontWeight: '700', color: '#0f172a', marginBottom: '12px' }}>
+              Driver Route
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
+              <input
+                type="text"
+                value={routeOrigin}
+                onChange={e => setRouteOrigin(e.target.value)}
+                placeholder="Route origin"
+                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+              />
+              <input
+                type="text"
+                value={routeDestination}
+                onChange={e => setRouteDestination(e.target.value)}
+                placeholder="Route destination"
+                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+              />
+            </div>
+            <small style={{ display: 'block', color: '#64748b', marginTop: '8px' }}>
+              Booking requests are matched against this route, not your assigned vehicle.
+            </small>
           </div>
 
           {/* Emergency Contact */}

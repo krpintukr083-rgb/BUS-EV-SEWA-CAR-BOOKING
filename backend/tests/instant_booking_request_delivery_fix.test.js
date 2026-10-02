@@ -87,7 +87,8 @@ describe('Instant Booking Driver Request Delivery & Stale Booking Isolation', ()
       mobileNumber: driverUser1.phone,
       drivingLicenceNumber: `DL-1-${suffix}`,
       driverStatus: 'Active',
-      isOnline: true
+      isOnline: true,
+      route: { origin: 'Delhi', destination: 'Jaipur' }
     });
 
     driver2 = await Driver.create({
@@ -96,7 +97,8 @@ describe('Instant Booking Driver Request Delivery & Stale Booking Isolation', ()
       mobileNumber: driverUser2.phone,
       drivingLicenceNumber: `DL-2-${suffix}`,
       driverStatus: 'Active',
-      isOnline: true
+      isOnline: true,
+      route: { origin: 'Delhi', destination: 'Jaipur' }
     });
     driver3 = await Driver.create({
       user: driverUser3._id,
@@ -104,7 +106,8 @@ describe('Instant Booking Driver Request Delivery & Stale Booking Isolation', ()
       mobileNumber: driverUser3.phone,
       drivingLicenceNumber: `DL-3-${suffix}`,
       driverStatus: 'Active',
-      isOnline: true
+      isOnline: true,
+      route: { origin: 'Delhi', destination: 'Jaipur' }
     });
 
     vehicleEv = await Vehicle.create({
@@ -390,8 +393,8 @@ describe('Instant Booking Driver Request Delivery & Stale Booking Isolation', ()
     expect(res.body.data.some(req => req.bookingId === wrongRouteBooking.bookingId)).toBe(false);
   });
 
-  test('TEST 8: Inactive vehicle remains excluded', async () => {
-    // Driver with inactive vehicle
+  test('TEST 8: Inactive vehicle does not exclude a driver whose configured route matches', async () => {
+    // Vehicle status does not determine route matching eligibility.
     const inactiveDriverUser = await User.create({
       name: 'Inactive Driver',
       email: `inact_${Date.now()}@test.com`,
@@ -407,6 +410,7 @@ describe('Instant Booking Driver Request Delivery & Stale Booking Isolation', ()
       drivingLicenceNumber: `DL-INACT-${Date.now()}`,
       driverStatus: 'Active',
       isOnline: true,
+      route: { origin: 'Delhi', destination: 'Jaipur' },
       assignedVehicle: vehicleInactive._id
     });
     const inactToken = jwt.sign({ id: inactiveDriverUser._id, role: 'driver' }, jwtConfig.secret, { expiresIn: '1h' });
@@ -417,13 +421,13 @@ describe('Instant Booking Driver Request Delivery & Stale Booking Isolation', ()
       .set('Authorization', `Bearer ${inactToken}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.some(req => req.bookingId === freshBooking.bookingId)).toBe(false);
+    expect(res.body.data.some(req => req.bookingId === freshBooking.bookingId)).toBe(true);
 
     await Driver.deleteOne({ _id: inactiveDriver._id });
     await User.deleteOne({ _id: inactiveDriverUser._id });
   });
 
-  test('TEST 9: Pending vehicle remains excluded', async () => {
+  test('TEST 9: Pending vehicle does not exclude a driver whose configured route matches', async () => {
     const pendingDriverUser = await User.create({
       name: 'Pending Driver',
       email: `pend_${Date.now()}@test.com`,
@@ -439,6 +443,7 @@ describe('Instant Booking Driver Request Delivery & Stale Booking Isolation', ()
       drivingLicenceNumber: `DL-PEND-${Date.now()}`,
       driverStatus: 'Active',
       isOnline: true,
+      route: { origin: 'Delhi', destination: 'Jaipur' },
       assignedVehicle: vehiclePending._id
     });
     const pendToken = jwt.sign({ id: pendingDriverUser._id, role: 'driver' }, jwtConfig.secret, { expiresIn: '1h' });
@@ -449,7 +454,7 @@ describe('Instant Booking Driver Request Delivery & Stale Booking Isolation', ()
       .set('Authorization', `Bearer ${pendToken}`);
 
     expect(res.status).toBe(200);
-    expect(res.body.data.some(req => req.bookingId === freshBooking.bookingId)).toBe(false);
+    expect(res.body.data.some(req => req.bookingId === freshBooking.bookingId)).toBe(true);
 
     await Driver.deleteOne({ _id: pendingDriver._id });
     await User.deleteOne({ _id: pendingDriverUser._id });

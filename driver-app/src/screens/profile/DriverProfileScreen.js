@@ -37,6 +37,8 @@ export default function DriverProfileScreen({ navigation }) {
   const [editPhone, setEditPhone] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editAddress, setEditAddress] = useState('');
+  const [editRouteOrigin, setEditRouteOrigin] = useState('');
+  const [editRouteDestination, setEditRouteDestination] = useState('');
   const [editEmergencyContact, setEditEmergencyContact] = useState('');
   const [updatingProfile, setUpdatingProfile] = useState(false);
 
@@ -58,6 +60,8 @@ export default function DriverProfileScreen({ navigation }) {
     setEditPhone(driver?.phone || driver?.mobileNumber || '');
     setEditEmail(driver?.email || driver?.user?.email || '');
     setEditAddress(driver?.address || '');
+    setEditRouteOrigin(driver?.route?.origin || '');
+    setEditRouteDestination(driver?.route?.destination || '');
     setEditEmergencyContact(driver?.emergencyContact || driver?.emergencyPhone || '');
     setEditProfileModalVisible(true);
   };
@@ -74,6 +78,10 @@ export default function DriverProfileScreen({ navigation }) {
         phone: editPhone.trim(),
         email: editEmail.trim(),
         address: editAddress.trim(),
+        route: {
+          origin: editRouteOrigin.trim(),
+          destination: editRouteDestination.trim(),
+        },
         emergencyContact: editEmergencyContact.trim(),
       });
       if (res.data?.success) {
@@ -511,7 +519,7 @@ export default function DriverProfileScreen({ navigation }) {
         <View style={modalStyles.modalOverlay}>
           <View style={modalStyles.modalContainer}>
             <Text style={modalStyles.modalTitle}>Edit Driver Profile</Text>
-            <ScrollView style={{ maxHeight: 350 }}>
+            <ScrollView style={{ maxHeight: 420 }}>
               <Text style={modalStyles.fieldLabel}>Name</Text>
               <TextInput
                 style={modalStyles.input}
@@ -545,6 +553,22 @@ export default function DriverProfileScreen({ navigation }) {
                 value={editAddress}
                 onChangeText={setEditAddress}
                 placeholder="Address"
+                placeholderTextColor="#999"
+              />
+              <Text style={modalStyles.fieldLabel}>Driver Route Origin</Text>
+              <TextInput
+                style={modalStyles.input}
+                value={editRouteOrigin}
+                onChangeText={setEditRouteOrigin}
+                placeholder="e.g. Jaipur"
+                placeholderTextColor="#999"
+              />
+              <Text style={modalStyles.fieldLabel}>Driver Route Destination</Text>
+              <TextInput
+                style={modalStyles.input}
+                value={editRouteDestination}
+                onChangeText={setEditRouteDestination}
+                placeholder="e.g. Delhi"
                 placeholderTextColor="#999"
               />
               <Text style={modalStyles.fieldLabel}>Emergency Contact</Text>

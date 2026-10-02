@@ -15,7 +15,7 @@ const { dashboardCache } = require('../utils/cache');
 const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
 const { validateRoutePricing } = require('../utils/routeFares');
 const driverBookingResponse = require('../utils/driverBookingResponse');
-const { vehicleMatchesBookingRoute } = require('../utils/notification');
+const { driverMatchesBookingRoute } = require('../utils/routeMatching');
 const { getActiveInstantBookingQuery, getActiveReservedSeats } = require('../utils/activeInstantBooking');
 
 const getBookingQuery = (idOrCode) => {
@@ -89,32 +89,10 @@ const verifyDriverVehicleAccess = async (driver, booking) => {
     return false;
   }
 
-  // Unassigned booking -> Check Driver's Assigned Vehicle & Route Match
-  let assignedVehicle = null;
-  if (driver.assignedVehicle) {
-    if (typeof driver.assignedVehicle === 'object' && (driver.assignedVehicle.route || driver.assignedVehicle.vehicleStatus)) {
-      assignedVehicle = driver.assignedVehicle;
-    } else {
-      assignedVehicle = await Vehicle.findById(driver.assignedVehicle._id || driver.assignedVehicle).lean();
-    }
-  } else {
-    assignedVehicle = await Vehicle.findOne({ assignedDriver: driver._id }).lean();
-  }
-
-  if (!assignedVehicle) {
-    // Driver has no assigned vehicle -> not authorized
-    return false;
-  }
-
-  if (assignedVehicle.vehicleStatus && assignedVehicle.vehicleStatus !== 'Active') {
-    // Assigned vehicle is not active -> not authorized
-    return false;
-  }
-
-  if (booking.bookingMode !== 'INSTANT' && booking.serviceType !== 'Any' && assignedVehicle.vehicleType !== booking.serviceType) return false;
-
-  // Always validate route; vehicle-ID match never bypasses route check
-  return vehicleMatchesBookingRoute(assignedVehicle, booking);
+  const serviceControl = await ServiceControl.findOne().select('oppositeRouteNotifications').lean();
+  return driverMatchesBookingRoute(driver, booking, {
+    allowOpposite: serviceControl?.oppositeRouteNotifications === true
+  });
 };
 
 const getActiveRequestVehiclesForDriver = async (driver) => {
@@ -152,29 +130,6 @@ const getRequestValueVariants = (values) => [...new Set(values.flatMap(value => 
   return [text, text.toLowerCase(), text.toUpperCase()];
 }))];
 
-const getEligibleRequestVehicle = (booking, vehicles, driverId, reservedSeatsByVehicle, allowOpposite = false) => {
-  const bookingMode = String(booking.bookingMode || '').trim().toUpperCase();
-  const serviceType = String(booking.serviceType || '').trim().toLowerCase();
-
-  return vehicles.find(vehicle => {
-    if (bookingMode === 'INSTANT') {
-      const requestedSeats = booking.passengerDetails?.length || 1;
-      const capacity = vehicle.seatingCapacity || 4;
-      if ((reservedSeatsByVehicle.get(String(vehicle._id)) || 0) + requestedSeats > capacity) return false;
-    } else if (bookingMode === 'NORMAL' || bookingMode === 'SCHEDULE') {
-      if (bookingMode === 'SCHEDULE') {
-        const selectedVehicleId = booking.vehicle?._id || booking.vehicle;
-        if (String(selectedVehicleId) !== String(vehicle._id)) return false;
-        if (vehicle.assignedDriver && String(vehicle.assignedDriver) !== String(driverId)) return false;
-      }
-    } else {
-      return false;
-    }
-
-    return vehicleMatchesBookingRoute(vehicle, booking, { allowOpposite });
-  });
-};
-
 const verifyClaimedInstantVehicleAccess = async (driver, booking) => {
   if (!driver || !booking?.driver || !booking.vehicle) return false;
   if (String(booking.driver._id || booking.driver) !== String(driver._id)) return false;
@@ -189,7 +144,7 @@ const verifyClaimedInstantVehicleAccess = async (driver, booking) => {
 
   const serviceControl = await ServiceControl.findOne().select('oppositeRouteNotifications').lean();
   const allowOpposite = serviceControl?.oppositeRouteNotifications === true;
-  if (!vehicleMatchesBookingRoute(vehicle, booking, { allowOpposite })) return false;
+  if (!driverMatchesBookingRoute(driver, booking, { allowOpposite })) return false;
 
   const reservedSeats = await getActiveReservedSeats(vehicle._id);
   const capacity = vehicle.seatingCapacity || 4;
@@ -251,7 +206,10 @@ const verifyAssignedBookingVehicleAccess = async (driver, booking) => {
     if (vehicle.assignedDriver && String(vehicle.assignedDriver) !== assignedDriverId) return false;
   }
 
-  return vehicleMatchesBookingRoute(vehicle, booking);
+  const serviceControl = await ServiceControl.findOne().select('oppositeRouteNotifications').lean();
+  return driverMatchesBookingRoute(driver, booking, {
+    allowOpposite: serviceControl?.oppositeRouteNotifications === true
+  });
 };
 
 // @desc    Get Driver Dashboard Summary
@@ -283,20 +241,10 @@ exports.getDriverDashboard = async (req, res, next) => {
       // Booking requests (eligible when driver is online)
       driver.isOnline && ['Active', 'Approved'].includes(driver.driverStatus)
         ? (async () => {
-          const requestVehicles = await getActiveRequestVehiclesForDriver(driver);
-          if (requestVehicles.length === 0) return [];
-          const requestServiceTypes = [...new Set(requestVehicles.map(vehicle => vehicle.vehicleType))];
-          const serviceTypeVariants = getRequestValueVariants([...requestServiceTypes, 'Any']);
           const instantModeVariants = getRequestValueVariants(['INSTANT']);
           const otherModeVariants = getRequestValueVariants(['NORMAL', 'SCHEDULE']);
           const candidates = await Booking.find({
-            $or: [
-              { bookingMode: { $in: instantModeVariants } },
-              {
-                bookingMode: { $in: otherModeVariants },
-                serviceType: { $in: serviceTypeVariants }
-              }
-              ],
+              bookingMode: { $in: [...instantModeVariants, ...otherModeVariants] },
               driverConfirmed: { $ne: true },
               driverConfirmationStatus: { $ne: 'Confirmed' },
               confirmationOtpVerifiedAt: null,
@@ -305,9 +253,7 @@ exports.getDriverDashboard = async (req, res, next) => {
               rideStatus: { $ne: 'Accepted' },
               bookingStatus: {
                 $in: ['Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation', 'Admin Confirmed', 'ADMIN_CONFIRMED']
-              },
-              // Removed exclusion of INSTANT bookings to allow all modes
-              driver: { $in: [null, driver._id] }
+              }
             })
               .select('bookingId bookingMode user customer serviceType pickupLocation dropLocation fare driverPaymentAmount paymentStatus bookingStatus rideStatus travelDate passengerDetails busSeatNumbers vehicle driver createdAt')
               .populate('user', 'phone')
@@ -316,24 +262,11 @@ exports.getDriverDashboard = async (req, res, next) => {
               .limit(20)
               .lean();
 
-            const reservedSeatsByVehicle = new Map(await Promise.all(
-              requestVehicles.map(async vehicle => [
-                String(vehicle._id),
-                await getActiveReservedSeats(vehicle._id)
-              ])
-            ));
-
             return candidates.filter(booking => {
               const b = booking;
               if (b.driverConfirmed || b.driverConfirmationStatus === 'Confirmed' || b.confirmationOtpVerifiedAt || b.otpVerified || b.cashCollected || b.rideStatus === 'Accepted') return false;
               if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus)) return false;
-              if (b.driver && String(b.driver._id || b.driver) !== String(driver._id)) return false;
-              return Boolean(getEligibleRequestVehicle(
-                b,
-                requestVehicles,
-                driver._id,
-                reservedSeatsByVehicle
-              ));
+              return driverMatchesBookingRoute(driver, b);
             }).slice(0, 10);
           })()
         : Promise.resolve([]),
@@ -519,7 +452,8 @@ exports.updateDriverProfile = async (req, res, next) => {
       address,
       emergencyContact,
       payoutMethods,
-      language
+      language,
+      route
     } = req.body;
     const profilePhoto = req.file ? `/uploads/${req.file.filename}` : req.body.profilePhoto;
 
@@ -549,6 +483,23 @@ exports.updateDriverProfile = async (req, res, next) => {
     }
     if (language && ['en', 'ne', 'hi'].includes(language)) {
       driver.language = language;
+    }
+    if (route !== undefined) {
+      if (
+        !route ||
+        typeof route.origin !== 'string' ||
+        typeof route.destination !== 'string' ||
+        Boolean(route.origin.trim()) !== Boolean(route.destination.trim())
+      ) {
+        return res.status(400).json({
+          success: false,
+          message: 'Driver route must include both origin and destination, or leave both empty.'
+        });
+      }
+      driver.route = {
+        origin: route.origin.trim(),
+        destination: route.destination.trim()
+      };
     }
 
     await driver.save();
@@ -1263,42 +1214,9 @@ const getInstantBookingRequests = async (req, res, next) => {
       });
     }
 
-    // Load driver's assigned vehicle guaranteed via fresh DB lookup & type-coerced reverse match
-    let assignedVehicle = null;
-
-    const currentDriverDoc = await Driver.findById(driver._id).lean();
-    if (currentDriverDoc && currentDriverDoc.assignedVehicle) {
-      assignedVehicle = await Vehicle.findById(currentDriverDoc.assignedVehicle).lean();
-    }
-
-    if (!assignedVehicle) {
-      const driverObjId = mongoose.Types.ObjectId.isValid(driver._id)
-        ? new mongoose.Types.ObjectId(driver._id)
-        : driver._id;
-
-      assignedVehicle = await Vehicle.findOne({
-        $or: [
-          { assignedDriver: driver._id },
-          { assignedDriver: driver._id.toString() },
-          { assignedDriver: driverObjId }
-        ]
-      }).lean();
-    }
-
-    if (!assignedVehicle || (assignedVehicle.vehicleStatus && assignedVehicle.vehicleStatus !== 'Active')) {
-      return res.json({ success: true, count: 0, data: [], reason: 'NO_ACTIVE_ASSIGNED_VEHICLE', assignedVehicle, driverId: driver._id });
-    }
-    if (!['Bus', 'EV-Sewa', 'Car'].includes(assignedVehicle.vehicleType)) {
-      return res.json({ success: true, count: 0, data: [], reason: 'UNSUPPORTED_VEHICLE_TYPE' });
-    }
-
     // Fetch candidate pending bookings
     const candidateBookings = await Booking.find({
-      $or: [
-        { serviceType: assignedVehicle.vehicleType },
-        { bookingMode: 'INSTANT' },
-        { serviceType: 'Any' }
-      ],
+      bookingMode: { $in: ['INSTANT', 'NORMAL', 'SCHEDULE'] },
       driverConfirmed: { $ne: true },
       driverConfirmationStatus: { $ne: 'Confirmed' },
       confirmationOtpVerifiedAt: null,
@@ -1307,19 +1225,12 @@ const getInstantBookingRequests = async (req, res, next) => {
       rideStatus: { $ne: 'Accepted' },
       bookingStatus: {
         $in: ['Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation', 'Admin Confirmed', 'ADMIN_CONFIRMED']
-      },
-      driver: { $in: [null, driver._id] }
+      }
     })
       .populate('user', 'phone')
       .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory fuelType fareRate route pickupDropDetails hireDetails')
       .sort({ createdAt: -1 })
       .lean();
-
-    // Calculate active reserved seats for the assigned vehicle
-    let activeReservedSeats = 0;
-    if (assignedVehicleId) {
-      activeReservedSeats = await getActiveReservedSeats(assignedVehicleId);
-    }
 
     // Filter candidate bookings by route match & eligibility
     const requests = candidateBookings.filter(reqItem => {
@@ -1328,36 +1239,10 @@ const getInstantBookingRequests = async (req, res, next) => {
         return false;
       }
 
-      // If vehicle does not have enough capacity, do not offer more instant booking requests
-      if (reqItem.bookingMode === 'INSTANT' && assignedVehicle) {
-        const reqSeats = reqItem.passengerDetails ? reqItem.passengerDetails.length : 1;
-        const capacity = assignedVehicle.seatingCapacity || 4;
-        if (activeReservedSeats + reqSeats > capacity) {
-          return false;
-        }
-      }
-      // If directly assigned to another driver, exclude it for ALL booking modes (first driver wins)
-      if (reqItem.driver && (reqItem.driver._id || reqItem.driver).toString() !== driver._id.toString()) {
-        return false;
-      }
-
       if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(reqItem.bookingStatus)) {
         return false;
       }
-      // Bus, Any, or INSTANT requests remain broadcast; non-Bus requests cannot be claimed by another assigned driver unless they are 'Any' or 'INSTANT' broadcast.
-      if (true || reqItem.serviceType === 'Bus' || reqItem.serviceType === 'Any') {
-        if (assignedVehicle) {
-          const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem);
-          return matches;
-        }
-        return false;
-      }
-      // If pending/unconfirmed request, check route match between driver's assigned vehicle and booking
-      if (assignedVehicle) {
-        const matches = vehicleMatchesBookingRoute(assignedVehicle, reqItem);
-        return matches;
-      }
-      return false;
+      return driverMatchesBookingRoute(driver, reqItem);
     });
 
     // Map requests with external navigation links and countdown metadata
@@ -1433,22 +1318,6 @@ const getScheduleBookingRequests = async (req, res, next) => {
       });
     }
 
-    const assignedVehicles = await getActiveRequestVehiclesForDriver(driver);
-    const driverSchedules = await Schedule.find({ driver: driver._id, status: 'Active' })
-      .select('_id vehicle')
-      .lean();
-    const scheduleVehicleIds = driverSchedules.map(schedule => schedule.vehicle);
-    const scheduleVehicles = scheduleVehicleIds.length > 0
-      ? await Vehicle.find({ _id: { $in: scheduleVehicleIds }, vehicleStatus: 'Active' }).lean()
-      : [];
-    const requestVehicles = [...new Map(
-      [...assignedVehicles, ...scheduleVehicles].map(vehicle => [String(vehicle._id), vehicle])
-    ).values()];
-    if (requestVehicles.length === 0) {
-      return res.json({ success: true, count: 0, data: [], reason: 'NO_ACTIVE_ASSIGNED_VEHICLE', driverId: driver._id });
-    }
-
-    const requestServiceTypes = [...new Set(requestVehicles.map(vehicle => vehicle.vehicleType))];
     const instantModeVariants = getRequestValueVariants(['INSTANT']);
     const otherModeVariants = getRequestValueVariants(['NORMAL', 'SCHEDULE']);
     const candidateBookings = await Booking.find({
@@ -1462,19 +1331,12 @@ const getScheduleBookingRequests = async (req, res, next) => {
       bookingStatus: {
         $in: ['Pending Driver Confirmation', 'Pending', 'Pending Admin Confirmation', 'Admin Confirmed', 'ADMIN_CONFIRMED']
       },
-      driver: { $in: [null, driver._id] }
     })
       .populate('user', 'phone')
       .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory fuelType fareRate route pickupDropDetails hireDetails assignedDriver')
       .sort({ createdAt: -1 })
       .lean();
 
-    const reservedSeatsByVehicle = new Map(await Promise.all(
-      requestVehicles.map(async vehicle => [
-        String(vehicle._id),
-        await getActiveReservedSeats(vehicle._id)
-      ])
-    ));
     const candidateScheduleIds = candidateBookings
       .filter(booking => booking.bookingMode === 'SCHEDULE' && booking.scheduleId)
       .map(booking => booking.scheduleId._id || booking.scheduleId);
@@ -1500,32 +1362,16 @@ const getScheduleBookingRequests = async (req, res, next) => {
         }
         return false;
       };
-      let scheduledVehicle = null;
       // Direct canonical exclusion check
       if (reqItem.driverConfirmed || reqItem.driverConfirmationStatus === 'Confirmed' || reqItem.confirmationOtpVerifiedAt || reqItem.otpVerified || reqItem.cashCollected || reqItem.rideStatus === 'Accepted') {
         return exclude('already-confirmed-or-accepted');
-      }
-
-      // If directly assigned to another driver, exclude it for ALL booking modes (first driver wins)
-      if (reqItem.driver && (reqItem.driver._id || reqItem.driver).toString() !== driver._id.toString()) {
-        return exclude('assigned-to-another-driver');
       }
 
       if (reqItem.bookingMode === 'SCHEDULE') {
         const schedule = reqItem.scheduleId
           ? activeScheduleById.get(String(reqItem.scheduleId._id || reqItem.scheduleId))
           : null;
-        const scheduledDriverId = reqItem.scheduleId
-          ? schedule?.driver
-          : reqItem.driver?._id || reqItem.driver || reqItem.vehicle?.assignedDriver;
-        const scheduledVehicleId = reqItem.scheduleId
-          ? schedule?.vehicle
-          : reqItem.vehicle?._id || reqItem.vehicle;
-        if (
-          !scheduledDriverId ||
-          String(scheduledDriverId) !== String(driver._id) ||
-          String(scheduledVehicleId || '') !== String(reqItem.vehicle?._id || reqItem.vehicle || '')
-        ) return exclude('schedule-assignment-does-not-match-booking-or-driver');
+        if (reqItem.scheduleId && !schedule) return exclude('schedule-is-not-active');
         if (reqItem.serviceType === 'Car' && schedule) {
           const bookingDate = new Date(reqItem.travelDate);
           const scheduleDate = new Date(schedule.travelDate);
@@ -1537,54 +1383,13 @@ const getScheduleBookingRequests = async (req, res, next) => {
             bookingDate.getDate() !== scheduleDate.getDate()
           ) return exclude('schedule-travel-date-mismatch');
         }
-        scheduledVehicle = requestVehicles.find(vehicle =>
-          String(vehicle._id) === String(scheduledVehicleId)
-        );
-        if (!scheduledVehicle || (
-          scheduledVehicle.assignedDriver &&
-          String(scheduledVehicle.assignedDriver) !== String(driver._id)
-        )) return exclude('schedule-vehicle-not-active-or-not-assigned-to-driver');
-        if (reqItem.serviceType === 'Car' && schedule) {
-          // Override vehicle route with active schedule's origin/destination
-          scheduledVehicle = {
-            ...scheduledVehicle,
-            route: {
-              origin: schedule.origin,
-              destination: schedule.destination
-            }
-          };
-        } else if (reqItem.serviceType === 'Car' && !schedule && reqItem.pickupLocation && reqItem.dropLocation) {
-          // scheduleId was null: the vehicle's static route is irrelevant for this booking.
-          // Use the booking's own pickupLocation/dropLocation as the canonical route so that
-          // vehicleMatchesBookingRoute always returns true for the assigned driver's vehicle.
-          console.log(
-            '[SCHEDULE_FILTER_ROUTE_OVERRIDE] bookingId=' + reqItem.bookingId +
-            ' vehicle=' + String(scheduledVehicle._id) +
-            ' vehicleRoute=' + ((scheduledVehicle.route && scheduledVehicle.route.origin) || '') + '->' + ((scheduledVehicle.route && scheduledVehicle.route.destination) || '') +
-            ' bookingRoute=' + reqItem.pickupLocation + '->' + reqItem.dropLocation
-          );
-          scheduledVehicle = {
-            ...scheduledVehicle,
-            route: {
-              origin: reqItem.pickupLocation,
-              destination: reqItem.dropLocation
-            }
-          };
-        }
       }
 
       if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(reqItem.bookingStatus)) {
         return exclude(`booking-status-${reqItem.bookingStatus}`);
       }
-      const eligibleVehicle = getEligibleRequestVehicle(
-        reqItem,
-        scheduledVehicle ? [scheduledVehicle] : requestVehicles,
-        driver._id,
-        reservedSeatsByVehicle,
-        reqItem.bookingMode === 'SCHEDULE' ? false : allowOpposite
-      );
-      if (!eligibleVehicle) return exclude('no-eligible-vehicle-route-service-or-capacity');
-      return true;
+      return driverMatchesBookingRoute(driver, reqItem, { allowOpposite }) ||
+        exclude('driver-route-does-not-match-booking');
     });
 
     // Map requests with external navigation links and countdown metadata
@@ -1723,11 +1528,9 @@ const acceptInstantBookingRequest = async (req, res, next) => {
       const serviceControl = await ServiceControl.findOne().select('oppositeRouteNotifications').lean();
       const allowOpposite = serviceControl?.oppositeRouteNotifications === true;
       const requestedSeats = booking.passengerDetails?.length || 1;
+      routeMatchedVehicle = driverMatchesBookingRoute(driver, booking, { allowOpposite });
 
-      for (const vehicle of requestVehicles) {
-        if (!vehicleMatchesBookingRoute(vehicle, booking, { allowOpposite })) continue;
-        routeMatchedVehicle = true;
-
+      for (const vehicle of routeMatchedVehicle ? requestVehicles : []) {
         const activeReservedSeats = await getActiveReservedSeats(vehicle._id);
         const capacity = vehicle.seatingCapacity || 4;
         if (activeReservedSeats + requestedSeats <= capacity) {
@@ -1812,14 +1615,7 @@ const acceptInstantBookingRequest = async (req, res, next) => {
     } else {
       // SCHEDULE BOOKING CONFLICT RULE:
       // Schedule bookings are NOT blocked by active instant bookings.
-      // Schedule bookings are evaluated using their own booking mode, travel date/time,
-      // assigned vehicle/driver, and existing schedule availability rules.
-      if (booking.driver && booking.driver.toString() !== driver._id.toString()) {
-        return res.status(409).json({
-          success: false,
-          message: 'This schedule booking request has already been assigned to another driver.'
-        });
-      }
+      // Pending schedule requests remain claimable by every driver matching the configured route.
     }
 
     let assignedVehicle = requestVehicle;
@@ -2091,10 +1887,7 @@ const acceptScheduleBookingRequest = async (req, res, next) => {
         });
       }
     } else {
-      // SCHEDULE BOOKING CONFLICT RULE:
-      // Schedule bookings are NOT blocked by active instant bookings.
-      // Schedule bookings are evaluated using their own booking mode, travel date/time,
-      // assigned vehicle/driver, and existing schedule availability rules.
+      // SCHEDULE requests remain bound to their configured schedule assignment.
       if (booking.driver && booking.driver.toString() !== driver._id.toString()) {
         return res.status(409).json({
           success: false,
