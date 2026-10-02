@@ -20,13 +20,17 @@ const RideRequestCard = ({ request, onAccept, onReject }) => {
     });
   };
 
+  const displayServiceType = (request.serviceType && request.serviceType.toLowerCase() !== 'any')
+    ? request.serviceType
+    : (request.vehicle?.vehicleType || request.serviceType || 'Car');
+
   return (
     <View style={styles.card}>
       {/* Top Header Row */}
       <View style={styles.topRow}>
         <View style={styles.badgeRow}>
           <View style={styles.serviceBadge}>
-            <Text style={styles.serviceText}>{request.serviceType || 'Car'}</Text>
+            <Text style={styles.serviceText}>{displayServiceType}</Text>
           </View>
           <Text style={styles.bookingIdText}>#{request.bookingId}</Text>
         </View>
