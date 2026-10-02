@@ -97,7 +97,8 @@ describe('Optional Instant Booking', () => {
       mobileNumber: driverUser.phone,
       drivingLicenceNumber: `DL-INSTANT-${suffix}`,
       driverStatus: 'Active',
-      isOnline: true
+      isOnline: true,
+      route: { origin: 'Delhi', destination: 'Jaipur' }
     });
     vehicle = await Vehicle.create({
       vehicleNumber: `INSTANT${suffix}`,
@@ -258,6 +259,7 @@ describe('Optional Instant Booking', () => {
   const createClaimDriver = async ({
     vehicleType = 'Bus',
     route = { origin: 'Jaipur', destination: 'Delhi' },
+    driverRoute = { origin: 'Jaipur', destination: 'Delhi' },
     seatingCapacity = 12,
     assignmentDirection = 'vehicle',
     driverStatus = 'Active',
@@ -280,7 +282,8 @@ describe('Optional Instant Booking', () => {
       mobileNumber: user.phone,
       drivingLicenceNumber: `DL-CLAIM-${discriminator}`,
       driverStatus,
-      isOnline
+      isOnline,
+      route: driverRoute
     });
     claimTestDrivers.push(claimDriver._id);
     const claimVehicle = await Vehicle.create({
@@ -576,6 +579,104 @@ describe('Optional Instant Booking', () => {
     expect(String(savedBooking.driver)).toBe(String(claimant.driver._id));
   });
 
+  test('verify-otp authorizes the configured driver route when the vehicle route differs', async () => {
+    const claimant = await createClaimDriver({
+      route: { origin: 'Kathmandu', destination: 'Birgunj' },
+      driverRoute: { origin: ' Jaipur ', destination: ' DELHI ' }
+    });
+    const booking = await createUnassignedInstantBooking();
+    booking.customerViewOtp = '123456';
+    booking.confirmationOtpExpiresAt = new Date(Date.now() + 60 * 60 * 1000);
+    await booking.save();
+    await Notification.create({
+      title: 'New Booking Request',
+      message: 'Jaipur to Delhi',
+      recipient: `Driver: ${claimant.driver.name}`,
+      recipientRole: 'driver',
+      recipientId: claimant.driver.user,
+      eventType: 'BOOKING_REQUEST',
+      entityType: 'Booking',
+      entityId: booking._id,
+      bookingId: booking.bookingId,
+      driverId: claimant.driver._id,
+      origin: booking.pickupLocation,
+      destination: booking.dropLocation
+    });
+
+    const accepted = await acceptInstantBookingAs(booking._id, claimant.token);
+    expect(accepted.status).toBe(200);
+    expect(claimant.vehicle.route).toMatchObject({
+      origin: 'Kathmandu',
+      destination: 'Birgunj'
+    });
+
+    const verified = await request(app)
+      .post(`/api/driver/bookings/${booking._id}/verify-otp`)
+      .set('Authorization', `Bearer ${claimant.token}`)
+      .send({ otp: '123456' });
+
+    expect(verified.status).toBe(200);
+    expect(verified.body.success).toBe(true);
+    expect(verified.body.data.driverConfirmed).toBe(true);
+    expect(verified.body.data.confirmationOtpVerifiedAt).toBeTruthy();
+    const savedBooking = await Booking.findById(booking._id).lean();
+    expect(savedBooking.bookingStatus).toBe('Awaiting Cash Collection');
+    expect(savedBooking.driverConfirmed).toBe(true);
+  });
+
+  test('verify-otp rejects a driver whose configured route does not match directionally', async () => {
+    const claimant = await createClaimDriver({
+      route: { origin: 'Kathmandu', destination: 'Birgunj' },
+      driverRoute: { origin: 'Jaipur', destination: 'Agra' }
+    });
+    const booking = await Booking.create({
+      bookingId: `BK-OTP-ROUTE-MISMATCH-${Date.now()}-${crypto.randomInt(1000, 9999)}`,
+      user: customer._id,
+      customer: { name: customer.name, phone: customer.phone },
+      bookingMode: 'INSTANT',
+      serviceType: 'Bus',
+      pickupLocation: 'Jaipur',
+      dropLocation: 'Delhi',
+      passengerDetails: [{ name: 'OTP Passenger', age: 30, gender: 'Male' }],
+      fare: 500,
+      paymentMethod: 'Offline Cash',
+      paymentStatus: 'Pending Cash',
+      bookingStatus: 'Pending Driver Confirmation',
+      driver: claimant.driver._id,
+      vehicle: claimant.vehicle._id,
+      driverConfirmationStatus: 'Pending',
+      driverConfirmed: false,
+      rideStatus: 'None',
+      customerViewOtp: '123456',
+      confirmationOtpExpiresAt: new Date(Date.now() + 60 * 60 * 1000)
+    });
+    await Notification.create({
+      title: 'New Booking Request',
+      message: 'Jaipur to Delhi',
+      recipient: `Driver: ${claimant.driver.name}`,
+      recipientRole: 'driver',
+      recipientId: claimant.driver.user,
+      eventType: 'BOOKING_REQUEST',
+      entityType: 'Booking',
+      entityId: booking._id,
+      bookingId: booking.bookingId,
+      driverId: claimant.driver._id,
+      origin: booking.pickupLocation,
+      destination: booking.dropLocation
+    });
+
+    const verified = await request(app)
+      .post(`/api/driver/bookings/${booking._id}/verify-otp`)
+      .set('Authorization', `Bearer ${claimant.token}`)
+      .send({ otp: '123456' });
+
+    expect(verified.status).toBe(403);
+    expect(verified.body.success).toBe(false);
+    expect(verified.body.message).toMatch(/driver route does not match/i);
+    const savedBooking = await Booking.findById(booking._id).lean();
+    expect(savedBooking.driverConfirmed).toBe(false);
+  });
+
   test('scheduled OTP succeeds only for the assigned driver and assigned route vehicle', async () => {
     const schedule = await createActiveSchedule(driver, vehicle);
     const legacyVehicle = otherServiceVehicles.find(item => item.vehicleType === 'Car');
@@ -695,7 +796,7 @@ describe('Optional Instant Booking', () => {
       .set('Authorization', `Bearer ${otherDriver.token}`)
       .send({ otp: '654321' });
     expect(wrongDriverResponse.status).toBe(403);
-    expect(wrongDriverResponse.body.message).toMatch(/assigned vehicle route does not match/i);
+    expect(wrongDriverResponse.body.message).toMatch(/driver route does not match/i);
   });
 
   test('scheduled OTP rejects the assigned driver when the assigned vehicle route does not match', async () => {
@@ -729,7 +830,7 @@ describe('Optional Instant Booking', () => {
       .send({ otp: '654321' });
 
     expect(response.status).toBe(403);
-    expect(response.body.message).toMatch(/assigned vehicle route does not match/i);
+    expect(response.body.message).toMatch(/driver route does not match/i);
   });
 
   test('atomically lets only the first eligible same-route driver claim an Instant booking', async () => {

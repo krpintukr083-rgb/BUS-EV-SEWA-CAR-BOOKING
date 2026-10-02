@@ -212,6 +212,65 @@ const verifyAssignedBookingVehicleAccess = async (driver, booking) => {
   });
 };
 
+const verifyDriverRouteOtpAccess = async (driver, booking) => {
+  if (!driver || !booking) return false;
+
+  const driverIds = [driver._id, driver.user?._id || driver.user]
+    .filter(Boolean)
+    .map(String);
+  const bookingDriverId = booking.driver ? String(booking.driver._id || booking.driver) : null;
+  const assignedToDriver = bookingDriverId && driverIds.includes(bookingDriverId);
+  const recipientQuery = {
+    recipientRole: 'driver',
+    eventType: 'BOOKING_REQUEST',
+    entityType: 'Booking',
+    entityId: booking._id
+  };
+  const requestRecipientConditions = [{ driverId: driver._id }];
+  const userId = driver.user?._id || driver.user;
+  if (userId) requestRecipientConditions.push({ recipientId: userId });
+
+  const [hasBookingRequests, isRequestRecipient] = await Promise.all([
+    Notification.exists(recipientQuery),
+    Notification.exists({ ...recipientQuery, $or: requestRecipientConditions })
+  ]);
+
+  let assignedBySchedule = false;
+  if (booking.bookingMode === 'SCHEDULE' && booking.scheduleId) {
+    const schedule = await Schedule.findOne({
+      _id: booking.scheduleId._id || booking.scheduleId,
+      status: 'Active'
+    }).select('driver').lean();
+    assignedBySchedule = Boolean(schedule && driverIds.includes(String(schedule.driver)));
+  }
+
+  let assignedByVehicle = false;
+  if (!bookingDriverId && !booking.scheduleId && booking.vehicle) {
+    const vehicleId = booking.vehicle._id || booking.vehicle;
+    const vehicle = await Vehicle.findOne({
+      _id: vehicleId,
+      vehicleStatus: 'Active'
+    }).select('_id assignedDriver').lean();
+    const driverVehicleId = driver.assignedVehicle?._id || driver.assignedVehicle;
+    assignedByVehicle = Boolean(vehicle && (
+      driverIds.includes(String(vehicle.assignedDriver || '')) ||
+      String(driverVehicleId || '') === String(vehicle._id)
+    ));
+  }
+
+  const authorizedRecipient = isRequestRecipient ||
+    (!hasBookingRequests && (
+      assignedToDriver ||
+      (!bookingDriverId && (assignedBySchedule || assignedByVehicle))
+    ));
+  if (!authorizedRecipient) return false;
+
+  const serviceControl = await ServiceControl.findOne().select('oppositeRouteNotifications').lean();
+  return driverMatchesBookingRoute(driver, booking, {
+    allowOpposite: serviceControl?.oppositeRouteNotifications === true
+  });
+};
+
 // @desc    Get Driver Dashboard Summary
 // @route   GET /api/driver/dashboard
 // @access  Private (Driver Only)
@@ -2182,15 +2241,11 @@ const verifyInstantRideOtp = async (req, res, next) => {
       });
     }
 
-    // Instant claims must be verified against the winning booking's vehicle,
-    // not a possibly stale legacy Driver.assignedVehicle reference.
-    const isAuthorized = booking.bookingMode === 'INSTANT'
-      ? await verifyClaimedInstantVehicleAccess(driver, booking)
-      : await verifyAssignedBookingVehicleAccess(driver, booking);
+    const isAuthorized = await verifyDriverRouteOtpAccess(driver, booking);
     if (!isAuthorized) {
       return res.status(403).json({
         success: false,
-        message: 'Forbidden: Your assigned vehicle route does not match this booking.'
+        message: 'Forbidden: Driver route does not match this booking or driver is not an authorized recipient.'
       });
     }
 
@@ -3336,12 +3391,11 @@ const verifyScheduleRideOtp = async (req, res, next) => {
       });
     }
 
-    // Scheduled OTPs remain bound to the assigned driver and selected vehicle.
-    const isAuthorized = await verifyAssignedBookingVehicleAccess(driver, booking);
+    const isAuthorized = await verifyDriverRouteOtpAccess(driver, booking);
     if (!isAuthorized) {
       return res.status(403).json({
         success: false,
-        message: 'Forbidden: Your assigned vehicle route does not match this booking.'
+        message: 'Forbidden: Driver route does not match this booking or driver is not an authorized recipient.'
       });
     }
 
