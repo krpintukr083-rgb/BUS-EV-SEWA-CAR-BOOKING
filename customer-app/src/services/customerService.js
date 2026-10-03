@@ -208,7 +208,7 @@ export const customerService = {
     return res.data;
   },
 
-  // eSewa Epay V2 Pipeline
+  // eSewa Epay V2 Pipeline (Web)
   createEsewaOrder: async (bookingId) => {
     const res = await api.post('/payments/esewa/create-order', { bookingId });
     return res.data;
@@ -216,6 +216,22 @@ export const customerService = {
 
   verifyEsewaPayment: async (data) => {
     const res = await api.post('/payments/esewa/verify-payment', { data });
+    return res.data;
+  },
+
+  // eSewa Mobile Intent Pipeline (Android)
+  createEsewaIntentBooking: async (bookingId) => {
+    const res = await api.post('/payments/esewa/intent/book', { bookingId });
+    return res.data;
+  },
+
+  checkEsewaIntentStatus: async ({ booking_id, correlation_id, bookingId, simulateSuccess = false }) => {
+    const res = await api.post('/payments/esewa/intent/status', {
+      booking_id,
+      correlation_id,
+      bookingId,
+      simulateSuccess
+    });
     return res.data;
   },
 

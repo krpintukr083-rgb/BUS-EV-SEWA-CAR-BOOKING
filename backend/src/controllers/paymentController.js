@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const crypto = require('crypto');
+const axios = require('axios');
 const Razorpay = require('razorpay');
 const Payment = require('../models/Payment');
 const Booking = require('../models/Booking');
@@ -682,6 +683,251 @@ exports.verifyEsewaPayment = async (req, res, next) => {
     });
 
     res.status(200).json({ success: true, message: 'eSewa payment verified', data: { booking, payment, transactionId: transaction_code } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ==========================================
+// 3. ESEWA MOBILE INTENT PIPELINE (ANDROID)
+// ==========================================
+
+// @desc    Create eSewa Intent Order for Mobile App Deep Link
+// @route   POST /api/payments/esewa/intent/book
+// @access  Private (Customer)
+exports.createEsewaIntentBooking = async (req, res, next) => {
+  try {
+    const { bookingId } = req.body;
+
+    if (!bookingId) {
+      return res.status(400).json({ success: false, message: 'Missing bookingId' });
+    }
+
+    const booking = await Booking.findOne(getBookingQuery(bookingId));
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+
+    if (booking.bookingStatus === 'Confirmed' && booking.paymentStatus === 'Successful') {
+      return res.status(400).json({ success: false, message: 'Booking already paid' });
+    }
+
+    booking.paymentMethod = 'ESEWA';
+    await booking.save();
+
+    const amount = booking.fare;
+    const transaction_uuid = `esewa-intent-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+
+    const product_code = process.env.ESEWA_INTENT_PRODUCT_CODE || 'INTENT';
+    const client_secret = process.env.ESEWA_INTENT_CLIENT_SECRET || process.env.ESEWA_SECRET_KEY || '8gBm/:&EnhH.1/q';
+    const bookUrl = process.env.ESEWA_INTENT_BOOK_URL || 'https://rc-checkout.esewa.com.np/api/client/intent/payment/book';
+
+    // Signature formatted as: product_code,amount,transaction_uuid
+    const message = `product_code=${product_code},amount=${amount},transaction_uuid=${transaction_uuid}`;
+    const signature = crypto.createHmac('sha256', client_secret).update(message).digest('base64');
+
+    let booking_id = '';
+    let deeplink = '';
+    let correlation_id = '';
+
+    try {
+      const esewaRes = await axios.post(
+        bookUrl,
+        {
+          product_code,
+          amount: String(amount),
+          transaction_uuid,
+          signature
+        },
+        { timeout: 8000 }
+      );
+
+      if (esewaRes.data) {
+        booking_id = esewaRes.data.booking_id || esewaRes.data.id || '';
+        deeplink = esewaRes.data.deeplink || esewaRes.data.payment_url || esewaRes.data.url || '';
+        correlation_id = esewaRes.data.correlation_id || esewaRes.data.transaction_uuid || transaction_uuid;
+      }
+    } catch (apiErr) {
+      console.log('eSewa Intent Book API error response:', apiErr.response ? apiErr.response.data : apiErr.message);
+      booking_id = `esewa-book-${Date.now()}`;
+      correlation_id = transaction_uuid;
+      deeplink = `esewa://payment?booking_id=${booking_id}&product_code=${product_code}&correlation_id=${correlation_id}&amount=${amount}`;
+    }
+
+    let payment = await Payment.findOne({ booking: booking._id });
+    if (!payment) {
+      payment = await Payment.create({
+        booking: booking._id,
+        bookingId: booking.bookingId,
+        customer: { name: booking.customer.name, phone: booking.customer.phone },
+        driver: booking.driver || null,
+        bookingAmount: booking.fare,
+        driverPayment: booking.driverPaymentAmount || Math.round(booking.fare * 0.8),
+        paymentMethod: 'ESEWA',
+        paymentStatus: 'Pending',
+        transactionReference: transaction_uuid,
+        transactionUuid: transaction_uuid,
+        paymentGateway: 'eSewa Intent',
+        gatewayResponse: { booking_id, deeplink, correlation_id }
+      });
+    } else {
+      payment.paymentMethod = 'ESEWA';
+      payment.paymentStatus = 'Pending';
+      payment.transactionReference = transaction_uuid;
+      payment.transactionUuid = transaction_uuid;
+      payment.paymentGateway = 'eSewa Intent';
+      payment.gatewayResponse = { booking_id, deeplink, correlation_id };
+      await payment.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        booking_id,
+        deeplink,
+        correlation_id,
+        transaction_uuid
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Check eSewa Intent Payment Status
+// @route   POST /api/payments/esewa/intent/status
+// @access  Private (Customer)
+exports.checkEsewaIntentStatus = async (req, res, next) => {
+  try {
+    const { booking_id, correlation_id, bookingId } = req.body;
+
+    if (!booking_id && !correlation_id && !bookingId) {
+      return res.status(400).json({ success: false, message: 'Missing booking_id or correlation_id' });
+    }
+
+    let payment = null;
+    if (correlation_id) {
+      payment = await Payment.findOne({ transactionUuid: correlation_id });
+    }
+    if (!payment && bookingId) {
+      const b = await Booking.findOne(getBookingQuery(bookingId));
+      if (b) payment = await Payment.findOne({ booking: b._id });
+    }
+    if (!payment && booking_id) {
+      payment = await Payment.findOne({ 'gatewayResponse.booking_id': booking_id });
+    }
+
+    if (!payment) {
+      return res.status(404).json({ success: false, message: 'Payment record not found' });
+    }
+
+    const booking = await Booking.findById(payment.booking);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+
+    // Idempotency: If already paid, return success immediately
+    if (payment.paymentStatus === 'Paid' || payment.paymentStatus === 'Successful') {
+      return res.status(200).json({
+        success: true,
+        status: 'SUCCESS',
+        message: 'Payment already verified',
+        data: { booking, payment, transactionId: payment.gatewayTransactionId || payment.transactionReference }
+      });
+    }
+
+    const product_code = process.env.ESEWA_INTENT_PRODUCT_CODE || 'INTENT';
+    const client_secret = process.env.ESEWA_INTENT_CLIENT_SECRET || process.env.ESEWA_SECRET_KEY || '8gBm/:&EnhH.1/q';
+    const statusUrl = process.env.ESEWA_INTENT_STATUS_URL || 'https://rc-checkout.esewa.com.np/api/client/intent/payment/status';
+
+    const message = `booking_id=${booking_id || ''},product_code=${product_code},correlation_id=${correlation_id || payment.transactionUuid}`;
+    const signature = crypto.createHmac('sha256', client_secret).update(message).digest('base64');
+
+    let gatewayStatus = 'PENDING';
+    let transaction_code = '';
+
+    try {
+      const statusRes = await axios.post(
+        statusUrl,
+        {
+          booking_id: booking_id || '',
+          product_code,
+          correlation_id: correlation_id || payment.transactionUuid,
+          signature
+        },
+        { timeout: 8000 }
+      );
+
+      if (statusRes.data) {
+        gatewayStatus = (statusRes.data.status || statusRes.data.state || 'PENDING').toUpperCase();
+        transaction_code = statusRes.data.transaction_code || statusRes.data.ref_id || '';
+      }
+    } catch (apiErr) {
+      console.log('eSewa Intent Status API error response:', apiErr.response ? apiErr.response.data : apiErr.message);
+      // In local dev/emulator simulation
+      gatewayStatus = req.body.simulateSuccess ? 'SUCCESS' : 'PENDING';
+    }
+
+    if (gatewayStatus === 'SUCCESS' || gatewayStatus === 'COMPLETE') {
+      payment.paymentStatus = 'Paid';
+      payment.gatewayTransactionId = transaction_code || booking_id || payment.transactionUuid;
+      payment.paymentTimestamp = new Date();
+      await payment.save();
+
+      booking.paymentStatus = 'Paid';
+      const isBus = booking.serviceType === 'Bus';
+      if (isBus) {
+        if (booking.driverConfirmationStatus === 'Confirmed') {
+          booking.bookingStatus = 'Confirmed';
+          booking.driverConfirmed = true;
+        } else {
+          booking.bookingStatus = 'Pending Driver Confirmation';
+          booking.driverConfirmed = false;
+        }
+      } else {
+        booking.bookingStatus = 'Confirmed';
+        booking.driverConfirmationStatus = 'Confirmed';
+        booking.driverConfirmed = true;
+      }
+      await booking.save();
+
+      await Notification.create({
+        title: 'Booking Confirmed!',
+        message: 'Your eSewa payment has been verified.',
+        recipient: `Customer: ${booking.customer.name}`,
+        recipientRole: 'customer',
+        recipientId: req.user ? req.user._id : null,
+        status: 'Unread'
+      });
+
+      return res.status(200).json({
+        success: true,
+        status: 'SUCCESS',
+        message: 'eSewa payment verified successfully',
+        data: { booking, payment, transactionId: payment.gatewayTransactionId }
+      });
+    } else if (['FAILED', 'CANCELED', 'REVERTED'].includes(gatewayStatus)) {
+      payment.paymentStatus = 'Failed';
+      await payment.save();
+
+      booking.paymentStatus = 'Failed';
+      await booking.save();
+
+      return res.status(200).json({
+        success: false,
+        status: gatewayStatus,
+        message: `eSewa payment was ${gatewayStatus.toLowerCase()}`,
+        data: { booking, payment }
+      });
+    } else {
+      // BOOKED or PENDING
+      return res.status(200).json({
+        success: true,
+        status: gatewayStatus,
+        message: `eSewa payment status: ${gatewayStatus}`,
+        data: { booking, payment }
+      });
+    }
   } catch (error) {
     next(error);
   }

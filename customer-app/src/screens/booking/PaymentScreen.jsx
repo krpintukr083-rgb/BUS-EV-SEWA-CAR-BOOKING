@@ -8,7 +8,9 @@ import {
   ActivityIndicator,
   Modal,
   Alert,
-  Platform
+  Platform,
+  Linking,
+  AppState
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
@@ -34,6 +36,8 @@ const PaymentScreen = ({ route, navigation }) => {
   const [showRazorpayModal, setShowRazorpayModal] = useState(false);
   const [esewaOrder, setEsewaOrder] = useState(null);
   const [showEsewaModal, setShowEsewaModal] = useState(false);
+  const [esewaIntentData, setEsewaIntentData] = useState(null);
+  const [isWaitingForEsewaReturn, setIsWaitingForEsewaReturn] = useState(false);
 
   // Auto‑submit eSewa HTML form on web when order is ready
   useEffect(() => {
@@ -44,6 +48,33 @@ const PaymentScreen = ({ route, navigation }) => {
       }, 100);
     }
   }, [esewaOrder, showEsewaModal]);
+
+  // Handle AppState & DeepLink return for eSewa Intent on Mobile (Android)
+  useEffect(() => {
+    if (Platform.OS === 'web' || !isWaitingForEsewaReturn || !esewaIntentData) return;
+
+    const handleUrl = async (event) => {
+      if (event?.url) {
+        console.log('Deep link callback received:', event.url);
+        await verifyIntentPayment();
+      }
+    };
+
+    const handleAppStateChange = async (nextAppState) => {
+      if (nextAppState === 'active' && isWaitingForEsewaReturn && esewaIntentData) {
+        console.log('Customer app resumed from background, checking eSewa Intent status...');
+        await verifyIntentPayment();
+      }
+    };
+
+    const urlSub = Linking.addEventListener('url', handleUrl);
+    const appStateSub = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      urlSub.remove();
+      appStateSub.remove();
+    };
+  }, [isWaitingForEsewaReturn, esewaIntentData]);
 
   const paymentOptions = [
     {
@@ -156,6 +187,47 @@ const PaymentScreen = ({ route, navigation }) => {
     }
   };
 
+  // Verify eSewa Mobile Intent Status
+  const verifyIntentPayment = async (simulateSuccess = false) => {
+    if (!esewaIntentData) return;
+    setPaymentState('processing');
+    setErrorMessage('');
+
+    try {
+      const activeBookingId = bookingId || bookingCode || bookingDraft.confirmedBooking?._id || bookingDraft.confirmedBooking?.bookingId;
+      const res = await customerService.checkEsewaIntentStatus({
+        booking_id: esewaIntentData.booking_id,
+        correlation_id: esewaIntentData.correlation_id,
+        bookingId: activeBookingId,
+        simulateSuccess
+      });
+
+      if (res.success && res.status === 'SUCCESS' && res.data) {
+        setIsWaitingForEsewaReturn(false);
+        setTransactionId(res.data.transactionId || esewaIntentData.correlation_id);
+        setPaymentState('success');
+        updateDraft({ confirmedBooking: res.data.booking });
+
+        setTimeout(() => {
+          navigation.replace('BookingConfirmation', {
+            booking: res.data.booking,
+            payment: res.data.payment
+          });
+        }, 1200);
+      } else if (res.status === 'PENDING' || res.status === 'BOOKED') {
+        setPaymentState('idle');
+        setErrorMessage('eSewa transaction is still pending. Tap "Check Status" once payment is completed.');
+      } else {
+        setPaymentState('failed');
+        setIsWaitingForEsewaReturn(false);
+        setErrorMessage(res.message || 'eSewa payment verification failed.');
+      }
+    } catch (err) {
+      setPaymentState('idle');
+      setErrorMessage(err.response?.data?.message || err.message || 'Error checking payment status.');
+    }
+  };
+
   // eSewa Selection Handler
   const handleEsewaSelected = async () => {
     setPaymentState('processing');
@@ -167,20 +239,46 @@ const PaymentScreen = ({ route, navigation }) => {
         throw new Error('No active booking ID found to initialize eSewa.');
       }
 
-      const orderRes = await customerService.createEsewaOrder(activeBookingId);
-      
-      if (orderRes.success && orderRes.data) {
-        console.log('eSewa Order created successfully. Data contains:');
-        console.log('- transaction_uuid:', orderRes.data.transaction_uuid);
-        console.log('- total_amount:', orderRes.data.total_amount);
-        console.log('- product_code:', orderRes.data.product_code);
-        console.log('- paymentUrl:', orderRes.data.paymentUrl);
-        setEsewaOrder(orderRes.data);
-        setPaymentState('idle');
-        setShowEsewaModal(true);
+      if (Platform.OS === 'web') {
+        // Web flow: ePay V2 HTML Form POST
+        const orderRes = await customerService.createEsewaOrder(activeBookingId);
+        
+        if (orderRes.success && orderRes.data) {
+          console.log('eSewa Order created successfully (Web)');
+          setEsewaOrder(orderRes.data);
+          setPaymentState('idle');
+          setShowEsewaModal(true);
+        } else {
+          setPaymentState('failed');
+          setErrorMessage(orderRes.message || 'Failed to create eSewa order.');
+        }
       } else {
-        setPaymentState('failed');
-        setErrorMessage(orderRes.message || 'Failed to create eSewa order.');
+        // Mobile / Android flow: eSewa Intent Deep Link
+        const intentRes = await customerService.createEsewaIntentBooking(activeBookingId);
+        
+        if (intentRes.success && intentRes.data) {
+          const { deeplink, booking_id, correlation_id } = intentRes.data;
+          console.log('eSewa Intent Booking created (Android):', { booking_id, correlation_id, deeplink });
+          setEsewaIntentData({ booking_id, correlation_id, deeplink });
+          setPaymentState('idle');
+          setIsWaitingForEsewaReturn(true);
+
+          if (deeplink) {
+            const canOpen = await Linking.canOpenURL(deeplink).catch(() => false);
+            if (canOpen) {
+              await Linking.openURL(deeplink).catch((err) => {
+                console.log('Error opening eSewa deeplink:', err);
+              });
+            } else {
+              Linking.openURL(deeplink).catch(() => {
+                console.log('Deeplink cannot be opened directly. Waiting for manual user confirmation/simulation.');
+              });
+            }
+          }
+        } else {
+          setPaymentState('failed');
+          setErrorMessage(intentRes.message || 'Failed to initialize eSewa Intent payment.');
+        }
       }
     } catch (err) {
       console.log('eSewa initialization error:', err);
@@ -945,6 +1043,47 @@ const PaymentScreen = ({ route, navigation }) => {
         ))}
 
           <>
+            {/* eSewa Mobile Intent Active Card (Android) */}
+            {Platform.OS !== 'web' && isWaitingForEsewaReturn && esewaIntentData && (
+              <View style={styles.intentStatusCard}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                  <Ionicons name="phone-portrait" size={22} color="#15803d" />
+                  <Text style={styles.intentStatusTitle}>eSewa App Checkout Active</Text>
+                </View>
+                <Text style={styles.intentStatusSub}>
+                  eSewa payment request initialized. Complete the payment in the eSewa app. Once verified, your booking will be confirmed automatically.
+                </Text>
+                <View style={styles.intentActionsRow}>
+                  <TouchableOpacity
+                    style={styles.intentReopenBtn}
+                    onPress={() => {
+                      if (esewaIntentData?.deeplink) {
+                        Linking.openURL(esewaIntentData.deeplink).catch(() => {
+                          Alert.alert('eSewa App Notice', 'Could not open eSewa app. Ensure eSewa is installed.');
+                        });
+                      }
+                    }}
+                  >
+                    <Ionicons name="open-outline" size={16} color="#15803d" />
+                    <Text style={styles.intentReopenText}>Re-open eSewa</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.intentVerifyBtn}
+                    onPress={() => verifyIntentPayment(false)}
+                  >
+                    <Ionicons name="refresh" size={16} color="#ffffff" />
+                    <Text style={styles.intentVerifyText}>Verify Status</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  style={styles.intentSimulateBtn}
+                  onPress={() => verifyIntentPayment(true)}
+                >
+                  <Text style={styles.intentSimulateText}>⚡ Verify Test Authorization (UAT Simulation)</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* Instructions / Guarantee Box */}
             <View style={styles.offlineGuideBox}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
@@ -977,14 +1116,18 @@ const PaymentScreen = ({ route, navigation }) => {
             isOfflineSelected 
               ? `Confirm Booking (Offline Cash - ₹${finalPayable})`
               : selectedMethod === 'ESEWA'
-                ? `Continue with eSewa - ₹${finalPayable}`
+                ? isWaitingForEsewaReturn && Platform.OS !== 'web'
+                  ? `Verify eSewa Payment - ₹${finalPayable}`
+                  : `Continue with eSewa - ₹${finalPayable}`
                 : `Pay with Razorpay - ₹${finalPayable}`
           }
           onPress={
             isOfflineSelected 
               ? handleConfirmOfflineCash
               : selectedMethod === 'ESEWA'
-                ? handleEsewaSelected
+                ? isWaitingForEsewaReturn && Platform.OS !== 'web'
+                  ? () => verifyIntentPayment(false)
+                  : handleEsewaSelected
                 : handleInitiateRazorpay
           }
           style={{ backgroundColor: selectedMethod === 'ESEWA' ? '#60BB46' : '#059669' }}
@@ -1033,89 +1176,54 @@ const PaymentScreen = ({ route, navigation }) => {
         </View>
       </Modal>
 
-      {/* eSewa Checkout Modal */}
-      <Modal
-        visible={showEsewaModal}
-        animationType="slide"
-        onRequestClose={() => setShowEsewaModal(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Ionicons name="wallet" size={20} color="#ffffff" />
-              <Text style={styles.modalTitle}>eSewa Payment Checkout</Text>
+      {/* eSewa Web Checkout Modal (Web Only - HTML POST Form) */}
+      {Platform.OS === 'web' && (
+        <Modal
+          visible={showEsewaModal}
+          animationType="slide"
+          onRequestClose={() => setShowEsewaModal(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="wallet" size={20} color="#ffffff" />
+                <Text style={styles.modalTitle}>eSewa Payment Checkout</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowEsewaModal(false);
+                  setPaymentState('failed');
+                  setErrorMessage('Payment cancelled by user');
+                }}
+                style={styles.modalCloseBtn}
+              >
+                <Ionicons name="close" size={22} color="#ffffff" />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              onPress={() => {
-                setShowEsewaModal(false);
-                setPaymentState('failed');
-                setErrorMessage('Payment cancelled by user');
-              }}
-              style={styles.modalCloseBtn}
-            >
-              <Ionicons name="close" size={22} color="#ffffff" />
-            </TouchableOpacity>
-          </View>
 
-          {Platform.OS === 'web' ? (
-                esewaOrder && (
-                  <form
-                    ref={formRef}
-                    action="https://rc-epay.esewa.com.np/api/epay/main/v2/form"
-                    method="POST"
-                    target="_self"
-                  >
-                    <input type="hidden" name="amount" value={esewaOrder.amount} />
-                    <input type="hidden" name="tax_amount" value={esewaOrder.tax_amount} />
-                    <input type="hidden" name="total_amount" value={esewaOrder.total_amount} />
-                    <input type="hidden" name="transaction_uuid" value={esewaOrder.transaction_uuid} />
-                    <input type="hidden" name="product_code" value={esewaOrder.product_code} />
-                    <input type="hidden" name="product_service_charge" value={esewaOrder.product_service_charge} />
-                    <input type="hidden" name="product_delivery_charge" value={esewaOrder.product_delivery_charge} />
-                    <input type="hidden" name="success_url" value={esewaOrder.success_url} />
-                    <input type="hidden" name="failure_url" value={esewaOrder.failure_url} />
-                    <input type="hidden" name="signed_field_names" value={esewaOrder.signed_field_names} />
-                    <input type="hidden" name="signature" value={esewaOrder.signature} />
-                  </form>
-                )
-              ) : (
-                <WebView
-                  originWhitelist={['*']}
-                  source={esewaOrder ? { html: getEsewaHtml(), baseUrl: 'https://rc-epay.esewa.com.np' } : { uri: 'about:blank' }}
-                  onNavigationStateChange={(navState) => {
-                    console.log('WebView NavigationStateChange:', navState.url);
-                    handleEsewaNavigation(navState);
-                  }}
-                  onLoadStart={(syntheticEvent) => {
-                    const { nativeEvent } = syntheticEvent;
-                    console.log('WebView LoadStart:', nativeEvent.url);
-                  }}
-                  onLoadEnd={(syntheticEvent) => {
-                    const { nativeEvent } = syntheticEvent;
-                    console.log('WebView LoadEnd:', nativeEvent.url, 'Loading:', nativeEvent.loading);
-                  }}
-                  onError={(syntheticEvent) => {
-                    const { nativeEvent } = syntheticEvent;
-                    console.log('WebView Error:', nativeEvent.description, 'Code:', nativeEvent.code);
-                  }}
-                  onHttpError={(syntheticEvent) => {
-                    const { nativeEvent } = syntheticEvent;
-                    console.log('WebView HTTP Error Status:', nativeEvent.statusCode, 'URL:', nativeEvent.url);
-                  }}
-                  javaScriptEnabled={true}
-                  domStorageEnabled={true}
-                  style={styles.webview}
-                  startInLoadingState={true}
-                  renderLoading={() => (
-                    <View style={styles.webviewLoading}>
-                      <ActivityIndicator size="large" color="#60BB46" />
-                      <Text style={styles.webviewLoadingText}>Loading eSewa Gateway...</Text>
-                    </View>
-                  )}
-                />
-              )}
-        </View>
-      </Modal>
+            {esewaOrder && (
+              <form
+                ref={formRef}
+                action="https://rc-epay.esewa.com.np/api/epay/main/v2/form"
+                method="POST"
+                target="_self"
+              >
+                <input type="hidden" name="amount" value={esewaOrder.amount} />
+                <input type="hidden" name="tax_amount" value={esewaOrder.tax_amount} />
+                <input type="hidden" name="total_amount" value={esewaOrder.total_amount} />
+                <input type="hidden" name="transaction_uuid" value={esewaOrder.transaction_uuid} />
+                <input type="hidden" name="product_code" value={esewaOrder.product_code} />
+                <input type="hidden" name="product_service_charge" value={esewaOrder.product_service_charge} />
+                <input type="hidden" name="product_delivery_charge" value={esewaOrder.product_delivery_charge} />
+                <input type="hidden" name="success_url" value={esewaOrder.success_url} />
+                <input type="hidden" name="failure_url" value={esewaOrder.failure_url} />
+                <input type="hidden" name="signed_field_names" value={esewaOrder.signed_field_names} />
+                <input type="hidden" name="signature" value={esewaOrder.signature} />
+              </form>
+            )}
+          </View>
+        </Modal>
+      )}
     </View>
   );
 };
@@ -1539,6 +1647,76 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     marginTop: 12,
     fontSize: 13
+  },
+  intentStatusCard: {
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1.5,
+    borderColor: '#86efac',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 16
+  },
+  intentStatusTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#15803d'
+  },
+  intentStatusSub: {
+    fontSize: 12,
+    color: '#166534',
+    lineHeight: 18,
+    marginBottom: 12
+  },
+  intentActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 8
+  },
+  intentReopenBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    backgroundColor: '#ffffff',
+    borderWidth: 1.5,
+    borderColor: '#86efac',
+    borderRadius: 8
+  },
+  intentReopenText: {
+    color: '#15803d',
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  intentVerifyBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    backgroundColor: '#16a34a',
+    borderRadius: 8
+  },
+  intentVerifyText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  intentSimulateBtn: {
+    paddingVertical: 9,
+    alignItems: 'center',
+    borderRadius: 8,
+    backgroundColor: '#dcfce7',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    marginTop: 4
+  },
+  intentSimulateText: {
+    color: '#166534',
+    fontSize: 11,
+    fontWeight: '700'
   }
 });
 

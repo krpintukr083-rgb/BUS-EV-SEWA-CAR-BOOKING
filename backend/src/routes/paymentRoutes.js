@@ -26,9 +26,18 @@ router.post('/razorpay/verify-payment', verifyRazorpayPayment);
 router.post('/razorpay/record-failure', recordRazorpayFailure);
 
 // eSewa Epay V2 Pipeline
-const { createEsewaOrder, verifyEsewaPayment } = require('../controllers/paymentController');
+const {
+  createEsewaOrder,
+  verifyEsewaPayment,
+  createEsewaIntentBooking,
+  checkEsewaIntentStatus
+} = require('../controllers/paymentController');
 router.post('/esewa/create-order', createEsewaOrder);
 router.post('/esewa/verify-payment', verifyEsewaPayment);
+
+// eSewa Mobile Intent Pipeline (Android)
+router.post('/esewa/intent/book', createEsewaIntentBooking);
+router.post('/esewa/intent/status', checkEsewaIntentStatus);
 
 // Backward-compatible Sandbox Pipeline
 router.post('/create', createPayment);
