@@ -54,6 +54,7 @@ export default function AppNavigator() {
           <Stack.Screen name="MainTabs" component={TabNavigator} />
           <Stack.Screen name="ActiveRide" component={ActiveRideScreen} />
           <Stack.Screen name="BusConfirmation" component={BusConfirmationScreen} />
+          <Stack.Screen name="CompleteRide" component={BusConfirmationScreen} />
           <Stack.Screen name="Earnings" component={EarningsScreen} />
           <Stack.Screen name="DriverKYC" component={DriverKYCScreen} />
           <Stack.Screen name="VehicleDetails" component={VehicleDetailsScreen} />

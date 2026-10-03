@@ -22,7 +22,13 @@ const findBookingById = (bookings, bookingId) => {
 
 const getConfirmationBookings = (bookings, acceptedBookingId, passedBooking) => {
   if (acceptedBookingId) {
-    const exactBooking = findBookingById(bookings, acceptedBookingId);
+    const exactBooking =
+      findBookingById(bookings, acceptedBookingId) ||
+      (passedBooking &&
+      (String(passedBooking._id || '') === String(acceptedBookingId) ||
+        String(passedBooking.bookingId || '') === String(acceptedBookingId))
+        ? passedBooking
+        : null);
     return {
       bookings: exactBooking ? [exactBooking] : [],
       notFound: !exactBooking

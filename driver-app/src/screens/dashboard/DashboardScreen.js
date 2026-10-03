@@ -240,7 +240,12 @@ const DashboardScreen = ({ navigation }) => {
         {activeTrip ? (
           <TouchableOpacity
             style={styles.activeTripCard}
-            onPress={() => navigation.navigate('ActiveRide', { bookingId: activeTrip._id || activeTrip.bookingId })}
+            onPress={() => navigation.navigate('BusConfirmation', {
+              bookingId: activeTrip._id || activeTrip.bookingId,
+              acceptedBookingId: activeTrip._id || activeTrip.bookingId,
+              highlightBookingId: activeTrip._id || activeTrip.bookingId,
+              booking: activeTrip
+            })}
             activeOpacity={0.8}
           >
             <View style={styles.activeTripHeader}>
