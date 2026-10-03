@@ -597,6 +597,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: COLORS.textPrimary,
     marginTop: 2
+  },
   activeTripDetails: {
     gap: 4,
     marginVertical: SPACING.sm,
