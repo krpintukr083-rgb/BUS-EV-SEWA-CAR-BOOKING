@@ -496,7 +496,178 @@ exports.razorpayWebhook = async (req, res, next) => {
     next(error);
   }
 };
+// ==========================================
+// 2. ESEWA EPAY V2 INTEGRATION
+// ==========================================
 
+// @desc    Create eSewa Order and generate signature
+// @route   POST /api/payments/esewa/create-order
+// @access  Private (Customer)
+exports.createEsewaOrder = async (req, res, next) => {
+  try {
+    const { bookingId } = req.body;
+
+    if (!bookingId) {
+      return res.status(400).json({ success: false, message: 'Missing bookingId' });
+    }
+
+    const booking = await Booking.findOne(getBookingQuery(bookingId));
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+
+    if (booking.bookingStatus === 'Confirmed' && booking.paymentStatus === 'Successful') {
+      return res.status(400).json({ success: false, message: 'Booking already paid' });
+    }
+
+    booking.paymentMethod = 'ESEWA';
+    await booking.save();
+
+    const amount = booking.fare;
+    const tax_amount = 0;
+    const product_delivery_charge = 0;
+    const product_service_charge = 0;
+    const total_amount = amount + tax_amount + product_delivery_charge + product_service_charge;
+    
+    const transaction_uuid = `esewa_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+
+    const product_code = process.env.ESEWA_PRODUCT_CODE || 'EPAYTEST';
+    const secret_key = process.env.ESEWA_SECRET_KEY || '8gBm/:&EnhH.1/q';
+    
+    const message = `total_amount=${total_amount},transaction_uuid=${transaction_uuid},product_code=${product_code}`;
+    const signature = crypto.createHmac('sha256', secret_key).update(message).digest('base64');
+
+    const success_url = process.env.ESEWA_SUCCESS_URL || 'https://example.com/success';
+    const failure_url = process.env.ESEWA_FAILURE_URL || 'https://example.com/failure';
+
+    let payment = await Payment.findOne({ booking: booking._id });
+    if (!payment) {
+      payment = await Payment.create({
+        booking: booking._id,
+        bookingId: booking.bookingId,
+        customer: { name: booking.customer.name, phone: booking.customer.phone },
+        driver: booking.driver || null,
+        bookingAmount: booking.fare,
+        driverPayment: booking.driverPaymentAmount || Math.round(booking.fare * 0.8),
+        paymentMethod: 'ESEWA',
+        paymentStatus: 'Pending',
+        transactionReference: transaction_uuid,
+        transactionUuid: transaction_uuid,
+        paymentGateway: 'eSewa'
+      });
+    } else {
+      payment.paymentMethod = 'ESEWA';
+      payment.paymentStatus = 'Pending';
+      payment.transactionReference = transaction_uuid;
+      payment.transactionUuid = transaction_uuid;
+      payment.paymentGateway = 'eSewa';
+      await payment.save();
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        amount,
+        tax_amount,
+        total_amount,
+        transaction_uuid,
+        product_code,
+        product_service_charge,
+        product_delivery_charge,
+        success_url,
+        failure_url,
+        signed_field_names: "total_amount,transaction_uuid,product_code",
+        signature,
+        paymentUrl: process.env.ESEWA_BASE_URL || 'https://rc-epay.esewa.com.np/api/epay/main/v2/form'
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Verify eSewa Transaction
+// @route   POST /api/payments/esewa/verify-payment
+// @access  Private (Customer)
+exports.verifyEsewaPayment = async (req, res, next) => {
+  try {
+    const { data } = req.body;
+    if (!data) {
+      return res.status(400).json({ success: false, message: 'Missing payment data' });
+    }
+
+    let decodedData;
+    try {
+      decodedData = JSON.parse(Buffer.from(data, 'base64').toString('utf-8'));
+    } catch(err) {
+      return res.status(400).json({ success: false, message: 'Invalid payment data format' });
+    }
+    
+    const { transaction_code, status, total_amount, transaction_uuid, product_code, signed_field_names, signature } = decodedData;
+
+    if (status !== 'COMPLETE') {
+      return res.status(400).json({ success: false, message: 'Payment not completed', status });
+    }
+
+    const payment = await Payment.findOne({ transactionUuid: transaction_uuid });
+    if (!payment) {
+      return res.status(404).json({ success: false, message: 'Payment record not found' });
+    }
+
+    const booking = await Booking.findById(payment.booking);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+
+    if (payment.paymentStatus === 'Paid' || payment.paymentStatus === 'Successful') {
+      return res.status(200).json({ success: true, message: 'Payment already verified', data: { booking, payment } });
+    }
+
+    const secret_key = process.env.ESEWA_SECRET_KEY || '8gBm/:&EnhH.1/q';
+    
+    const message = `transaction_code=${transaction_code},status=${status},total_amount=${total_amount},transaction_uuid=${transaction_uuid},product_code=${product_code},signed_field_names=${signed_field_names}`;
+    const generatedSignature = crypto.createHmac('sha256', secret_key).update(message).digest('base64');
+    
+    if (signature !== generatedSignature) {
+      return res.status(400).json({ success: false, message: 'Invalid payment signature' });
+    }
+
+    payment.paymentStatus = 'Paid';
+    payment.gatewayTransactionId = transaction_code;
+    payment.paymentTimestamp = new Date();
+    await payment.save();
+
+    booking.paymentStatus = 'Paid';
+    const isBus = booking.serviceType === 'Bus';
+    if (isBus) {
+      if (booking.driverConfirmationStatus === 'Confirmed') {
+        booking.bookingStatus = 'Confirmed';
+        booking.driverConfirmed = true;
+      } else {
+        booking.bookingStatus = 'Pending Driver Confirmation';
+        booking.driverConfirmed = false;
+      }
+    } else {
+      booking.bookingStatus = 'Confirmed';
+      booking.driverConfirmationStatus = 'Confirmed';
+      booking.driverConfirmed = true;
+    }
+    await booking.save();
+    
+    await Notification.create({
+      title: 'Booking Confirmed!',
+      message: 'Your eSewa payment has been verified.',
+      recipient: `Customer: ${booking.customer.name}`,
+      recipientRole: 'customer',
+      recipientId: req.user ? req.user._id : null,
+      status: 'Unread'
+    });
+
+    res.status(200).json({ success: true, message: 'eSewa payment verified', data: { booking, payment, transactionId: transaction_code } });
+  } catch (error) {
+    next(error);
+  }
+};
 // ==========================================
 // 2. BACKWARD COMPATIBLE SANDBOX CONTROLLERS
 // ==========================================
@@ -517,6 +688,11 @@ exports.createPayment = async (req, res, next) => {
       });
     }
 
+    if (paymentMethod) {
+      booking.paymentMethod = paymentMethod;
+      await booking.save();
+    }
+
     const transactionReference = `TXN-IND-${Date.now().toString().slice(-6)}${Math.floor(100 + Math.random() * 900)}`;
 
     let payment = await Payment.findOne({ booking: booking._id });
@@ -531,9 +707,13 @@ exports.createPayment = async (req, res, next) => {
         driver: booking.driver || null,
         bookingAmount: booking.fare,
         driverPayment: booking.driverPaymentAmount || Math.round(booking.fare * 0.8),
+        paymentMethod: paymentMethod || 'Online Razorpay',
         paymentStatus: 'Pending',
         transactionReference
       });
+    } else if (paymentMethod) {
+      payment.paymentMethod = paymentMethod;
+      await payment.save();
     }
 
     res.status(201).json({

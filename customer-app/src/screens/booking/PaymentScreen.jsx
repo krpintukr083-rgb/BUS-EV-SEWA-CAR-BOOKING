@@ -29,6 +29,8 @@ const PaymentScreen = ({ route, navigation }) => {
   const [errorMessage, setErrorMessage] = useState('');
   const [razorpayOrder, setRazorpayOrder] = useState(null);
   const [showRazorpayModal, setShowRazorpayModal] = useState(false);
+  const [esewaOrder, setEsewaOrder] = useState(null);
+  const [showEsewaModal, setShowEsewaModal] = useState(false);
 
   const paymentOptions = [
     {
@@ -41,31 +43,13 @@ const PaymentScreen = ({ route, navigation }) => {
       isUpcoming: false
     },
     {
-      id: 'Razorpay_UPI',
-      title: 'UPI / QR Payment',
-      subtitle: 'Google Pay, PhonePe, Paytm, BHIM UPI',
-      icon: 'phone-portrait-outline',
-      color: '#64748b',
+      id: 'ESEWA',
+      title: 'eSewa',
+      subtitle: 'Pay securely using eSewa',
+      icon: 'wallet-outline',
+      color: '#60BB46',
       isOffline: false,
-      isUpcoming: true
-    },
-    {
-      id: 'Razorpay_Card',
-      title: 'Credit / Debit Card',
-      subtitle: 'Visa, MasterCard, RuPay, Maestro',
-      icon: 'card-outline',
-      color: '#64748b',
-      isOffline: false,
-      isUpcoming: true
-    },
-    {
-      id: 'Razorpay_NetBanking',
-      title: 'Net Banking',
-      subtitle: 'SBI, HDFC, ICICI, Axis & 50+ Banks',
-      icon: 'business-outline',
-      color: '#64748b',
-      isOffline: false,
-      isUpcoming: true
+      isUpcoming: false
     }
   ];
   const visiblePaymentOptions = paymentOptions;
@@ -156,6 +140,34 @@ const PaymentScreen = ({ route, navigation }) => {
     } catch (err) {
       setPaymentState('failed');
       setErrorMessage(err.response?.data?.message || err.message || 'Simulation error');
+    }
+  };
+
+  // eSewa Selection Handler
+  const handleEsewaSelected = async () => {
+    setPaymentState('processing');
+    setErrorMessage('');
+    
+    try {
+      const activeBookingId = bookingId || bookingCode || bookingDraft.confirmedBooking?._id || bookingDraft.confirmedBooking?.bookingId;
+      if (!activeBookingId) {
+        throw new Error('No active booking ID found to initialize eSewa.');
+      }
+
+      const orderRes = await customerService.createEsewaOrder(activeBookingId);
+      
+      if (orderRes.success && orderRes.data) {
+        setEsewaOrder(orderRes.data);
+        setPaymentState('idle');
+        setShowEsewaModal(true);
+      } else {
+        setPaymentState('failed');
+        setErrorMessage(orderRes.message || 'Failed to create eSewa order.');
+      }
+    } catch (err) {
+      console.log('eSewa initialization error:', err);
+      setPaymentState('failed');
+      setErrorMessage(err.response?.data?.message || err.message || 'Error connecting to payment provider.');
     }
   };
 
@@ -263,6 +275,71 @@ const PaymentScreen = ({ route, navigation }) => {
       setPaymentState('failed');
       setErrorMessage(err.response?.data?.message || err.message || 'Unexpected response during payment processing.');
     }
+  };
+
+  // Process Return from eSewa WebView
+  const handleEsewaNavigation = async (navState) => {
+    const { url } = navState;
+    if (esewaOrder && url.startsWith(esewaOrder.success_url)) {
+      setShowEsewaModal(false);
+      setPaymentState('processing');
+      
+      const dataMatch = url.match(/data=([^&]+)/);
+      const data = dataMatch ? decodeURIComponent(dataMatch[1]) : '';
+      
+      try {
+        const verifyRes = await customerService.verifyEsewaPayment(data);
+        if (verifyRes.success && verifyRes.data) {
+          setTransactionId(verifyRes.data.transactionId);
+          setPaymentState('success');
+          updateDraft({ confirmedBooking: verifyRes.data.booking });
+          setTimeout(() => {
+            navigation.replace('BookingConfirmation', {
+              booking: verifyRes.data.booking,
+              payment: verifyRes.data.payment
+            });
+          }, 1200);
+        } else {
+          setPaymentState('failed');
+          setErrorMessage(verifyRes.message || 'eSewa payment verification failed');
+        }
+      } catch (err) {
+        setPaymentState('failed');
+        setErrorMessage(err.response?.data?.message || err.message || 'Verification error');
+      }
+    } else if (esewaOrder && url.startsWith(esewaOrder.failure_url)) {
+      setShowEsewaModal(false);
+      setPaymentState('failed');
+      setErrorMessage('eSewa payment was cancelled or failed.');
+    }
+  };
+
+  // HTML content for eSewa Form Auto-Submit
+  const getEsewaHtml = () => {
+    if (!esewaOrder) return '';
+    return `
+      <!DOCTYPE html>
+      <html>
+      <body onload="document.getElementById('esewaForm').submit();">
+        <form id="esewaForm" action="${esewaOrder.paymentUrl}" method="POST">
+          <input type="hidden" name="amount" value="${esewaOrder.amount}" required>
+          <input type="hidden" name="tax_amount" value="${esewaOrder.tax_amount}" required>
+          <input type="hidden" name="total_amount" value="${esewaOrder.total_amount}" required>
+          <input type="hidden" name="transaction_uuid" value="${esewaOrder.transaction_uuid}" required>
+          <input type="hidden" name="product_code" value="${esewaOrder.product_code}" required>
+          <input type="hidden" name="product_service_charge" value="${esewaOrder.product_service_charge}" required>
+          <input type="hidden" name="product_delivery_charge" value="${esewaOrder.product_delivery_charge}" required>
+          <input type="hidden" name="success_url" value="${esewaOrder.success_url}" required>
+          <input type="hidden" name="failure_url" value="${esewaOrder.failure_url}" required>
+          <input type="hidden" name="signed_field_names" value="${esewaOrder.signed_field_names}" required>
+          <input type="hidden" name="signature" value="${esewaOrder.signature}" required>
+        </form>
+        <div style="display:flex; justify-content:center; align-items:center; height:100vh; font-family: sans-serif;">
+          <h3 style="color: #60BB46;">Connecting to eSewa...</h3>
+        </div>
+      </body>
+      </html>
+    `;
   };
 
   // HTML content for Razorpay Embedded Checkout WebView
@@ -791,6 +868,10 @@ const PaymentScreen = ({ route, navigation }) => {
                     <Ionicons name="time-outline" size={10} color="#b45309" />
                     <Text style={styles.upcomingBadgeText}>UPCOMING</Text>
                   </View>
+                ) : option.id === 'ESEWA' ? (
+                  <View style={styles.cashBadge}>
+                    <Text style={styles.cashBadgeText}>ESEWA UAT TEST</Text>
+                  </View>
                 ) : (
                   <View style={styles.cashBadge}>
                     <Text style={styles.cashBadgeText}>RAZORPAY TEST</Text>
@@ -838,9 +919,21 @@ const PaymentScreen = ({ route, navigation }) => {
 
       <View style={styles.footer}>
         <Button
-          title={`Confirm Booking (Offline Cash - ₹${finalPayable})`}
-          onPress={handleConfirmOfflineCash}
-          style={{ backgroundColor: '#059669' }}
+          title={
+            isOfflineSelected 
+              ? `Confirm Booking (Offline Cash - ₹${finalPayable})`
+              : selectedMethod === 'ESEWA'
+                ? `Continue with eSewa - ₹${finalPayable}`
+                : `Pay with Razorpay - ₹${finalPayable}`
+          }
+          onPress={
+            isOfflineSelected 
+              ? handleConfirmOfflineCash
+              : selectedMethod === 'ESEWA'
+                ? handleEsewaSelected
+                : handleInitiateRazorpay
+          }
+          style={{ backgroundColor: selectedMethod === 'ESEWA' ? '#60BB46' : '#059669' }}
         />
       </View>
 
@@ -870,7 +963,7 @@ const PaymentScreen = ({ route, navigation }) => {
 
           <WebView
             originWhitelist={['*']}
-            source={{ html: getRazorpayHtml() }}
+            source={razorpayOrder ? { html: getRazorpayHtml() } : { uri: 'about:blank' }}
             onMessage={handleWebViewMessage}
             javaScriptEnabled={true}
             domStorageEnabled={true}
@@ -880,6 +973,48 @@ const PaymentScreen = ({ route, navigation }) => {
               <View style={styles.webviewLoading}>
                 <ActivityIndicator size="large" color={COLORS.primary} />
                 <Text style={styles.webviewLoadingText}>Loading Razorpay Gateway...</Text>
+              </View>
+            )}
+          />
+        </View>
+      </Modal>
+
+      {/* eSewa Checkout Modal */}
+      <Modal
+        visible={showEsewaModal}
+        animationType="slide"
+        onRequestClose={() => setShowEsewaModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="wallet" size={20} color="#ffffff" />
+              <Text style={styles.modalTitle}>eSewa Payment Checkout</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => {
+                setShowEsewaModal(false);
+                setPaymentState('failed');
+                setErrorMessage('Payment cancelled by user');
+              }}
+              style={styles.modalCloseBtn}
+            >
+              <Ionicons name="close" size={22} color="#ffffff" />
+            </TouchableOpacity>
+          </View>
+
+          <WebView
+            originWhitelist={['*']}
+            source={esewaOrder ? { html: getEsewaHtml() } : { uri: 'about:blank' }}
+            onNavigationStateChange={handleEsewaNavigation}
+            javaScriptEnabled={true}
+            domStorageEnabled={true}
+            style={styles.webview}
+            startInLoadingState={true}
+            renderLoading={() => (
+              <View style={styles.webviewLoading}>
+                <ActivityIndicator size="large" color="#60BB46" />
+                <Text style={styles.webviewLoadingText}>Loading eSewa Gateway...</Text>
               </View>
             )}
           />

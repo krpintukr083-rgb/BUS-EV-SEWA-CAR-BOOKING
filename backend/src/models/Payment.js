@@ -54,6 +54,14 @@ const paymentSchema = new mongoose.Schema(
       type: String,
       required: true
     },
+    transactionUuid: {
+      type: String,
+      default: ''
+    },
+    gatewayTransactionId: {
+      type: String,
+      default: ''
+    },
     razorpayOrderId: {
       type: String,
       default: ''

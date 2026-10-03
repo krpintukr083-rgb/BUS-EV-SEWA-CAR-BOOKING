@@ -208,6 +208,17 @@ export const customerService = {
     return res.data;
   },
 
+  // eSewa Epay V2 Pipeline
+  createEsewaOrder: async (bookingId) => {
+    const res = await api.post('/payments/esewa/create-order', { bookingId });
+    return res.data;
+  },
+
+  verifyEsewaPayment: async (data) => {
+    const res = await api.post('/payments/esewa/verify-payment', { data });
+    return res.data;
+  },
+
   // Payment Test Sandbox (Backward Compatibility)
   createPaymentSession: async (bookingId, paymentMethod) => {
     const res = await api.post('/payments/create', { bookingId, paymentMethod });
