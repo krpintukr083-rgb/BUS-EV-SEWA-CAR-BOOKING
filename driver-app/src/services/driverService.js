@@ -63,18 +63,79 @@ export const driverService = {
   getActiveBookings: () => apiClient.get('/driver/active-bookings', { params: { _t: Date.now() } }),
   // Legacy alias — kept for backwards compat but now points to active-bookings
   getAssignedBookings: () => apiClient.get('/driver/active-bookings', { params: { _t: Date.now() } }),
+  getActiveRide: async () => {
+    try {
+      const res = await apiClient.get(ENDPOINTS.DASHBOARD);
+      const activeRide = res.data?.data?.activeRide || null;
+      return {
+        success: Boolean(activeRide),
+        data: activeRide
+      };
+    } catch (e) {
+      return { success: false, data: null };
+    }
+  },
+  getBookingDetails: async (bookingId) => {
+    try {
+      if (!bookingId) {
+        return driverService.getActiveRide();
+      }
+      const dashRes = await apiClient.get(ENDPOINTS.DASHBOARD);
+      const activeRide = dashRes.data?.data?.activeRide;
+      if (
+        activeRide &&
+        (String(activeRide._id) === String(bookingId) ||
+         String(activeRide.bookingId) === String(bookingId) ||
+         String(activeRide.id) === String(bookingId))
+      ) {
+        return { success: true, data: activeRide };
+      }
+      const activeRes = await apiClient.get('/driver/active-bookings', { params: { _t: Date.now() } });
+      const bookings = activeRes.data?.data || [];
+      const match = bookings.find(
+        (b) =>
+          String(b._id) === String(bookingId) ||
+          String(b.bookingId) === String(bookingId) ||
+          String(b.id) === String(bookingId)
+      );
+      if (match) {
+        return { success: true, data: match };
+      }
+      if (activeRide) {
+        return { success: true, data: activeRide };
+      }
+      return { success: false, data: null };
+    } catch (e) {
+      return { success: false, data: null };
+    }
+  },
   acceptRide: (id) => apiClient.post(`/driver/booking-requests/${id}/accept`),
   rejectRide: (id, reason) => apiClient.post(`/driver/booking-requests/${id}/reject`, { reason }),
   // Bus-specific aliases used by BusConfirmationScreen
   confirmBusBooking: (id) => apiClient.post(`/driver/booking-requests/${id}/accept`),
   rejectBusBooking: (id, reason) => apiClient.post(`/driver/booking-requests/${id}/reject`, { reason }),
   arriveAtPickup: (id) => apiClient.post(`/driver/rides/${id}/arrived`),
+  updateRideStatus: async (id, status) => {
+    if (status === 'Driver Arrived' || status === 'ARRIVED') {
+      const res = await apiClient.post(`/driver/rides/${id}/arrived`);
+      return res.data || { success: true };
+    }
+    const res = await apiClient.post(`/driver/rides/${id}/start`);
+    return res.data || { success: true };
+  },
   verifyOtp: (id, otp) => apiClient.post(`/driver/rides/${id}/verify-otp`, { otp }),
   verifyBookingOtp: (id, otp) => apiClient.post(`/driver/bookings/${id}/verify-otp`, { otp }),
+  verifyRideOTP: async (id, otp) => {
+    const res = await apiClient.post(`/driver/rides/${id}/verify-otp`, { otp });
+    return res.data || { success: true };
+  },
   startRide: (id) => apiClient.post(`/driver/rides/${id}/start`),
   endRide: (id, tripDetails) => apiClient.post(`/driver/rides/${id}/end`, tripDetails),
   completeRide: (id, tripDetails) => apiClient.post(`/driver/rides/${id}/complete`, tripDetails),
-  reachDestination: (id, tripDetails) => apiClient.post(`/driver/rides/${id}/complete`, tripDetails),
+  reachDestination: async (id, tripDetails) => {
+    const res = await apiClient.post(`/driver/rides/${id}/complete`, tripDetails);
+    return res.data || { success: true };
+  },
   cancelRide: (id, reason) => apiClient.post(`/driver/rides/${id}/cancel`, { reason }),
 
   // Cash Collection
