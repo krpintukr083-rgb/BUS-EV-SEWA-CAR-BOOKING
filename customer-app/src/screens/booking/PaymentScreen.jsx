@@ -328,23 +328,41 @@ const PaymentScreen = ({ route, navigation }) => {
     const html = `
       <!DOCTYPE html>
       <html>
-      <body onload="document.getElementById('esewaForm').submit();">
-        <form id="esewaForm" action="${esewaOrder.paymentUrl}" method="POST">
-          <input type="hidden" name="amount" value="${esewaOrder.amount}" required>
-          <input type="hidden" name="tax_amount" value="${esewaOrder.tax_amount}" required>
-          <input type="hidden" name="total_amount" value="${esewaOrder.total_amount}" required>
-          <input type="hidden" name="transaction_uuid" value="${esewaOrder.transaction_uuid}" required>
-          <input type="hidden" name="product_code" value="${esewaOrder.product_code}" required>
-          <input type="hidden" name="product_service_charge" value="${esewaOrder.product_service_charge}" required>
-          <input type="hidden" name="product_delivery_charge" value="${esewaOrder.product_delivery_charge}" required>
-          <input type="hidden" name="success_url" value="${esewaOrder.success_url}" required>
-          <input type="hidden" name="failure_url" value="${esewaOrder.failure_url}" required>
-          <input type="hidden" name="signed_field_names" value="${esewaOrder.signed_field_names}" required>
-          <input type="hidden" name="signature" value="${esewaOrder.signature}" required>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>eSewa Payment</title>
+      </head>
+      <body>
+        <form id="esewaForm" action="${esewaOrder.paymentUrl}" method="POST" enctype="application/x-www-form-urlencoded">
+          <input type="hidden" name="amount" value="${esewaOrder.amount}">
+          <input type="hidden" name="tax_amount" value="${esewaOrder.tax_amount}">
+          <input type="hidden" name="total_amount" value="${esewaOrder.total_amount}">
+          <input type="hidden" name="transaction_uuid" value="${esewaOrder.transaction_uuid}">
+          <input type="hidden" name="product_code" value="${esewaOrder.product_code}">
+          <input type="hidden" name="product_service_charge" value="${esewaOrder.product_service_charge}">
+          <input type="hidden" name="product_delivery_charge" value="${esewaOrder.product_delivery_charge}">
+          <input type="hidden" name="success_url" value="${esewaOrder.success_url}">
+          <input type="hidden" name="failure_url" value="${esewaOrder.failure_url}">
+          <input type="hidden" name="signed_field_names" value="${esewaOrder.signed_field_names}">
+          <input type="hidden" name="signature" value="${esewaOrder.signature}">
+          <noscript>
+            <div style="text-align:center; margin-top:50px;">
+              <p>JavaScript is disabled. Please click the button below to proceed.</p>
+              <button type="submit" style="padding:10px 20px; background:#60BB46; color:white; border:none; border-radius:5px;">Proceed to eSewa</button>
+            </div>
+          </noscript>
         </form>
-        <div style="display:flex; justify-content:center; align-items:center; height:100vh; font-family: sans-serif;">
-          <h3 style="color: #60BB46;">Connecting to eSewa...</h3>
+        <div style="display:flex; justify-content:center; align-items:center; height:100vh; font-family: sans-serif; text-align: center;">
+          <h3 style="color: #60BB46;">Connecting to eSewa Secure Payment...</h3>
+          <p>Please wait...</p>
         </div>
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              document.getElementById('esewaForm').submit();
+            }, 200);
+          };
+        </script>
       </body>
       </html>
     `;
