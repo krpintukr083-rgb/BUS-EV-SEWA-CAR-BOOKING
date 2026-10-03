@@ -540,6 +540,24 @@ exports.createEsewaOrder = async (req, res, next) => {
     const success_url = process.env.ESEWA_SUCCESS_URL || 'https://example.com/success';
     const failure_url = process.env.ESEWA_FAILURE_URL || 'https://example.com/failure';
 
+    console.log('=== ESEWA DIAGNOSTICS - BACKEND ===');
+    console.log('- amount:', amount, typeof amount);
+    console.log('- tax_amount:', tax_amount, typeof tax_amount);
+    console.log('- total_amount:', total_amount, typeof total_amount);
+    console.log('- transaction_uuid:', transaction_uuid);
+    console.log('- product_code:', product_code);
+    console.log('- product_service_charge:', product_service_charge);
+    console.log('- product_delivery_charge:', product_delivery_charge);
+    console.log('- success_url:', success_url);
+    console.log('- failure_url:', failure_url);
+    console.log('- signed_field_names:', "total_amount,transaction_uuid,product_code");
+    console.log('- signatureMessage:', message);
+    console.log('- signature length:', signature.length);
+    console.log('- signature prefix:', signature.substring(0, 6), 'suffix:', signature.substring(signature.length - 6));
+    const testRecomputed = crypto.createHmac('sha256', secret_key).update(message).digest('base64');
+    console.log('- signature match check:', signature === testRecomputed);
+    console.log('===================================');
+
     let payment = await Payment.findOne({ booking: booking._id });
     if (!payment) {
       payment = await Payment.create({

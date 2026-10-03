@@ -325,6 +325,19 @@ const PaymentScreen = ({ route, navigation }) => {
       console.log('getEsewaHtml: esewaOrder is null/undefined');
       return '';
     }
+    console.log('=== ESEWA DIAGNOSTICS - FRONTEND HTML FORM ===');
+    console.log('- amount input val:', String(esewaOrder.amount));
+    console.log('- tax_amount input val:', String(esewaOrder.tax_amount));
+    console.log('- total_amount input val:', String(esewaOrder.total_amount));
+    console.log('- transaction_uuid input val:', String(esewaOrder.transaction_uuid));
+    console.log('- product_code input val:', String(esewaOrder.product_code));
+    console.log('- product_service_charge input val:', String(esewaOrder.product_service_charge));
+    console.log('- product_delivery_charge input val:', String(esewaOrder.product_delivery_charge));
+    console.log('- success_url input val:', String(esewaOrder.success_url));
+    console.log('- failure_url input val:', String(esewaOrder.failure_url));
+    console.log('- signed_field_names input val:', String(esewaOrder.signed_field_names));
+    console.log('- signature input val length:', String(esewaOrder.signature).length);
+    console.log('==============================================');
     const html = `
       <!DOCTYPE html>
       <html>
