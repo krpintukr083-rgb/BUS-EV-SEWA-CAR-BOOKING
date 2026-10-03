@@ -9,12 +9,52 @@ import {
   RefreshControl,
   TextInput,
   Alert,
+  Modal,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
 import { useLanguage } from '../../state/LanguageContext';
 import driverService from '../../services/driverService';
+
+const parseTimeToMinutes = (timeStr) => {
+  if (!timeStr || typeof timeStr !== 'string') return null;
+  const cleaned = timeStr.trim().replace(/\s+/g, ' ');
+  const match = cleaned.match(/^(\d{1,2}):(\d{2})(?:\s*([ap]m))?$/i);
+  if (!match) return null;
+  let hours = parseInt(match[1], 10);
+  const minutes = parseInt(match[2], 10);
+  const period = match[3]?.toUpperCase();
+
+  if (period === 'PM' && hours < 12) hours += 12;
+  if (period === 'AM' && hours === 12) hours = 0;
+
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
+};
+
+const calculateDuration = (departureStr, arrivalStr) => {
+  const depMinutes = parseTimeToMinutes(departureStr);
+  const arrMinutes = parseTimeToMinutes(arrivalStr);
+  if (depMinutes === null || arrMinutes === null) return '';
+
+  let diff = arrMinutes - depMinutes;
+  if (diff < 0) {
+    diff += 24 * 60;
+  } else if (diff === 0) {
+    return '24h';
+  }
+  const hours = Math.floor(diff / 60);
+  const mins = diff % 60;
+
+  if (mins === 0) {
+    return `${hours}h`;
+  }
+  if (hours === 0) {
+    return `${mins}m`;
+  }
+  return `${hours}h ${mins}m`;
+};
 
 export default function VehicleDetailsScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
@@ -27,6 +67,13 @@ export default function VehicleDetailsScreen({ navigation, route }) {
   const [stopFaresFromOrigin, setStopFaresFromOrigin] = useState([]);
   const [destinationFareFromOrigin, setDestinationFareFromOrigin] = useState('');
   const [savingFare, setSavingFare] = useState(false);
+
+  // Operating Route Edit Modal State
+  const [editRouteModalVisible, setEditRouteModalVisible] = useState(false);
+  const [routeDeparture, setRouteDeparture] = useState('');
+  const [routeArrival, setRouteArrival] = useState('');
+  const [routeDuration, setRouteDuration] = useState('');
+  const [savingRoute, setSavingRoute] = useState(false);
 
   // Car Route ON/OFF toggle state (mirrors vehicle.routeActive from backend)
   const [routeToggling, setRouteToggling] = useState(false);
@@ -210,6 +257,61 @@ export default function VehicleDetailsScreen({ navigation, route }) {
     }
   };
 
+  const handleOpenRouteModal = () => {
+    const dep = vehicle?.route?.departureTime || '06:00 AM';
+    const arr = vehicle?.route?.arrivalTime || '11:30 AM';
+    const dur = calculateDuration(dep, arr) || vehicle?.route?.duration || '5h 30m';
+    setRouteDeparture(dep);
+    setRouteArrival(arr);
+    setRouteDuration(dur);
+    setEditRouteModalVisible(true);
+  };
+
+  const handleSaveOperatingRoute = async () => {
+    if (!routeDeparture.trim() || !routeArrival.trim()) {
+      Alert.alert('Validation Error', 'Please enter both Departure and Arrival times.');
+      return;
+    }
+
+    const calculatedDur = calculateDuration(routeDeparture, routeArrival) || routeDuration || vehicle?.route?.duration || '5h 30m';
+
+    const updatedRoute = {
+      ...(vehicle?.route || {}),
+      departureTime: routeDeparture.trim(),
+      arrivalTime: routeArrival.trim(),
+      duration: calculatedDur
+    };
+
+    setSavingRoute(true);
+    try {
+      const res = await driverService.updateVehicleFare(
+        hasRouteSegments ? calculatedRouteFare : (fare || vehicle?.fareRate || 500),
+        vehicle?._id,
+        updatedRoute
+      );
+
+      if (res.data?.success) {
+        if (res.data.data) {
+          setVehicle(res.data.data);
+        } else {
+          setVehicle(prev => ({
+            ...prev,
+            route: updatedRoute
+          }));
+        }
+        setEditRouteModalVisible(false);
+        Alert.alert('Success', 'Operating Route updated successfully.');
+      } else {
+        Alert.alert('Error', res.data?.message || 'Failed to update operating route.');
+      }
+    } catch (err) {
+      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to update operating route.';
+      Alert.alert('Error', errorMsg);
+    } finally {
+      setSavingRoute(false);
+    }
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
@@ -377,22 +479,32 @@ export default function VehicleDetailsScreen({ navigation, route }) {
             {/* Route / Service Card */}
             {(vehicle.route || vehicle.pickupDropDetails) && (
               <View style={styles.card}>
-                <Text style={styles.cardTitle}>Operating Route</Text>
+                <View style={styles.cardHeaderRow}>
+                  <Text style={styles.cardTitle}>Operating Route</Text>
+                  <TouchableOpacity
+                    style={styles.editRouteBtn}
+                    onPress={handleOpenRouteModal}
+                    activeOpacity={0.7}
+                  >
+                    <MaterialCommunityIcons name="pencil" size={16} color={COLORS.primary} />
+                    <Text style={styles.editRouteBtnText}>Edit</Text>
+                  </TouchableOpacity>
+                </View>
                 <View style={{ gap: 8 }}>
                   {(vehicle.route?.boardingPoints || []).length > 0 && (
                     <Text style={styles.specLabel}>
                       Boarding: {vehicle.route.boardingPoints.join(' | ')}
                     </Text>
                   )}
-                  {vehicle.route?.departureTime && (
+                  <Text style={styles.specLabel}>
+                    Departure: {vehicle.route?.departureTime || '06:00 AM'}
+                    {vehicle.route?.arrivalTime ? `  →  Arrival: ${vehicle.route.arrivalTime}` : ''}
+                  </Text>
+                  {(vehicle.route?.duration || calculateDuration(vehicle.route?.departureTime, vehicle.route?.arrivalTime)) ? (
                     <Text style={styles.specLabel}>
-                      Departure: {vehicle.route.departureTime}
-                      {vehicle.route.arrivalTime ? `  →  Arrival: ${vehicle.route.arrivalTime}` : ''}
+                      Duration: {vehicle.route?.duration || calculateDuration(vehicle.route?.departureTime, vehicle.route?.arrivalTime)}
                     </Text>
-                  )}
-                  {vehicle.route?.duration && (
-                    <Text style={styles.specLabel}>Duration: {vehicle.route.duration}</Text>
-                  )}
+                  ) : null}
                 </View>
               </View>
             )}
@@ -561,6 +673,94 @@ export default function VehicleDetailsScreen({ navigation, route }) {
           </>
         )}
       </ScrollView>
+
+      {/* Edit Operating Route Modal */}
+      <Modal
+        visible={editRouteModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setEditRouteModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: SPACING.s }}>
+                <MaterialCommunityIcons name="pencil-box-outline" size={24} color={COLORS.primary} />
+                <Text style={styles.modalTitle}>Edit Operating Route</Text>
+              </View>
+              <TouchableOpacity
+                style={styles.modalCloseBtn}
+                onPress={() => setEditRouteModalVisible(false)}
+              >
+                <MaterialCommunityIcons name="close" size={22} color={COLORS.textPrimary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.modalBody}>
+                <View>
+                  <Text style={styles.inputLabel}>Departure Time</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={routeDeparture}
+                    onChangeText={(val) => {
+                      setRouteDeparture(val);
+                      const dur = calculateDuration(val, routeArrival);
+                      if (dur) setRouteDuration(dur);
+                    }}
+                    placeholder="e.g. 06:00 AM"
+                    placeholderTextColor={COLORS.textMuted}
+                  />
+                </View>
+
+                <View>
+                  <Text style={styles.inputLabel}>Arrival Time</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    value={routeArrival}
+                    onChangeText={(val) => {
+                      setRouteArrival(val);
+                      const dur = calculateDuration(routeDeparture, val);
+                      if (dur) setRouteDuration(dur);
+                    }}
+                    placeholder="e.g. 11:30 AM"
+                    placeholderTextColor={COLORS.textMuted}
+                  />
+                </View>
+
+                <View style={styles.durationPreviewBox}>
+                  <MaterialCommunityIcons name="clock-outline" size={18} color={COLORS.primary} />
+                  <Text style={styles.durationPreviewText}>
+                    Calculated Duration: {routeDuration || calculateDuration(routeDeparture, routeArrival) || 'Auto-calculated'}
+                  </Text>
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setEditRouteModalVisible(false)}
+                disabled={savingRoute}
+              >
+                <Text style={styles.modalCancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalSaveBtn, savingRoute && { opacity: 0.7 }]}
+                onPress={handleSaveOperatingRoute}
+                disabled={savingRoute}
+              >
+                {savingRoute ? (
+                  <ActivityIndicator size="small" color={COLORS.white} />
+                ) : (
+                  <Text style={styles.modalSaveBtnText}>Save Changes</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -852,6 +1052,126 @@ const styles = StyleSheet.create({
     backgroundColor: '#dc2626',
   },
   routeToggleBtnText: {
+    color: COLORS.white,
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.xs,
+  },
+  editRouteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: RADIUS.s,
+    backgroundColor: 'rgba(37, 99, 235, 0.12)',
+  },
+  editRouteBtnText: {
+    color: COLORS.primary,
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.m,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: COLORS.surface,
+    borderRadius: RADIUS.l,
+    padding: SPACING.l,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.modal,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.l,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+  },
+  modalCloseBtn: {
+    padding: 4,
+  },
+  modalBody: {
+    gap: SPACING.m,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+    marginBottom: 6,
+  },
+  modalInput: {
+    backgroundColor: COLORS.bgDark,
+    borderRadius: RADIUS.m,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: SPACING.m,
+    paddingVertical: 12,
+    color: COLORS.textPrimary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  durationPreviewBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.s,
+    backgroundColor: 'rgba(37, 99, 235, 0.08)',
+    padding: SPACING.m,
+    borderRadius: RADIUS.m,
+    borderWidth: 1,
+    borderColor: 'rgba(37, 99, 235, 0.2)',
+    marginTop: 4,
+  },
+  durationPreviewText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    gap: SPACING.m,
+    marginTop: SPACING.l,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: RADIUS.m,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.bgDark,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  modalCancelBtnText: {
+    color: COLORS.textSecondary,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  modalSaveBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: RADIUS.m,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+  },
+  modalSaveBtnText: {
     color: COLORS.white,
     fontWeight: '700',
     fontSize: 14,
