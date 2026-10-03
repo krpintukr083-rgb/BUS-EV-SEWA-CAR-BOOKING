@@ -157,6 +157,11 @@ const PaymentScreen = ({ route, navigation }) => {
       const orderRes = await customerService.createEsewaOrder(activeBookingId);
       
       if (orderRes.success && orderRes.data) {
+        console.log('eSewa Order created successfully. Data contains:');
+        console.log('- transaction_uuid:', orderRes.data.transaction_uuid);
+        console.log('- total_amount:', orderRes.data.total_amount);
+        console.log('- product_code:', orderRes.data.product_code);
+        console.log('- paymentUrl:', orderRes.data.paymentUrl);
         setEsewaOrder(orderRes.data);
         setPaymentState('idle');
         setShowEsewaModal(true);
@@ -316,8 +321,11 @@ const PaymentScreen = ({ route, navigation }) => {
 
   // HTML content for eSewa Form Auto-Submit
   const getEsewaHtml = () => {
-    if (!esewaOrder) return '';
-    return `
+    if (!esewaOrder) {
+      console.log('getEsewaHtml: esewaOrder is null/undefined');
+      return '';
+    }
+    const html = `
       <!DOCTYPE html>
       <html>
       <body onload="document.getElementById('esewaForm').submit();">
@@ -340,6 +348,8 @@ const PaymentScreen = ({ route, navigation }) => {
       </body>
       </html>
     `;
+    console.log('getEsewaHtml: Returning HTML of length:', html.length);
+    return html;
   };
 
   // HTML content for Razorpay Embedded Checkout WebView
@@ -1005,8 +1015,27 @@ const PaymentScreen = ({ route, navigation }) => {
 
           <WebView
             originWhitelist={['*']}
-            source={esewaOrder ? { html: getEsewaHtml() } : { uri: 'about:blank' }}
-            onNavigationStateChange={handleEsewaNavigation}
+            source={esewaOrder ? { html: getEsewaHtml(), baseUrl: 'https://rc-epay.esewa.com.np' } : { uri: 'about:blank' }}
+            onNavigationStateChange={(navState) => {
+              console.log('WebView NavigationStateChange:', navState.url);
+              handleEsewaNavigation(navState);
+            }}
+            onLoadStart={(syntheticEvent) => {
+              const { nativeEvent } = syntheticEvent;
+              console.log('WebView LoadStart:', nativeEvent.url);
+            }}
+            onLoadEnd={(syntheticEvent) => {
+              const { nativeEvent } = syntheticEvent;
+              console.log('WebView LoadEnd:', nativeEvent.url, 'Loading:', nativeEvent.loading);
+            }}
+            onError={(syntheticEvent) => {
+              const { nativeEvent } = syntheticEvent;
+              console.log('WebView Error:', nativeEvent.description, 'Code:', nativeEvent.code);
+            }}
+            onHttpError={(syntheticEvent) => {
+              const { nativeEvent } = syntheticEvent;
+              console.log('WebView HTTP Error Status:', nativeEvent.statusCode, 'URL:', nativeEvent.url);
+            }}
             javaScriptEnabled={true}
             domStorageEnabled={true}
             style={styles.webview}
