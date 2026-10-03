@@ -15,6 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import driverService from '../../services/driverService';
+import { getEffectiveBaseUrl } from '../../services/api';
 import { COLORS, SPACING } from '../../constants/theme';
 
 const CATEGORIES = [
@@ -363,7 +364,14 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
     }
 
     setBusy(true);
+    let currentStep = 'PREPARING';
     try {
+      const baseUrl = await getEffectiveBaseUrl();
+      console.log('=== [VEHICLE SUBMISSION DIAGNOSTICS] START ===');
+      console.log('[DIAGNOSTICS] Effective Base URL:', baseUrl);
+      console.log('[DIAGNOSTICS] Category:', category, '| Source:', vehicleSource);
+      console.log('[DIAGNOSTICS] Photo Count:', [photos.front, photos.back, photos.left, photos.right].filter(Boolean).length);
+
       let routePayload = undefined;
       let fareRatePayload = undefined;
 
@@ -441,11 +449,34 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
         payload.hireDetails = { hireAmount: Number(form.hireAmount) || 0 };
       }
 
+      currentStep = 'REGISTER_VEHICLE_API';
+      console.log('--- STEP 1: Registering Vehicle ---');
+      console.log('1. Method: POST');
+      console.log('2. Endpoint: /driver/vehicles');
+      console.log('3. Base URL:', baseUrl);
+      console.log('4. Complete URL:', `${baseUrl}/driver/vehicles`);
+      console.log('5. Is FormData: false (JSON payload)');
+      console.log('6. Photos being submitted: 0 (photos sent in step 2)');
+      console.log('7. Payload keys:', Object.keys(payload));
+
       const res = await driverService.registerVehicle(payload);
+      console.log('8. Response HTTP Status:', res?.status);
+      console.log('9. Response Data:', JSON.stringify(res?.data || {}));
+
       const vehicleId = res.data?.success && res.data.data?._id;
       if (!vehicleId) {
         throw new Error(res.data?.message || 'Vehicle registration did not return a vehicle ID.');
       }
+
+      currentStep = 'UPLOAD_PHOTOS_API';
+      console.log('--- STEP 2: Uploading Vehicle Photos ---');
+      console.log('1. Method: POST');
+      console.log('2. Endpoint: /driver/vehicle-images');
+      console.log('3. Base URL:', baseUrl);
+      console.log('4. Complete URL:', `${baseUrl}/driver/vehicle-images`);
+      console.log('5. Is FormData: true');
+      console.log('6. Number of photos being submitted:', 4);
+      console.log('7. FormData Field Names:', ['vehicleId', 'vehicleImages (x4)']);
 
       const imageData = new FormData();
       imageData.append('vehicleId', vehicleId);
@@ -453,7 +484,13 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
       imageData.append('vehicleImages', photos.back);
       imageData.append('vehicleImages', photos.left);
       imageData.append('vehicleImages', photos.right);
-      await driverService.uploadVehicleImages(imageData);
+
+      const uploadRes = await driverService.uploadVehicleImages(imageData);
+      console.log('8. Upload HTTP Status:', uploadRes?.status);
+      console.log('9. Upload Response Data:', JSON.stringify(uploadRes?.data || {}));
+
+      currentStep = 'SUCCESS';
+      console.log('=== [VEHICLE SUBMISSION DIAGNOSTICS] SUCCESS ===');
 
       Alert.alert('Submitted', 'Vehicle is pending admin approval.', [
         { text: 'OK', onPress: () => navigation.navigate('MainTabs') }
@@ -467,6 +504,28 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
       setEvValuesSaved(false);
       setPhotos({ front: null, back: null, left: null, right: null });
     } catch (e) {
+      console.log('=== [VEHICLE SUBMISSION DIAGNOSTICS] ERROR ===');
+      console.log('Failing Step:', currentStep);
+      console.log('10. axios error.code:', e?.code || 'NO_CODE');
+      console.log('11. axios error.message:', e?.message);
+      console.log('12. error.response?.status:', e?.response?.status || 'NO_RESPONSE');
+      console.log('13. error.response?.data:', JSON.stringify(e?.response?.data || {}));
+      console.log('14. error.request exists:', Boolean(e?.request));
+      console.log('15. timeout config:', e?.config?.timeout || '18000ms');
+
+      let classifiedCase = 'CASE D: Upload/image/network failure';
+      if (e?.response?.status >= 400 && e?.response?.status < 600) {
+        classifiedCase = `CASE A: HTTP ${e.response.status} response`;
+      } else if (e?.code === 'ECONNABORTED' || e?.message?.includes('timeout')) {
+        classifiedCase = 'CASE C: Timeout';
+      } else if (!e?.response && e?.request) {
+        classifiedCase = 'CASE B: Axios Network Error with NO response';
+      } else if (currentStep === 'SUCCESS') {
+        classifiedCase = 'CASE E: Backend succeeds but frontend throws after success';
+      }
+      console.log('CLASSIFIED CASE:', classifiedCase);
+      console.log('=== [VEHICLE SUBMISSION DIAGNOSTICS] END ===');
+
       Alert.alert('Unable to submit', e?.response?.data?.message || e?.message || 'Please try again.');
     } finally {
       setBusy(false);

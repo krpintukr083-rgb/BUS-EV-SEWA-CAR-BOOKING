@@ -106,6 +106,14 @@ apiClient.interceptors.request.use(
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
+
+      // If sending FormData in React Native, delete Content-Type so React Native generates boundary
+      if (config.data && (config.data instanceof FormData || typeof config.data?.getParts === 'function')) {
+        delete config.headers['Content-Type'];
+        if (config.headers?.common) {
+          delete config.headers.common['Content-Type'];
+        }
+      }
     } catch (e) {
       console.warn('Error in driver request interceptor:', e);
     }
