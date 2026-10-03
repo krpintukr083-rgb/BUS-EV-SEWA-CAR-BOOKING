@@ -364,6 +364,54 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
 
     setBusy(true);
     try {
+      let routePayload = undefined;
+      let fareRatePayload = undefined;
+
+      if (category === 'Car') {
+        const cleanedStops = routeStops
+          .map(stop => {
+            const name = (stop?.name || '').trim();
+            if (!name) return null;
+            const stopObj = { name };
+            if (stop.fareFromOrigin && Number(stop.fareFromOrigin) > 0) {
+              stopObj.fareFromOrigin = Number(stop.fareFromOrigin);
+            }
+            return stopObj;
+          })
+          .filter(Boolean);
+
+        routePayload = {
+          origin: (form.origin || '').trim(),
+          destination: (form.destination || '').trim(),
+          stops: cleanedStops
+        };
+
+        if (destinationFareFromOrigin && Number(destinationFareFromOrigin) > 0) {
+          routePayload.destinationFareFromOrigin = Number(destinationFareFromOrigin);
+        }
+
+        if (cleanedStops.length > 0 && destinationFareFromOrigin && Number(destinationFareFromOrigin) > 0) {
+          fareRatePayload = Number(destinationFareFromOrigin);
+        } else if (form.fareRate && Number(form.fareRate) > 0) {
+          fareRatePayload = Number(form.fareRate);
+        }
+      } else {
+        routePayload = {
+          origin: form.origin.trim(),
+          destination: form.destination.trim(),
+          ...(routeStops.length ? {
+            stops: routeStops.map(stop => ({
+              name: stop.name.trim(),
+              fareFromOrigin: Number(stop.fareFromOrigin)
+            })),
+            destinationFareFromOrigin: Number(destinationFareFromOrigin)
+          } : {})
+        };
+        fareRatePayload = routeStops.length
+          ? Number(destinationFareFromOrigin)
+          : Number(form.fareRate);
+      }
+
       const payload = {
         vehicleNumber: form.vehicleNumber.trim(),
         vehicleName: form.vehicleName,
@@ -373,22 +421,8 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
         vehicleCategory: form.vehicleCategory || (category === 'Bus' ? (form.busType || 'Bus') : undefined),
         acType: form.acType,
         seatingCapacity: form.seatingCapacity ? Number(form.seatingCapacity) : undefined,
-        ...(category !== 'Car' ? {
-          route: {
-            origin: form.origin.trim(),
-            destination: form.destination.trim(),
-            ...(routeStops.length ? {
-              stops: routeStops.map(stop => ({
-                name: stop.name.trim(),
-                fareFromOrigin: Number(stop.fareFromOrigin)
-              })),
-              destinationFareFromOrigin: Number(destinationFareFromOrigin)
-            } : {})
-          },
-          fareRate: routeStops.length
-            ? Number(destinationFareFromOrigin)
-            : Number(form.fareRate)
-        } : {})
+        route: routePayload,
+        ...(fareRatePayload != null ? { fareRate: fareRatePayload } : {})
       };
 
       if (category === 'Bus') {
@@ -573,20 +607,18 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
         ))}
       </View>
 
-      {category !== 'Car' && (
-        <>
       <Text style={styles.sectionTitle}>Route Details</Text>
       <TextInput
         value={form.origin}
         onChangeText={value => update('origin', value)}
-        placeholder="Select / Enter Origin *"
+        placeholder={category === 'Car' ? 'Select / Enter Origin' : 'Select / Enter Origin *'}
         placeholderTextColor={COLORS.textMuted}
         style={styles.input}
       />
       <TextInput
         value={form.destination}
         onChangeText={value => update('destination', value)}
-        placeholder="Select / Enter Destination *"
+        placeholder={category === 'Car' ? 'Select / Enter Destination' : 'Select / Enter Destination *'}
         placeholderTextColor={COLORS.textMuted}
         style={styles.input}
       />
@@ -598,7 +630,7 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
           <TextInput
             value={stop.name}
             onChangeText={value => updateRouteStop(index, 'name', value)}
-            placeholder={`Stop ${index + 1} location *`}
+            placeholder={category === 'Car' ? `Stop ${index + 1} location` : `Stop ${index + 1} location *`}
             placeholderTextColor={COLORS.textMuted}
             style={[styles.input, { flex: 1 }]}
           />
@@ -624,7 +656,7 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
           <TextInput
             value={destinationFareFromOrigin}
             onChangeText={setDestinationFareFromOrigin}
-            placeholder="Customer Fare from Origin to Destination (₹) *"
+            placeholder={category === 'Car' ? 'Customer Fare from Origin to Destination (₹)' : 'Customer Fare from Origin to Destination (₹) *'}
             placeholderTextColor={COLORS.textMuted}
             keyboardType="decimal-pad"
             style={styles.input}
@@ -661,13 +693,11 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
         <TextInput
           value={form.fareRate}
           onChangeText={value => update('fareRate', value)}
-          placeholder="Customer Fare from Origin (₹) *"
+          placeholder={category === 'Car' ? 'Customer Fare from Origin (₹)' : 'Customer Fare from Origin (₹) *'}
           placeholderTextColor={COLORS.textMuted}
           keyboardType="decimal-pad"
           style={styles.input}
         />
-      )}
-        </>
       )}
 
       {vehicleSource === 'THIRD_PARTY' && (
