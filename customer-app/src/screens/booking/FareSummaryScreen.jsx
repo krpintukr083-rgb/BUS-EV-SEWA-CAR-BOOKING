@@ -105,9 +105,12 @@ const FareSummaryScreen = ({ navigation }) => {
         if (setCurrentBookingId) {
           setCurrentBookingId(res.data.bookingId);
         }
-        navigation.replace('BookingConfirmation', {
-          booking: res.data,
-          payment: res.payment
+        // Navigate to Payment Method Selection screen instead of skipping straight to confirmation
+        navigation.replace('Payment', {
+          bookingId: res.data._id || res.data.bookingId,
+          bookingCode: res.data.bookingCode,
+          bookingMode: res.data.bookingMode,
+          amount: totalPayable
         });
       } else {
         Alert.alert('Booking Error', res.message || 'Unable to create booking');
