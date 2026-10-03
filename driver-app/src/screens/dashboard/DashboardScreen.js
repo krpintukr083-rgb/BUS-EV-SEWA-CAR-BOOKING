@@ -80,21 +80,52 @@ const DashboardScreen = ({ navigation }) => {
   };
 
   const removeVehicle = (vehicle) => {
+    const vehicleId = vehicle?._id || vehicle?.id;
+    console.log('=== [REMOVE_VEHICLE_DEBUG] START ===');
+    console.log('[DEBUG] Selected vehicle to remove:', {
+      _id: vehicle?._id,
+      id: vehicle?.id,
+      vehicleNumber: vehicle?.vehicleNumber,
+      vehicleName: vehicle?.vehicleName
+    });
+
+    if (!vehicleId) {
+      console.log('[DEBUG] ERROR: No valid vehicle ID found on vehicle object');
+      Alert.alert('Error', 'Invalid vehicle ID.');
+      return;
+    }
+
     Alert.alert(
       'Remove Vehicle?',
       'Are you sure you want to remove this vehicle?',
       [
-        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () => console.log('[DEBUG] Remove vehicle cancelled by user')
+        },
         {
           text: 'Remove',
           style: 'destructive',
           onPress: async () => {
+            console.log('[DEBUG] Sending DELETE request for vehicleId:', vehicleId);
+            console.log('[DEBUG] HTTP Method: DELETE');
+            console.log('[DEBUG] Endpoint: /driver/vehicles/' + vehicleId);
             try {
-              await driverService.removeVehicle(vehicle._id);
-              setSubmittedVehicles(current => current.filter(item => item._id !== vehicle._id));
+              const res = await driverService.removeVehicle(vehicleId);
+              console.log('[DEBUG] Response Status:', res?.status);
+              console.log('[DEBUG] Response Data:', JSON.stringify(res?.data || {}));
+
+              setSubmittedVehicles(current => current.filter(item => (item._id || item.id) !== vehicleId));
               await Promise.all([loadVehicles(), loadDashboard()]);
+              console.log('=== [REMOVE_VEHICLE_DEBUG] SUCCESS ===');
               Alert.alert('Success', 'Vehicle removed successfully.');
             } catch (error) {
+              console.log('=== [REMOVE_VEHICLE_DEBUG] ERROR ===');
+              console.log('[DEBUG] Error Code:', error?.code);
+              console.log('[DEBUG] Error Message:', error?.message);
+              console.log('[DEBUG] Error Response Status:', error?.response?.status);
+              console.log('[DEBUG] Error Response Data:', JSON.stringify(error?.response?.data || {}));
               Alert.alert(
                 'Unable to remove vehicle',
                 error.response?.data?.message || error.message || 'Please try again.'

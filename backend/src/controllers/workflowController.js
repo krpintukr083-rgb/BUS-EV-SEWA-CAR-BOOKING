@@ -227,7 +227,10 @@ exports.deleteDriverVehicle = async (req, res, next) => {
     }
 
     await Vehicle.deleteOne({ _id: vehicle._id });
-    await Driver.updateMany({ assignedVehicle: vehicle._id }, { $set: { assignedVehicle: null } });
+    await Promise.all([
+      Driver.updateMany({ assignedVehicle: vehicle._id }, { $set: { assignedVehicle: null } }),
+      Schedule.deleteMany({ vehicle: vehicle._id, status: { $in: ['Pending', 'Rejected', 'Cancelled'] } })
+    ]);
     res.json({ success: true, message: 'Vehicle removed successfully.' });
   } catch (error) { next(error); }
 };
