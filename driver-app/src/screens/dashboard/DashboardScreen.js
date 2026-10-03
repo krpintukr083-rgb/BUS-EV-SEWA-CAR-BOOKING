@@ -236,8 +236,8 @@ const DashboardScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* Active Trip Banner (if any) */}
-        {activeTrip && (
+        {/* Active Trip Banner / No Active Ride */}
+        {activeTrip ? (
           <TouchableOpacity
             style={styles.activeTripCard}
             onPress={() => navigation.navigate('ActiveRide', { bookingId: activeTrip._id || activeTrip.bookingId })}
@@ -248,17 +248,62 @@ const DashboardScreen = ({ navigation }) => {
                 <View style={styles.pulseDot} />
                 <Text style={styles.liveText}>TRIP IN PROGRESS</Text>
               </View>
-              <Text style={styles.activeBookingId}>#{activeTrip.bookingId}</Text>
+              <Text style={styles.activeBookingId}>#{activeTrip.bookingId || String(activeTrip._id || '').slice(-6)}</Text>
             </View>
-            <Text style={styles.activeCustomerName}>{activeTrip.customer?.name || 'Passenger'}</Text>
-            <Text style={styles.activeRoute} numberOfLines={1}>
-              {activeTrip.pickupLocation} → {activeTrip.dropLocation}
-            </Text>
+
+            <View style={styles.activeTripDetails}>
+              <View style={styles.activeTripRow}>
+                <Text style={styles.activeTripLabel}>Customer:</Text>
+                <Text style={styles.activeTripValue} numberOfLines={1}>
+                  {typeof activeTrip.customer === 'object'
+                    ? (activeTrip.customer?.name || activeTrip.passengerDetails?.[0]?.name || 'Passenger')
+                    : (activeTrip.customer || 'Passenger')}
+                </Text>
+              </View>
+
+              <View style={styles.activeTripRow}>
+                <Text style={styles.activeTripLabel}>Route:</Text>
+                <Text style={styles.activeTripValue} numberOfLines={1}>
+                  {activeTrip.pickupLocation || 'Pickup'} → {activeTrip.dropLocation || 'Destination'}
+                </Text>
+              </View>
+
+              <View style={styles.activeTripRow}>
+                <Text style={styles.activeTripLabel}>Service:</Text>
+                <Text style={styles.activeTripValue}>
+                  {activeTrip.serviceType || activeTrip.vehicle?.vehicleType || activeTrip.bookingMode || 'Standard'}
+                </Text>
+              </View>
+
+              <View style={styles.activeTripRow}>
+                <Text style={styles.activeTripLabel}>Vehicle:</Text>
+                <Text style={styles.activeTripValue} numberOfLines={1}>
+                  {typeof activeTrip.vehicle === 'object'
+                    ? ([activeTrip.vehicle?.vehicleName || activeTrip.vehicle?.vehicleModel, activeTrip.vehicle?.vehicleNumber].filter(Boolean).join(' • ') || 'Assigned Vehicle')
+                    : (activeTrip.vehicle || 'Assigned Vehicle')}
+                </Text>
+              </View>
+
+              <View style={styles.activeTripRow}>
+                <Text style={styles.activeTripLabel}>Status:</Text>
+                <Text style={[styles.activeTripValue, { color: COLORS.online, fontWeight: '700' }]}>
+                  {activeTrip.rideStatus || activeTrip.bookingStatus || 'In Progress'}
+                </Text>
+              </View>
+            </View>
+
             <View style={styles.resumeRow}>
               <Text style={styles.resumeText}>Tap to Open Active Ride Screen</Text>
               <Ionicons name="arrow-forward" size={16} color={COLORS.primaryLight} />
             </View>
           </TouchableOpacity>
+        ) : (
+          <View style={styles.noActiveRideCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="car-outline" size={18} color={COLORS.textMuted} />
+              <Text style={styles.noActiveRideText}>{t('noActiveRide') || 'No active ride in progress'}</Text>
+            </View>
+          </View>
         )}
 
         {/* Incoming Requests Banner */}
@@ -552,17 +597,47 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: COLORS.textPrimary,
     marginTop: 2
+  activeTripDetails: {
+    gap: 4,
+    marginVertical: SPACING.sm,
   },
-  activeRoute: {
+  activeTripRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  activeTripLabel: {
     fontSize: 13,
-    color: COLORS.textSecondary,
-    marginTop: 2
+    fontWeight: '700',
+    color: COLORS.textMuted,
+    minWidth: 70,
+  },
+  activeTripValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    flex: 1,
+  },
+  noActiveRideCard: {
+    backgroundColor: COLORS.surface,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 14,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  noActiveRideText: {
+    fontSize: 13,
+    color: COLORS.textMuted,
+    fontWeight: '600',
   },
   resumeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    marginTop: SPACING.sm
+    marginTop: SPACING.xs
   },
   resumeText: {
     fontSize: 12,
