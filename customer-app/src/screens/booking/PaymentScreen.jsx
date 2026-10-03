@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Modal,
-  Alert
+  Alert,
+  Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
@@ -28,9 +29,21 @@ const PaymentScreen = ({ route, navigation }) => {
   const [transactionId, setTransactionId] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
   const [razorpayOrder, setRazorpayOrder] = useState(null);
+  // Ref for HTML form used on web platform
+  const formRef = useRef(null);
   const [showRazorpayModal, setShowRazorpayModal] = useState(false);
   const [esewaOrder, setEsewaOrder] = useState(null);
   const [showEsewaModal, setShowEsewaModal] = useState(false);
+
+  // Auto‑submit eSewa HTML form on web when order is ready
+  useEffect(() => {
+    if (Platform.OS === 'web' && esewaOrder && showEsewaModal && formRef?.current?.submit) {
+      setTimeout(() => {
+        console.log('Submitting eSewa form (web)');
+        formRef.current.submit();
+      }, 100);
+    }
+  }, [esewaOrder, showEsewaModal]);
 
   const paymentOptions = [
     {
@@ -1044,40 +1057,63 @@ const PaymentScreen = ({ route, navigation }) => {
             </TouchableOpacity>
           </View>
 
-          <WebView
-            originWhitelist={['*']}
-            source={esewaOrder ? { html: getEsewaHtml(), baseUrl: 'https://rc-epay.esewa.com.np' } : { uri: 'about:blank' }}
-            onNavigationStateChange={(navState) => {
-              console.log('WebView NavigationStateChange:', navState.url);
-              handleEsewaNavigation(navState);
-            }}
-            onLoadStart={(syntheticEvent) => {
-              const { nativeEvent } = syntheticEvent;
-              console.log('WebView LoadStart:', nativeEvent.url);
-            }}
-            onLoadEnd={(syntheticEvent) => {
-              const { nativeEvent } = syntheticEvent;
-              console.log('WebView LoadEnd:', nativeEvent.url, 'Loading:', nativeEvent.loading);
-            }}
-            onError={(syntheticEvent) => {
-              const { nativeEvent } = syntheticEvent;
-              console.log('WebView Error:', nativeEvent.description, 'Code:', nativeEvent.code);
-            }}
-            onHttpError={(syntheticEvent) => {
-              const { nativeEvent } = syntheticEvent;
-              console.log('WebView HTTP Error Status:', nativeEvent.statusCode, 'URL:', nativeEvent.url);
-            }}
-            javaScriptEnabled={true}
-            domStorageEnabled={true}
-            style={styles.webview}
-            startInLoadingState={true}
-            renderLoading={() => (
-              <View style={styles.webviewLoading}>
-                <ActivityIndicator size="large" color="#60BB46" />
-                <Text style={styles.webviewLoadingText}>Loading eSewa Gateway...</Text>
-              </View>
-            )}
-          />
+          {Platform.OS === 'web' ? (
+                esewaOrder && (
+                  <form
+                    ref={formRef}
+                    action="https://rc-epay.esewa.com.np/api/epay/main/v2/form"
+                    method="POST"
+                    target="_self"
+                  >
+                    <input type="hidden" name="amount" value={esewaOrder.amount} />
+                    <input type="hidden" name="tax_amount" value={esewaOrder.tax_amount} />
+                    <input type="hidden" name="total_amount" value={esewaOrder.total_amount} />
+                    <input type="hidden" name="transaction_uuid" value={esewaOrder.transaction_uuid} />
+                    <input type="hidden" name="product_code" value={esewaOrder.product_code} />
+                    <input type="hidden" name="product_service_charge" value={esewaOrder.product_service_charge} />
+                    <input type="hidden" name="product_delivery_charge" value={esewaOrder.product_delivery_charge} />
+                    <input type="hidden" name="success_url" value={esewaOrder.success_url} />
+                    <input type="hidden" name="failure_url" value={esewaOrder.failure_url} />
+                    <input type="hidden" name="signed_field_names" value={esewaOrder.signed_field_names} />
+                    <input type="hidden" name="signature" value={esewaOrder.signature} />
+                  </form>
+                )
+              ) : (
+                <WebView
+                  originWhitelist={['*']}
+                  source={esewaOrder ? { html: getEsewaHtml(), baseUrl: 'https://rc-epay.esewa.com.np' } : { uri: 'about:blank' }}
+                  onNavigationStateChange={(navState) => {
+                    console.log('WebView NavigationStateChange:', navState.url);
+                    handleEsewaNavigation(navState);
+                  }}
+                  onLoadStart={(syntheticEvent) => {
+                    const { nativeEvent } = syntheticEvent;
+                    console.log('WebView LoadStart:', nativeEvent.url);
+                  }}
+                  onLoadEnd={(syntheticEvent) => {
+                    const { nativeEvent } = syntheticEvent;
+                    console.log('WebView LoadEnd:', nativeEvent.url, 'Loading:', nativeEvent.loading);
+                  }}
+                  onError={(syntheticEvent) => {
+                    const { nativeEvent } = syntheticEvent;
+                    console.log('WebView Error:', nativeEvent.description, 'Code:', nativeEvent.code);
+                  }}
+                  onHttpError={(syntheticEvent) => {
+                    const { nativeEvent } = syntheticEvent;
+                    console.log('WebView HTTP Error Status:', nativeEvent.statusCode, 'URL:', nativeEvent.url);
+                  }}
+                  javaScriptEnabled={true}
+                  domStorageEnabled={true}
+                  style={styles.webview}
+                  startInLoadingState={true}
+                  renderLoading={() => (
+                    <View style={styles.webviewLoading}>
+                      <ActivityIndicator size="large" color="#60BB46" />
+                      <Text style={styles.webviewLoadingText}>Loading eSewa Gateway...</Text>
+                    </View>
+                  )}
+                />
+              )}
         </View>
       </Modal>
     </View>
