@@ -529,7 +529,7 @@ exports.createEsewaOrder = async (req, res, next) => {
     const product_service_charge = 0;
     const total_amount = amount + tax_amount + product_delivery_charge + product_service_charge;
     
-    const transaction_uuid = `esewa_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const transaction_uuid = `esewa-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
     const product_code = process.env.ESEWA_PRODUCT_CODE || 'EPAYTEST';
     const secret_key = process.env.ESEWA_SECRET_KEY || '8gBm/:&EnhH.1/q';
