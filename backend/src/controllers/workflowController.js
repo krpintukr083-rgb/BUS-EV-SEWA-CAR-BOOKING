@@ -94,17 +94,72 @@ exports.registerVehicle = async (req, res, next) => {
       }
       body.evDetails = { ...body.evDetails, batteryCapacity, batteryPercentage, rangeKm };
     }
-    if (body.route?.stops?.length) {
-      const routePricing = validateRoutePricing(body.route);
-      if (!routePricing.valid) {
-        return res.status(400).json({ success: false, message: routePricing.message });
+    if (body.vehicleType === 'Car') {
+      // For Car: Route Details and fareRate are completely optional
+      if (body.route) {
+        if (Array.isArray(body.route.stops)) {
+          body.route.stops = body.route.stops
+            .map(stop => {
+              if (typeof stop === 'string') {
+                return stop.trim() ? { name: stop.trim() } : null;
+              }
+              const name = (stop?.name || '').trim();
+              if (!name) return null;
+              const stopObj = { name };
+              if (stop.fareFromOrigin != null && stop.fareFromOrigin !== '' && !isNaN(Number(stop.fareFromOrigin)) && Number(stop.fareFromOrigin) >= 0) {
+                stopObj.fareFromOrigin = Number(stop.fareFromOrigin);
+              }
+              return stopObj;
+            })
+            .filter(Boolean);
+        } else {
+          body.route.stops = [];
+        }
+
+        body.route.origin = (body.route.origin || '').trim();
+        body.route.destination = (body.route.destination || '').trim();
+
+        if (body.route.destinationFareFromOrigin != null && body.route.destinationFareFromOrigin !== '' && !isNaN(Number(body.route.destinationFareFromOrigin)) && Number(body.route.destinationFareFromOrigin) >= 0) {
+          body.route.destinationFareFromOrigin = Number(body.route.destinationFareFromOrigin);
+        } else {
+          delete body.route.destinationFareFromOrigin;
+        }
+
+        if (body.route.stops.length > 0 && body.route.origin && body.route.destination) {
+          try {
+            const routePricing = validateRoutePricing(body.route);
+            if (routePricing.valid && routePricing.totalFare != null) {
+              body.fareRate = routePricing.totalFare;
+            }
+          } catch (e) {
+            // For Car, optional route pricing never blocks registration
+          }
+        }
       }
-      body.fareRate = routePricing.totalFare;
-    } else if (body.fareRate != null && (
-      !Number.isFinite(Number(body.fareRate)) ||
-      Number(body.fareRate) <= 0
-    )) {
-      return res.status(400).json({ success: false, message: 'A positive full-route fare is required when route stops are not configured.' });
+
+      if (body.fareRate != null && body.fareRate !== '') {
+        const parsedFare = Number(body.fareRate);
+        if (Number.isFinite(parsedFare) && parsedFare > 0) {
+          body.fareRate = parsedFare;
+        } else {
+          delete body.fareRate;
+        }
+      } else {
+        delete body.fareRate;
+      }
+    } else {
+      if (body.route?.stops?.length) {
+        const routePricing = validateRoutePricing(body.route);
+        if (!routePricing.valid) {
+          return res.status(400).json({ success: false, message: routePricing.message });
+        }
+        body.fareRate = routePricing.totalFare;
+      } else if (body.fareRate != null && (
+        !Number.isFinite(Number(body.fareRate)) ||
+        Number(body.fareRate) <= 0
+      )) {
+        return res.status(400).json({ success: false, message: 'A positive full-route fare is required when route stops are not configured.' });
+      }
     }
     const vehicleNumber = String(body.vehicleNumber).trim().toUpperCase();
     if (await Vehicle.exists({ vehicleNumber })) {
