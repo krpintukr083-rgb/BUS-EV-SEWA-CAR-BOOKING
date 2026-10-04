@@ -5,7 +5,8 @@ import {
   StyleSheet,
   ScrollView,
   ActivityIndicator,
-  Alert
+  Alert,
+  TouchableOpacity
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useBooking } from '../../context/BookingContext';
