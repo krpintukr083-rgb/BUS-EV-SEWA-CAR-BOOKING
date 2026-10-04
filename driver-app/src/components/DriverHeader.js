@@ -19,8 +19,9 @@ const resolvePhotoUrl = (rawPhotoUrl, baseUrl) => {
     return trimmed;
   }
 
+  const normalized = trimmed.replace(/\\/g, '/');
   const activeBase = (baseUrl || DRIVER_API_BASE_URL).replace(/\/api\/?$/i, '').replace(/\/+$/, '');
-  const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  const cleanPath = normalized.startsWith('/') ? normalized : `/${normalized}`;
   return `${activeBase}${cleanPath}`;
 };
 
@@ -61,6 +62,7 @@ const DriverHeader = ({ navigation, title, showBack = false }) => {
     driver?.photo ||
     driver?.avatar ||
     driver?.image ||
+    driver?.user?.profilePhoto ||
     user?.profilePhoto ||
     user?.profileImage ||
     user?.driverPhoto ||
