@@ -12,6 +12,16 @@ export const customerService = {
     return res.data;
   },
 
+  sendOtp: async phone => {
+    const res = await api.post('/auth/send-otp', { phone });
+    return res.data;
+  },
+
+  verifyOtp: async (phone, otp) => {
+    const res = await api.post('/auth/verify-otp', { phone, otp });
+    return res.data;
+  },
+
   getMe: async () => {
     const res = await api.get('/auth/me', {
       headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache' }

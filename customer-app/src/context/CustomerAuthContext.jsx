@@ -114,6 +114,54 @@ export const CustomerAuthProvider = ({ children }) => {
     }
   };
 
+  const sendOtp = async (phone) => {
+    setError(null);
+    try {
+      const res = await customerService.sendOtp(phone);
+      if (res.success) {
+        return { success: true, message: res.message };
+      }
+      return { success: false, message: res.message || 'Failed to send OTP' };
+    } catch (err) {
+      let msg = 'Failed to send OTP.';
+      if (err.response?.data?.message) {
+        msg = err.response.data.message;
+      } else if (err.message === 'Network Error' || err.code === 'ERR_NETWORK') {
+        msg = 'Network Error: Cannot connect to backend server. Verify your API_BASE_URL, Wi-Fi network, or HTTPS tunnel.';
+      } else if (err.message) {
+        msg = err.message;
+      }
+      setError(msg);
+      return { success: false, message: msg };
+    }
+  };
+
+  const verifyOtp = async (phone, otp) => {
+    setError(null);
+    try {
+      const res = await customerService.verifyOtp(phone, otp);
+      if (res.success && res.token && res.user) {
+        await AsyncStorage.setItem('customer_token', res.token);
+        await AsyncStorage.setItem('customer_user', JSON.stringify(res.user));
+        setUser(res.user);
+        registerForPushNotificationsAsync();
+        return { success: true };
+      }
+      return { success: false, message: res.message || 'OTP verification failed' };
+    } catch (err) {
+      let msg = 'OTP verification failed.';
+      if (err.response?.data?.message) {
+        msg = err.response.data.message;
+      } else if (err.message === 'Network Error' || err.code === 'ERR_NETWORK') {
+        msg = 'Network Error: Cannot connect to backend server. Verify your API_BASE_URL, Wi-Fi network, or HTTPS tunnel.';
+      } else if (err.message) {
+        msg = err.message;
+      }
+      setError(msg);
+      return { success: false, message: msg };
+    }
+  };
+
   return (
     <CustomerAuthContext.Provider
       value={{
@@ -124,6 +172,9 @@ export const CustomerAuthProvider = ({ children }) => {
         error,
         login,
         register,
+        sendOtp,
+        verifyOtp,
+        loginWithOtp: verifyOtp,
         logout,
         refreshUser,
         updateCustomerProfilePhoto
