@@ -298,11 +298,27 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
 
         {/* Action Buttons */}
         <View style={styles.buttonGroup}>
-          <Button
-            title={isPendingDriver ? 'View Booking Status' : 'View Digital Ticket'}
-            onPress={handleViewTicket}
-            style={{ backgroundColor: isPendingDriver ? '#f59e0b' : COLORS.primary, marginBottom: 12 }}
-          />
+          {(booking?.bookingStatus === 'Pending' && booking?.paymentMethod === 'ESEWA') ? (
+            <Button
+              title="Proceed to eSewa Payment"
+              onPress={() => {
+                navigation.navigate('Payment', {
+                  bookingId: booking._id || booking.bookingId,
+                  bookingCode: booking.bookingId || booking.bookingCode,
+                  bookingMode: booking.bookingMode,
+                  amount: booking.fare,
+                  isOnlinePayment: true
+                });
+              }}
+              style={{ backgroundColor: '#10b981', marginBottom: 12 }}
+            />
+          ) : (
+            <Button
+              title={isPendingDriver ? 'View Booking Status' : 'View Digital Ticket'}
+              onPress={handleViewTicket}
+              style={{ backgroundColor: isPendingDriver ? '#f59e0b' : COLORS.primary, marginBottom: 12 }}
+            />
+          )}
 
           <Button
             title="Back to Home"

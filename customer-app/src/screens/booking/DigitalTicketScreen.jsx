@@ -322,6 +322,26 @@ const DigitalTicketScreen = ({ route, navigation }) => {
                   <Text style={styles.bookingIdTagText}>Booking #{booking.bookingId}</Text>
                 </View>
               </View>
+            ) : booking.bookingStatus === 'Pending' && booking.paymentMethod === 'ESEWA' ? (
+              <View style={styles.pendingQrBox}>
+                <Ionicons name="wallet-outline" size={40} color="#10b981" />
+                <Text style={[styles.pendingQrTitle, { color: '#059669' }]}>Payment Required</Text>
+                <Text style={styles.pendingQrSub}>
+                  Driver confirmed your ride! Please proceed to pay with eSewa to activate your digital boarding pass.
+                </Text>
+                <TouchableOpacity
+                  style={{ backgroundColor: '#10b981', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 8, marginTop: 16 }}
+                  onPress={() => navigation.navigate('Payment', {
+                    bookingId: booking._id || booking.bookingId,
+                    bookingCode: booking.bookingId || booking.bookingCode,
+                    bookingMode: booking.bookingMode,
+                    amount: booking.fare,
+                    isOnlinePayment: true
+                  })}
+                >
+                  <Text style={{ color: '#ffffff', fontWeight: '700', fontSize: 14 }}>Pay Now with eSewa</Text>
+                </TouchableOpacity>
+              </View>
             ) : (
               <View style={styles.pendingQrBox}>
                 <Ionicons name="close-circle-outline" size={40} color="#ef4444" />

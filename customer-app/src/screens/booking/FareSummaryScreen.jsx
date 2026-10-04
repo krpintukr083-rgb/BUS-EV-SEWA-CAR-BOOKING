@@ -108,12 +108,8 @@ const FareSummaryScreen = ({ navigation }) => {
         if (setCurrentBookingId) {
           setCurrentBookingId(res.data.bookingId);
         }
-        navigation.replace('Payment', {
-          bookingId: res.data._id || res.data.bookingId,
-          bookingCode: res.data.bookingId || res.data.bookingCode,
-          bookingMode: res.data.bookingMode,
-          amount: selectedPaymentMethod === 'Offline Cash' ? totalPayable : 0,
-          isOnlinePayment: selectedPaymentMethod !== 'Offline Cash'
+        navigation.replace('BookingConfirmation', {
+          booking: res.data
         });
       } else {
         Alert.alert('Booking Error', res.message || 'Unable to create booking');
@@ -259,8 +255,8 @@ const FareSummaryScreen = ({ navigation }) => {
           >
             <Ionicons name="card-outline" size={20} color={selectedPaymentMethod === 'ESEWA' ? COLORS.primary : '#64748b'} />
             <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={styles.paymentChoiceTitle}>Online Payment (eSewa)</Text>
-              <Text style={styles.paymentChoiceSub}>Share OTP → Finalize Fare → Pay on eSewa</Text>
+              <Text style={styles.paymentChoiceTitle}>eSewa</Text>
+              <Text style={styles.paymentChoiceSub}>Pay securely using eSewa</Text>
             </View>
             <Ionicons
               name={selectedPaymentMethod === 'ESEWA' ? 'radio-button-on' : 'radio-button-off'}
@@ -280,8 +276,8 @@ const FareSummaryScreen = ({ navigation }) => {
           >
             <Ionicons name="cash-outline" size={20} color={selectedPaymentMethod === 'Offline Cash' ? COLORS.primary : '#64748b'} />
             <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={styles.paymentChoiceTitle}>Offline Cash (Pay on Boarding)</Text>
-              <Text style={styles.paymentChoiceSub}>Standard Cash flow — pay cash directly to driver</Text>
+              <Text style={styles.paymentChoiceTitle}>Onboarding / Pay on Boarding</Text>
+              <Text style={styles.paymentChoiceSub}>Pay the fare during boarding / according to existing old flow</Text>
             </View>
             <Ionicons
               name={selectedPaymentMethod === 'Offline Cash' ? 'radio-button-on' : 'radio-button-off'}
