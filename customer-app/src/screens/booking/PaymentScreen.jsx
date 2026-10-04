@@ -34,6 +34,7 @@ const PaymentScreen = ({ route, navigation }) => {
   // Ref for HTML form used on web platform
   const formRef = useRef(null);
   const [showRazorpayModal, setShowRazorpayModal] = useState(false);
+  const [showEsewaModal, setShowEsewaModal] = useState(false);
   const [esewaOrder, setEsewaOrder] = useState(null);
   const [esewaIntentData, setEsewaIntentData] = useState(null);
   const [isWaitingForEsewaReturn, setIsWaitingForEsewaReturn] = useState(false);
