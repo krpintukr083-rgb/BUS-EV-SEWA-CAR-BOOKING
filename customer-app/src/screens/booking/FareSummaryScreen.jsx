@@ -74,9 +74,13 @@ const FareSummaryScreen = ({ navigation }) => {
     totalPayable = Math.max(0, originalFare - discountAmt);
   }
 
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('ESEWA');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(null);
 
   const handleConfirmBooking = async () => {
+    if (!selectedPaymentMethod) {
+      Alert.alert('Payment Method Required', 'Please select a payment method to continue.');
+      return;
+    }
     try {
       setLoading(true);
 
