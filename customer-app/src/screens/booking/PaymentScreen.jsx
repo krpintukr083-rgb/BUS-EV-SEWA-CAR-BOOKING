@@ -1100,65 +1100,89 @@ const PaymentScreen = ({ route, navigation }) => {
         )}
 
         {/* Payment Methods */}
-        <Text style={styles.sectionHeader}>Select Payment Method</Text>
+        {!isOnlinePayment && (
+          <>
+            <Text style={styles.sectionHeader}>Select Payment Method</Text>
 
-        {visiblePaymentOptions.map((option) => (
-          <TouchableOpacity
-            key={option.id}
-            style={[
-              styles.methodCard,
-              selectedMethod === option.id && styles.selectedMethodCard,
-              option.isUpcoming && styles.upcomingMethodCard
-            ]}
-            onPress={() => {
-              if (option.isUpcoming) {
-                Alert.alert(
-                  'Online Payment Coming Soon',
-                  'Online payment options (UPI, Card, Net Banking) are currently upcoming. Please proceed with "Offline Cash (Pay on Boarding)" to confirm your journey.',
-                  [{ text: 'OK' }]
-                );
-                return;
-              }
-              setSelectedMethod(option.id);
-            }}
-            activeOpacity={option.isUpcoming ? 0.7 : 0.8}
-          >
-            <View style={[styles.methodIconBox, { backgroundColor: option.isUpcoming ? '#f1f5f9' : option.color + '15' }]}>
-              <Ionicons name={option.icon} size={22} color={option.isUpcoming ? '#64748b' : option.color} />
-            </View>
-            <View style={styles.methodInfo}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <Text style={[styles.methodTitle, option.isUpcoming && styles.upcomingMethodTitle]}>{option.title}</Text>
-                {option.isOffline ? (
-                  <View style={styles.cashBadge}>
-                    <Text style={styles.cashBadgeText}>POPULAR • ACTIVE</Text>
+            {visiblePaymentOptions.map((option) => (
+              <TouchableOpacity
+                key={option.id}
+                style={[
+                  styles.methodCard,
+                  selectedMethod === option.id && styles.selectedMethodCard,
+                  option.isUpcoming && styles.upcomingMethodCard
+                ]}
+                onPress={() => {
+                  if (option.isUpcoming) {
+                    Alert.alert(
+                      'Online Payment Coming Soon',
+                      'Online payment options (UPI, Card, Net Banking) are currently upcoming. Please proceed with "Offline Cash (Pay on Boarding)" to confirm your journey.',
+                      [{ text: 'OK' }]
+                    );
+                    return;
+                  }
+                  setSelectedMethod(option.id);
+                }}
+                activeOpacity={option.isUpcoming ? 0.7 : 0.8}
+              >
+                <View style={[styles.methodIconBox, { backgroundColor: option.isUpcoming ? '#f1f5f9' : option.color + '15' }]}>
+                  <Ionicons name={option.icon} size={22} color={option.isUpcoming ? '#64748b' : option.color} />
+                </View>
+                <View style={styles.methodInfo}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <Text style={[styles.methodTitle, option.isUpcoming && styles.upcomingMethodTitle]}>{option.title}</Text>
+                    {option.isOffline ? (
+                      <View style={styles.cashBadge}>
+                        <Text style={styles.cashBadgeText}>POPULAR • ACTIVE</Text>
+                      </View>
+                    ) : option.isUpcoming ? (
+                      <View style={styles.upcomingBadge}>
+                        <Ionicons name="time-outline" size={10} color="#b45309" />
+                        <Text style={styles.upcomingBadgeText}>UPCOMING</Text>
+                      </View>
+                    ) : option.id === 'ESEWA' ? (
+                      <View style={styles.cashBadge}>
+                        <Text style={styles.cashBadgeText}>ESEWA UAT TEST</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.cashBadge}>
+                        <Text style={styles.cashBadgeText}>RAZORPAY TEST</Text>
+                      </View>
+                    )}
                   </View>
-                ) : option.isUpcoming ? (
-                  <View style={styles.upcomingBadge}>
-                    <Ionicons name="time-outline" size={10} color="#b45309" />
-                    <Text style={styles.upcomingBadgeText}>UPCOMING</Text>
-                  </View>
-                ) : option.id === 'ESEWA' ? (
-                  <View style={styles.cashBadge}>
-                    <Text style={styles.cashBadgeText}>ESEWA UAT TEST</Text>
-                  </View>
-                ) : (
-                  <View style={styles.cashBadge}>
-                    <Text style={styles.cashBadgeText}>RAZORPAY TEST</Text>
-                  </View>
-                )}
+                  <Text style={[styles.methodSub, option.isUpcoming && styles.upcomingMethodSub]}>{option.subtitle}</Text>
+                </View>
+                <View style={[styles.radioOuter, option.isUpcoming && styles.upcomingRadioOuter]}>
+                  {option.isUpcoming ? (
+                    <Ionicons name="lock-closed" size={11} color="#94a3b8" />
+                  ) : selectedMethod === option.id ? (
+                    <View style={styles.radioInner} />
+                  ) : null}
+                </View>
+              </TouchableOpacity>
+            ))}
+          </>
+        )}
+
+        {isOnlinePayment && (
+          <View style={[styles.summaryCard, { marginBottom: 16 }]}>
+            <Text style={[styles.sectionHeader, { marginBottom: 12 }]}>Payment Method</Text>
+            <View style={[styles.methodCard, { marginBottom: 0, borderColor: '#059669', backgroundColor: '#ecfdf5' }]}>
+              <View style={[styles.methodIconBox, { backgroundColor: '#60BB4615' }]}>
+                <Ionicons name="wallet-outline" size={22} color="#60BB46" />
               </View>
-              <Text style={[styles.methodSub, option.isUpcoming && styles.upcomingMethodSub]}>{option.subtitle}</Text>
+              <View style={styles.methodInfo}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <Text style={styles.methodTitle}>eSewa</Text>
+                  <View style={styles.cashBadge}>
+                    <Text style={styles.cashBadgeText}>ONLINE SECURE</Text>
+                  </View>
+                </View>
+                <Text style={styles.methodSub}>Pay securely using eSewa</Text>
+              </View>
             </View>
-            <View style={[styles.radioOuter, option.isUpcoming && styles.upcomingRadioOuter]}>
-              {option.isUpcoming ? (
-                <Ionicons name="lock-closed" size={11} color="#94a3b8" />
-              ) : selectedMethod === option.id ? (
-                <View style={styles.radioInner} />
-              ) : null}
-            </View>
-          </TouchableOpacity>
-        ))}
+          </View>
+        )}
 
           <>
             {/* eSewa Mobile Intent Active Card (Android) */}
