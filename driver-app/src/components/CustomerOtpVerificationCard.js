@@ -63,6 +63,41 @@ export default function CustomerOtpVerificationCard({ booking, acceptedBookingId
     }
   };
 
+  const handleCancelRequest = () => {
+    Alert.alert(
+      'Cancel Request?',
+      'Are you sure you want to cancel this booking request?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Confirm',
+          style: 'destructive',
+          onPress: async () => {
+            setLoading(true);
+            setErrorMsg('');
+            try {
+              const targetId = getOtpBookingId(booking, acceptedBookingId);
+              if (!targetId) {
+                throw new Error('Booking ID is unavailable.');
+              }
+              const res = await driverService.rejectBusBooking(targetId, 'Driver cancelled before OTP verification');
+              if (res?.data?.success || res?.status === 200 || res?.data?.status === 'success' || res?.success) {
+                Alert.alert('Success', 'Booking request cancelled successfully.');
+                if (onVerified) onVerified(booking);
+              } else {
+                Alert.alert('Error', res?.data?.message || 'Failed to cancel booking request');
+              }
+            } catch (err) {
+              Alert.alert('Error', err.response?.data?.message || 'Failed to cancel booking request');
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   return (
     <View style={styles.card}>
       {/* Header */}
@@ -183,6 +218,14 @@ export default function CustomerOtpVerificationCard({ booking, acceptedBookingId
             )}
           </TouchableOpacity>
         </View>
+
+        <TouchableOpacity
+          style={styles.cancelRequestBtn}
+          onPress={handleCancelRequest}
+          disabled={loading}
+        >
+          <Text style={styles.cancelRequestBtnText}>Cancel Request</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -346,5 +389,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: COLORS.white
+  },
+  cancelRequestBtn: {
+    marginTop: SPACING.m,
+    paddingVertical: 12,
+    borderRadius: RADIUS.m,
+    borderWidth: 1,
+    borderColor: COLORS.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%'
+  },
+  cancelRequestBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.danger
   }
 });
