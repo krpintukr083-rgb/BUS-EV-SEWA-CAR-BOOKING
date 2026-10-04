@@ -72,7 +72,7 @@ const LoginScreen = ({ navigation }) => {
             <Ionicons name="call-outline" size={18} color={COLORS.textMuted} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="e.g. +919876543210 or driver@platform.com"
+              placeholder="e.g. +977 9841234567 or driver@platform.com"
               placeholderTextColor={COLORS.textMuted}
               keyboardType="email-address"
               autoCapitalize="none"

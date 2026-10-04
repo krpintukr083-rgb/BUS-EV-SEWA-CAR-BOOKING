@@ -11,6 +11,7 @@ const {
   uploadDriverDocument,
   uploadDriverVehicleImages,
   updateVehicleFare,
+  updateOperatingRoute,
   getDriverStatus,
   updateDriverStatus,
   updateLanguage,
@@ -59,6 +60,8 @@ router.get('/vehicle', getAssignedVehicle);
 router.post('/vehicles', registerVehicle);
 router.post('/vehicle/register', registerVehicle);
 router.put('/vehicle/fare', updateVehicleFare);
+router.put('/vehicle/operating-route', updateOperatingRoute);
+router.put('/vehicles/operating-route', updateOperatingRoute);
 router.get('/vehicles', getDriverVehicles);
 router.delete('/vehicles/:vehicleId', deleteDriverVehicle);
 router.put('/vehicles/:vehicleId/ev-details', updateDriverVehicleEVDetails);

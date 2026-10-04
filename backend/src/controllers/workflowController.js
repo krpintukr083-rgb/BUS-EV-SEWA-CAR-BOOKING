@@ -423,7 +423,29 @@ const review = (kind, status) => async (req, res, next) => {
     if (!doc) return res.status(404).json({ success: false, message: `${kind} not found` });
     const reason = req.body && (req.body.reason || req.body.rejectionReason) || '';
     if (kind === 'vehicle') {
-      doc.vehicleStatus = status;
+      if (doc.pendingRoute && doc.pendingRoute.origin) {
+        if (status === 'Active') {
+          doc.route = doc.route || {};
+          doc.route.origin = doc.pendingRoute.origin;
+          doc.route.destination = doc.pendingRoute.destination;
+          doc.route.stops = doc.pendingRoute.stops || [];
+          doc.routeApprovalStatus = 'Approved';
+          doc.pendingRoute = undefined;
+          if (doc.vehicleStatus !== 'Active') {
+            doc.vehicleStatus = 'Active';
+          }
+        } else if (status === 'Rejected') {
+          doc.routeApprovalStatus = 'Rejected';
+          doc.pendingRoute = undefined;
+        }
+      } else {
+        doc.vehicleStatus = status;
+        if (status === 'Active') {
+          doc.routeApprovalStatus = 'Approved';
+        } else {
+          doc.routeApprovalStatus = 'Rejected';
+        }
+      }
       doc.submission.reviewedBy = req.user._id;
       doc.submission.reviewedAt = new Date();
       doc.submission.rejectionReason = status === 'Rejected' ? reason : '';
@@ -461,7 +483,15 @@ const review = (kind, status) => async (req, res, next) => {
 };
 
 exports.getPendingVehicles = async (req, res, next) => {
-  try { const data = await Vehicle.find({ vehicleStatus: 'Pending' }).populate('assignedDriver').sort({ createdAt: 1 }); res.json({ success: true, count: data.length, data }); } catch (e) { next(e); }
+  try {
+    const data = await Vehicle.find({
+      $or: [
+        { vehicleStatus: 'Pending' },
+        { routeApprovalStatus: 'Pending Approval' }
+      ]
+    }).populate('assignedDriver').sort({ createdAt: 1 });
+    res.json({ success: true, count: data.length, data });
+  } catch (e) { next(e); }
 };
 exports.getPendingSchedules = async (req, res, next) => {
   req.query.status = 'Pending';

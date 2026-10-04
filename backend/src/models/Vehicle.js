@@ -147,6 +147,21 @@ const vehicleSchema = new mongoose.Schema(
       destinationFareFromOrigin: { type: Number, min: 0, default: undefined },
       finalSegmentFare: { type: Number, min: 0, default: undefined }
     },
+    pendingRoute: {
+      origin: { type: String, default: '' },
+      destination: { type: String, default: '' },
+      stops: [{
+        name: { type: String, required: true, trim: true }
+      }],
+      requestedAt: { type: Date, default: Date.now },
+      status: { type: String, enum: ['Pending Approval', 'Approved', 'Rejected'], default: 'Pending Approval' },
+      rejectionReason: { type: String, default: '' }
+    },
+    routeApprovalStatus: {
+      type: String,
+      enum: ['Approved', 'Pending Approval', 'Rejected'],
+      default: 'Approved'
+    },
     pickupDropDetails: {
       pickupLocation: { type: String, default: '' },
       dropLocation: { type: String, default: '' }

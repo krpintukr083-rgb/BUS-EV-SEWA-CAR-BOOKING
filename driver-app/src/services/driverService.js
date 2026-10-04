@@ -56,6 +56,7 @@ export const driverService = {
     ...(departureTime ? { departureTime } : {}),
     ...(arrivalTime ? { arrivalTime } : {})
   }),
+  updateOperatingRoute: (vehicleId, routeData) => apiClient.put('/driver/vehicle/operating-route', { vehicleId, ...routeData }),
 
   // Booking Requests & Ride Lifecycle
   getBookingRequests: () => apiClient.get(ENDPOINTS.BOOKING_REQUESTS, { params: { _t: Date.now() } }),

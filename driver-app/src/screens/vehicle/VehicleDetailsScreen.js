@@ -70,9 +70,9 @@ export default function VehicleDetailsScreen({ navigation, route }) {
 
   // Operating Route Edit Modal State
   const [editRouteModalVisible, setEditRouteModalVisible] = useState(false);
-  const [routeDeparture, setRouteDeparture] = useState('');
-  const [routeArrival, setRouteArrival] = useState('');
-  const [routeDuration, setRouteDuration] = useState('');
+  const [routeOrigin, setRouteOrigin] = useState('');
+  const [routeDestination, setRouteDestination] = useState('');
+  const [routeStops, setRouteStops] = useState([]);
   const [savingRoute, setSavingRoute] = useState(false);
 
   // Car Route ON/OFF toggle state (mirrors vehicle.routeActive from backend)
@@ -171,51 +171,6 @@ export default function VehicleDetailsScreen({ navigation, route }) {
     ? routeFareInputsValid
     : fare !== '' && !isNaN(fare) && Number(fare) > 0;
 
-  const handleReverseRoute = async () => {
-    const currentOrigin = vehicle?.route?.origin;
-    const currentDest = vehicle?.route?.destination;
-
-    if (!currentOrigin || !currentDest) {
-      Alert.alert('Validation Error', 'Please enter both From and To locations first.');
-      return;
-    }
-
-    const reversedRoute = {
-      ...vehicle.route,
-      origin: currentDest,
-      destination: currentOrigin,
-    };
-
-    setSavingFare(true);
-    try {
-      const res = await driverService.updateVehicleFare(
-        hasRouteSegments ? calculatedRouteFare : fare,
-        vehicle?._id,
-        reversedRoute
-      );
-
-      if (res.data?.success) {
-        if (res.data.data) {
-          setVehicle(res.data.data);
-          setFare(res.data.data.fareRate ? res.data.data.fareRate.toString() : fare);
-        } else {
-          setVehicle(prev => ({
-            ...prev,
-            route: reversedRoute,
-          }));
-        }
-        Alert.alert('Success', `Route reversed to: ${currentDest} → ${currentOrigin}`);
-      } else {
-        Alert.alert('Error', res.data?.message || 'Failed to reverse route');
-      }
-    } catch (err) {
-      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to reverse route';
-      Alert.alert('Error', errorMsg);
-    } finally {
-      setSavingFare(false);
-    }
-  };
-
   const handleSaveFare = async () => {
     if (!isFareValid) {
       Alert.alert('Invalid Fare', 'Enter positive fares from origin in non-decreasing order.');
@@ -258,54 +213,55 @@ export default function VehicleDetailsScreen({ navigation, route }) {
   };
 
   const handleOpenRouteModal = () => {
-    const dep = vehicle?.route?.departureTime || '06:00 AM';
-    const arr = vehicle?.route?.arrivalTime || '11:30 AM';
-    const dur = calculateDuration(dep, arr) || vehicle?.route?.duration || '5h 30m';
-    setRouteDeparture(dep);
-    setRouteArrival(arr);
-    setRouteDuration(dur);
+    const activeR = vehicle?.pendingRoute?.origin ? vehicle.pendingRoute : vehicle?.route;
+    setRouteOrigin(activeR?.origin || '');
+    setRouteDestination(activeR?.destination || '');
+    const stopsList = Array.isArray(activeR?.stops)
+      ? activeR.stops.map(s => (typeof s === 'string' ? s : s?.name || '')).filter(Boolean)
+      : [];
+    setRouteStops(stopsList);
     setEditRouteModalVisible(true);
   };
 
+  const handleAddStop = () => {
+    setRouteStops(prev => [...prev, '']);
+  };
+
+  const handleUpdateStop = (text, index) => {
+    setRouteStops(prev => prev.map((s, i) => (i === index ? text : s)));
+  };
+
+  const handleRemoveStop = (index) => {
+    setRouteStops(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSaveOperatingRoute = async () => {
-    if (!routeDeparture.trim() || !routeArrival.trim()) {
-      Alert.alert('Validation Error', 'Please enter both Departure and Arrival times.');
+    if (!routeOrigin.trim() || !routeDestination.trim()) {
+      Alert.alert('Validation Error', 'Please enter both Origin and Destination.');
       return;
     }
 
-    const calculatedDur = calculateDuration(routeDeparture, routeArrival) || routeDuration || vehicle?.route?.duration || '5h 30m';
-
-    const updatedRoute = {
-      ...(vehicle?.route || {}),
-      departureTime: routeDeparture.trim(),
-      arrivalTime: routeArrival.trim(),
-      duration: calculatedDur
-    };
+    const cleanStops = routeStops.map(s => s.trim()).filter(Boolean);
 
     setSavingRoute(true);
     try {
-      const res = await driverService.updateVehicleFare(
-        hasRouteSegments ? calculatedRouteFare : (fare || vehicle?.fareRate || 500),
-        vehicle?._id,
-        updatedRoute
-      );
+      const res = await driverService.updateOperatingRoute(vehicle?._id, {
+        origin: routeOrigin.trim(),
+        destination: routeDestination.trim(),
+        stops: cleanStops
+      });
 
       if (res.data?.success) {
         if (res.data.data) {
           setVehicle(res.data.data);
-        } else {
-          setVehicle(prev => ({
-            ...prev,
-            route: updatedRoute
-          }));
         }
         setEditRouteModalVisible(false);
-        Alert.alert('Success', 'Operating Route updated successfully.');
+        Alert.alert('Submitted', res.data.message || 'Route change submitted for admin approval.');
       } else {
-        Alert.alert('Error', res.data?.message || 'Failed to update operating route.');
+        Alert.alert('Error', res.data?.message || 'Failed to submit route change.');
       }
     } catch (err) {
-      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to update operating route.';
+      const errorMsg = err?.response?.data?.message || err?.message || 'Failed to submit route change.';
       Alert.alert('Error', errorMsg);
     } finally {
       setSavingRoute(false);
@@ -390,13 +346,6 @@ export default function VehicleDetailsScreen({ navigation, route }) {
                     {vehicle.route.origin && vehicle.route.destination ? ' → ' : ''}
                     {vehicle.route.destination}
                   </Text>
-                  <TouchableOpacity
-                    style={styles.reverseRouteButton}
-                    onPress={handleReverseRoute}
-                  >
-                    <MaterialCommunityIcons name="swap-horizontal" size={16} color={COLORS.primaryLight} />
-                    <Text style={styles.reverseRouteButtonText}>Reverse Route</Text>
-                  </TouchableOpacity>
                 </>
               )}
               <TouchableOpacity 
@@ -476,38 +425,81 @@ export default function VehicleDetailsScreen({ navigation, route }) {
               </View>
             </View>
 
-            {/* Route / Service Card */}
-            {(vehicle.route || vehicle.pickupDropDetails) && (
-              <View style={styles.card}>
-                <View style={styles.cardHeaderRow}>
-                  <Text style={styles.cardTitle}>Operating Route</Text>
-                  <TouchableOpacity
-                    style={styles.editRouteBtn}
-                    onPress={handleOpenRouteModal}
-                    activeOpacity={0.7}
-                  >
-                    <MaterialCommunityIcons name="pencil" size={16} color={COLORS.primary} />
-                    <Text style={styles.editRouteBtnText}>Edit</Text>
-                  </TouchableOpacity>
-                </View>
-                <View style={{ gap: 8 }}>
-                  {(vehicle.route?.boardingPoints || []).length > 0 && (
-                    <Text style={styles.specLabel}>
-                      Boarding: {vehicle.route.boardingPoints.join(' | ')}
-                    </Text>
-                  )}
-                  <Text style={styles.specLabel}>
-                    Departure: {vehicle.route?.departureTime || '06:00 AM'}
-                    {vehicle.route?.arrivalTime ? `  →  Arrival: ${vehicle.route.arrivalTime}` : ''}
-                  </Text>
-                  {(vehicle.route?.duration || calculateDuration(vehicle.route?.departureTime, vehicle.route?.arrivalTime)) ? (
-                    <Text style={styles.specLabel}>
-                      Duration: {vehicle.route?.duration || calculateDuration(vehicle.route?.departureTime, vehicle.route?.arrivalTime)}
-                    </Text>
-                  ) : null}
-                </View>
+            {/* Operating Route Card */}
+            <View style={styles.card}>
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.cardTitle}>Operating Route</Text>
+                <TouchableOpacity
+                  style={styles.editRouteBtn}
+                  onPress={handleOpenRouteModal}
+                  activeOpacity={0.7}
+                >
+                  <MaterialCommunityIcons name="pencil" size={16} color={COLORS.primary} />
+                  <Text style={styles.editRouteBtnText}>Edit</Text>
+                </TouchableOpacity>
               </View>
-            )}
+
+              <View style={{ gap: 8, marginTop: 4 }}>
+                <Text style={[styles.specVal, { fontSize: 16, fontWeight: '700' }]}>
+                  {vehicle.route?.origin || 'Not set'}
+                  {vehicle.route?.origin && vehicle.route?.destination ? ' → ' : ''}
+                  {vehicle.route?.destination || ''}
+                </Text>
+
+                {Array.isArray(vehicle.route?.stops) && vehicle.route.stops.length > 0 && (
+                  <Text style={styles.specLabel}>
+                    Stops: {vehicle.route.stops.map(s => typeof s === 'string' ? s : s?.name).filter(Boolean).join(', ')}
+                  </Text>
+                )}
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
+                  <Text style={styles.specLabel}>Status: </Text>
+                  <View style={[
+                    styles.routeStatusBadge,
+                    {
+                      backgroundColor: vehicle.routeApprovalStatus === 'Pending Approval'
+                        ? 'rgba(245, 158, 11, 0.15)'
+                        : vehicle.routeApprovalStatus === 'Rejected'
+                        ? 'rgba(239, 68, 68, 0.15)'
+                        : 'rgba(22, 163, 74, 0.15)'
+                    }
+                  ]}>
+                    <Text style={[
+                      styles.routeStatusText,
+                      {
+                        color: vehicle.routeApprovalStatus === 'Pending Approval'
+                          ? '#f59e0b'
+                          : vehicle.routeApprovalStatus === 'Rejected'
+                          ? '#ef4444'
+                          : '#16a34a'
+                      }
+                    ]}>
+                      {vehicle.routeApprovalStatus || 'Approved'}
+                    </Text>
+                  </View>
+                </View>
+
+                {vehicle.pendingRoute?.origin && (
+                  <View style={styles.pendingRouteNotice}>
+                    <MaterialCommunityIcons name="clock-alert-outline" size={20} color="#f59e0b" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.pendingNoticeTitle}>Pending Route Change:</Text>
+                      <Text style={styles.pendingNoticeText}>
+                        {vehicle.pendingRoute.origin} → {vehicle.pendingRoute.destination}
+                      </Text>
+                      {Array.isArray(vehicle.pendingRoute.stops) && vehicle.pendingRoute.stops.length > 0 && (
+                        <Text style={styles.pendingNoticeSub}>
+                          Stops: {vehicle.pendingRoute.stops.map(s => typeof s === 'string' ? s : s?.name).filter(Boolean).join(', ')}
+                        </Text>
+                      )}
+                      <Text style={[styles.pendingNoticeSub, { fontStyle: 'italic', marginTop: 4 }]}>
+                        Awaiting Admin Approval
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              </View>
+            </View>
 
             {/* Car Route ON/OFF Toggle Card */}
             {vehicle.vehicleType === 'Car' && (
@@ -699,40 +691,54 @@ export default function VehicleDetailsScreen({ navigation, route }) {
             <ScrollView showsVerticalScrollIndicator={false}>
               <View style={styles.modalBody}>
                 <View>
-                  <Text style={styles.inputLabel}>Departure Time</Text>
+                  <Text style={styles.inputLabel}>Origin *</Text>
                   <TextInput
                     style={styles.modalInput}
-                    value={routeDeparture}
-                    onChangeText={(val) => {
-                      setRouteDeparture(val);
-                      const dur = calculateDuration(val, routeArrival);
-                      if (dur) setRouteDuration(dur);
-                    }}
-                    placeholder="e.g. 06:00 AM"
+                    value={routeOrigin}
+                    onChangeText={setRouteOrigin}
+                    placeholder="e.g. Jaipur"
                     placeholderTextColor={COLORS.textMuted}
                   />
                 </View>
 
                 <View>
-                  <Text style={styles.inputLabel}>Arrival Time</Text>
+                  <Text style={styles.inputLabel}>Destination *</Text>
                   <TextInput
                     style={styles.modalInput}
-                    value={routeArrival}
-                    onChangeText={(val) => {
-                      setRouteArrival(val);
-                      const dur = calculateDuration(routeDeparture, val);
-                      if (dur) setRouteDuration(dur);
-                    }}
-                    placeholder="e.g. 11:30 AM"
+                    value={routeDestination}
+                    onChangeText={setRouteDestination}
+                    placeholder="e.g. Delhi"
                     placeholderTextColor={COLORS.textMuted}
                   />
                 </View>
 
-                <View style={styles.durationPreviewBox}>
-                  <MaterialCommunityIcons name="clock-outline" size={18} color={COLORS.primary} />
-                  <Text style={styles.durationPreviewText}>
-                    Calculated Duration: {routeDuration || calculateDuration(routeDeparture, routeArrival) || 'Auto-calculated'}
-                  </Text>
+                <View style={{ gap: 8 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={styles.inputLabel}>Intermediate Stops</Text>
+                    <TouchableOpacity onPress={handleAddStop} style={styles.addStopBtn} activeOpacity={0.7}>
+                      <MaterialCommunityIcons name="plus-circle" size={18} color={COLORS.primary} />
+                      <Text style={styles.addStopBtnText}>Add Stop</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {routeStops.map((stop, index) => (
+                    <View key={index} style={styles.stopInputRow}>
+                      <TextInput
+                        style={[styles.modalInput, { flex: 1 }]}
+                        value={stop}
+                        onChangeText={(text) => handleUpdateStop(text, index)}
+                        placeholder={`Stop #${index + 1} (e.g. Ajmer)`}
+                        placeholderTextColor={COLORS.textMuted}
+                      />
+                      <TouchableOpacity
+                        onPress={() => handleRemoveStop(index)}
+                        style={styles.removeStopBtn}
+                        activeOpacity={0.7}
+                      >
+                        <MaterialCommunityIcons name="trash-can-outline" size={22} color="#ef4444" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
                 </View>
               </View>
             </ScrollView>
@@ -1175,5 +1181,52 @@ const styles = StyleSheet.create({
     color: COLORS.white,
     fontWeight: '700',
     fontSize: 14,
+  },
+  addStopBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  addStopBtnText: {
+    color: COLORS.primary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  stopInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  removeStopBtn: {
+    padding: 6,
+  },
+  pendingRouteNotice: {
+    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    borderWidth: 1,
+    borderRadius: RADIUS.m,
+    padding: SPACING.m,
+    flexDirection: 'row',
+    gap: SPACING.s,
+    marginTop: 8,
+  },
+  pendingNoticeTitle: {
+    color: '#f59e0b',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  pendingNoticeText: {
+    color: COLORS.textPrimary,
+    fontWeight: '600',
+    fontSize: 14,
+    marginTop: 2,
+  },
+  pendingNoticeSub: {
+    color: COLORS.textSecondary,
+    fontSize: 12,
+    marginTop: 2,
   },
 });

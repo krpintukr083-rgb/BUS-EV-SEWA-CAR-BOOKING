@@ -4495,3 +4495,85 @@ exports.verifyRideOtp = async (req, res, next) => {
   if (booking.bookingMode === 'INSTANT') return verifyInstantRideOtp(req, res, next);
   return verifyScheduleRideOtp(req, res, next);
 };
+
+// @desc    Update Driver Vehicle Operating Route (Triggers Admin Approval on Change)
+// @route   PUT /api/driver/vehicle/operating-route
+// @access  Private (Driver Only)
+exports.updateOperatingRoute = async (req, res, next) => {
+  try {
+    const { vehicleId, origin, destination, stops } = req.body;
+    if (!origin || !origin.toString().trim() || !destination || !destination.toString().trim()) {
+      return res.status(400).json({ success: false, message: 'Please provide both Origin and Destination' });
+    }
+
+    const cleanOrigin = origin.toString().trim();
+    const cleanDestination = destination.toString().trim();
+
+    // Standardize stops array (preserving order, removing empty entries)
+    const cleanStops = Array.isArray(stops)
+      ? stops
+          .map(s => (typeof s === 'string' ? { name: s.trim() } : { name: (s?.name || '').toString().trim() }))
+          .filter(s => s.name.length > 0)
+      : [];
+
+    const ownershipQuery = getDriverVehicleOwnershipQuery(req.driver);
+    let vehicle;
+    if (vehicleId && mongoose.isValidObjectId(vehicleId)) {
+      vehicle = await Vehicle.findOne({ _id: vehicleId, ...ownershipQuery });
+    } else {
+      vehicle = await Vehicle.findOne({ assignedDriver: req.driver._id });
+      if (!vehicle) {
+        vehicle = await Vehicle.findOne({ 'submission.submittedByDriver': req.driver._id });
+      }
+    }
+
+    if (!vehicle) {
+      return res.status(404).json({ success: false, message: 'Assigned vehicle not found or unauthorized' });
+    }
+
+    // Compare requested route against current active/approved route
+    const currentOrigin = (vehicle.route?.origin || '').trim().toLowerCase();
+    const currentDest = (vehicle.route?.destination || '').trim().toLowerCase();
+    const currentStops = Array.isArray(vehicle.route?.stops)
+      ? vehicle.route.stops.map(s => (s.name || '').trim().toLowerCase())
+      : [];
+    const requestedStops = cleanStops.map(s => s.name.toLowerCase());
+
+    const isOriginSame = cleanOrigin.toLowerCase() === currentOrigin;
+    const isDestSame = cleanDestination.toLowerCase() === currentDest;
+    const areStopsSame =
+      currentStops.length === requestedStops.length &&
+      currentStops.every((val, index) => val === requestedStops[index]);
+
+    const isSameRoute = isOriginSame && isDestSame && areStopsSame;
+
+    if (isSameRoute && vehicle.routeApprovalStatus !== 'Pending Approval') {
+      return res.json({
+        success: true,
+        message: 'No route changes detected.',
+        data: vehicle
+      });
+    }
+
+    // Route modified -> Create a fresh Pending Approval Request every single time
+    vehicle.pendingRoute = {
+      origin: cleanOrigin,
+      destination: cleanDestination,
+      stops: cleanStops,
+      requestedAt: new Date(),
+      status: 'Pending Approval',
+      rejectionReason: ''
+    };
+    vehicle.routeApprovalStatus = 'Pending Approval';
+
+    await vehicle.save();
+
+    res.json({
+      success: true,
+      message: 'Route change submitted for admin approval.',
+      data: vehicle
+    });
+  } catch (error) {
+    next(error);
+  }
+};
