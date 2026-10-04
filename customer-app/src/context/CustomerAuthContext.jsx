@@ -118,10 +118,10 @@ export const CustomerAuthProvider = ({ children }) => {
     setError(null);
     try {
       const res = await customerService.sendOtp(phone);
-      if (res.success) {
+      if (res && res.success) {
         return { success: true, message: res.message };
       }
-      return { success: false, message: res.message || 'Failed to send OTP' };
+      return { success: false, message: (res && res.message) ? res.message : 'Failed to send OTP' };
     } catch (err) {
       let msg = 'Failed to send OTP.';
       if (err.response?.data?.message) {

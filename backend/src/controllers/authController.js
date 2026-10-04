@@ -452,7 +452,7 @@ exports.sendOtp = async (req, res, next) => {
     const smsResult = await smsService.sendSms(last10, smsMessage);
 
     if (!smsResult.success) {
-      // Clean up OTP if SMS dispatch fails
+      // Clean up OTP if SMS dispatch fails so user is not stuck
       await Otp.deleteMany({ phone: phoneKey });
       return res.status(400).json({
         success: false,

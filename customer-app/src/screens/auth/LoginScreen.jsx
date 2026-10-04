@@ -117,14 +117,14 @@ const LoginScreen = ({ navigation }) => {
     const res = await sendOtp(phone.trim());
     setSendingOtp(false);
 
-    if (res.success) {
+    if (res && res.success) {
       setOtpSent(true);
       setResendTimer(60);
       Alert.alert('OTP Sent', res.message || 'An OTP code has been sent to your mobile number via SMS.');
     } else {
       Alert.alert(
         'Send OTP Failed',
-        res.message || 'Could not send OTP. Please check your phone number and try again.',
+        (res && res.message) ? res.message : 'Could not send OTP. Please check your phone number and try again.',
         [
           { text: 'OK' },
           {
