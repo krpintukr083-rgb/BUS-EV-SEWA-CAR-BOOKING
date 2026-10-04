@@ -13,7 +13,8 @@ const Schedule = require('../models/Schedule');
 const ServiceControl = require('../models/ServiceControl');
 const { dashboardCache } = require('../utils/cache');
 const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
-const { validateRoutePricing } = require('../utils/routeFares');
+const BusOffer = require('../models/BusOffer');
+const { validateRoutePricing, getRouteSegmentFare } = require('../utils/routeFares');
 const driverBookingResponse = require('../utils/driverBookingResponse');
 const { driverMatchesBookingRoute } = require('../utils/routeMatching');
 const { getActiveInstantBookingQuery, getActiveReservedSeats } = require('../utils/activeInstantBooking');
@@ -2282,24 +2283,63 @@ const verifyInstantRideOtp = async (req, res, next) => {
     booking.driverConfirmedAt = new Date();
     booking.driverConfirmedBy = driver._id;
 
+    // Calculate and finalize real fare upon driver OTP verification
+    const targetVehicleId = booking.vehicle || driver.assignedVehicle;
+    if (targetVehicleId) {
+      const targetVehicle = await Vehicle.findById(targetVehicleId);
+      if (targetVehicle) {
+        const fareUnitCount = booking.serviceType === 'Bus' && booking.busSeatNumbers && booking.busSeatNumbers.length > 0
+          ? booking.busSeatNumbers.length
+          : booking.serviceType === 'EV-Sewa'
+          ? (booking.passengerDetails?.length || 1)
+          : 1;
+        let routeSegmentFare = null;
+        if (Array.isArray(targetVehicle.route?.stops) && targetVehicle.route.stops.length > 0) {
+          routeSegmentFare = getRouteSegmentFare(targetVehicle.route, booking.pickupLocation, booking.dropLocation);
+        }
+        const unitFare = routeSegmentFare == null ? (targetVehicle.fareRate || targetVehicle.fare || 500) : routeSegmentFare;
+        const computedBaseFare = unitFare * fareUnitCount;
+        let originalFare = computedBaseFare;
+        let discountPercentage = 0;
+        let discountAmount = 0;
+        let finalPayableFare = computedBaseFare;
+
+        if (booking.serviceType === 'Bus') {
+          const busOffer = await BusOffer.findOne({ service: 'bus' });
+          const currentStatus = busOffer ? (busOffer.offerStatus || busOffer.discountStatus || 'active') : 'inactive';
+          if (busOffer && currentStatus === 'active' && Number(busOffer.discountPercentage) > 0) {
+            discountPercentage = Number(busOffer.discountPercentage);
+            discountAmount = Math.round(((originalFare * discountPercentage) / 100) * 100) / 100;
+            finalPayableFare = Math.max(0, originalFare - discountAmount);
+          }
+        }
+        booking.fare = finalPayableFare;
+        booking.originalFare = originalFare;
+        booking.discountPercentage = discountPercentage;
+        booking.discountAmount = discountAmount;
+        booking.finalFare = finalPayableFare;
+        booking.driverPaymentAmount = Math.round(finalPayableFare * 0.8);
+
+        let pRec = await Payment.findOne({ booking: booking._id });
+        if (pRec) {
+          pRec.bookingAmount = finalPayableFare;
+          pRec.driverPayment = Math.round(finalPayableFare * 0.8);
+          await pRec.save();
+        }
+      }
+    }
+
     const isBus = booking.serviceType === 'Bus';
     const isOfflineCash = booking.paymentMethod === 'Offline Cash' || booking.paymentMethod === 'Cash';
     const isPaid = booking.paymentStatus === 'Paid' || booking.paymentStatus === 'Successful';
 
-    if (isBus) {
-      if (isPaid) {
-        booking.bookingStatus = 'Confirmed';
-      } else if (isOfflineCash) {
-        booking.bookingStatus = 'Awaiting Cash Collection';
-      } else {
-        booking.bookingStatus = 'Confirmed';
-      }
+    if (isPaid) {
+      booking.bookingStatus = 'Confirmed';
+    } else if (isOfflineCash) {
+      booking.bookingStatus = 'Awaiting Cash Collection';
+      booking.rideStatus = 'Accepted';
     } else {
-      if (isOfflineCash && !isPaid) {
-        booking.bookingStatus = 'Awaiting Cash Collection';
-      } else {
-        booking.bookingStatus = 'Confirmed';
-      }
+      booking.bookingStatus = 'Pending';
       booking.rideStatus = 'Accepted';
     }
 
@@ -3379,24 +3419,63 @@ const verifyScheduleRideOtp = async (req, res, next) => {
     booking.driverConfirmedAt = new Date();
     booking.driverConfirmedBy = driver._id;
 
+    // Calculate and finalize real fare upon driver OTP verification
+    const targetVehicleId = booking.vehicle || driver.assignedVehicle;
+    if (targetVehicleId) {
+      const targetVehicle = await Vehicle.findById(targetVehicleId);
+      if (targetVehicle) {
+        const fareUnitCount = booking.serviceType === 'Bus' && booking.busSeatNumbers && booking.busSeatNumbers.length > 0
+          ? booking.busSeatNumbers.length
+          : booking.serviceType === 'EV-Sewa'
+          ? (booking.passengerDetails?.length || 1)
+          : 1;
+        let routeSegmentFare = null;
+        if (Array.isArray(targetVehicle.route?.stops) && targetVehicle.route.stops.length > 0) {
+          routeSegmentFare = getRouteSegmentFare(targetVehicle.route, booking.pickupLocation, booking.dropLocation);
+        }
+        const unitFare = routeSegmentFare == null ? (targetVehicle.fareRate || targetVehicle.fare || 500) : routeSegmentFare;
+        const computedBaseFare = unitFare * fareUnitCount;
+        let originalFare = computedBaseFare;
+        let discountPercentage = 0;
+        let discountAmount = 0;
+        let finalPayableFare = computedBaseFare;
+
+        if (booking.serviceType === 'Bus') {
+          const busOffer = await BusOffer.findOne({ service: 'bus' });
+          const currentStatus = busOffer ? (busOffer.offerStatus || busOffer.discountStatus || 'active') : 'inactive';
+          if (busOffer && currentStatus === 'active' && Number(busOffer.discountPercentage) > 0) {
+            discountPercentage = Number(busOffer.discountPercentage);
+            discountAmount = Math.round(((originalFare * discountPercentage) / 100) * 100) / 100;
+            finalPayableFare = Math.max(0, originalFare - discountAmount);
+          }
+        }
+        booking.fare = finalPayableFare;
+        booking.originalFare = originalFare;
+        booking.discountPercentage = discountPercentage;
+        booking.discountAmount = discountAmount;
+        booking.finalFare = finalPayableFare;
+        booking.driverPaymentAmount = Math.round(finalPayableFare * 0.8);
+
+        let pRec = await Payment.findOne({ booking: booking._id });
+        if (pRec) {
+          pRec.bookingAmount = finalPayableFare;
+          pRec.driverPayment = Math.round(finalPayableFare * 0.8);
+          await pRec.save();
+        }
+      }
+    }
+
     const isBus = booking.serviceType === 'Bus';
     const isOfflineCash = booking.paymentMethod === 'Offline Cash' || booking.paymentMethod === 'Cash';
     const isPaid = booking.paymentStatus === 'Paid' || booking.paymentStatus === 'Successful';
 
-    if (isBus) {
-      if (isPaid) {
-        booking.bookingStatus = 'Confirmed';
-      } else if (isOfflineCash) {
-        booking.bookingStatus = 'Awaiting Cash Collection';
-      } else {
-        booking.bookingStatus = 'Confirmed';
-      }
+    if (isPaid) {
+      booking.bookingStatus = 'Confirmed';
+    } else if (isOfflineCash) {
+      booking.bookingStatus = 'Awaiting Cash Collection';
+      booking.rideStatus = 'Accepted';
     } else {
-      if (isOfflineCash && !isPaid) {
-        booking.bookingStatus = 'Awaiting Cash Collection';
-      } else {
-        booking.bookingStatus = 'Confirmed';
-      }
+      booking.bookingStatus = 'Pending';
       booking.rideStatus = 'Accepted';
     }
 

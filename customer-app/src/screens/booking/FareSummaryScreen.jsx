@@ -73,6 +73,8 @@ const FareSummaryScreen = ({ navigation }) => {
     totalPayable = Math.max(0, originalFare - discountAmt);
   }
 
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('ESEWA');
+
   const handleConfirmBooking = async () => {
     try {
       setLoading(true);
@@ -88,9 +90,9 @@ const FareSummaryScreen = ({ navigation }) => {
         passengerDetails: bookingDraft.passengerDetails,
         selectedSeats: bookingDraft.selectedSeats,
         bookingMode: selectedCarSchedule ? 'SCHEDULE' : bookingMode,
-        paymentMethod: 'Offline Cash',
+        paymentMethod: selectedPaymentMethod,
         ...((bookingDraft.serviceType === 'EV-Sewa' || bookingMode === 'INSTANT') ? { passengerCount: fareUnitCount } : {}),
-        fare: totalPayable,
+        fare: selectedPaymentMethod === 'Offline Cash' ? totalPayable : 0,
         travelDate: selectedCarSchedule?.travelDate || bookingDraft.travelDate,
         ...((selectedCarSchedule?._id || (bookingMode === 'NORMAL' && bookingDraft.scheduleId))
           ? { scheduleId: selectedCarSchedule?._id || bookingDraft.scheduleId }
@@ -105,12 +107,12 @@ const FareSummaryScreen = ({ navigation }) => {
         if (setCurrentBookingId) {
           setCurrentBookingId(res.data.bookingId);
         }
-        // Navigate to Payment Method Selection screen instead of skipping straight to confirmation
         navigation.replace('Payment', {
           bookingId: res.data._id || res.data.bookingId,
-          bookingCode: res.data.bookingCode,
+          bookingCode: res.data.bookingId || res.data.bookingCode,
           bookingMode: res.data.bookingMode,
-          amount: totalPayable
+          amount: selectedPaymentMethod === 'Offline Cash' ? totalPayable : 0,
+          isOnlinePayment: selectedPaymentMethod !== 'Offline Cash'
         });
       } else {
         Alert.alert('Booking Error', res.message || 'Unable to create booking');
@@ -240,6 +242,52 @@ const FareSummaryScreen = ({ navigation }) => {
               </View>
             </View>
           ))}
+        </View>
+
+        {/* Payment Method Selector */}
+        <View style={styles.detailCard}>
+          <Text style={styles.cardHeading}>Select Payment Method</Text>
+
+          <TouchableOpacity
+            style={[
+              styles.paymentChoiceOption,
+              selectedPaymentMethod === 'ESEWA' && styles.paymentChoiceActive
+            ]}
+            onPress={() => setSelectedPaymentMethod('ESEWA')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="card-outline" size={20} color={selectedPaymentMethod === 'ESEWA' ? COLORS.primary : '#64748b'} />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.paymentChoiceTitle}>Online Payment (eSewa)</Text>
+              <Text style={styles.paymentChoiceSub}>Share OTP → Finalize Fare → Pay on eSewa</Text>
+            </View>
+            <Ionicons
+              name={selectedPaymentMethod === 'ESEWA' ? 'radio-button-on' : 'radio-button-off'}
+              size={20}
+              color={selectedPaymentMethod === 'ESEWA' ? COLORS.primary : '#94a3b8'}
+            />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.paymentChoiceOption,
+              selectedPaymentMethod === 'Offline Cash' && styles.paymentChoiceActive,
+              { marginTop: 8 }
+            ]}
+            onPress={() => setSelectedPaymentMethod('Offline Cash')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="cash-outline" size={20} color={selectedPaymentMethod === 'Offline Cash' ? COLORS.primary : '#64748b'} />
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.paymentChoiceTitle}>Offline Cash (Pay on Boarding)</Text>
+              <Text style={styles.paymentChoiceSub}>Standard Cash flow — pay cash directly to driver</Text>
+            </View>
+            <Ionicons
+              name={selectedPaymentMethod === 'Offline Cash' ? 'radio-button-on' : 'radio-button-off'}
+              size={20}
+              color={selectedPaymentMethod === 'Offline Cash' ? COLORS.primary : '#94a3b8'}
+            />
+          </TouchableOpacity>
         </View>
 
         {/* Fare Breakdown */}
@@ -550,6 +598,29 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
     elevation: 8
+  },
+  paymentChoiceOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc'
+  },
+  paymentChoiceActive: {
+    borderColor: COLORS.primary,
+    backgroundColor: 'rgba(37, 99, 235, 0.06)'
+  },
+  paymentChoiceTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.darkNavy
+  },
+  paymentChoiceSub: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    marginTop: 2
   }
 });
 

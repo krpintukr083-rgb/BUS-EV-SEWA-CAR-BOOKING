@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Switch, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +7,22 @@ import { useAuth } from '../state/AuthContext';
 import { useLanguage } from '../state/LanguageContext';
 import LanguageModal from './LanguageModal';
 import SafetySOSModal from './SafetySOSModal';
+import { getEffectiveBaseUrl } from '../services/api';
+import { DRIVER_API_BASE_URL } from '../constants/api';
+
+const resolvePhotoUrl = (rawPhotoUrl, baseUrl) => {
+  if (!rawPhotoUrl || typeof rawPhotoUrl !== 'string') return null;
+  const trimmed = rawPhotoUrl.trim();
+  if (!trimmed) return null;
+
+  if (/^(https?:\/\/|data:|file:\/\/)/i.test(trimmed)) {
+    return trimmed;
+  }
+
+  const activeBase = (baseUrl || DRIVER_API_BASE_URL).replace(/\/api\/?$/i, '').replace(/\/+$/, '');
+  const cleanPath = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return `${activeBase}${cleanPath}`;
+};
 
 const DriverHeader = ({ navigation, title, showBack = false }) => {
   const { driver, user, isOnline, toggleOnlineStatus } = useAuth();
@@ -14,6 +30,22 @@ const DriverHeader = ({ navigation, title, showBack = false }) => {
   const [langModalVisible, setLangModalVisible] = useState(false);
   const [sosModalVisible, setSosModalVisible] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
+  const [baseUrl, setBaseUrl] = useState(DRIVER_API_BASE_URL);
+  const [imageError, setImageError] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    getEffectiveBaseUrl()
+      .then((url) => {
+        if (isMounted && url) {
+          setBaseUrl(url);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleToggle = async (val) => {
     setIsToggling(true);
@@ -22,7 +54,44 @@ const DriverHeader = ({ navigation, title, showBack = false }) => {
   };
 
   const displayName = driver?.name || user?.name || 'Driver Partner';
-  const profilePhoto = driver?.profilePhoto || user?.profilePhoto || 'https://images.unsplash.com/photo-1566492031773-4f4e44671857?auto=format&fit=crop&w=300&q=80';
+  const rawPhoto =
+    driver?.profilePhoto ||
+    driver?.profileImage ||
+    driver?.driverPhoto ||
+    driver?.photo ||
+    driver?.avatar ||
+    driver?.image ||
+    user?.profilePhoto ||
+    user?.profileImage ||
+    user?.driverPhoto ||
+    user?.photo ||
+    user?.avatar ||
+    user?.image;
+
+  const resolvedPhotoUrl = resolvePhotoUrl(rawPhoto, baseUrl);
+
+  useEffect(() => {
+    setImageError(false);
+  }, [rawPhoto, baseUrl]);
+
+  const driverInitial = (displayName.trim().charAt(0) || 'D').toUpperCase();
+
+  const renderAvatar = () => {
+    if (resolvedPhotoUrl && !imageError) {
+      return (
+        <Image
+          source={{ uri: resolvedPhotoUrl }}
+          style={styles.avatar}
+          onError={() => setImageError(true)}
+        />
+      );
+    }
+    return (
+      <View style={styles.avatarFallback}>
+        <Text style={styles.avatarInitials}>{driverInitial}</Text>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -35,7 +104,7 @@ const DriverHeader = ({ navigation, title, showBack = false }) => {
       ) : (
         <View style={styles.leftRow}>
           <Image source={require('../assets/logo.png')} style={styles.brandLogo} resizeMode="contain" />
-          <Image source={{ uri: profilePhoto }} style={styles.avatar} />
+          {renderAvatar()}
           <View style={styles.driverInfo}>
             <Text style={styles.driverName} numberOfLines={1}>{displayName}</Text>
             <View style={styles.statusPill}>
@@ -123,6 +192,21 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     borderWidth: 2,
     borderColor: COLORS.primary
+  },
+  avatarFallback: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    borderWidth: 2,
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  avatarInitials: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '700'
   },
   driverInfo: {
     marginLeft: SPACING.sm,

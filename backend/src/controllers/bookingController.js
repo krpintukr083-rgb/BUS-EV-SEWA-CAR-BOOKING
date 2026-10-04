@@ -326,12 +326,10 @@ const createScheduleBooking = async (req, res, next) => {
     const bookingId = `BK-${Date.now().toString().slice(-4)}${Math.floor(100 + Math.random() * 900)}`;
     const isBus = serviceType === 'Bus';
     const isOfflineCash = paymentMethod === 'Offline Cash' || paymentMethod === 'Cash';
-    const initialPaymentMethod = isOfflineCash ? 'Offline Cash' : (paymentMethod || 'Online Razorpay');
+    const initialPaymentMethod = isOfflineCash ? 'Offline Cash' : (paymentMethod || 'ESEWA');
     const initialPaymentStatus = isOfflineCash ? 'Pending Cash' : 'Pending';
     const isThirdParty = vehicle.vehicleSource === 'THIRD_PARTY';
-    const initialBookingStatus = isOfflineCash
-      ? bookingMode === 'INSTANT' ? 'Awaiting Cash Collection' : 'Pending Driver Confirmation'
-      : 'Pending Admin Confirmation';
+    const initialBookingStatus = 'Pending Driver Confirmation';
     const hiredVehicleDetails = isThirdParty ? {
       hireAmount: vehicle.hireDetails?.hireAmount || 0,
       additionalExpense: vehicle.hireDetails?.additionalExpense || 0,
@@ -374,12 +372,12 @@ const createScheduleBooking = async (req, res, next) => {
         passengerDetails: (passengerDetails && passengerDetails.length > 0)
           ? passengerDetails
           : [{ name: req.user.name, age: 28, gender: 'Male' }],
-        fare: finalPayableFare,
-        originalFare,
-        discountPercentage,
-        discountAmount,
-        finalFare: finalPayableFare,
-        driverPaymentAmount: Math.round(finalPayableFare * 0.8),
+        fare: isOfflineCash ? finalPayableFare : 0,
+        originalFare: isOfflineCash ? originalFare : 0,
+        discountPercentage: isOfflineCash ? discountPercentage : 0,
+        discountAmount: isOfflineCash ? discountAmount : 0,
+        finalFare: isOfflineCash ? finalPayableFare : 0,
+        driverPaymentAmount: isOfflineCash ? Math.round(finalPayableFare * 0.8) : 0,
         paymentMethod: initialPaymentMethod,
         paymentStatus: initialPaymentStatus,
         cashCollected: false,
@@ -721,6 +719,26 @@ exports.cancelBooking = async (req, res, next) => {
         success: false,
         message: `Booking is already ${booking.bookingStatus}`
       });
+    }
+
+    // 20-minute cancellation window & destination reached validation for online payment flow
+    const isOnlinePayment = booking.paymentMethod !== 'Offline Cash' && booking.paymentMethod !== 'Cash';
+    if (isOnlinePayment && req.user && req.user.role === 'customer') {
+      const createdAtMs = new Date(booking.createdAt).getTime();
+      const nowMs = Date.now();
+      const diffMinutes = (nowMs - createdAtMs) / (1000 * 60);
+      if (diffMinutes > 20) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cancellation window (20 minutes) has expired for this online booking.'
+        });
+      }
+      if (booking.rideStatus === 'Completed' || booking.completedAt) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot cancel booking after driver has reached destination.'
+        });
+      }
     }
 
     const refundAmount = booking.fare; // 100% refund policy simulation

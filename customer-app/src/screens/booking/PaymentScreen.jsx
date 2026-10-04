@@ -35,9 +35,98 @@ const PaymentScreen = ({ route, navigation }) => {
   const formRef = useRef(null);
   const [showRazorpayModal, setShowRazorpayModal] = useState(false);
   const [esewaOrder, setEsewaOrder] = useState(null);
-  const [showEsewaModal, setShowEsewaModal] = useState(false);
   const [esewaIntentData, setEsewaIntentData] = useState(null);
   const [isWaitingForEsewaReturn, setIsWaitingForEsewaReturn] = useState(false);
+
+  const [bookingObj, setBookingObj] = useState(null);
+  const [cancelTimeLeft, setCancelTimeLeft] = useState('');
+  const [canCancel, setCanCancel] = useState(false);
+
+  const activeBookingId = bookingId || bookingCode || bookingDraft.confirmedBooking?._id || bookingDraft.confirmedBooking?.bookingId;
+  const isOnlinePayment = route.params?.isOnlinePayment || (bookingObj && bookingObj.paymentMethod !== 'Offline Cash' && bookingObj.paymentMethod !== 'Cash');
+
+  useEffect(() => {
+    if (isOnlinePayment) {
+      setSelectedMethod('ESEWA');
+    }
+  }, [isOnlinePayment]);
+
+  // Load & poll booking details for OTP verification and final fare
+  useEffect(() => {
+    if (!activeBookingId) return;
+    let isMounted = true;
+    const fetchDetails = async () => {
+      try {
+        const res = await customerService.getBookingDetails(activeBookingId);
+        if (res.success && res.data && isMounted) {
+          setBookingObj(res.data);
+        }
+      } catch (err) {
+        console.log('Error fetching booking details in PaymentScreen:', err);
+      }
+    };
+    fetchDetails();
+    const interval = setInterval(fetchDetails, 3000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [activeBookingId]);
+
+  // Dynamic 20-minute cancellation timer for online payment
+  useEffect(() => {
+    if (!isOnlinePayment || !bookingObj) return;
+
+    const updateTimer = () => {
+      const createdAtMs = bookingObj.createdAt ? new Date(bookingObj.createdAt).getTime() : Date.now();
+      const elapsedSec = Math.floor((Date.now() - createdAtMs) / 1000);
+      const remainingSec = Math.max(0, 1200 - elapsedSec);
+
+      const isCompleted = bookingObj.rideStatus === 'Completed' || Boolean(bookingObj.completedAt);
+      const isDone = ['Confirmed', 'Completed', 'Cancelled'].includes(bookingObj.bookingStatus) && bookingObj.paymentStatus === 'Paid';
+
+      if (remainingSec <= 0 || isCompleted || isDone) {
+        setCanCancel(false);
+        setCancelTimeLeft('');
+      } else {
+        setCanCancel(true);
+        const m = Math.floor(remainingSec / 60);
+        const s = remainingSec % 60;
+        setCancelTimeLeft(`${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
+      }
+    };
+
+    updateTimer();
+    const timer = setInterval(updateTimer, 1000);
+    return () => clearInterval(timer);
+  }, [isOnlinePayment, bookingObj]);
+
+  const handleCancelBooking = async () => {
+    Alert.alert(
+      'Cancel Booking',
+      'Are you sure you want to cancel this booking request?',
+      [
+        { text: 'No', style: 'cancel' },
+        {
+          text: 'Yes, Cancel',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const res = await customerService.cancelBooking(activeBookingId, 'Customer cancelled from payment screen');
+              if (res.success) {
+                Alert.alert('Booking Cancelled', 'Your booking request has been cancelled.');
+                navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+              } else {
+                Alert.alert('Cancellation Error', res.message || 'Unable to cancel booking.');
+              }
+            } catch (err) {
+              Alert.alert('Error', err.response?.data?.message || err.message || 'Failed to cancel booking.');
+            }
+          }
+        }
+      ]
+    );
+  };
 
   // Auto‑submit eSewa HTML form on web when order is ready
   useEffect(() => {
@@ -887,7 +976,7 @@ const PaymentScreen = ({ route, navigation }) => {
     );
   }
 
-  const finalPayable = amount || bookingDraft.totalFare || 0;
+  const finalPayable = (bookingObj && bookingObj.fare > 0) ? bookingObj.fare : (amount || bookingDraft.totalFare || 0);
   const isOfflineSelected = selectedMethod === 'Offline_Cash';
 
   return (
@@ -895,6 +984,34 @@ const PaymentScreen = ({ route, navigation }) => {
       <Header title="Payment & Checkout" onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Pending Driver OTP Verification Card (Online Payment Flow) */}
+        {isOnlinePayment && (!bookingObj?.otpVerified || (bookingObj?.fare || 0) === 0) && (
+          <View style={styles.otpPendingCard}>
+            <View style={styles.otpPendingHeader}>
+              <Ionicons name="time-outline" size={24} color="#b45309" />
+              <Text style={styles.otpPendingTitle}>Pending Driver Verification</Text>
+            </View>
+            <Text style={styles.otpPendingSub}>
+              Share this Customer Booking OTP with your assigned driver. The driver will enter this OTP in the Driver App to verify your ride and lock the exact fare.
+            </Text>
+
+            <View style={styles.otpDisplayBox}>
+              <Text style={styles.otpDisplayLabel}>YOUR CUSTOMER BOOKING OTP</Text>
+              <Text style={styles.otpDisplayCode}>
+                {bookingObj?.confirmationOtp || bookingObj?.customerViewOtp || route.params?.confirmationOtp || '******'}
+              </Text>
+              <Text style={styles.otpDisplayHint}>Share with Driver to Finalize Fare</Text>
+            </View>
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 10 }}>
+              <ActivityIndicator size="small" color={COLORS.primary} />
+              <Text style={{ fontSize: 12, color: COLORS.textSecondary, fontWeight: '600' }}>
+                Waiting for driver to verify OTP...
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* Payable Header Card */}
         <View style={styles.amountCard}>
           <View style={styles.amountHeaderRow}>
@@ -1108,6 +1225,19 @@ const PaymentScreen = ({ route, navigation }) => {
               </Text>
             </View>
           </>
+
+        {canCancel && isOnlinePayment && (
+          <TouchableOpacity
+            style={[styles.cancelBookingBtn, { marginHorizontal: 16, marginVertical: 12 }]}
+            onPress={handleCancelBooking}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="close-circle-outline" size={18} color="#ef4444" />
+            <Text style={styles.cancelBookingBtnText}>
+              Cancel Booking {cancelTimeLeft ? `(Available for ${cancelTimeLeft})` : ''}
+            </Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       <View style={styles.footer}>
@@ -1716,6 +1846,76 @@ const styles = StyleSheet.create({
   intentSimulateText: {
     color: '#166534',
     fontSize: 11,
+    fontWeight: '700'
+  },
+  otpPendingCard: {
+    backgroundColor: '#fffbe6',
+    borderWidth: 1.5,
+    borderColor: '#fef08a',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 16
+  },
+  otpPendingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6
+  },
+  otpPendingTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#b45309'
+  },
+  otpPendingSub: {
+    fontSize: 12,
+    color: '#92400e',
+    lineHeight: 18,
+    marginBottom: 12
+  },
+  otpDisplayBox: {
+    backgroundColor: '#ffffff',
+    borderColor: '#fde047',
+    borderWidth: 2,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    marginVertical: 8
+  },
+  otpDisplayLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#b45309',
+    letterSpacing: 0.5
+  },
+  otpDisplayCode: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#1e293b',
+    letterSpacing: 4,
+    marginVertical: 4
+  },
+  otpDisplayHint: {
+    fontSize: 11,
+    color: '#78350f',
+    fontWeight: '600'
+  },
+  cancelBookingBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#fff1f2',
+    borderWidth: 1,
+    borderColor: '#fecdd3',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    marginTop: 10
+  },
+  cancelBookingBtnText: {
+    color: '#e11d48',
+    fontSize: 13,
     fontWeight: '700'
   }
 });
