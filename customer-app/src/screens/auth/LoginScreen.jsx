@@ -247,7 +247,7 @@ const LoginScreen = ({ navigation }) => {
               <>
                 <Input
                   label="Mobile Number"
-                  placeholder="e.g. 9841234567"
+                  placeholder="e.g. +977 9841234567"
                   value={phone}
                   onChangeText={setPhone}
                   keyboardType="phone-pad"
