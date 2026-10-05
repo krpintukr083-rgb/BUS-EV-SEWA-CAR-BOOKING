@@ -137,6 +137,19 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
       return;
     }
 
+    if (scheduleBooking) {
+      matchedDrivers.forEach(driver => {
+        console.log('[SCHEDULE_RECIPIENT_DEBUG]', {
+          bookingId: bookingIdStr,
+          driverId: String(driver._id),
+          driverName: driver.name,
+          driverRoute: `${driver.route?.origin}->${driver.route?.destination}`,
+          eligible: true,
+          reason: 'service-route-eligible'
+        });
+      });
+    }
+
     // Persist one typed request per driver/booking; only newly inserted requests are pushed.
     const newRequestDrivers = [];
     for (const driver of matchedDrivers) {
@@ -168,7 +181,18 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
           },
           { upsert: true }
         );
-        if (result.upsertedCount === 1) newRequestDrivers.push(driver);
+        if (result.upsertedCount === 1) {
+          newRequestDrivers.push(driver);
+        }
+
+        if (scheduleBooking) {
+          console.log('[SCHEDULE_NOTIFICATION_DB]', {
+            bookingId: bookingIdStr,
+            driverId: String(driver._id),
+            notificationId: 'upserted',
+            created: result.upsertedCount > 0
+          });
+        }
       } catch (error) {
         if (error.code !== 11000) throw error;
       }
@@ -210,7 +234,7 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
 
       if (token) {
         console.log(`Push DISPATCH: PREPARING`);
-        messages.push({
+        const payload = {
           to: token,
           title: notifTitle,
           body: notifBody,
@@ -239,6 +263,15 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
           type: payload.data.type,
           channelId: payload.channelId
         });
+
+        if (scheduleBooking) {
+          console.log('[SCHEDULE_PUSH_DEBUG]', {
+            bookingId: bookingIdStr,
+            driverId: String(driver._id),
+            tokenPresent: true,
+            tokenPrefix: token.substring(0, 15)
+          });
+        }
       } else {
         console.log(`Push DISPATCH: SKIPPED (No Token)`);
         driverLogResults[i] = {
@@ -303,6 +336,14 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
 
             console.log(`[ROUTE-NOTIFICATION-TRACE] Push ticket ID: ${ticket?.id || 'N/A'}`);
             console.log(`[ROUTE-NOTIFICATION-TRACE] Push provider result: ${isOk ? 'ok' : 'error'} - ${errorMsg || ''}`);
+
+            if (scheduleBooking) {
+              console.log('[SCHEDULE_PUSH_TICKET]', {
+                status: ticket?.status || (!pushResponse.ok ? 'HTTP_ERROR' : 'UNKNOWN'),
+                ticketId: ticket?.id || null,
+                error: errorMsg || null
+              });
+            }
 
             if (isOk && ticket.id) {
               ticketIdsToCheck.push(ticket.id);
@@ -433,7 +474,130 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
 
 const notifyAssignedDriverForScheduleBooking = async (booking) => {
   if (!booking || booking.bookingMode !== 'SCHEDULE') return;
-  return notifyEligibleDriversForBooking(booking, { scheduleBooking: true });
+  
+  if (booking.serviceType !== 'Car') {
+    return notifyEligibleDriversForBooking(booking, { scheduleBooking: true });
+  }
+
+  const bookingOrigin = booking.pickupLocation || booking.route?.origin || '';
+  const bookingDest = booking.dropLocation || booking.route?.destination || '';
+  const bookingIdStr = booking.bookingId || (booking._id ? booking._id.toString() : '');
+
+  const scheduleId = booking.scheduleId?._id || booking.scheduleId;
+  let driver = null;
+
+  if (scheduleId) {
+    const activeSchedule = await Schedule.findById(scheduleId).lean();
+    if (activeSchedule && activeSchedule.driver) {
+      driver = await Driver.findById(activeSchedule.driver).populate('user', '_id name phone status').lean();
+    }
+  }
+
+  if (!driver && booking.driver) {
+     driver = await Driver.findById(booking.driver).populate('user', '_id name phone status').lean();
+  }
+
+  console.log('[SCHEDULE_RECIPIENT_DEBUG]', {
+    bookingId: bookingIdStr,
+    driverId: driver ? String(driver._id) : 'none',
+    driverName: driver ? driver.name : 'none',
+    driverRoute: driver ? `${driver.route?.origin}->${driver.route?.destination}` : 'none',
+    eligible: !!driver,
+    reason: driver ? 'car-schedule-assigned-driver' : 'no-driver-found'
+  });
+
+  if (!driver) return;
+
+  const recipientId = driver.user?._id || driver.user;
+  const notifTitle = `New Scheduled Booking Request`;
+  const routeText = `${bookingOrigin.split('(')[0].trim()} -> ${bookingDest.split('(')[0].trim()}`;
+  
+  const result = await Notification.updateOne(
+    {
+      recipientRole: 'driver',
+      recipientId,
+      entityId: booking._id,
+      eventType: 'BOOKING_REQUEST'
+    },
+    {
+      $setOnInsert: {
+        title: notifTitle,
+        message: `${notifTitle} ${bookingIdStr}: ${routeText}`,
+        recipient: `Driver: ${driver.name || 'Driver'}`,
+        recipientRole: 'driver',
+        recipientId,
+        eventType: 'BOOKING_REQUEST',
+        entityType: 'Booking',
+        entityId: booking._id,
+        bookingId: bookingIdStr,
+        driverId: driver._id,
+        origin: bookingOrigin,
+        destination: bookingDest,
+        status: 'Unread'
+      }
+    },
+    { upsert: true }
+  );
+
+  console.log('[SCHEDULE_NOTIFICATION_DB]', {
+    bookingId: bookingIdStr,
+    driverId: String(driver._id),
+    notificationId: 'upserted', 
+    created: result.upsertedCount > 0
+  });
+
+  if (result.upsertedCount === 0) return;
+
+  const token = (driver.pushToken || driver.fcmToken || '').trim();
+
+  console.log('[SCHEDULE_PUSH_DEBUG]', {
+    bookingId: bookingIdStr,
+    driverId: String(driver._id),
+    tokenPresent: !!token,
+    tokenPrefix: token ? token.substring(0, 15) : 'none'
+  });
+
+  if (token) {
+    try {
+      const pushResponse = await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Accept-Encoding': 'gzip, deflate'
+        },
+        body: JSON.stringify([{
+          to: token,
+          title: notifTitle,
+          body: `${routeText} booking request. Tap to view.`,
+          data: {
+            type: 'BOOKING_REQUEST',
+            bookingId: bookingIdStr,
+            bookingMode: 'SCHEDULE',
+            origin: bookingOrigin,
+            destination: bookingDest,
+            serviceType: booking.serviceType,
+            screen: 'Requests'
+          },
+          sound: 'default',
+          priority: 'high',
+          channelId: 'driver-booking-requests'
+        }])
+      });
+
+      const pushResult = await pushResponse.json();
+      const ticket = pushResult.data && pushResult.data[0];
+
+      console.log('[SCHEDULE_PUSH_TICKET]', {
+        status: ticket?.status || 'UNKNOWN',
+        ticketId: ticket?.id || 'none',
+        error: ticket?.message || ticket?.details?.error || null
+      });
+      
+    } catch (e) {
+      console.error('Push send error:', e);
+    }
+  }
 };
 
 const notifyAssignedCarDriverForScheduleBooking = notifyAssignedDriverForScheduleBooking;

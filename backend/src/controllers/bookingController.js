@@ -445,6 +445,17 @@ const createScheduleBooking = async (req, res, next) => {
     });
     // Schedule bookings go only to the driver assigned by their schedule/vehicle.
     if (bookingMode !== 'INSTANT') {
+      console.log('[SCHEDULE_DISPATCH_DEBUG]', {
+        bookingId: booking.bookingId,
+        bookingMode: booking.bookingMode,
+        serviceType: booking.serviceType,
+        scheduleId: String(booking.scheduleId || 'none'),
+        origin: booking.pickupLocation,
+        destination: booking.dropLocation,
+        travelDate: booking.travelDate,
+        assignedDriver: String(booking.driver || 'none'),
+        selectedVehicle: String(booking.vehicle || 'none')
+      });
       if (bookingMode === 'SCHEDULE' && serviceType === 'Car') {
         await notifyAssignedDriverForScheduleBooking(booking);
       } else {
