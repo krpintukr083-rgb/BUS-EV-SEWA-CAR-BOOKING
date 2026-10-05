@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ export default function CustomerOtpVerificationCard({ booking, acceptedBookingId
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const inputRefs = useRef([]);
 
   if (!booking) return null;
 
@@ -157,32 +158,47 @@ export default function CustomerOtpVerificationCard({ booking, acceptedBookingId
             const digit = otp[idx] || '';
             const isFocused = otp.length === idx;
             return (
-              <View
+              <TextInput
                 key={idx}
+                ref={(el) => (inputRefs.current[idx] = el)}
                 style={[
-                  styles.digitBox,
+                  styles.otpInput,
                   digit ? styles.digitBoxFilled : null,
                   isFocused ? styles.digitBoxFocused : null
                 ]}
-              >
-                <Text style={styles.digitText}>{digit}</Text>
-              </View>
+                keyboardType="number-pad"
+                maxLength={6}
+                value={digit}
+                autoFocus={idx === 0}
+                selectionColor="#2563EB"
+                onChangeText={(val) => {
+                  const cleaned = val.replace(/[^0-9]/g, '');
+                  if (cleaned.length > 1) {
+                    setOtp(cleaned.substring(0, 6));
+                    setErrorMsg('');
+                    inputRefs.current[Math.min(cleaned.length, 6) - 1]?.focus();
+                    return;
+                  }
+                  let newOtp = otp.split('');
+                  newOtp[idx] = cleaned;
+                  setOtp(newOtp.join(''));
+                  setErrorMsg('');
+                  if (cleaned && idx < 5) {
+                    inputRefs.current[idx + 1]?.focus();
+                  }
+                }}
+                onKeyPress={(e) => {
+                  if (e.nativeEvent.key === 'Backspace' && !digit && idx > 0) {
+                    inputRefs.current[idx - 1]?.focus();
+                    let newOtp = otp.split('');
+                    newOtp[idx - 1] = '';
+                    setOtp(newOtp.join(''));
+                  }
+                }}
+              />
             );
           })}
         </View>
-
-        {/* Hidden TextInput overlaid to capture input */}
-        <TextInput
-          style={styles.hiddenInput}
-          keyboardType="number-pad"
-          maxLength={6}
-          value={otp}
-          onChangeText={(val) => {
-            setOtp(val.replace(/[^0-9]/g, ''));
-            setErrorMsg('');
-          }}
-          autoFocus
-        />
 
         {!!errorMsg && (
           <View style={styles.errorBanner}>
@@ -316,15 +332,20 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: SPACING.m
   },
-  digitBox: {
+  otpInput: {
     width: 48,
-    height: 56,
-    borderRadius: 12,
+    height: 48,
     borderWidth: 1,
-    borderColor: '#cbd5e1',
-    backgroundColor: '#f8fafc',
-    alignItems: 'center',
-    justifyContent: 'center'
+    borderColor: '#D6E4F0',
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    color: '#111827',
+    fontSize: 24,
+    fontWeight: '800',
+    textAlign: 'center',
+    textAlignVertical: 'center',
+    padding: 0,
+    opacity: 1,
   },
   digitBoxFilled: {
     borderColor: '#3b82f6',
@@ -332,20 +353,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   digitBoxFocused: {
-    borderColor: '#f59e0b',
-    borderWidth: 2
-  },
-  digitText: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: COLORS.textPrimary
-  },
-  hiddenInput: {
-    position: 'absolute',
-    top: 40,
-    width: 280,
-    height: 50,
-    opacity: 0.01
+    borderColor: '#2563EB',
+    borderWidth: 2,
+    backgroundColor: '#EFF6FF',
   },
   errorBanner: {
     flexDirection: 'row',
