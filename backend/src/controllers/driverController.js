@@ -1467,8 +1467,25 @@ const getScheduleBookingRequests = async (req, res, next) => {
       if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(reqItem.bookingStatus)) {
         return exclude(`booking-status-${reqItem.bookingStatus}`);
       }
-      return driverMatchesBookingRoute(driver, reqItem, { allowOpposite }) ||
-        exclude('driver-route-does-not-match-booking');
+
+      const routeMatch = driverMatchesBookingRoute(driver, reqItem, { allowOpposite });
+      if (reqItem.bookingMode === 'INSTANT' && (reqItem.serviceType === 'Car' || reqItem.serviceType === 'CAR' || reqItem.serviceType === 'car')) {
+        console.log('[CAR_REQUEST_DEBUG]', {
+          bookingId: reqItem.bookingId,
+          bookingMode: reqItem.bookingMode,
+          serviceType: reqItem.serviceType,
+          pickup: reqItem.pickupLocation,
+          drop: reqItem.dropLocation,
+          assignedDriver: reqItem.driver || reqItem.assignedDriverId,
+          assignedVehicle: reqItem.vehicle ? reqItem.vehicle._id : null,
+          driverRoute: driver.route,
+          candidateDriver: driver._id,
+          eligible: routeMatch,
+          excludedReason: !routeMatch ? 'driver-route-does-not-match-booking' : null
+        });
+      }
+
+      return routeMatch || exclude('driver-route-does-not-match-booking');
     });
 
     // Map requests with external navigation links and countdown metadata

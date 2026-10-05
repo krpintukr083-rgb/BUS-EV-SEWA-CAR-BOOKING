@@ -49,6 +49,17 @@ const BookingRequestsScreen = ({ route, navigation }) => {
         }
         const validRequests = normalizeIncomingRequests(response.data.data)
           .filter(request => !hiddenRequestIdsRef.current.has(String(request._id)));
+        
+        const receivedServiceTypes = validRequests.map(r => r.serviceType);
+        const carBookingFound = validRequests.some(r => r.serviceType?.toLowerCase() === 'car');
+        console.log('[CAR_UI_DEBUG]', {
+          receivedBookingIds: validRequests.map(r => r._id || r.bookingId),
+          receivedServiceTypes,
+          carBookingFound,
+          hiddenByFilter: response.data.data.length - validRequests.length,
+          hiddenByStaleLogic: 0 // Will implement stale logic logging if needed
+        });
+
         const latest = validRequests[0];
         if (__DEV__) {
           console.info(

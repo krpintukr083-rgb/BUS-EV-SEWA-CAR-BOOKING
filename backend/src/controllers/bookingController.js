@@ -837,12 +837,18 @@ exports.confirmOfflineCashBooking = async (req, res, next) => {
     booking.paymentMethod = 'Offline Cash';
     booking.paymentStatus = 'Pending Cash';
     if (booking.bookingMode === 'INSTANT') {
-      booking.bookingStatus = 'Awaiting Cash Collection';
-      booking.driverConfirmationStatus = 'Confirmed';
-      booking.driverConfirmed = true;
-      booking.driverConfirmedAt = booking.driverConfirmedAt || new Date();
-      booking.driverConfirmedBy = booking.driverConfirmedBy || booking.driver;
-      if (booking.serviceType !== 'Bus') booking.rideStatus = 'Accepted';
+      if (booking.driver || booking.assignedDriverId) {
+        booking.bookingStatus = 'Awaiting Cash Collection';
+        booking.driverConfirmationStatus = 'Confirmed';
+        booking.driverConfirmed = true;
+        booking.driverConfirmedAt = booking.driverConfirmedAt || new Date();
+        booking.driverConfirmedBy = booking.driverConfirmedBy || booking.driver || booking.assignedDriverId;
+        if (booking.serviceType !== 'Bus') booking.rideStatus = 'Accepted';
+      } else {
+        booking.bookingStatus = 'Pending Driver Confirmation';
+        booking.driverConfirmationStatus = 'Pending';
+        booking.driverConfirmed = false;
+      }
     } else {
       booking.bookingStatus = 'Pending Driver Confirmation';
       booking.driverConfirmationStatus = 'Pending';
