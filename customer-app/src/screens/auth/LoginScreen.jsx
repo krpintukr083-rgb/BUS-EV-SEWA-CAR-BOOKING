@@ -344,20 +344,6 @@ const LoginScreen = ({ navigation }) => {
             </>
           )}
 
-          {/* Server status pill button */}
-          <TouchableOpacity
-            style={styles.serverPill}
-            onPress={() => {
-              setServerModalVisible(true);
-              handleTestConnection();
-            }}
-          >
-            <Ionicons name="server-outline" size={14} color="#64748b" />
-            <Text style={styles.serverPillText} numberOfLines={1}>
-              Server: {currentServerUrl || 'Live Cloud (Render)'}
-            </Text>
-            <Ionicons name="chevron-forward" size={14} color="#94a3b8" />
-          </TouchableOpacity>
 
           {/* Sign Up Link */}
           <View style={styles.signupRow}>

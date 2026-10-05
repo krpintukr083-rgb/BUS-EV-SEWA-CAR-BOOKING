@@ -194,14 +194,21 @@ const HomeScreen = ({ navigation }) => {
       {/* Top App Header with Greeting */}
       <View style={styles.topHeader}>
         <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Image
-              source={{
-                uri: getFullImageUrl(user?.profilePhoto) || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=300&q=80'
-              }}
-              style={styles.avatar}
+              source={require('../../assets/logo.png')}
+              style={styles.appLogo}
+              resizeMode="contain"
             />
-          </TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
+              <Image
+                source={{
+                  uri: getFullImageUrl(user?.profilePhoto) || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=300&q=80'
+                }}
+                style={styles.avatar}
+              />
+            </TouchableOpacity>
+          </View>
           <View style={styles.greetingTextContainer}>
             <Text style={styles.greetingSub}>Welcome to</Text>
             <Text style={styles.userName} numberOfLines={1}>
@@ -578,6 +585,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     flex: 1
+  },
+  appLogo: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
   },
   avatar: {
     width: 44,
