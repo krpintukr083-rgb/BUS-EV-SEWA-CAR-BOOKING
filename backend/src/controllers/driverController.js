@@ -1422,6 +1422,12 @@ const getScheduleBookingRequests = async (req, res, next) => {
         console.log(
           `[BOOKING_REQUESTS_FILTERED] bookingId=${reqItem.bookingId || reqItem._id} reason=${reason}`
         );
+        console.log('[LIVE_REQUESTS_DEBUG]', {
+          driverId: String(driver._id),
+          bookingId: String(reqItem._id),
+          count: 0,
+          excludedReason: reason
+        });
         return false;
       };
       // Direct canonical exclusion check
@@ -1516,10 +1522,18 @@ const getScheduleBookingRequests = async (req, res, next) => {
       }
     }
 
+    console.log('[LIVE_REQUESTS_DEBUG]', {
+      driverId: String(driver._id),
+      bookingId: enrichedRequests.length > 0 ? String(enrichedRequests[0]._id) : 'none',
+      count: enrichedRequests.length,
+      excludedReason: null
+    });
+
     res.json({
       success: true,
       count: enrichedRequests.length,
-      data: enrichedRequests
+      data: enrichedRequests,
+      latest: enrichedRequests[0] || null
     });
   } catch (error) {
     next(error);

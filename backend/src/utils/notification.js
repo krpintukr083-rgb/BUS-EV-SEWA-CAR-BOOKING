@@ -178,6 +178,17 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
     console.log('[NOTIFY] push dispatch start');
     const tDispatchStart = Date.now();
 
+    console.log('[LIVE_DISPATCH_DEBUG]', {
+      bookingId: bookingIdStr,
+      bookingMode: booking.bookingMode,
+      serviceType,
+      origin: bookingOrigin,
+      destination: bookingDest,
+      candidateCount: newRequestDrivers.length,
+      candidateDriverIds: newRequestDrivers.map(d => String(d._id)),
+      candidateRoutes: newRequestDrivers.map(d => `${d.route?.origin} -> ${d.route?.destination}`)
+    });
+
     const messages = [];
     const messageDriverMap = [];
     const driverLogResults = new Array(newRequestDrivers.length);
@@ -216,8 +227,18 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
           sound: 'default',
           priority: 'high',
           channelId: 'driver-booking-requests'
-        });
+        };
+        messages.push(payload);
         messageDriverMap.push({ driver, token, originalIndex: i });
+
+        console.log('[PUSH_SEND_DEBUG]', {
+          bookingId: bookingIdStr,
+          driverId: String(driver._id),
+          tokenPresent: true,
+          title: notifTitle,
+          type: payload.data.type,
+          channelId: payload.channelId
+        });
       } else {
         console.log(`Push DISPATCH: SKIPPED (No Token)`);
         driverLogResults[i] = {
@@ -272,6 +293,13 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
             const errorMsg = isError
               ? (ticket.message || ticket.details?.error || 'Expo Error')
               : (!pushResponse.ok ? `HTTP ${pushResponse.status}` : null);
+
+            console.log('[PUSH_TICKET_DEBUG]', {
+              status: ticket?.status || (!pushResponse.ok ? 'HTTP_ERROR' : 'UNKNOWN'),
+              ticketId: ticket?.id || null,
+              details: ticket?.details || null,
+              error: errorMsg || null
+            });
 
             console.log(`[ROUTE-NOTIFICATION-TRACE] Push ticket ID: ${ticket?.id || 'N/A'}`);
             console.log(`[ROUTE-NOTIFICATION-TRACE] Push provider result: ${isOk ? 'ok' : 'error'} - ${errorMsg || ''}`);
