@@ -1419,11 +1419,9 @@ const getScheduleBookingRequests = async (req, res, next) => {
     // Filter candidate bookings by route match & eligibility
     const requests = candidateBookings.filter(reqItem => {
       const exclude = reason => {
-        if (process.env.NODE_ENV !== 'production') {
-          console.log(
-            `[BOOKING_REQUESTS_FILTERED] bookingId=${reqItem.bookingId || reqItem._id} reason=${reason}`
-          );
-        }
+        console.log(
+          `[BOOKING_REQUESTS_FILTERED] bookingId=${reqItem.bookingId || reqItem._id} reason=${reason}`
+        );
         return false;
       };
       // Direct canonical exclusion check
@@ -1433,7 +1431,9 @@ const getScheduleBookingRequests = async (req, res, next) => {
       
       const assignedDriver = reqItem.driver || reqItem.assignedDriverId;
       if (assignedDriver && String(assignedDriver._id || assignedDriver) !== String(driver._id)) {
-        return exclude('assigned-to-another-driver');
+        if (reqItem.bookingMode !== 'INSTANT' && reqItem.bookingMode !== 'NORMAL') {
+          return exclude('assigned-to-another-driver');
+        }
       }
 
       if (reqItem.rejectedDrivers && reqItem.rejectedDrivers.some(id => String(id) === String(driver._id))) {
@@ -1584,10 +1584,17 @@ const acceptInstantBookingRequest = async (req, res, next) => {
     }
 
     if (booking.driver && String(booking.driver._id || booking.driver) !== String(driver._id)) {
-      return res.status(409).json({
-        success: false,
-        message: 'This booking request has already been accepted by another driver.'
-      });
+      if (booking.driverConfirmed || booking.driverConfirmationStatus === 'Confirmed' || booking.rideStatus === 'Accepted') {
+        return res.status(409).json({
+          success: false,
+          message: 'This booking request has already been accepted by another driver.'
+        });
+      } else if (booking.bookingMode !== 'INSTANT' && booking.bookingMode !== 'NORMAL') {
+        return res.status(409).json({
+          success: false,
+          message: 'This booking request is assigned to another driver.'
+        });
+      }
     }
 
     const driverStatus = String(driver.driverStatus || '').trim().toLowerCase();

@@ -22,9 +22,10 @@ const getProjectId = () => {
 // 1. Configure Foreground Notification Presentation Behavior
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
-    shouldSetBadge: false,
+    shouldSetBadge: true,
   }),
 });
 
@@ -265,24 +266,9 @@ export const checkAndNotifyBookingRequests = async (requests, driverId) => {
       const serviceType = item.serviceType || 'Booking';
 
       // Trigger Android Top Heads-Up Notification safely
+      // REMOVED: Prevent duplicate notifications since backend now correctly fires remote push.
       try {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: `New ${serviceType} Booking Request`,
-            body: bodyText,
-            data: {
-              bookingId: bId,
-              bookingCode: item.bookingId || bId,
-              serviceType,
-              screen: 'Requests'
-            },
-            sound: 'default',
-            priority: Notifications.AndroidNotificationPriority.HIGH,
-          },
-          trigger: Platform.OS === 'android'
-            ? { channelId: CHANNEL_ID, seconds: 1 }
-            : { seconds: 1 }
-        });
+        // Notifications.scheduleNotificationAsync(...) 
       } catch (notifErr) {
         console.warn('[PUSH] Local notification scheduling failed:', notifErr?.message || notifErr);
       }

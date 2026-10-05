@@ -206,7 +206,11 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
           data: {
             bookingId: bookingIdStr,
             eventType: 'BOOKING_REQUEST',
+            type: 'BOOKING_REQUEST',
             serviceType,
+            origin: bookingOrigin,
+            destination: bookingDest,
+            bookingMode: booking.bookingMode,
             screen: 'Requests'
           },
           sound: 'default',
