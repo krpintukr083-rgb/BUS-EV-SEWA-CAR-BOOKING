@@ -92,29 +92,59 @@ export const AuthProvider = ({ children }) => {
     try {
       const res = await driverService.login({ identifier, password });
       if (res.data?.success) {
-        const { token: jwtToken, user: userData, driver: driverData } = res.data;
-        setToken(jwtToken);
-        setUser(userData);
-        setDriver(driverData || userData.driverInfo || null);
-        setIsOnline(Boolean(driverData?.isOnline));
-
-        await AsyncStorage.setItem('@driver_jwt_token', jwtToken);
-        await AsyncStorage.setItem('@driver_user_data', JSON.stringify(userData));
-        if (driverData) {
-          await AsyncStorage.setItem('@driver_profile_data', JSON.stringify(driverData));
-        }
-
-        registerPushTokenWithBackend({
-          post: (url, body) => driverService.registerPushToken(body)
-        }).catch(() => {});
-
-        return { success: true };
+        return await handleAuthSuccess(res.data);
       }
       return { success: false, message: res.data?.message || 'Login failed' };
     } catch (e) {
       const msg = e.response?.data?.message || 'Invalid credentials or connection error';
       return { success: false, message: msg };
     }
+  };
+
+  const sendLoginOtp = async (phone) => {
+    try {
+      const res = await driverService.sendLoginOtp(phone);
+      if (res.data?.success) {
+        return { success: true, message: res.data.message };
+      }
+      return { success: false, message: res.data?.message || 'Failed to send OTP' };
+    } catch (e) {
+      const msg = e.response?.data?.message || 'Failed to send OTP. Please check your number.';
+      return { success: false, message: msg };
+    }
+  };
+
+  const verifyLoginOtp = async (phone, otp) => {
+    try {
+      const res = await driverService.verifyLoginOtp(phone, otp);
+      if (res.data?.success) {
+        return await handleAuthSuccess(res.data);
+      }
+      return { success: false, message: res.data?.message || 'Verification failed' };
+    } catch (e) {
+      const msg = e.response?.data?.message || 'Invalid or expired OTP';
+      return { success: false, message: msg };
+    }
+  };
+
+  const handleAuthSuccess = async (data) => {
+    const { token: jwtToken, user: userData, driver: driverData } = data;
+    setToken(jwtToken);
+    setUser(userData);
+    setDriver(driverData || userData.driverInfo || null);
+    setIsOnline(Boolean(driverData?.isOnline));
+
+    await AsyncStorage.setItem('@driver_jwt_token', jwtToken);
+    await AsyncStorage.setItem('@driver_user_data', JSON.stringify(userData));
+    if (driverData) {
+      await AsyncStorage.setItem('@driver_profile_data', JSON.stringify(driverData));
+    }
+
+    registerPushTokenWithBackend({
+      post: (url, body) => driverService.registerPushToken(body)
+    }).catch(() => {});
+
+    return { success: true };
   };
 
   const register = async (registrationData) => {
@@ -178,6 +208,8 @@ export const AuthProvider = ({ children }) => {
         isLoading,
         loading: isLoading,
         login,
+        sendLoginOtp,
+        verifyLoginOtp,
         register,
         toggleOnlineStatus,
         fetchFreshProfile,

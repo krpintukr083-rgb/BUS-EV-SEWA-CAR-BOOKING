@@ -4,6 +4,8 @@ import { ENDPOINTS } from '../constants/api';
 export const driverService = {
   // Auth
   login: (credentials) => apiClient.post(ENDPOINTS.LOGIN, { ...credentials, role: 'driver' }),
+  sendLoginOtp: (phone) => apiClient.post('/driver/auth/send-otp', { phone }),
+  verifyLoginOtp: (phone, otp) => apiClient.post('/driver/auth/verify-otp', { phone, otp }),
   register: (data) => apiClient.post(ENDPOINTS.REGISTER, data),
   registerPushToken: (data) => apiClient.post('/driver/push-token', data),
 

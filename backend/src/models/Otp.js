@@ -8,6 +8,11 @@ const otpSchema = new mongoose.Schema(
       required: true,
       index: true
     },
+    purpose: {
+      type: String,
+      enum: ['CUSTOMER_LOGIN', 'DRIVER_LOGIN', 'BOOKING_CONFIRMATION', 'RIDE_VERIFICATION'],
+      default: 'CUSTOMER_LOGIN'
+    },
     otp: {
       type: String,
       required: true

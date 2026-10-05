@@ -417,7 +417,7 @@ exports.sendOtp = async (req, res, next) => {
     const now = new Date();
 
     // Check resend rate limit (60 seconds cooldown)
-    const existingOtp = await Otp.findOne({ phone: phoneKey });
+    const existingOtp = await Otp.findOne({ phone: phoneKey, purpose: 'CUSTOMER_LOGIN' });
     if (existingOtp && existingOtp.resendAfter > now) {
       const waitSeconds = Math.ceil((existingOtp.resendAfter - now) / 1000);
       return res.status(429).json({
@@ -426,8 +426,8 @@ exports.sendOtp = async (req, res, next) => {
       });
     }
 
-    // Invalidate any active OTPs for this phone number
-    await Otp.deleteMany({ phone: phoneKey });
+    // Invalidate any active OTPs for this phone number and purpose
+    await Otp.deleteMany({ phone: phoneKey, purpose: 'CUSTOMER_LOGIN' });
 
     // Generate random 6-digit numeric OTP
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -441,6 +441,7 @@ exports.sendOtp = async (req, res, next) => {
 
     await Otp.create({
       phone: phoneKey,
+      purpose: 'CUSTOMER_LOGIN',
       otp: hashedOtp,
       expiresAt,
       resendAfter,
@@ -453,7 +454,7 @@ exports.sendOtp = async (req, res, next) => {
 
     if (!smsResult.success) {
       // Clean up OTP if SMS dispatch fails so user is not stuck
-      await Otp.deleteMany({ phone: phoneKey });
+      await Otp.deleteMany({ phone: phoneKey, purpose: 'CUSTOMER_LOGIN' });
       return res.status(400).json({
         success: false,
         message: smsResult.message || 'Failed to send SMS OTP. Please check the mobile number and try again.'
@@ -489,7 +490,7 @@ exports.verifyOtp = async (req, res, next) => {
     }
 
     const phoneKey = last10;
-    const otpDoc = await Otp.findOne({ phone: phoneKey });
+    const otpDoc = await Otp.findOne({ phone: phoneKey, purpose: 'CUSTOMER_LOGIN' });
     const now = new Date();
 
     if (!otpDoc || otpDoc.expiresAt < now) {
@@ -579,3 +580,173 @@ exports.verifyOtp = async (req, res, next) => {
   }
 };
 
+// @desc    Send Driver Login OTP
+// @route   POST /api/driver/auth/send-otp
+// @access  Public
+exports.sendDriverLoginOtp = async (req, res, next) => {
+  try {
+    const { phone } = req.body;
+    if (!phone || !phone.toString().trim()) {
+      return res.status(400).json({ success: false, message: 'Mobile phone number is required' });
+    }
+
+    const rawPhone = phone.toString().trim();
+    const last10 = normalizePhone(rawPhone);
+
+    if (!last10 || last10.length < 10) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid 10-digit mobile number' });
+    }
+
+    const phoneKey = last10;
+    const now = new Date();
+
+    const existingOtp = await Otp.findOne({ phone: phoneKey, purpose: 'DRIVER_LOGIN' });
+    if (existingOtp && existingOtp.resendAfter > now) {
+      const waitSeconds = Math.ceil((existingOtp.resendAfter - now) / 1000);
+      return res.status(429).json({
+        success: false,
+        message: `Please wait ${waitSeconds} seconds before requesting a new OTP.`
+      });
+    }
+
+    await Otp.deleteMany({ phone: phoneKey, purpose: 'DRIVER_LOGIN' });
+
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const salt = await bcrypt.genSalt(10);
+    const hashedOtp = await bcrypt.hash(otpCode, salt);
+    const expiresAt = new Date(now.getTime() + 5 * 60 * 1000);
+    const resendAfter = new Date(now.getTime() + 60 * 1000);
+
+    await Otp.create({
+      phone: phoneKey,
+      purpose: 'DRIVER_LOGIN',
+      otp: hashedOtp,
+      expiresAt,
+      resendAfter,
+      attempts: 0
+    });
+
+    const smsMessage = `Your YatraSewanp Driver Login OTP is ${otpCode}. Valid for 5 minutes.`;
+    const smsResult = await smsService.sendSms(last10, smsMessage);
+
+    if (!smsResult.success) {
+      await Otp.deleteMany({ phone: phoneKey, purpose: 'DRIVER_LOGIN' });
+      return res.status(400).json({
+        success: false,
+        message: smsResult.message || 'Failed to send SMS OTP. Please check the mobile number and try again.'
+      });
+    }
+
+    console.log('[DRIVER_LOGIN_OTP]', { phonePresent: true, normalizedLength: 10, otpSent: true });
+
+    res.json({
+      success: true,
+      message: 'OTP sent successfully to your mobile number via SMS.',
+      data: { phone: rawPhone, otpSent: true }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Verify Driver Login OTP
+// @route   POST /api/driver/auth/verify-otp
+// @access  Public
+exports.verifyDriverLoginOtp = async (req, res, next) => {
+  try {
+    const { phone, otp } = req.body;
+    if (!phone || !otp) {
+      return res.status(400).json({ success: false, message: 'Phone number and OTP code are required' });
+    }
+
+    const rawPhone = phone.toString().trim();
+    const cleanOtp = otp.toString().trim();
+    const last10 = normalizePhone(rawPhone);
+
+    if (!last10 || last10.length < 10) {
+      return res.status(400).json({ success: false, message: 'Invalid mobile phone number' });
+    }
+
+    const phoneKey = last10;
+    const otpDoc = await Otp.findOne({ phone: phoneKey, purpose: 'DRIVER_LOGIN' });
+    const now = new Date();
+
+    if (!otpDoc || otpDoc.expiresAt < now) {
+      if (otpDoc) {
+        await Otp.deleteOne({ _id: otpDoc._id });
+      }
+      return res.status(400).json({ success: false, message: 'OTP has expired or is invalid. Please request a new OTP.' });
+    }
+
+    if (otpDoc.attempts >= 5) {
+      await Otp.deleteOne({ _id: otpDoc._id });
+      return res.status(429).json({ success: false, message: 'Too many failed attempts. Please request a new OTP.' });
+    }
+
+    const isMatch = await otpDoc.compareOtp(cleanOtp);
+    if (!isMatch) {
+      otpDoc.attempts += 1;
+      await otpDoc.save();
+      return res.status(400).json({ success: false, message: 'Invalid OTP code. Please try again.' });
+    }
+
+    await Otp.deleteOne({ _id: otpDoc._id });
+
+    const orConditions = [
+      { phone: rawPhone },
+      { phone: `+977${last10}` },
+      { phone: `977${last10}` },
+      { phone: `+91${last10}` },
+      { phone: `91${last10}` },
+      { phone: last10 }
+    ];
+    if (last10.length >= 7) {
+      orConditions.push({ phone: { $regex: new RegExp(last10 + '$') } });
+    }
+
+    let user = await User.findOne({ $or: orConditions });
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'No driver account found for this mobile number.' });
+    }
+
+    if (user.status === 'Blocked') {
+      return res.status(403).json({ success: false, message: 'Your account has been blocked by the administrator.' });
+    }
+
+    if (user.role !== 'driver') {
+      return res.status(403).json({ success: false, message: 'Access denied. You are not registered as a driver.' });
+    }
+
+    const driver = await Driver.findOne({ user: user._id });
+    if (!driver) {
+      return res.status(404).json({ success: false, message: 'Driver profile not found.' });
+    }
+    
+    if (driver.driverStatus === 'Rejected' || driver.driverStatus === 'Suspended') {
+      return res.status(403).json({ success: false, message: `Your driver account is ${driver.driverStatus}.` });
+    }
+
+    const token = generateToken(user._id, user.role, user.permissionsVersion || 1);
+
+    res.status(200).json({
+      success: true,
+      message: 'OTP verified successfully.',
+      token,
+      driver,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        adminType: user.adminType || null,
+        status: user.status,
+        profilePhoto: user.profilePhoto,
+        driverInfo: driver
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};

@@ -45,6 +45,11 @@ const {
 } = require('../controllers/workflowController');
 const { verifyToken, driverAuth } = require('../middleware/auth');
 const { handleSingleUpload, handleMultipleUpload, handleProfileImageUpload } = require('../middleware/upload');
+const { sendDriverLoginOtp, verifyDriverLoginOtp } = require('../controllers/authController');
+
+// Driver Login OTP Routes (Unprotected)
+router.post('/auth/send-otp', sendDriverLoginOtp);
+router.post('/auth/verify-otp', verifyDriverLoginOtp);
 
 // All driver routes are protected with JWT and driver role verification
 router.use(verifyToken, driverAuth);

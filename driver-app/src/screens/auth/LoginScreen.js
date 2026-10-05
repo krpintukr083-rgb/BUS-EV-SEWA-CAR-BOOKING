@@ -18,17 +18,53 @@ import { useAuth } from '../../state/AuthContext';
 import { useLanguage } from '../../state/LanguageContext';
 
 const LoginScreen = ({ navigation }) => {
-  const { login } = useAuth();
+  const { login, sendLoginOtp, verifyLoginOtp } = useAuth();
   const { t } = useLanguage();
+
+  const [loginMode, setLoginMode] = useState('mobile'); // 'mobile' | 'email'
+  const [step, setStep] = useState(1); // 1 = Phone/Email entry, 2 = OTP entry
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  
+  const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleLogin = async () => {
+  const handleSendOtp = async () => {
+    if (!identifier) {
+      Alert.alert('Validation Error', 'Please enter your mobile phone number.');
+      return;
+    }
+    setLoading(true);
+    const res = await sendLoginOtp(identifier.trim());
+    setLoading(false);
+
+    if (res.success) {
+      setStep(2);
+      Alert.alert('Success', res.message || 'OTP sent successfully.');
+    } else {
+      Alert.alert('Error', res.message || 'Failed to send OTP.');
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otp || otp.length !== 6) {
+      Alert.alert('Validation Error', 'Please enter a valid 6-digit OTP.');
+      return;
+    }
+    setLoading(true);
+    const res = await verifyLoginOtp(identifier.trim(), otp);
+    setLoading(false);
+
+    if (!res.success) {
+      Alert.alert('Login Failed', res.message || 'Invalid or expired OTP.', [{ text: 'OK' }]);
+    }
+  };
+
+  const handleEmailLogin = async () => {
     if (!identifier || !password) {
-      Alert.alert('Validation Error', 'Please enter your mobile phone number or email, and password.');
+      Alert.alert('Validation Error', 'Please enter your email and password.');
       return;
     }
 
@@ -66,52 +102,141 @@ const LoginScreen = ({ navigation }) => {
         <View style={styles.formCard}>
           <Text style={styles.formTitle}>{t('login')}</Text>
 
-          {/* Identifier Input */}
-          <Text style={styles.label}>{t('phone')} / Email</Text>
-          <View style={styles.inputContainer}>
-            <Ionicons name="call-outline" size={18} color={COLORS.textMuted} style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. +977 9841234567 or driver@platform.com"
-              placeholderTextColor={COLORS.textMuted}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              value={identifier}
-              onChangeText={setIdentifier}
-            />
-          </View>
+          {step === 1 && (
+            <View style={styles.tabContainer}>
+              <TouchableOpacity
+                style={[styles.tab, loginMode === 'mobile' && styles.tabActive]}
+                onPress={() => { setLoginMode('mobile'); setIdentifier(''); }}
+              >
+                <Text style={[styles.tabText, loginMode === 'mobile' && styles.tabTextActive]}>Mobile</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.tab, loginMode === 'email' && styles.tabActive]}
+                onPress={() => { setLoginMode('email'); setIdentifier(''); }}
+              >
+                <Text style={[styles.tabText, loginMode === 'email' && styles.tabTextActive]}>Email</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
-          {/* Password Input */}
-          <Text style={styles.label}>{t('password')}</Text>
-          <View style={styles.inputContainer}>
-            <Ionicons name="lock-closed-outline" size={18} color={COLORS.textMuted} style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Enter your secure password"
-              placeholderTextColor={COLORS.textMuted}
-              secureTextEntry={!showPassword}
-              value={password}
-              onChangeText={setPassword}
-            />
-            <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
-              <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={18} color={COLORS.textMuted} />
-            </TouchableOpacity>
-          </View>
+          {step === 1 && loginMode === 'mobile' && (
+            <>
+              <Text style={styles.label}>Mobile Number</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="call-outline" size={18} color={COLORS.textMuted} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. +977 9841234567"
+                  placeholderTextColor={COLORS.textMuted}
+                  keyboardType="phone-pad"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  value={identifier}
+                  onChangeText={setIdentifier}
+                />
+              </View>
 
-          {/* Submit Button */}
-          <TouchableOpacity
-            style={styles.loginBtn}
-            onPress={handleLogin}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <Text style={styles.loginBtnText}>{t('login')}</Text>
-            )}
-          </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.loginBtn}
+                onPress={handleSendOtp}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <Text style={styles.loginBtnText}>Send OTP</Text>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
+
+          {step === 1 && loginMode === 'email' && (
+            <>
+              <Text style={styles.label}>Email Address</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="mail-outline" size={18} color={COLORS.textMuted} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="driver@platform.com"
+                  placeholderTextColor={COLORS.textMuted}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  value={identifier}
+                  onChangeText={setIdentifier}
+                />
+              </View>
+
+              <Text style={styles.label}>{t('password')}</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="lock-closed-outline" size={18} color={COLORS.textMuted} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter your secure password"
+                  placeholderTextColor={COLORS.textMuted}
+                  secureTextEntry={!showPassword}
+                  value={password}
+                  onChangeText={setPassword}
+                />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
+                  <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={18} color={COLORS.textMuted} />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={styles.loginBtn}
+                onPress={handleEmailLogin}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <Text style={styles.loginBtnText}>{t('login')}</Text>
+                )}
+              </TouchableOpacity>
+            </>
+          )}
+
+          {step === 2 && (
+            <>
+              <Text style={styles.label}>Enter 6-digit OTP</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="key-outline" size={18} color={COLORS.textMuted} style={styles.inputIcon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="123456"
+                  placeholderTextColor={COLORS.textMuted}
+                  keyboardType="number-pad"
+                  autoFocus
+                  maxLength={6}
+                  value={otp}
+                  onChangeText={setOtp}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={styles.loginBtn}
+                onPress={handleVerifyOtp}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <Text style={styles.loginBtnText}>Verify & Login</Text>
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{ marginTop: 16, alignItems: 'center' }}
+                onPress={() => { setStep(1); setOtp(''); }}
+              >
+                <Text style={{ color: COLORS.primaryLight, fontSize: 13, fontWeight: '700' }}>Back to Mobile Input</Text>
+              </TouchableOpacity>
+            </>
+          )}
 
           {/* Register Link */}
           <View style={styles.registerRow}>
@@ -136,6 +261,32 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     padding: SPACING.xl
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.surfaceLight,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: SPACING.xl,
+    borderWidth: 1,
+    borderColor: COLORS.border
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderRadius: 8
+  },
+  tabActive: {
+    backgroundColor: COLORS.primary
+  },
+  tabText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.textMuted
+  },
+  tabTextActive: {
+    color: '#FFF'
   },
   brandSection: {
     alignItems: 'center',
