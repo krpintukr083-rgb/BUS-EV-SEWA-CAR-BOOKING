@@ -10,8 +10,8 @@ const RideRequestCard = ({ request, onAccept, onReject }) => {
 
   const fare = getBookingDisplayFare(request);
   const isInstant = request.bookingMode === 'INSTANT';
-  const showCalculating = isInstant && (!fare || fare <= 0);
-  const fareAmount = fare || 0;
+  const showCalculating = isInstant && (fare === undefined || fare <= 0);
+  const fareDisplay = fare !== undefined ? `₹${fare}` : 'TBD';
   const isCash = request.paymentMethod === 'Offline Cash' || request.paymentMethod === 'Cash';
   const callCustomer = () => {
     const phone = String(request.customerPhone).replace(/[^\d+]/g, '');
@@ -84,7 +84,7 @@ const RideRequestCard = ({ request, onAccept, onReject }) => {
       <View style={styles.fareRow}>
         <View>
           <Text style={styles.fareLabel}>ESTIMATED FARE</Text>
-          <Text style={styles.fareValue}>{showCalculating ? 'Calculating...' : `₹${fareAmount}`}</Text>
+          <Text style={styles.fareValue}>{showCalculating ? 'Calculating...' : fareDisplay}</Text>
         </View>
         <View style={styles.paymentBadge}>
           <Ionicons name={isCash ? 'cash' : 'card'} size={14} color={isCash ? COLORS.warning : COLORS.primary} />

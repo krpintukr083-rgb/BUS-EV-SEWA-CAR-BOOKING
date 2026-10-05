@@ -1430,6 +1430,11 @@ const getScheduleBookingRequests = async (req, res, next) => {
       if (reqItem.driverConfirmed || reqItem.driverConfirmationStatus === 'Confirmed' || reqItem.confirmationOtpVerifiedAt || reqItem.otpVerified || reqItem.cashCollected || reqItem.rideStatus === 'Accepted') {
         return exclude('already-confirmed-or-accepted');
       }
+      
+      const assignedDriver = reqItem.driver || reqItem.assignedDriverId;
+      if (assignedDriver && String(assignedDriver._id || assignedDriver) !== String(driver._id)) {
+        return exclude('assigned-to-another-driver');
+      }
 
       if (reqItem.rejectedDrivers && reqItem.rejectedDrivers.some(id => String(id) === String(driver._id))) {
         return exclude('rejected-by-this-driver');

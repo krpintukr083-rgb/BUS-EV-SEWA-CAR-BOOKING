@@ -152,9 +152,22 @@ const BookingRequestsScreen = ({ route, navigation }) => {
       const status = e?.response?.status;
       const msg = e?.response?.data?.message;
       if (status === 409) {
+        const isSelfConflict = msg && msg.toLowerCase().includes('already accepted another');
+        
+        // Hide the booking from the local list immediately since it's no longer actionable
+        if (!isSelfConflict) {
+          hiddenRequestIdsRef.current.add(String(bookingId));
+          setRequests((prev) => prev.filter((r) => 
+            String(r._id) !== String(bookingId) && 
+            String(r.bookingId) !== String(bookingId)
+          ));
+        }
+
         Alert.alert(
-          'Already Committed to a Ride',
-          msg || 'This driver has already accepted another instant booking.',
+          isSelfConflict ? 'Already Committed' : 'Request Unavailable',
+          isSelfConflict 
+            ? (msg || 'You have already accepted another instant booking.')
+            : (msg || 'This request was already accepted by another driver.'),
           [{ text: 'OK' }]
         );
       } else {
