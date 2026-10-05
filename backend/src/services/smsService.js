@@ -18,16 +18,41 @@ exports.sendSms = async (to, text) => {
     };
   }
 
-  // Clean recipient phone number (keep last 10 digits if national format)
-  const digits = (to || '').toString().replace(/\D/g, '');
-  const recipient = digits.length >= 10 ? digits.slice(-10) : digits;
+  // Normalize the recipient ONLY at the AakashSMS API boundary
+  const rawRecipient = (to || '').toString().trim();
+  const hasInput = rawRecipient.length > 0;
+  
+  // remove spaces, "-", "(", ")" and leading "+"
+  let cleaned = rawRecipient.replace(/[\s\-\(\)\+]/g, '');
+  
+  let prefixRemoved = 'none';
+  if (cleaned.startsWith('977') && cleaned.length === 13) {
+    cleaned = cleaned.slice(3);
+    prefixRemoved = '977';
+  } else if (cleaned.startsWith('0') && cleaned.length === 11) {
+    cleaned = cleaned.slice(1);
+    prefixRemoved = '0';
+  }
 
-  if (!recipient || recipient.length < 10) {
+  const normalizedLength = cleaned.length;
+  // A valid Nepal mobile number should be exactly 10 digits and only numeric
+  const isValid = normalizedLength === 10 && /^\d{10}$/.test(cleaned);
+
+  console.log('[AAKASH_RECIPIENT_DEBUG]', {
+    inputPresent: hasInput,
+    normalizedLength: normalizedLength,
+    prefixRemoved: prefixRemoved,
+    valid: isValid
+  });
+
+  if (!isValid) {
     return {
       success: false,
-      message: 'Invalid mobile phone number format'
+      message: 'Please enter a valid Nepal mobile number.'
     };
   }
+
+  const recipient = cleaned;
 
   try {
     const response = await axios.post(
@@ -45,16 +70,24 @@ exports.sendSms = async (to, text) => {
       }
     );
 
-    const resData = response.data;
+    const resData = response.data || {};
+
+    console.log('[AAKASH_SMS_RESPONSE]', {
+      success: resData.error === false || resData.status === 'success',
+      message: resData.message,
+      validCount: resData.valid_count,
+      invalidCount: resData.invalid_count
+    });
+
+    if (resData.error === true || resData.message === 'No valid recipients.' || (resData.message && resData.message.toLowerCase().includes('no valid recipient'))) {
+      return {
+        success: false,
+        message: 'Please enter a valid Nepal mobile number.'
+      };
+    }
 
     // AakashSMS v3 standard success response checking
-    if (resData && (resData.error === false || resData.status === 'success' || response.status === 200)) {
-      if (resData.error === true) {
-        return {
-          success: false,
-          message: resData.message || 'SMS delivery failed at gateway'
-        };
-      }
+    if (resData.error === false || resData.status === 'success' || (response.status === 200 && !resData.error)) {
       return {
         success: true,
         message: 'SMS dispatched successfully'
@@ -63,7 +96,7 @@ exports.sendSms = async (to, text) => {
 
     return {
       success: false,
-      message: (resData && resData.message) ? resData.message : 'SMS gateway returned an error'
+      message: resData.message || 'SMS gateway returned an error'
     };
   } catch (error) {
     // Log generic message to avoid printing credentials or secret tokens
