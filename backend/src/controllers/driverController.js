@@ -2142,8 +2142,45 @@ exports.rejectBookingRequest = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Booking request not found' });
     }
 
-    // Driver Data Isolation & Vehicle Assignment Check
-    const isAuthorized = await verifyDriverVehicleAccess(driver, booking);
+    // Request-level authorization (NOT vehicle management)
+    let isAuthorized = false;
+    const driverIdStr = String(driver._id);
+    const userIdStr = driver.user ? String(driver.user._id || driver.user) : null;
+    
+    // 1. Direct driver assignment
+    if (booking.driver && String(booking.driver) === driverIdStr) {
+      isAuthorized = true;
+    }
+    
+    // 2. Assigned via vehicle
+    if (!isAuthorized && driver.assignedVehicle) {
+      const vehicleIdStr = String(driver.assignedVehicle._id || driver.assignedVehicle);
+      if (booking.vehicle && String(booking.vehicle) === vehicleIdStr) {
+        isAuthorized = true;
+      }
+    }
+    
+    // 3. Notified via request pool
+    if (!isAuthorized) {
+      const recipientIds = [driverIdStr];
+      if (userIdStr) recipientIds.push(userIdStr);
+      const notification = await Notification.findOne({
+        recipientId: { $in: recipientIds },
+        entityId: booking._id,
+        eventType: 'BOOKING_REQUEST'
+      });
+      if (notification) isAuthorized = true;
+    }
+    
+    // 4. Route matching fallback
+    if (!isAuthorized) {
+       const serviceControl = await ServiceControl.findOne().select('oppositeRouteNotifications').lean();
+       const { driverMatchesBookingRoute } = require('../utils/routeMatching');
+       isAuthorized = driverMatchesBookingRoute(driver, booking, {
+         allowOpposite: serviceControl?.oppositeRouteNotifications === true
+       });
+    }
+
     if (!isAuthorized) {
       return res.status(403).json({
         success: false,
