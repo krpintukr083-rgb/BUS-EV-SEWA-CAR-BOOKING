@@ -200,6 +200,10 @@ const bookingSchema = new mongoose.Schema(
       type: Date,
       default: null
     },
+    rejectedDrivers: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Driver'
+    }],
     cancellationStatus: {
       type: String,
       enum: ['None', 'Requested', 'Approved', 'Refunded'],

@@ -44,8 +44,15 @@ const EMPTY_FORM = {
   hireAmount: '',
   batteryCapacity: '',
   batteryPercentage: '',
-  estimatedRangeKm: ''
+  estimatedRangeKm: '',
+  fuelType: ''
 };
+
+const FUEL_TYPES = [
+  { value: 'Petrol', label: 'Petrol' },
+  { value: 'Diesel', label: 'Diesel' },
+  { value: 'EV', label: 'EV' }
+];
 
 function EVBatteryRangeCard({ values, onChange, onSave, saved, saving = false }) {
   return (
@@ -120,6 +127,7 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [vehicleSource, setVehicleSource] = useState('');
   const [sourceOpen, setSourceOpen] = useState(false);
+  const [fuelTypeOpen, setFuelTypeOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [routeStops, setRouteStops] = useState([]);
   const [destinationFareFromOrigin, setDestinationFareFromOrigin] = useState('');
@@ -162,7 +170,8 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
             ...current,
             ...values,
             vehicleName: vehicle.vehicleName || '',
-            vehicleNumber: vehicle.vehicleNumber || ''
+            vehicleNumber: vehicle.vehicleNumber || '',
+            fuelType: vehicle.fuelType || vehicle.carDetails?.fuelType || ''
           }));
           setEvValues(values);
           setEvValuesSaved(true);
@@ -429,6 +438,7 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
         vehicleCategory: form.vehicleCategory || (category === 'Bus' ? (form.busType || 'Bus') : undefined),
         acType: form.acType,
         seatingCapacity: form.seatingCapacity ? Number(form.seatingCapacity) : undefined,
+        fuelType: form.fuelType,
         route: routePayload,
         ...(fareRatePayload != null ? { fareRate: fareRatePayload } : {})
       };
@@ -589,6 +599,20 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
           {vehicleSource
             ? VEHICLE_SOURCES.find(item => item.value === vehicleSource)?.label
             : 'Select vehicle source'}
+        </Text>
+        <Text style={styles.dropdownArrow}>▼</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.sectionTitle}>Fuel Type *</Text>
+      <TouchableOpacity
+        style={styles.dropdown}
+        onPress={() => setFuelTypeOpen(true)}
+        activeOpacity={0.8}
+      >
+        <Text style={form.fuelType ? styles.dropdownValue : styles.dropdownPlaceholder}>
+          {form.fuelType
+            ? FUEL_TYPES.find(item => item.value === form.fuelType)?.label
+            : 'Select Fuel Type'}
         </Text>
         <Text style={styles.dropdownArrow}>▼</Text>
       </TouchableOpacity>
@@ -824,6 +848,35 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
                 onPress={() => selectSource(item.value)}
               >
                 <Text style={styles.categoryText}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal
+        visible={fuelTypeOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFuelTypeOpen(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setFuelTypeOpen(false)}
+        >
+          <View style={styles.dropdownMenu}>
+            <Text style={styles.dropdownMenuTitle}>Fuel Type *</Text>
+            {FUEL_TYPES.map(item => (
+              <TouchableOpacity
+                key={item.value}
+                style={styles.dropdownOption}
+                onPress={() => {
+                  update('fuelType', item.value);
+                  setFuelTypeOpen(false);
+                }}
+              >
+                <Text style={[styles.categoryText, { marginLeft: 0 }]}>{item.label}</Text>
               </TouchableOpacity>
             ))}
           </View>

@@ -1431,6 +1431,10 @@ const getScheduleBookingRequests = async (req, res, next) => {
         return exclude('already-confirmed-or-accepted');
       }
 
+      if (reqItem.rejectedDrivers && reqItem.rejectedDrivers.some(id => String(id) === String(driver._id))) {
+        return exclude('rejected-by-this-driver');
+      }
+
       if (reqItem.bookingMode === 'SCHEDULE') {
         const schedule = reqItem.scheduleId
           ? activeScheduleById.get(String(reqItem.scheduleId._id || reqItem.scheduleId))
@@ -2147,25 +2151,16 @@ exports.rejectBookingRequest = async (req, res, next) => {
       });
     }
 
-    booking.driverConfirmationStatus = 'Rejected';
-    booking.driverConfirmed = false;
-    booking.bookingStatus = 'Rejected';
-    booking.rideStatus = 'Cancelled';
+    if (!booking.rejectedDrivers) {
+      booking.rejectedDrivers = [];
+    }
+    if (!booking.rejectedDrivers.some(id => String(id) === String(driver._id))) {
+      booking.rejectedDrivers.push(driver._id);
+    }
     booking.rejectedBy = driver._id;
     booking.rejectedAt = new Date();
-    booking.cancellationReason = reason || 'Driver rejected booking request';
-    booking.cancelledBy = 'Driver';
 
     await booking.save();
-
-    // Send customer notification
-    await Notification.create({
-      title: 'Booking Request Rejected',
-      message: `Your booking #${booking.bookingId} could not be confirmed by the assigned driver. Reason: ${booking.cancellationReason}`,
-      recipient: `Customer: ${booking.customer.name}`,
-      recipientRole: 'customer',
-      status: 'Unread'
-    });
 
     res.json({
       success: true,
