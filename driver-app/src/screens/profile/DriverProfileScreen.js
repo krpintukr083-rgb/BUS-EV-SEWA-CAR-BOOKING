@@ -62,7 +62,12 @@ export default function DriverProfileScreen({ navigation }) {
     setEditAddress(driver?.address || '');
     setEditRouteOrigin(driver?.route?.origin || '');
     setEditRouteDestination(driver?.route?.destination || '');
-    setEditEmergencyContact(driver?.emergencyContact || driver?.emergencyPhone || '');
+    const contactValue = typeof driver?.emergencyContact === 'string'
+      ? driver.emergencyContact
+      : driver?.emergencyContact?.phone
+        ? String(driver.emergencyContact.phone)
+        : driver?.emergencyPhone || '';
+    setEditEmergencyContact(contactValue);
     setEditProfileModalVisible(true);
   };
 
@@ -75,14 +80,16 @@ export default function DriverProfileScreen({ navigation }) {
     try {
       const res = await driverService.updateProfile({
         name: editName.trim(),
-        phone: editPhone.trim(),
+        mobileNumber: editPhone.trim(),
         email: editEmail.trim(),
         address: editAddress.trim(),
         route: {
           origin: editRouteOrigin.trim(),
           destination: editRouteDestination.trim(),
         },
-        emergencyContact: editEmergencyContact.trim(),
+        emergencyContact: {
+          phone: editEmergencyContact.trim()
+        },
       });
       if (res.data?.success) {
         Alert.alert('Success', 'Profile updated successfully!');

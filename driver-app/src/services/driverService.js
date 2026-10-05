@@ -14,7 +14,6 @@ export const driverService = {
   getProfile: () => apiClient.get(ENDPOINTS.PROFILE),
   updateProfile: (data) => apiClient.put(ENDPOINTS.PROFILE, data),
   uploadProfilePhoto: (formData) => apiClient.put(ENDPOINTS.PROFILE, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
     transformRequest: (data) => data
   }),
   changeLoginId: (newLoginId, loginType) => apiClient.put('/driver/account/login-id', { newLoginId, loginType }),
@@ -27,9 +26,6 @@ export const driverService = {
   uploadDocument: (docData) => {
     if (typeof FormData !== 'undefined' && docData instanceof FormData) {
       return apiClient.post(ENDPOINTS.DOCUMENTS, docData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
         transformRequest: (data) => data,
       });
     }
