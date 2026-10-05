@@ -2668,11 +2668,12 @@ exports.collectCash = async (req, res, next) => {
       });
     }
 
-    // Block duplicate cash collection
+    // Handle duplicate cash collection gracefully
     if (booking.cashCollected || booking.paymentStatus === 'Paid') {
-      return res.status(400).json({
-        success: false,
-        message: 'Cash already collected and verified for this booking.'
+      return res.json({
+        success: true,
+        message: 'Cash already collected and verified for this booking.',
+        data: driverBookingResponse(booking, driver.canViewCustomerPhone === true)
       });
     }
 
@@ -3804,11 +3805,12 @@ exports.collectCash = async (req, res, next) => {
       });
     }
 
-    // Block duplicate cash collection
+    // Handle duplicate cash collection gracefully
     if (booking.cashCollected || booking.paymentStatus === 'Paid') {
-      return res.status(400).json({
-        success: false,
-        message: 'Cash already collected and verified for this booking.'
+      return res.json({
+        success: true,
+        message: 'Cash already collected and verified for this booking.',
+        data: driverBookingResponse(booking, driver.canViewCustomerPhone === true)
       });
     }
 

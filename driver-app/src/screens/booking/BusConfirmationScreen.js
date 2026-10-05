@@ -53,9 +53,13 @@ const isBookingPaid = (b) => {
   if (!b) return false;
   if (b.cashCollected) return true;
   if (/^paid$/i.test(b.paymentStatus || '') || /^successful$/i.test(b.paymentStatus || '')) return true;
-  const isOnline = Boolean(b.paymentMethod && /esewa|khalti|razorpay|card|netbanking|online/i.test(b.paymentMethod));
-  if (isOnline && b.paymentStatus !== 'Pending Cash' && b.bookingStatus !== 'Awaiting Cash Collection') return true;
   return false;
+};
+
+const isBookingAwaitingOnlinePayment = (b) => {
+  if (!b || isBookingCompletedOrCancelled(b)) return false;
+  const isOnline = Boolean(b.paymentMethod && /esewa|khalti|razorpay|card|netbanking|online/i.test(b.paymentMethod));
+  return isOnline && !isBookingPaid(b);
 };
 
 const isBookingPendingOtp = (b) => {
@@ -74,7 +78,7 @@ const isBookingAwaitingCash = (b) => {
 
 const isBookingPending = (b) => {
   if (!b || isBookingCompletedOrCancelled(b)) return false;
-  return isBookingPendingOtp(b) || isBookingAwaitingCash(b) || b.bookingStatus === 'Pending Driver Confirmation';
+  return isBookingPendingOtp(b) || isBookingAwaitingCash(b) || isBookingAwaitingOnlinePayment(b) || b.bookingStatus === 'Pending Driver Confirmation';
 };
 
 const isBookingConfirmed = (b) => {
@@ -372,10 +376,12 @@ export default function BusConfirmationScreen({ navigation, route }) {
   const renderBookingItem = ({ item }) => {
     const isPendingOtp = isBookingPendingOtp(item);
     const isAwaitingCash = isBookingAwaitingCash(item);
+    const isAwaitingOnline = isBookingAwaitingOnlinePayment(item);
     const isCompleted = item.bookingStatus === 'Completed' || item.rideStatus === 'Completed';
     const isPaid = isBookingPaid(item);
     const isOnlinePayment = Boolean(item.paymentMethod && /esewa|khalti|razorpay|card|netbanking|online/i.test(item.paymentMethod));
     const showCollectCashBtn = !isPaid && !isOnlinePayment && !isCompleted;
+    const showDestinationBtn = isPaid;
     const isLoading = actionLoadingId === item._id || actionLoadingId === item.bookingId;
     const itemFare = getBookingDisplayFare(item) || 0;
 
@@ -394,18 +400,20 @@ export default function BusConfirmationScreen({ navigation, route }) {
               styles.statusBadge,
               isPendingOtp
                 ? { backgroundColor: COLORS.warning + '20', borderColor: COLORS.warning }
-                : isAwaitingCash
+                : isAwaitingCash || isAwaitingOnline
                 ? { backgroundColor: COLORS.warning + '20', borderColor: COLORS.warning }
                 : { backgroundColor: COLORS.success + '20', borderColor: COLORS.success }
             ]}>
               <Text style={[
                 styles.statusBadgeText,
-                { color: (isPendingOtp || isAwaitingCash) ? COLORS.warning : COLORS.success }
+                { color: (isPendingOtp || isAwaitingCash || isAwaitingOnline) ? COLORS.warning : COLORS.success }
               ]}>
                 {isPendingOtp
                   ? (t('pendingConfirmation') || 'Pending Confirmation')
                   : isAwaitingCash
                   ? (t('awaitingCash') || 'Awaiting Cash Collection')
+                  : isAwaitingOnline
+                  ? 'Awaiting Online Payment'
                   : (t('confirmed') || 'Confirmed')}
               </Text>
             </View>
@@ -496,22 +504,24 @@ export default function BusConfirmationScreen({ navigation, route }) {
               </TouchableOpacity>
             )}
 
-            <TouchableOpacity
-              style={[styles.completeRideBtn, isLoading && { opacity: 0.6 }]}
-              onPress={() => handleReachDestination(item._id)}
-              disabled={isLoading}
-            >
-              {isLoading ? (
-                <ActivityIndicator color={COLORS.white} size="small" />
-              ) : (
-                <>
-                  <MaterialCommunityIcons name="flag-checkered" size={16} color={COLORS.white} />
-                  <Text style={styles.completeRideBtnText}>
-                    {t('destinationReached') || 'Destination Reached'}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
+            {!showCollectCashBtn && showDestinationBtn && (
+              <TouchableOpacity
+                style={[styles.completeRideBtn, isLoading && { opacity: 0.6 }]}
+                onPress={() => handleReachDestination(item._id)}
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <ActivityIndicator color={COLORS.white} size="small" />
+                ) : (
+                  <>
+                    <MaterialCommunityIcons name="flag-checkered" size={16} color={COLORS.white} />
+                    <Text style={styles.completeRideBtnText}>
+                      {t('destinationReached') || 'Destination Reached'}
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
         )}
       </View>
