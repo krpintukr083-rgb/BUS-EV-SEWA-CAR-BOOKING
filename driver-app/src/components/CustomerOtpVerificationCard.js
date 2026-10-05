@@ -233,15 +233,21 @@ export default function CustomerOtpVerificationCard({ booking, acceptedBookingId
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: COLORS.bgCard,
-    borderRadius: RADIUS.l,
-    padding: SPACING.m,
-    marginVertical: SPACING.s,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 20,
+    marginVertical: 10,
     borderWidth: 1.5,
-    borderColor: COLORS.primary,
+    borderColor: '#3b82f6',
     ...Platform.select({
-      web: { boxShadow: '0px 4px 6px rgba(0, 0, 0, 0.3)' },
-      default: SHADOWS.card
+      web: { boxShadow: '0px 4px 12px rgba(59, 130, 246, 0.1)' },
+      default: {
+        shadowColor: '#3b82f6',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 12,
+        elevation: 3,
+      }
     })
   },
   cardHeader: {
@@ -249,9 +255,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-    paddingBottom: SPACING.xs,
-    marginBottom: SPACING.s
+    borderBottomColor: '#f1f5f9',
+    paddingBottom: 12,
+    marginBottom: 16
   },
   headerTitle: {
     fontSize: 14,
@@ -265,38 +271,44 @@ const styles = StyleSheet.create({
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center'
+    alignItems: 'flex-start',
+    marginBottom: 8
   },
   detailLabel: {
     fontSize: 13,
-    color: COLORS.textMuted,
-    fontWeight: '600'
+    color: '#64748b',
+    fontWeight: '500',
+    flex: 1,
   },
   detailValue: {
-    fontSize: 13,
-    color: COLORS.textPrimary,
-    fontWeight: '700'
+    fontSize: 14,
+    color: '#1e293b',
+    fontWeight: '600',
+    flex: 1.5,
+    textAlign: 'right',
   },
   divider: {
     height: 1,
-    backgroundColor: COLORS.border,
-    marginVertical: SPACING.m
+    backgroundColor: '#f1f5f9',
+    marginVertical: 16
   },
   otpSection: {
     alignItems: 'center'
   },
   otpSectionTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: COLORS.warning,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748b',
     letterSpacing: 1,
-    marginBottom: 2
+    textTransform: 'uppercase',
+    marginBottom: 4
   },
   otpSubtitle: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 13,
+    color: '#1e293b',
     fontWeight: '600',
-    marginBottom: SPACING.m
+    marginBottom: 16,
+    textAlign: 'center'
   },
   digitBoxesRow: {
     flexDirection: 'row',
@@ -305,21 +317,22 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.m
   },
   digitBox: {
-    width: 42,
-    height: 48,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.bgDark,
+    width: 48,
+    height: 56,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    backgroundColor: '#f8fafc',
     alignItems: 'center',
     justifyContent: 'center'
   },
   digitBoxFilled: {
-    borderColor: COLORS.primary,
-    backgroundColor: 'rgba(10, 102, 194, 0.1)'
+    borderColor: '#3b82f6',
+    backgroundColor: '#eff6ff',
+    borderWidth: 2,
   },
   digitBoxFocused: {
-    borderColor: COLORS.warning,
+    borderColor: '#f59e0b',
     borderWidth: 2
   },
   digitText: {
@@ -359,27 +372,28 @@ const styles = StyleSheet.create({
   },
   cancelBtn: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: RADIUS.m,
+    paddingVertical: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#cbd5e1',
     alignItems: 'center',
-    justifyContent: 'center'
+    justifyContent: 'center',
+    backgroundColor: '#ffffff'
   },
   cancelBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: COLORS.textMuted
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#475569'
   },
   verifyBtn: {
     flex: 2,
     flexDirection: 'row',
-    paddingVertical: 12,
-    borderRadius: RADIUS.m,
-    backgroundColor: COLORS.success,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#10b981',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6
+    gap: 8
   },
   verifyBtnDisabled: {
     backgroundColor: COLORS.surfaceHighlight,

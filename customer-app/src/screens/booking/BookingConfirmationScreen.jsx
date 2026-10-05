@@ -157,12 +157,22 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
 
           {/* OTP Box */}
           {(isPendingAdmin || isPendingDriver || booking?.confirmationOtp) && (
-            <View style={{ marginTop: 16, alignItems: 'center', width: '100%', backgroundColor: '#eff6ff', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#bfdbfe' }}>
-              <Text style={{ fontSize: 11, fontWeight: '700', color: '#64748b', textTransform: 'uppercase' }}>Customer OTP</Text>
-              <Text style={{ fontSize: 26, fontWeight: '900', color: '#1d4ed8', letterSpacing: 5, marginVertical: 4 }}>
+            <View style={{ 
+              marginTop: 20, 
+              alignItems: 'center', 
+              width: '100%', 
+              backgroundColor: '#f8fafc', 
+              padding: 20, 
+              borderRadius: 16, 
+              borderWidth: 1, 
+              borderColor: '#e2e8f0',
+              borderStyle: 'dashed'
+            }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: 1 }}>Customer OTP</Text>
+              <Text style={{ fontSize: 32, fontWeight: '900', color: COLORS.primary, letterSpacing: 8, marginVertical: 8 }}>
                 {booking?.confirmationOtp || '------'}
               </Text>
-              <Text style={{ fontSize: 11, color: '#1e3a8a', textAlign: 'center', lineHeight: 16 }}>
+              <Text style={{ fontSize: 13, color: '#64748b', textAlign: 'center', lineHeight: 20, paddingHorizontal: 10 }}>
                 Give this OTP to your assigned driver for confirmation.
               </Text>
             </View>
@@ -310,13 +320,13 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
                   isOnlinePayment: true
                 });
               }}
-              style={{ backgroundColor: '#10b981', marginBottom: 12 }}
+              style={{ backgroundColor: '#10b981' }}
             />
           ) : (
             <Button
               title={isPendingDriver ? 'View Booking Status' : 'View Digital Ticket'}
               onPress={handleViewTicket}
-              style={{ backgroundColor: isPendingDriver ? '#f59e0b' : COLORS.primary, marginBottom: 12 }}
+              style={{ backgroundColor: isPendingDriver ? '#f59e0b' : COLORS.primary }}
             />
           )}
 
@@ -324,6 +334,8 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
             title="Back to Home"
             variant="outline"
             onPress={handleGoHome}
+            style={{ borderColor: '#cbd5e1' }}
+            textStyle={{ color: '#475569' }}
           />
         </View>
       </ScrollView>
@@ -334,7 +346,7 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background
+    backgroundColor: '#f8fafc' // Cleaner light background
   },
   scrollContent: {
     padding: 16,
@@ -342,133 +354,161 @@ const styles = StyleSheet.create({
   },
   heroCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 14,
+    borderRadius: 16,
     padding: 24,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 16
+    borderColor: '#f1f5f9',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    elevation: 2,
   },
   successIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     backgroundColor: COLORS.success,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12
+    marginBottom: 16,
+    shadowColor: COLORS.success,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   heroTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '800',
-    color: COLORS.darkNavy
+    color: '#0f172a',
+    textAlign: 'center',
+    letterSpacing: -0.3,
   },
   heroSub: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 13,
+    color: '#64748b',
     textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 18
+    marginTop: 8,
+    lineHeight: 20
   },
   bookingIdPill: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#eff6ff',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginTop: 14,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 24,
+    marginTop: 18,
     borderWidth: 1,
-    borderColor: '#bfdbfe'
+    borderColor: '#e2e8f0'
   },
   bookingIdLabel: {
     fontSize: 12,
-    color: COLORS.textSecondary
+    fontWeight: '600',
+    color: '#64748b'
   },
   bookingIdVal: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '800',
-    color: COLORS.primary
+    color: '#334155',
+    letterSpacing: 0.5,
   },
   detailsCard: {
     backgroundColor: '#ffffff',
-    borderRadius: 14,
-    padding: 16,
+    borderRadius: 16,
+    padding: 20,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: 16
+    borderColor: '#f1f5f9',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+    elevation: 2,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.darkNavy,
-    marginBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-    paddingBottom: 8
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 16,
+    letterSpacing: -0.2,
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10
+    alignItems: 'flex-start',
+    marginBottom: 14
   },
   rowLabel: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#64748b',
     flex: 1,
-    paddingRight: 8
+    paddingRight: 12,
+    marginTop: 2,
   },
   rowValue: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '600',
-    color: COLORS.darkNavy,
-    flex: 1,
-    textAlign: 'right'
+    color: '#1e293b',
+    flex: 1.5,
+    textAlign: 'right',
+    lineHeight: 20,
   },
   emphasizedValue: {
     fontSize: 14,
-    fontWeight: '700'
+    fontWeight: '700',
+    color: COLORS.primary
   },
   divider: {
     height: 1,
     backgroundColor: '#f1f5f9',
-    marginVertical: 10
+    marginVertical: 16
   },
   fareAmount: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '800',
-    color: COLORS.darkNavy
+    color: COLORS.primary
   },
   txId: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: COLORS.textSecondary
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#94a3b8'
   },
   cashNoticeBox: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#ecfdf5',
-    borderWidth: 1.5,
-    borderColor: '#a7f3d0',
-    borderRadius: 14,
+    alignItems: 'flex-start',
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 16
+    marginBottom: 20,
+    shadowColor: '#22c55e',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 1,
   },
   cashNoticeTitle: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
-    color: '#065f46'
+    color: '#166534',
+    marginBottom: 4,
   },
   cashNoticeSub: {
-    fontSize: 12,
-    color: '#047857',
-    marginTop: 3,
-    lineHeight: 18
+    fontSize: 13,
+    color: '#15803d',
+    lineHeight: 20
   },
   buttonGroup: {
-    marginTop: 8
+    marginTop: 4,
+    gap: 12,
   }
 });
 
