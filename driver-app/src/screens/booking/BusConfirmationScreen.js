@@ -398,15 +398,13 @@ export default function BusConfirmationScreen({ navigation, route }) {
           <View style={styles.badgeCol}>
             <View style={[
               styles.statusBadge,
-              isPendingOtp
-                ? { backgroundColor: COLORS.warning + '20', borderColor: COLORS.warning }
-                : isAwaitingCash || isAwaitingOnline
-                ? { backgroundColor: COLORS.warning + '20', borderColor: COLORS.warning }
-                : { backgroundColor: COLORS.success + '20', borderColor: COLORS.success }
+              isPendingOtp || isAwaitingCash || isAwaitingOnline
+                ? { backgroundColor: '#EFF6FF', borderColor: '#D6E4F0' }
+                : { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }
             ]}>
               <Text style={[
                 styles.statusBadgeText,
-                { color: (isPendingOtp || isAwaitingCash || isAwaitingOnline) ? COLORS.warning : COLORS.success }
+                { color: (isPendingOtp || isAwaitingCash || isAwaitingOnline) ? '#2563EB' : '#10B981' }
               ]}>
                 {isPendingOtp
                   ? (t('pendingConfirmation') || 'Pending Confirmation')
@@ -421,12 +419,12 @@ export default function BusConfirmationScreen({ navigation, route }) {
             <View style={[
               styles.paymentBadge,
               isPaid
-                ? { backgroundColor: COLORS.success + '20', borderColor: COLORS.success }
-                : { backgroundColor: COLORS.danger + '20', borderColor: COLORS.danger }
+                ? { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }
+                : { backgroundColor: '#FEF2F2', borderColor: '#FECACA' }
             ]}>
               <Text style={[
                 styles.paymentBadgeText,
-                { color: isPaid ? COLORS.success : COLORS.danger }
+                { color: isPaid ? '#10B981' : '#EF4444' }
               ]}>
                 {isPaid ? t('paid') : t('unpaid')} ({item.paymentMethod || 'CASH'})
               </Text>
@@ -436,12 +434,12 @@ export default function BusConfirmationScreen({ navigation, route }) {
 
         {/* Passenger & Seats Info */}
         <View style={styles.passengerRow}>
-          <MaterialCommunityIcons name="account" size={18} color={COLORS.primary} />
+          <MaterialCommunityIcons name="account" size={18} color="#2563EB" />
           <Text style={styles.passengerName}>
             {item.user?.name || item.passengerName || 'Passenger'}
           </Text>
           <View style={styles.seatsContainer}>
-            <MaterialCommunityIcons name="seat-passenger" size={16} color={COLORS.textSecondary} />
+            <MaterialCommunityIcons name="seat-passenger" size={16} color="#64748B" />
             <Text style={styles.seatNumbers}>
               Seats: {item.seats?.join(', ') || item.seatNumber || 'N/A'}
             </Text>
@@ -673,19 +671,19 @@ export default function BusConfirmationScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F5F7FB',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: SPACING.m,
     paddingVertical: SPACING.s,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#0F1B3D',
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: '#0F1B3D',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.02,
+    shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 1,
   },
@@ -698,21 +696,21 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.textPrimary,
+    color: '#FFFFFF',
   },
   headerSubtitle: {
     fontSize: 12,
-    color: COLORS.textMuted,
+    color: '#D6E4F0',
   },
   tabBar: {
     flexDirection: 'row',
-    backgroundColor: COLORS.bgSurface,
+    backgroundColor: '#FFFFFF',
     padding: SPACING.xs,
     marginHorizontal: SPACING.m,
     marginVertical: SPACING.s,
     borderRadius: RADIUS.m,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#D6E4F0',
   },
   tabItem: {
     flex: 1,
@@ -721,15 +719,15 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.s,
   },
   tabItemActive: {
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#2563EB',
   },
   tabText: {
     fontSize: 12,
     fontWeight: '600',
-    color: COLORS.textSecondary,
+    color: '#64748B',
   },
   tabTextActive: {
-    color: COLORS.white,
+    color: '#FFFFFF',
     fontWeight: '700',
   },
   listContent: {
@@ -741,18 +739,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   refreshError: {
-    color: COLORS.danger,
+    color: '#EF4444',
     fontSize: 12,
     paddingHorizontal: SPACING.m,
     paddingBottom: SPACING.xs,
   },
   card: {
-    backgroundColor: '#ffffff',
+    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 20,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: '#D6E4F0',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.03,
@@ -764,19 +762,19 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: '#D6E4F0',
     paddingBottom: SPACING.xs,
     marginBottom: SPACING.s,
   },
   bookingId: {
     fontSize: 16,
     fontWeight: '800',
-    color: '#0f172a',
+    color: '#2563EB',
     letterSpacing: 0.5,
   },
   serviceTag: {
     fontSize: 12,
-    color: COLORS.primary,
+    color: '#64748B',
     fontWeight: '700',
     marginTop: 4,
   },
@@ -812,33 +810,33 @@ const styles = StyleSheet.create({
   passengerName: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#1e293b',
+    color: '#111827',
     marginLeft: 6,
     flex: 1,
   },
   seatsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#EFF6FF',
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: '#D6E4F0',
     gap: 4,
   },
   seatNumbers: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#64748b',
+    color: '#2563EB',
   },
   routeBox: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#F5F7FB',
     borderRadius: 12,
     padding: 12,
     marginVertical: 10,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: '#D6E4F0',
   },
   routePoint: {
     flexDirection: 'row',
@@ -852,7 +850,7 @@ const styles = StyleSheet.create({
   },
   routeText: {
     fontSize: 13,
-    color: COLORS.textPrimary,
+    color: '#111827',
     fontWeight: '500',
   },
   fareRow: {
@@ -865,12 +863,12 @@ const styles = StyleSheet.create({
   fareLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#64748b',
+    color: '#64748B',
   },
   fareAmount: {
     fontSize: 18,
     fontWeight: '800',
-    color: COLORS.primary,
+    color: '#2563EB',
   },
   actionRow: {
     flexDirection: 'row',
@@ -884,13 +882,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#ef4444',
+    borderColor: '#EF4444',
     gap: 4,
   },
   rejectBtnText: {
-    color: '#ef4444',
+    color: '#EF4444',
     fontWeight: '700',
     fontSize: 14,
   },
@@ -901,11 +899,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#2563EB',
     gap: 4,
   },
   confirmBtnText: {
-    color: '#ffffff',
+    color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 14,
   },
@@ -916,11 +914,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 10,
     borderRadius: RADIUS.m,
-    backgroundColor: COLORS.warning,
+    backgroundColor: '#F59E0B',
     gap: 4,
   },
   cashBtnText: {
-    color: COLORS.bgDark,
+    color: '#111827',
     fontWeight: '800',
     fontSize: 12,
   },
@@ -931,11 +929,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 10,
     borderRadius: RADIUS.m,
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#2563EB',
     gap: 4,
   },
   completeRideBtnText: {
-    color: COLORS.white,
+    color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 12,
   },
@@ -944,13 +942,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 8,
-    backgroundColor: COLORS.success + '15',
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
     borderRadius: RADIUS.m,
     gap: 6,
     marginTop: SPACING.xs,
   },
   completedText: {
-    color: COLORS.success,
+    color: '#10B981',
     fontWeight: '700',
     fontSize: 13,
   },
@@ -961,19 +959,19 @@ const styles = StyleSheet.create({
     padding: SPACING.xl,
   },
   loadingText: {
-    color: COLORS.textMuted,
+    color: '#64748B',
     marginTop: SPACING.m,
     fontSize: 14,
   },
   emptyTitle: {
     fontSize: 16,
     fontWeight: '700',
-    color: COLORS.textPrimary,
+    color: '#111827',
     marginTop: SPACING.m,
   },
   emptySub: {
     fontSize: 13,
-    color: COLORS.textMuted,
+    color: '#64748B',
     marginTop: 4,
     textAlign: 'center',
   },

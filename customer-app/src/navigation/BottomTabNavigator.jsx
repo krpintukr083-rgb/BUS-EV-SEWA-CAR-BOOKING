@@ -14,12 +14,12 @@ const BottomTabNavigator = () => {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: '#94a3b8',
+        tabBarActiveTintColor: '#3B82F6',
+        tabBarInactiveTintColor: '#64748B',
         tabBarStyle: {
-          backgroundColor: '#ffffff',
+          backgroundColor: '#0F1B3D',
           borderTopWidth: 1,
-          borderTopColor: '#e2e8f0',
+          borderTopColor: '#0F1B3D',
           height: 60,
           paddingBottom: 8,
           paddingTop: 6

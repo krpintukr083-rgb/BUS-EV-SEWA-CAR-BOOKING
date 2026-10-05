@@ -20,15 +20,15 @@ export default function TabNavigator() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: COLORS.bgSurface,
-          borderTopColor: COLORS.border,
+          backgroundColor: '#0F1B3D',
+          borderTopColor: '#0F1B3D',
           borderTopWidth: 1,
           height: 60,
           paddingBottom: 8,
           paddingTop: 6,
         },
-        tabBarActiveTintColor: COLORS.primary,
-        tabBarInactiveTintColor: COLORS.textMuted,
+        tabBarActiveTintColor: '#3B82F6',
+        tabBarInactiveTintColor: '#64748B',
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: '700',

@@ -3,10 +3,10 @@ import { View, Text, TouchableOpacity, StyleSheet, StatusBar } from 'react-nativ
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/colors';
 
-const Header = ({ title, onBack, rightAction, rightIcon }) => {
+const Header = ({ title, onBack, rightAction, rightIcon, backgroundColor }) => {
   return (
-    <View style={styles.headerContainer}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
+    <View style={[styles.headerContainer, backgroundColor && { backgroundColor }]}>
+      <StatusBar barStyle="light-content" backgroundColor={backgroundColor || COLORS.primary} />
       <View style={styles.content}>
         {onBack ? (
           <TouchableOpacity onPress={onBack} style={styles.backButton} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
