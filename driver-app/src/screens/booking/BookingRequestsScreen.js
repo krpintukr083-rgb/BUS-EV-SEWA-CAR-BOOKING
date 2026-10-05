@@ -20,9 +20,10 @@ const REJECTION_REASONS = [
   'Other personal reason'
 ];
 
-const BookingRequestsScreen = ({ navigation }) => {
+const BookingRequestsScreen = ({ route, navigation }) => {
 
   const { driver, user, isOnline, toggleOnlineStatus } = useAuth();
+  const targetBookingId = route?.params?.bookingId || null;
 
   const [requests, setRequests] = useState([]);
   const [requestLoadError, setRequestLoadError] = useState(false);
@@ -37,10 +38,15 @@ const BookingRequestsScreen = ({ navigation }) => {
 
   const loadRequests = useCallback(async () => {
     const requestId = ++latestRequestIdRef.current;
+    console.log(`[REQUEST_DEBUG] fetch started - requestId: ${requestId}, screenFocused: ${screenFocusedRef.current}, endpoint: /api/driver/booking-requests`);
     try {
       const response = await driverService.getBookingRequests();
+      console.log(`[REQUEST_DEBUG] response status - requestId: ${requestId}, status: ${response?.status || 200}, success: ${response.data?.success}`);
       if (response.data?.success && Array.isArray(response.data.data)) {
-        if (requestId !== latestRequestIdRef.current || !screenFocusedRef.current) return;
+        if (requestId !== latestRequestIdRef.current || !screenFocusedRef.current) {
+          console.log(`[REQUEST_DEBUG] fetch aborted - requestId mismatch or screen not focused. latestRequestId: ${latestRequestIdRef.current}, screenFocused: ${screenFocusedRef.current}`);
+          return;
+        }
         const validRequests = normalizeIncomingRequests(response.data.data)
           .filter(request => !hiddenRequestIdsRef.current.has(String(request._id)));
         const latest = validRequests[0];
@@ -54,6 +60,8 @@ const BookingRequestsScreen = ({ navigation }) => {
             ` route=${latest ? `${latest.pickupLocation || ''} -> ${latest.dropLocation || ''}` : 'none'}`
           );
         }
+        console.log(`[REQUEST_DEBUG] pending booking count: ${validRequests.length}`);
+        console.log(`[REQUEST_DEBUG] booking IDs: ${validRequests.map(r => r._id || r.bookingId).join(', ')}`);
         setRequestLoadError(false);
         setRequests(validRequests);
         checkAndNotifyBookingRequests(validRequests, user?._id || driver?._id);
@@ -71,22 +79,27 @@ const BookingRequestsScreen = ({ navigation }) => {
 
   useFocusEffect(
     useCallback(() => {
+      console.log('[REQUEST_DEBUG] screen focused');
       screenFocusedRef.current = true;
       loadRequests();
       const interval = setInterval(loadRequests, 6000);
       const previousAppState = { current: AppState.currentState };
       const appStateSub = AppState.addEventListener('change', nextState => {
+        console.log(`[REQUEST_DEBUG] appState changed: ${previousAppState.current} -> ${nextState}`);
         if (nextState === 'active' && previousAppState.current !== 'active') loadRequests();
         previousAppState.current = nextState;
       });
       const notifSub = Notifications.addNotificationReceivedListener(() => {
+        console.log('[REQUEST_DEBUG] notification received');
         loadRequests();
       });
       const notifResponseSub = Notifications.addNotificationResponseReceivedListener(() => {
+        console.log('[REQUEST_DEBUG] notification tapped');
         loadRequests();
       });
 
       return () => {
+        console.log('[REQUEST_DEBUG] screen unfocused');
         screenFocusedRef.current = false;
         latestRequestIdRef.current += 1;
         clearInterval(interval);
@@ -194,13 +207,18 @@ const BookingRequestsScreen = ({ navigation }) => {
         keyExtractor={(item) => item._id || item.bookingId}
         contentContainerStyle={styles.listContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
-        renderItem={({ item }) => (
-          <RideRequestCard
-            request={item}
-            onAccept={handleAccept}
-            onReject={promptReject}
-          />
-        )}
+        renderItem={({ item }) => {
+          const isHighlighted = targetBookingId && (String(item._id) === String(targetBookingId) || String(item.bookingId) === String(targetBookingId));
+          return (
+            <View style={isHighlighted ? { borderColor: COLORS.primary, borderWidth: 2, borderRadius: 12 } : null}>
+              <RideRequestCard
+                request={item}
+                onAccept={handleAccept}
+                onReject={promptReject}
+              />
+            </View>
+          );
+        }}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyTitle}>

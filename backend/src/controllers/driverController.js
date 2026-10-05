@@ -1420,7 +1420,7 @@ const getScheduleBookingRequests = async (req, res, next) => {
     const requests = candidateBookings.filter(reqItem => {
       const exclude = reason => {
         if (process.env.NODE_ENV !== 'production') {
-          console.debug(
+          console.log(
             `[BOOKING_REQUESTS_FILTERED] bookingId=${reqItem.bookingId || reqItem._id} reason=${reason}`
           );
         }

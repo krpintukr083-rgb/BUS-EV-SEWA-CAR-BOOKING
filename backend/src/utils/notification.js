@@ -1,4 +1,4 @@
-﻿const Notification = require('../models/Notification');
+const Notification = require('../models/Notification');
 const Driver = require('../models/Driver');
 const Schedule = require('../models/Schedule');
 const ServiceControl = require('../models/ServiceControl');
@@ -377,6 +377,22 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
     console.log(`Successful: ${successfulCount} | Failed: ${failedCount}`);
     console.log(`Latency - Query: ${tQueryEnd - tQueryStart}ms | Dispatch: ${tDispatchEnd - tDispatchStart}ms`);
     console.log('================================================================\n');
+
+    console.log('\n[ROUTE_BROADCAST_TEST]');
+    console.log(`bookingId=${bookingIdStr}`);
+    console.log(`bookingMode=${booking.bookingMode || 'UNKNOWN'}`);
+    console.log(`paymentMethod=${booking.paymentMethod || 'UNKNOWN'}`);
+    console.log(`pickup=${bookingOrigin}`);
+    console.log(`drop=${bookingDest}`);
+    console.log(`eligibleDriverCount=${matchedDrivers.length}`);
+    console.log(`eligibleDriverIds=${matchedDrivers.map(d => String(d._id)).join(',')}`);
+    console.log(`eligibleDriverRoutes=${matchedDrivers.map(d => `${d.route?.origin}->${d.route?.destination}`).join(',')}`);
+    console.log(`notificationCreatedDriverIds=${newRequestDrivers.map(d => String(d._id)).join(',')}`);
+    console.log(`fcmAttemptDriverIds=${driverLogResults.map(r => r ? String(r.driver._id) : '').filter(Boolean).join(',')}`);
+    console.log(`fcmSuccessDriverIds=${driverLogResults.filter(r => r && r.status === 'SENT').map(r => String(r.driver._id)).join(',')}`);
+    console.log(`fcmFailureDriverIds=${driverLogResults.filter(r => r && r.status && r.status.startsWith('FAILED')).map(r => String(r.driver._id)).join(',')}`);
+    console.log(`requestCreatedDriverIds=${newRequestDrivers.map(d => String(d._id)).join(',')}`);
+    console.log('[/ROUTE_BROADCAST_TEST]\n');
 
   } catch (error) {
     console.error('Error in notifyEligibleDriversForBooking:', error.message || error);
