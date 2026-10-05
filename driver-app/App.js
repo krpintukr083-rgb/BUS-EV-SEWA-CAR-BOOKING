@@ -23,6 +23,15 @@ export default function App() {
     // Setup push token refresh / change listener
     const tokenSub = setupPushTokenChangeListener(driverService);
 
+    // Handle Foreground Notification Receipt
+    const receivedSub = Notifications.addNotificationReceivedListener(notification => {
+      console.log('[NOTIFICATION_RECEIVED_DEBUG]', {
+        title: notification?.request?.content?.title,
+        body: notification?.request?.content?.body,
+        data: notification?.request?.content?.data,
+      });
+    });
+
     // Handle Tap on Notification
     const subscription = Notifications.addNotificationResponseReceivedListener(response => {
       const data = response.notification.request.content.data;
@@ -37,6 +46,7 @@ export default function App() {
 
     return () => {
       subscription?.remove?.();
+      receivedSub?.remove?.();
       tokenSub?.remove?.();
     };
   }, []);

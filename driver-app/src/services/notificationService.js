@@ -58,6 +58,9 @@ export const requestNotificationPermissions = async () => {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
+
+    console.log('[NOTIFICATION_PERMISSION_DEBUG]', { granted: finalStatus === 'granted' });
+
     return finalStatus === 'granted';
   } catch (e) {
     console.log('[PUSH] ERROR:', e?.message || e);
@@ -71,7 +74,7 @@ export const registerPushTokenWithBackend = async (apiClient) => {
     console.warn('[PUSH] registerPushTokenWithBackend() ENTERED');
     console.warn('[PUSH] notification initialization started');
     console.warn('[PUSH] Firebase/native push initialization started');
-    
+
     // Step 1: Check and request notification permission
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
@@ -81,6 +84,8 @@ export const registerPushTokenWithBackend = async (apiClient) => {
     }
     console.warn(`[PUSH] notification permission status: ${finalStatus}`);
     console.warn(`[PUSH] permission result: ${finalStatus === 'granted'}`);
+
+    console.log('[NOTIFICATION_PERMISSION_DEBUG]', { granted: finalStatus === 'granted' });
 
     if (finalStatus !== 'granted') {
       console.warn(`[PUSH] ERROR: Notification permission not granted (${finalStatus})`);
@@ -106,7 +111,7 @@ export const registerPushTokenWithBackend = async (apiClient) => {
       const deviceTokenResponse = await Notifications.getDevicePushTokenAsync();
       nativeFcmToken = deviceTokenResponse?.data;
       console.warn('[PUSH] getDevicePushTokenAsync() COMPLETED');
-      
+
       if (nativeFcmToken) {
         console.warn('[PUSH] device push token received: YES');
         console.warn('[PUSH] token type: FCM/native');
@@ -151,18 +156,18 @@ export const registerPushTokenWithBackend = async (apiClient) => {
       console.warn('[PUSH] backend registration started');
       try {
         let res = null;
-        const payload = { 
+        const payload = {
           pushToken: expoPushToken,
-          expoPushToken: expoPushToken, 
-          fcmToken: nativeFcmToken 
+          expoPushToken: expoPushToken,
+          fcmToken: nativeFcmToken
         };
-        
+
         if (typeof apiClient.post === 'function') {
           res = await apiClient.post('/driver/push-token', payload);
         } else if (typeof apiClient.registerPushToken === 'function') {
           res = await apiClient.registerPushToken(payload);
         }
-        
+
         const registrationStatus = res?.status ?? res?.data?.status ?? 200;
         console.warn(`[PUSH] backend registration response: ${registrationStatus}`);
         console.warn('[PUSH] token registration success');
@@ -268,7 +273,7 @@ export const checkAndNotifyBookingRequests = async (requests, driverId) => {
       // Trigger Android Top Heads-Up Notification safely
       // REMOVED: Prevent duplicate notifications since backend now correctly fires remote push.
       try {
-        // Notifications.scheduleNotificationAsync(...) 
+        // Notifications.scheduleNotificationAsync(...)
       } catch (notifErr) {
         console.warn('[PUSH] Local notification scheduling failed:', notifErr?.message || notifErr);
       }
