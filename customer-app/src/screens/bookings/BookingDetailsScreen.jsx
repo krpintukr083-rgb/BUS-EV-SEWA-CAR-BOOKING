@@ -186,6 +186,10 @@ const BookingDetailsScreen = ({ route, navigation }) => {
               <Text style={styles.metaVal}>{travelDateFormatted}</Text>
             </View>
             <View style={styles.metaCol}>
+              <Text style={styles.metaLabel}>Time</Text>
+              <Text style={styles.metaVal}>{booking.pickupTime || booking.departureTime || booking.scheduleId?.departureTime || 'N/A'}</Text>
+            </View>
+            <View style={styles.metaCol}>
               <Text style={styles.metaLabel}>Payment Status</Text>
               <Text style={[styles.metaVal, { color: COLORS.success }]}>{booking.paymentStatus}</Text>
             </View>
@@ -207,9 +211,30 @@ const BookingDetailsScreen = ({ route, navigation }) => {
           )}
         </View>
 
-        {/* Vehicle & Operator */}
+        {/* Driver / Operator Details */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionHeading}>Vehicle & Transport</Text>
+          <Text style={styles.sectionHeading}>Driver Information</Text>
+          <View style={styles.vehicleRow}>
+            <View style={styles.vehicleIconCircle}>
+              <Ionicons name="person" size={22} color={COLORS.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.vehicleName}>
+                {booking.driver?.name || booking.hiredVehicleDetails?.driverName || 'Not assigned yet'}
+              </Text>
+              {(booking.driver?.mobileNumber || booking.driver?.phone || booking.hiredVehicleDetails?.driverMobile) && (
+                <Text style={styles.vehicleNumber}>
+                  <Ionicons name="call" size={12} color={COLORS.textSecondary} />{' '}
+                  {booking.driver?.mobileNumber || booking.driver?.phone || booking.hiredVehicleDetails?.driverMobile}
+                </Text>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {/* Vehicle Details */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionHeading}>Vehicle Information</Text>
           <View style={styles.vehicleRow}>
             <View style={styles.vehicleIconCircle}>
               <Ionicons
@@ -226,11 +251,11 @@ const BookingDetailsScreen = ({ route, navigation }) => {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.vehicleName}>
-                {booking.vehicle?.busName || booking.vehicle?.vehicleName || 'Registered Transport'}
+                {booking.vehicle?.vehicleName || booking.vehicle?.busName || 'Vehicle not assigned'}
               </Text>
               <Text style={styles.vehicleNumber}>
-                Reg: {booking.vehicle?.busNumber || booking.vehicle?.vehicleNumber || 'N/A'} •{' '}
-                {booking.vehicle?.busType || booking.vehicle?.vehicleModel || 'Standard'}
+                Reg: {booking.vehicle?.vehicleNumber || booking.vehicle?.busNumber || 'N/A'} •{' '}
+                {booking.vehicle?.vehicleType || booking.vehicle?.busType || 'Standard'}
               </Text>
             </View>
           </View>

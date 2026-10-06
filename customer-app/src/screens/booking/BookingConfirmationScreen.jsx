@@ -196,9 +196,17 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
 
           <View style={styles.row}>
             <Text style={styles.rowLabel}>Driver Name</Text>
-            <Text style={[styles.rowValue, styles.emphasizedValue]} numberOfLines={2}>
-              {booking?.driver?.name || booking?.hiredVehicleDetails?.driverName || 'Not assigned'}
-            </Text>
+            <View style={{ flex: 1.5, alignItems: 'flex-end' }}>
+              <Text style={[styles.rowValue, styles.emphasizedValue, { flex: 0 }]} numberOfLines={2}>
+                {booking?.driver?.name || booking?.hiredVehicleDetails?.driverName || 'Not assigned'}
+              </Text>
+              {(booking?.driver?.mobileNumber || booking?.driver?.phone || booking?.hiredVehicleDetails?.driverMobile) && (
+                <Text style={{ fontSize: 12, color: '#64748B', marginTop: 2 }}>
+                  <Ionicons name="call" size={10} color="#64748B" />{' '}
+                  {booking?.driver?.mobileNumber || booking?.driver?.phone || booking?.hiredVehicleDetails?.driverMobile}
+                </Text>
+              )}
+            </View>
           </View>
 
           <View style={styles.row}>
@@ -212,6 +220,13 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
             <Text style={styles.rowLabel}>Vehicle Number</Text>
             <Text style={[styles.rowValue, styles.emphasizedValue]} numberOfLines={1}>
               {booking?.vehicle?.vehicleNumber || booking?.vehicle?.busNumber || 'Not assigned'}
+            </Text>
+          </View>
+
+          <View style={styles.row}>
+            <Text style={styles.rowLabel}>Vehicle Type</Text>
+            <Text style={styles.rowValue}>
+              {booking?.vehicle?.vehicleType || booking?.vehicle?.busType || 'Standard'}
             </Text>
           </View>
 
