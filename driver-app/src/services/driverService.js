@@ -6,6 +6,9 @@ export const driverService = {
   login: (credentials) => apiClient.post(ENDPOINTS.LOGIN, { ...credentials, role: 'driver' }),
   sendLoginOtp: (phone) => apiClient.post('/driver/auth/send-otp', { phone }),
   verifyLoginOtp: (phone, otp) => apiClient.post('/driver/auth/verify-otp', { phone, otp }),
+  sendPasswordResetOtp: (phone) => apiClient.post('/driver/auth/password-reset/send-otp', { phone }),
+  verifyPasswordResetOtp: (phone, otp) => apiClient.post('/driver/auth/password-reset/verify-otp', { phone, otp }),
+  resetPassword: (phone, newPassword) => apiClient.post('/driver/auth/password-reset/set-password', { phone, newPassword }),
   register: (data) => apiClient.post(ENDPOINTS.REGISTER, data),
   registerPushToken: (data) => apiClient.post('/driver/push-token', data),
 

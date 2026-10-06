@@ -8,6 +8,7 @@ import { useAuth } from '../state/AuthContext';
 import TabNavigator from './TabNavigator';
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
+import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 import ActiveRideScreen from '../screens/ride/ActiveRideScreen';
 import BusConfirmationScreen from '../screens/booking/BusConfirmationScreen';
 import EarningsScreen from '../screens/earnings/EarningsScreen';
@@ -47,6 +48,7 @@ export default function AppNavigator() {
         <Stack.Group>
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="Register" component={RegisterScreen} />
+          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         </Stack.Group>
       ) : (
         // Authenticated Driver Stack
