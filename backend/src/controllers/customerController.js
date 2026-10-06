@@ -418,6 +418,7 @@ exports.getMyBookings = async (req, res, next) => {
     const bookings = await Booking.find({ $or: userQuery })
       .populate('vehicle')
       .populate('driver')
+      .populate('scheduleId')
       .sort({ createdAt: -1 });
 
     const formattedBookings = bookings.map(b => {
@@ -453,7 +454,8 @@ exports.getBookingDetails = async (req, res, next) => {
 
     const booking = await Booking.findOne(getBookingQuery(req.params.id))
       .populate('vehicle')
-      .populate('driver', '-canViewCustomerPhone');
+      .populate('driver', '-canViewCustomerPhone')
+      .populate('scheduleId');
 
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking not found' });

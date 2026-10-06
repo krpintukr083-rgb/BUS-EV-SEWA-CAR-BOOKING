@@ -35,6 +35,29 @@ const getDisplayPaidAmount = (booking) => {
   return `₹${Number(amount).toFixed(2)}`;
 };
 
+const formatPickupTime = value => {
+  if (!value || typeof value !== 'string') return 'Not available';
+  const time = value.trim();
+  const twelveHourTime = time.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)$/i);
+  if (
+    twelveHourTime &&
+    Number(twelveHourTime[1]) >= 1 &&
+    Number(twelveHourTime[1]) <= 12 &&
+    Number(twelveHourTime[2]) <= 59
+  ) {
+    return `${twelveHourTime[1].padStart(2, '0')}:${twelveHourTime[2]} ${twelveHourTime[3].toUpperCase()}`;
+  }
+
+  const twentyFourHourTime = time.match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if (twentyFourHourTime) {
+    const hours = Number(twentyFourHourTime[1]);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    return `${String(hours % 12 || 12).padStart(2, '0')}:${twentyFourHourTime[2]} ${period}`;
+  }
+
+  return 'Not available';
+};
+
 const BookingDetailsScreen = ({ route, navigation }) => {
   const { bookingId } = route.params || {};
   const [booking, setBooking] = useState(null);
@@ -187,7 +210,7 @@ const BookingDetailsScreen = ({ route, navigation }) => {
             </View>
             <View style={styles.metaCol}>
               <Text style={styles.metaLabel}>Time</Text>
-              <Text style={styles.metaVal}>{booking.pickupTime || booking.departureTime || booking.scheduleId?.departureTime || 'N/A'}</Text>
+              <Text style={styles.metaVal}>{formatPickupTime(booking.pickupTime || booking.departureTime || booking.scheduleId?.departureTime)}</Text>
             </View>
             <View style={styles.metaCol}>
               <Text style={styles.metaLabel}>Payment Status</Text>
