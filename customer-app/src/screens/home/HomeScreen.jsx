@@ -195,11 +195,6 @@ const HomeScreen = ({ navigation }) => {
       <View style={styles.topHeader}>
         <View style={styles.headerLeft}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Image
-              source={require('../../assets/logo.png')}
-              style={styles.appLogo}
-              resizeMode="contain"
-            />
             <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
               <Image
                 source={{
