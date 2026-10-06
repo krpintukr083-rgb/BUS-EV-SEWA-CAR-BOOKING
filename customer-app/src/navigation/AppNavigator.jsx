@@ -7,6 +7,7 @@ import BottomTabNavigator from './BottomTabNavigator';
 // Auth Screens
 import LoginScreen from '../screens/auth/LoginScreen';
 import SignUpScreen from '../screens/auth/SignUpScreen';
+import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 
 // Bus Screens
 import BusSearchScreen from '../screens/bus/BusSearchScreen';
@@ -70,6 +71,7 @@ const AppNavigator = () => {
         <>
           <Stack.Screen name="Login" component={LoginScreen} />
           <Stack.Screen name="SignUp" component={SignUpScreen} />
+          <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         </>
       ) : (
         // Authenticated App Stack

@@ -17,4 +17,9 @@ router.post('/send-otp', sendOtp);
 router.post('/verify-otp', verifyOtp);
 router.get('/me', verifyToken, getMe);
 
+const { forgotPasswordSendOtp, forgotPasswordVerifyOtp, forgotPasswordReset } = require('../controllers/authController');
+router.post('/password-reset/send-otp', forgotPasswordSendOtp);
+router.post('/password-reset/verify-otp', forgotPasswordVerifyOtp);
+router.post('/password-reset/set-password', forgotPasswordReset);
+
 module.exports = router;

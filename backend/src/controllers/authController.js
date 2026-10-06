@@ -423,3 +423,115 @@ exports.sendDriverLoginOtp = async (req, res, next) => {
 exports.verifyDriverLoginOtp = async (req, res, next) => {
   return res.status(400).json({ success: false, message: 'OTP Login has been disabled. Please use email and password.' });
 };
+
+// @desc    Forgot Password Send OTP
+// @route   POST /api/auth/password-reset/send-otp
+// @access  Public
+exports.forgotPasswordSendOtp = async (req, res, next) => {
+  try {
+    const { phone } = req.body;
+    if (!phone || !phone.toString().trim()) {
+      return res.status(400).json({ success: false, message: 'Mobile phone number is required' });
+    }
+    const rawPhone = phone.toString().trim();
+    const last10 = normalizePhone(rawPhone);
+    if (!last10 || last10.length < 10) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid 10-digit mobile number' });
+    }
+    
+    const user = await User.findOne({ phone: new RegExp(last10 + '$') });
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'No account found for this mobile number.' });
+    }
+
+    const phoneKey = last10;
+    const now = new Date();
+    await Otp.deleteMany({ phone: phoneKey, purpose: 'CUSTOMER_PASSWORD_RESET' });
+    await Otp.deleteMany({ phone: phoneKey, purpose: 'CUSTOMER_PASSWORD_RESET_VERIFIED' });
+
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const salt = await bcrypt.genSalt(10);
+    const hashedOtp = await bcrypt.hash(otpCode, salt);
+    
+    await Otp.create({
+      phone: phoneKey,
+      purpose: 'CUSTOMER_PASSWORD_RESET',
+      otp: hashedOtp,
+      expiresAt: new Date(now.getTime() + 5 * 60000),
+      resendAfter: new Date(now.getTime() + 60000),
+      attempts: 0
+    });
+
+    const smsResult = await smsService.sendSms(last10, `Your Password Reset OTP is ${otpCode}. Valid for 5 minutes.`);
+    if (!smsResult.success) {
+      await Otp.deleteMany({ phone: phoneKey, purpose: 'CUSTOMER_PASSWORD_RESET' });
+      return res.status(400).json({ success: false, message: smsResult.message || 'Failed to send SMS OTP.' });
+    }
+
+    res.json({ success: true, message: 'OTP sent successfully.' });
+  } catch (error) { next(error); }
+};
+
+// @desc    Forgot Password Verify OTP
+// @route   POST /api/auth/password-reset/verify-otp
+// @access  Public
+exports.forgotPasswordVerifyOtp = async (req, res, next) => {
+  try {
+    const { phone, otp } = req.body;
+    if (!phone || !otp) return res.status(400).json({ success: false, message: 'Phone number and OTP code are required' });
+    const last10 = normalizePhone(phone);
+    const phoneKey = last10;
+
+    const otpDoc = await Otp.findOne({ phone: phoneKey, purpose: 'CUSTOMER_PASSWORD_RESET' });
+    if (!otpDoc || otpDoc.expiresAt < new Date()) {
+      if (otpDoc) await Otp.deleteOne({ _id: otpDoc._id });
+      return res.status(400).json({ success: false, message: 'OTP has expired or is invalid.' });
+    }
+    if (otpDoc.attempts >= 5) {
+      await Otp.deleteOne({ _id: otpDoc._id });
+      return res.status(429).json({ success: false, message: 'Too many failed attempts.' });
+    }
+
+    const isMatch = await otpDoc.compareOtp(otp);
+    if (!isMatch) {
+      otpDoc.attempts += 1;
+      await otpDoc.save();
+      return res.status(400).json({ success: false, message: 'Invalid OTP code.' });
+    }
+
+    otpDoc.purpose = 'CUSTOMER_PASSWORD_RESET_VERIFIED';
+    otpDoc.expiresAt = new Date(Date.now() + 15 * 60000);
+    await otpDoc.save();
+
+    res.json({ success: true, message: 'OTP verified successfully.' });
+  } catch (error) { next(error); }
+};
+
+// @desc    Forgot Password Set New Password
+// @route   POST /api/auth/password-reset/set-password
+// @access  Public
+exports.forgotPasswordReset = async (req, res, next) => {
+  try {
+    const { phone, newPassword } = req.body;
+    if (!phone || !newPassword || newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: 'Valid phone and password (min 6 chars) required.' });
+    }
+    const last10 = normalizePhone(phone);
+
+    const otpDoc = await Otp.findOne({ phone: last10, purpose: 'CUSTOMER_PASSWORD_RESET_VERIFIED' });
+    if (!otpDoc || otpDoc.expiresAt < new Date()) {
+      return res.status(400).json({ success: false, message: 'Session expired. Please verify OTP again.' });
+    }
+
+    const user = await User.findOne({ phone: new RegExp(last10 + '$') }).select('+password');
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found.' });
+    }
+
+    user.password = newPassword;
+    await user.save();
+    await Otp.deleteOne({ _id: otpDoc._id });
+
+    res.json({ success: true, message: 'Password updated successfully. You can now login.' });
+  } catch (error) { next(error); }
+};

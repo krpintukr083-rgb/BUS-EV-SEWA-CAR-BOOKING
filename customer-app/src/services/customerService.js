@@ -22,6 +22,21 @@ export const customerService = {
     return res.data;
   },
 
+  sendPasswordResetOtp: async phone => {
+    const res = await api.post('/auth/password-reset/send-otp', { phone });
+    return res.data;
+  },
+
+  verifyPasswordResetOtp: async (phone, otp) => {
+    const res = await api.post('/auth/password-reset/verify-otp', { phone, otp });
+    return res.data;
+  },
+
+  resetPassword: async (phone, newPassword) => {
+    const res = await api.post('/auth/password-reset/set-password', { phone, newPassword });
+    return res.data;
+  },
+
   getMe: async () => {
     const res = await api.get('/auth/me', {
       headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache' }
