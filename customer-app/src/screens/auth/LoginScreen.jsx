@@ -27,17 +27,10 @@ import {
 } from '../../services/api';
 
 const LoginScreen = ({ navigation }) => {
-  const [authMode, setAuthMode] = useState('phone'); // 'phone' | 'email'
-  
-  // Mobile OTP state
-  const [phone, setPhone] = useState('');
-  const [otpCode, setOtpCode] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
-  const [resendTimer, setResendTimer] = useState(60);
-  const [sendingOtp, setSendingOtp] = useState(false);
-  const [verifyingOtp, setVerifyingOtp] = useState(false);
-
   // Email login state
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -49,24 +42,11 @@ const LoginScreen = ({ navigation }) => {
   const [serverTestStatus, setServerTestStatus] = useState(null); // { success, latency, error }
   const [testingServer, setTestingServer] = useState(false);
 
-  const { login, sendOtp, verifyOtp } = useCustomerAuth();
+  const { login } = useCustomerAuth();
 
   useEffect(() => {
     loadServerInfo();
   }, []);
-
-  // Timer countdown effect for OTP resend
-  useEffect(() => {
-    let interval = null;
-    if (otpSent && resendTimer > 0) {
-      interval = setInterval(() => {
-        setResendTimer(prev => prev - 1);
-      }, 1000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [otpSent, resendTimer]);
 
   const loadServerInfo = async () => {
     try {
@@ -108,55 +88,7 @@ const LoginScreen = ({ navigation }) => {
     setServerModalVisible(false);
   };
 
-  const handleSendOtp = async () => {
-    if (!phone.trim()) {
-      Alert.alert('Required', 'Please enter your mobile phone number.');
-      return;
-    }
-    setSendingOtp(true);
-    const res = await sendOtp(phone.trim());
-    setSendingOtp(false);
 
-    if (res && res.success) {
-      setOtpSent(true);
-      setResendTimer(60);
-      Alert.alert('OTP Sent', res.message || 'An OTP code has been sent to your mobile number via SMS.');
-    } else {
-      Alert.alert(
-        'Send OTP Failed',
-        (res && res.message) ? res.message : 'Could not send OTP. Please check your phone number and try again.',
-        [
-          { text: 'OK' },
-          {
-            text: 'Server Settings',
-            onPress: () => {
-              setServerModalVisible(true);
-              handleTestConnection();
-            }
-          }
-        ]
-      );
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    if (!otpCode.trim()) {
-      Alert.alert('Required', 'Please enter the 6-digit OTP code.');
-      return;
-    }
-    if (otpCode.trim().length !== 6) {
-      Alert.alert('Invalid OTP', 'OTP code must be 6 digits.');
-      return;
-    }
-
-    setVerifyingOtp(true);
-    const res = await verifyOtp(phone.trim(), otpCode.trim());
-    setVerifyingOtp(false);
-
-    if (!res.success) {
-      Alert.alert('Verification Failed', res.message || 'Invalid or expired OTP code. Please try again.');
-    }
-  };
 
   const handleLogin = async () => {
     if (!identifier.trim() || !password.trim()) {
@@ -208,141 +140,38 @@ const LoginScreen = ({ navigation }) => {
           <Text style={styles.welcomeText}>Welcome Back</Text>
           <Text style={styles.instructionText}>Sign in to your customer account to manage journeys</Text>
 
-          {/* Switch Mode Tabs */}
-          <View style={styles.tabRow}>
-            <TouchableOpacity
-              onPress={() => {
-                setAuthMode('phone');
-                setOtpSent(false);
-                setOtpCode('');
-              }}
-              style={[styles.tab, authMode === 'phone' && styles.activeTab]}
-            >
-              <Ionicons
-                name="call-outline"
-                size={16}
-                color={authMode === 'phone' ? COLORS.primary : COLORS.textSecondary}
-              />
-              <Text style={[styles.tabText, authMode === 'phone' && styles.activeTabText]}>Mobile</Text>
-            </TouchableOpacity>
+          <Input
+            label="Email Address"
+            placeholder="name@example.com"
+            value={identifier}
+            onChangeText={setIdentifier}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            icon={<Ionicons name="mail-outline" size={18} color="#94a3b8" />}
+          />
 
-            <TouchableOpacity
-              onPress={() => {
-                setAuthMode('email');
-              }}
-              style={[styles.tab, authMode === 'email' && styles.activeTab]}
-            >
-              <Ionicons
-                name="mail-outline"
-                size={16}
-                color={authMode === 'email' ? COLORS.primary : COLORS.textSecondary}
-              />
-              <Text style={[styles.tabText, authMode === 'email' && styles.activeTabText]}>Email</Text>
-            </TouchableOpacity>
-          </View>
+          <Input
+            label="Password"
+            placeholder="Enter password"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            icon={<Ionicons name="lock-closed-outline" size={18} color="#94a3b8" />}
+          />
 
-          {authMode === 'phone' ? (
-            !otpSent ? (
-              /* Step 1: Mobile Number Entry & Send OTP */
-              <>
-                <Input
-                  label="Mobile Number"
-                  placeholder="e.g. +977 9841234567"
-                  value={phone}
-                  onChangeText={setPhone}
-                  keyboardType="phone-pad"
-                  autoCapitalize="none"
-                  icon={<Ionicons name="call-outline" size={18} color="#94a3b8" />}
-                />
-                <Button
-                  title="Send OTP"
-                  onPress={handleSendOtp}
-                  loading={sendingOtp}
-                  style={{ marginTop: 8 }}
-                />
-              </>
-            ) : (
-              /* Step 2: OTP Code Input & Verification */
-              <>
-                <View style={styles.otpBanner}>
-                  <Text style={styles.otpBannerText}>
-                    OTP sent to <Text style={{ fontWeight: '700', color: COLORS.darkNavy }}>{phone}</Text>
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setOtpSent(false);
-                      setOtpCode('');
-                    }}
-                  >
-                    <Text style={styles.changePhoneText}>Change</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <Input
-                  label="6-Digit OTP Code"
-                  placeholder="Enter 6-digit OTP"
-                  value={otpCode}
-                  onChangeText={setOtpCode}
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  icon={<Ionicons name="key-outline" size={18} color="#94a3b8" />}
-                />
-
-                <Button
-                  title="Verify & Login"
-                  onPress={handleVerifyOtp}
-                  loading={verifyingOtp}
-                  style={{ marginTop: 8 }}
-                />
-
-                {/* Resend Timer / Resend OTP */}
-                <View style={styles.resendRow}>
-                  {resendTimer > 0 ? (
-                    <Text style={styles.resendTimerText}>
-                      Resend OTP in <Text style={{ fontWeight: '700', color: COLORS.primary }}>{resendTimer}s</Text>
-                    </Text>
-                  ) : (
-                    <TouchableOpacity onPress={handleSendOtp} disabled={sendingOtp}>
-                      {sendingOtp ? (
-                        <ActivityIndicator size="small" color={COLORS.primary} />
-                      ) : (
-                        <Text style={styles.resendBtnText}>Resend OTP</Text>
-                      )}
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </>
-            )
-          ) : (
-            /* Email Tab: Email & Password Login */
-            <>
-              <Input
-                label="Email Address"
-                placeholder="name@example.com"
-                value={identifier}
-                onChangeText={setIdentifier}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                icon={<Ionicons name="mail-outline" size={18} color="#94a3b8" />}
-              />
-
-              <Input
-                label="Password"
-                placeholder="Enter password"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                icon={<Ionicons name="lock-closed-outline" size={18} color="#94a3b8" />}
-              />
-
-              <Button
-                title="Login"
-                onPress={handleLogin}
-                loading={loading}
-                style={{ marginTop: 8 }}
-              />
-            </>
-          )}
+          <Button
+            title="Login"
+            onPress={handleLogin}
+            loading={loading}
+            style={{ marginTop: 8 }}
+          />
+          
+          <TouchableOpacity 
+            onPress={() => navigation.navigate('ForgotPassword')}
+            style={{ alignItems: 'center', marginTop: 16 }}
+          >
+            <Text style={{ color: COLORS.primary, fontWeight: '600' }}>Forgot Password?</Text>
+          </TouchableOpacity>
 
 
           {/* Sign Up Link */}
