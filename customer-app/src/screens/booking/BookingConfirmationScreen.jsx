@@ -121,6 +121,7 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
     booking?.bookingStatus === 'Pending Admin Confirmation' ||
     booking?.bookingStatus === 'PENDING_ADMIN_CONFIRMATION';
   const isPendingDriver = booking?.bookingStatus === 'Pending Driver Confirmation';
+  const isAwaitingCash = booking?.bookingStatus === 'Awaiting Cash Collection';
 
   return (
     <View style={styles.container}>
@@ -131,6 +132,8 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
             ? 'Booking Onboarding'
             : isPendingDriver
             ? 'Booking Request Submitted'
+            : isAwaitingCash
+            ? 'Awaiting Cash Collection'
             : 'Booking Confirmation'
         }
         onBack={handleGoHome}
@@ -143,11 +146,13 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
             <Ionicons name={isPendingAdmin ? 'shield-checkmark' : isPendingDriver ? 'time' : 'checkmark'} size={36} color="#FFFFFF" />
           </View>
           <Text style={styles.heroTitle}>
-            {isPendingAdmin || isPendingDriver ? 'Waiting for Driver Confirmation' : 'Booking Confirmed!'}
+            {isPendingAdmin || isPendingDriver ? 'Waiting for Driver Confirmation' : isAwaitingCash ? 'Awaiting Cash' : 'Booking Confirmed!'}
           </Text>
           <Text style={styles.heroSub}>
             {isPendingAdmin || isPendingDriver
               ? 'Your booking request is created. Please provide your Customer OTP to your assigned driver for confirmation.'
+              : isAwaitingCash
+              ? 'Your booking is confirmed. Please pay the fare to the driver upon boarding.'
               : 'Your travel reservation has been confirmed and driver has been notified.'}
           </Text>
 

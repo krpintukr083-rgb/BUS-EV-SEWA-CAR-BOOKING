@@ -1745,7 +1745,7 @@ const acceptInstantBookingRequest = async (req, res, next) => {
       bookingStatus: nextBookingStatus
     };
 
-    if (booking.bookingMode === 'INSTANT' && requestVehicle) {
+    if (booking.bookingMode === 'INSTANT' && (booking.serviceType === 'Any' || !booking.vehicle) && assignedVehicle) {
       updateSet.vehicle = assignedVehicle._id;
       updateSet.serviceType = assignedVehicle.vehicleType;
       
