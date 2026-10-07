@@ -9,8 +9,10 @@ const axios = require('axios');
 exports.sendSms = async (to, text) => {
   const url = process.env.AAKASH_SMS_URL || 'https://sms.aakashsms.com/sms/v3/send';
   const authToken = process.env.AAKASH_SMS_AUTH_TOKEN;
+  const isDriverReg = text.includes('Driver Registration OTP');
 
   if (!authToken) {
+    if (isDriverReg) console.log('[DRIVER_REGISTER_SMS]', { tokenConfigured: false, recipientValid: false, providerSuccess: false });
     console.error('[SMS SERVICE ERROR] AAKASH_SMS_AUTH_TOKEN is missing in environment variables.');
     return {
       success: false,
@@ -46,6 +48,7 @@ exports.sendSms = async (to, text) => {
   });
 
   if (!isValid) {
+    if (isDriverReg) console.log('[DRIVER_REGISTER_SMS]', { tokenConfigured: !!authToken, recipientValid: false, providerSuccess: false });
     return {
       success: false,
       message: 'Please enter a valid Nepal mobile number.'
@@ -80,6 +83,7 @@ exports.sendSms = async (to, text) => {
     });
 
     if (resData.error === true || resData.message === 'No valid recipients.' || (resData.message && resData.message.toLowerCase().includes('no valid recipient'))) {
+      if (isDriverReg) console.log('[DRIVER_REGISTER_SMS]', { tokenConfigured: !!authToken, recipientValid: true, providerSuccess: false });
       return {
         success: false,
         message: 'Please enter a valid Nepal mobile number.'
@@ -88,17 +92,21 @@ exports.sendSms = async (to, text) => {
 
     // AakashSMS v3 standard success response checking
     if (resData.error === false || resData.status === 'success' || (response.status === 200 && !resData.error)) {
+      if (isDriverReg) console.log('[DRIVER_REGISTER_SMS]', { tokenConfigured: !!authToken, recipientValid: true, providerSuccess: true });
       return {
         success: true,
         message: 'SMS dispatched successfully'
       };
     }
 
+    if (isDriverReg) console.log('[DRIVER_REGISTER_SMS]', { tokenConfigured: !!authToken, recipientValid: true, providerSuccess: false });
+
     return {
       success: false,
       message: resData.message || 'SMS gateway returned an error'
     };
   } catch (error) {
+    if (isDriverReg) console.log('[DRIVER_REGISTER_SMS]', { tokenConfigured: !!authToken, recipientValid: true, providerSuccess: false });
     // Log generic message to avoid printing credentials or secret tokens
     const errMsg = error.response?.data?.message || error.message || 'Network error reaching SMS gateway';
     console.error('[SMS SERVICE ERROR] Dispatch failed:', errMsg);

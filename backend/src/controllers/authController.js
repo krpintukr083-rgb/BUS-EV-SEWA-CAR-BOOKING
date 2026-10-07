@@ -445,19 +445,36 @@ exports.driverRegister = async (req, res, next) => {
 exports.registerSendOtp = async (req, res, next) => {
   try {
     const { phone } = req.body;
+    
+    let reason = 'valid';
+    let valid = true;
+    let normalizedLength = 0;
+
     if (!phone || !phone.toString().trim()) {
+      reason = 'missing phone';
+      valid = false;
+      console.log('[REGISTER_OTP_DEBUG]', { phonePresent: !!phone, normalizedLength, valid, reason });
       return res.status(400).json({ success: false, message: 'Mobile phone number is required' });
     }
     const rawPhone = phone.toString().trim();
     const last10 = normalizePhone(rawPhone);
-    if (!last10 || last10.length < 10) {
+    normalizedLength = last10 ? last10.length : 0;
+    if (!last10 || normalizedLength < 10) {
+      reason = 'invalid length';
+      valid = false;
+      console.log('[REGISTER_OTP_DEBUG]', { phonePresent: true, normalizedLength, valid, reason });
       return res.status(400).json({ success: false, message: 'Please enter a valid 10-digit mobile number' });
     }
     
     const existing = await User.findOne({ phone: new RegExp(last10 + '$') });
     if (existing) {
-      return res.status(400).json({ success: false, message: 'Account with this mobile number already exists' });
+      reason = 'duplicate phone';
+      valid = false;
+      console.log('[REGISTER_OTP_DEBUG]', { phonePresent: true, normalizedLength, valid, reason });
+      return res.status(400).json({ success: false, message: 'This mobile number is already registered.' });
     }
+
+    console.log('[REGISTER_OTP_DEBUG]', { phonePresent: true, normalizedLength, valid, reason });
 
     const phoneKey = last10;
     const now = new Date();
@@ -492,19 +509,35 @@ exports.registerSendOtp = async (req, res, next) => {
 exports.driverRegisterSendOtp = async (req, res, next) => {
   try {
     const { phone } = req.body;
+    let reason = 'valid';
+    let valid = true;
+    let normalizedLength = 0;
+
     if (!phone || !phone.toString().trim()) {
+      reason = 'missing phone';
+      valid = false;
+      console.log('[DRIVER_REGISTER_OTP_DEBUG]', { phonePresent: !!phone, normalizedLength, valid, reason });
       return res.status(400).json({ success: false, message: 'Mobile phone number is required' });
     }
     const rawPhone = phone.toString().trim();
     const last10 = normalizePhone(rawPhone);
-    if (!last10 || last10.length < 10) {
+    normalizedLength = last10 ? last10.length : 0;
+    if (!last10 || normalizedLength < 10) {
+      reason = 'invalid length';
+      valid = false;
+      console.log('[DRIVER_REGISTER_OTP_DEBUG]', { phonePresent: true, normalizedLength, valid, reason });
       return res.status(400).json({ success: false, message: 'Please enter a valid 10-digit mobile number' });
     }
     
     const existing = await User.findOne({ phone: new RegExp(last10 + '$') });
     if (existing) {
-      return res.status(400).json({ success: false, message: 'Account with this mobile number already exists' });
+      reason = 'duplicate phone';
+      valid = false;
+      console.log('[DRIVER_REGISTER_OTP_DEBUG]', { phonePresent: true, normalizedLength, valid, reason });
+      return res.status(400).json({ success: false, message: 'This mobile number is already registered.' });
     }
+
+    console.log('[DRIVER_REGISTER_OTP_DEBUG]', { phonePresent: true, normalizedLength, valid, reason });
 
     const phoneKey = last10;
     const now = new Date();
