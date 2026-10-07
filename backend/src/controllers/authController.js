@@ -224,14 +224,35 @@ exports.getMe = async (req, res, next) => {
 // @access  Public
 exports.register = async (req, res, next) => {
   try {
-    const { name, email, phone, password } = req.body;
+    const { name, email, phone, password, otp } = req.body;
 
-    if (!name || !email || !phone || !password) {
+    if (!name || !email || !phone || !password || !otp) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide name, email, phone number, and password'
+        message: 'Please provide name, email, phone number, password, and OTP'
       });
     }
+
+    const rawPhone = phone.toString().trim();
+    const last10 = normalizePhone(rawPhone);
+
+    const otpDoc = await Otp.findOne({ phone: last10, purpose: 'CUSTOMER_SIGNUP' });
+    if (!otpDoc || otpDoc.expiresAt < new Date()) {
+      if (otpDoc) await Otp.deleteOne({ _id: otpDoc._id });
+      return res.status(400).json({ success: false, message: 'OTP has expired or is invalid.' });
+    }
+    if (otpDoc.attempts >= 5) {
+      await Otp.deleteOne({ _id: otpDoc._id });
+      return res.status(429).json({ success: false, message: 'Too many failed attempts.' });
+    }
+    const isMatch = await otpDoc.compareOtp(otp);
+    if (!isMatch) {
+      otpDoc.attempts += 1;
+      await otpDoc.save();
+      return res.status(400).json({ success: false, message: 'Invalid OTP code.' });
+    }
+    
+    await Otp.deleteOne({ _id: otpDoc._id });
 
     // Check if user already exists
     const existing = await User.findOne({
@@ -314,15 +335,37 @@ exports.driverRegister = async (req, res, next) => {
       drivingLicenceDoc,
       drivingLicenceExpiry,
       citizenshipNumber,
-      citizenshipDoc
+      citizenshipDoc,
+      otp
     } = req.body;
 
-    if (!name || !phone || !password || !drivingLicenceNumber) {
+    if (!name || !phone || !password || !drivingLicenceNumber || !otp) {
       return res.status(400).json({
         success: false,
-        message: 'Name, mobile phone, password, and driving licence number are required'
+        message: 'Name, mobile phone, password, driving licence number, and OTP are required'
       });
     }
+
+    const rawPhone = phone.toString().trim();
+    const last10 = normalizePhone(rawPhone);
+
+    const otpDoc = await Otp.findOne({ phone: last10, purpose: 'DRIVER_SIGNUP' });
+    if (!otpDoc || otpDoc.expiresAt < new Date()) {
+      if (otpDoc) await Otp.deleteOne({ _id: otpDoc._id });
+      return res.status(400).json({ success: false, message: 'OTP has expired or is invalid.' });
+    }
+    if (otpDoc.attempts >= 5) {
+      await Otp.deleteOne({ _id: otpDoc._id });
+      return res.status(429).json({ success: false, message: 'Too many failed attempts.' });
+    }
+    const isMatch = await otpDoc.compareOtp(otp);
+    if (!isMatch) {
+      otpDoc.attempts += 1;
+      await otpDoc.save();
+      return res.status(400).json({ success: false, message: 'Invalid OTP code.' });
+    }
+    
+    await Otp.deleteOne({ _id: otpDoc._id });
 
     const cleanEmail = email ? email.toLowerCase().trim() : `driver_${Date.now()}@platform.com`;
     const cleanPhone = phone.trim();
@@ -394,6 +437,100 @@ exports.driverRegister = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+// @desc    Send OTP for Customer Registration
+// @route   POST /api/auth/register/send-otp
+// @access  Public
+exports.registerSendOtp = async (req, res, next) => {
+  try {
+    const { phone } = req.body;
+    if (!phone || !phone.toString().trim()) {
+      return res.status(400).json({ success: false, message: 'Mobile phone number is required' });
+    }
+    const rawPhone = phone.toString().trim();
+    const last10 = normalizePhone(rawPhone);
+    if (!last10 || last10.length < 10) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid 10-digit mobile number' });
+    }
+    
+    const existing = await User.findOne({ phone: new RegExp(last10 + '$') });
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'Account with this mobile number already exists' });
+    }
+
+    const phoneKey = last10;
+    const now = new Date();
+    await Otp.deleteMany({ phone: phoneKey, purpose: 'CUSTOMER_SIGNUP' });
+
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const salt = await bcrypt.genSalt(10);
+    const hashedOtp = await bcrypt.hash(otpCode, salt);
+    
+    await Otp.create({
+      phone: phoneKey,
+      purpose: 'CUSTOMER_SIGNUP',
+      otp: hashedOtp,
+      expiresAt: new Date(now.getTime() + 5 * 60000),
+      resendAfter: new Date(now.getTime() + 60000),
+      attempts: 0
+    });
+
+    const smsResult = await smsService.sendSms(last10, `Your Registration OTP is ${otpCode}. Valid for 5 minutes.`);
+    if (!smsResult.success) {
+      await Otp.deleteMany({ phone: phoneKey, purpose: 'CUSTOMER_SIGNUP' });
+      return res.status(400).json({ success: false, message: smsResult.message || 'Failed to send SMS OTP.' });
+    }
+
+    res.json({ success: true, message: 'Registration OTP sent successfully.' });
+  } catch (error) { next(error); }
+};
+
+// @desc    Send OTP for Driver Registration
+// @route   POST /api/auth/driver-register/send-otp
+// @access  Public
+exports.driverRegisterSendOtp = async (req, res, next) => {
+  try {
+    const { phone } = req.body;
+    if (!phone || !phone.toString().trim()) {
+      return res.status(400).json({ success: false, message: 'Mobile phone number is required' });
+    }
+    const rawPhone = phone.toString().trim();
+    const last10 = normalizePhone(rawPhone);
+    if (!last10 || last10.length < 10) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid 10-digit mobile number' });
+    }
+    
+    const existing = await User.findOne({ phone: new RegExp(last10 + '$') });
+    if (existing) {
+      return res.status(400).json({ success: false, message: 'Account with this mobile number already exists' });
+    }
+
+    const phoneKey = last10;
+    const now = new Date();
+    await Otp.deleteMany({ phone: phoneKey, purpose: 'DRIVER_SIGNUP' });
+
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const salt = await bcrypt.genSalt(10);
+    const hashedOtp = await bcrypt.hash(otpCode, salt);
+    
+    await Otp.create({
+      phone: phoneKey,
+      purpose: 'DRIVER_SIGNUP',
+      otp: hashedOtp,
+      expiresAt: new Date(now.getTime() + 5 * 60000),
+      resendAfter: new Date(now.getTime() + 60000),
+      attempts: 0
+    });
+
+    const smsResult = await smsService.sendSms(last10, `Your Driver Registration OTP is ${otpCode}. Valid for 5 minutes.`);
+    if (!smsResult.success) {
+      await Otp.deleteMany({ phone: phoneKey, purpose: 'DRIVER_SIGNUP' });
+      return res.status(400).json({ success: false, message: smsResult.message || 'Failed to send SMS OTP.' });
+    }
+
+    res.json({ success: true, message: 'Driver Registration OTP sent successfully.' });
+  } catch (error) { next(error); }
 };
 
 // @desc    Send OTP to Mobile Number

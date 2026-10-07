@@ -60,10 +60,10 @@ export const CustomerAuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (name, email, phone, password) => {
+  const register = async (name, email, phone, password, otp) => {
     setError(null);
     try {
-      const res = await customerService.register({ name, email, phone, password });
+      const res = await customerService.register({ name, email, phone, password, otp });
       if (res.success) {
         await AsyncStorage.setItem('customer_token', res.token);
         await AsyncStorage.setItem('customer_user', JSON.stringify(res.user));
@@ -111,6 +111,28 @@ export const CustomerAuthProvider = ({ children }) => {
       setUser(null);
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const sendRegistrationOtp = async (phone) => {
+    setError(null);
+    try {
+      const res = await customerService.sendRegistrationOtp(phone);
+      if (res && res.success) {
+        return { success: true, message: res.message };
+      }
+      return { success: false, message: (res && res.message) ? res.message : 'Failed to send OTP' };
+    } catch (err) {
+      let msg = 'Failed to send OTP.';
+      if (err.response?.data?.message) {
+        msg = err.response.data.message;
+      } else if (err.message === 'Network Error' || err.code === 'ERR_NETWORK') {
+        msg = 'Network Error: Cannot connect to backend server. Verify your API_BASE_URL, Wi-Fi network, or HTTPS tunnel.';
+      } else if (err.message) {
+        msg = err.message;
+      }
+      setError(msg);
+      return { success: false, message: msg };
     }
   };
 
@@ -172,6 +194,7 @@ export const CustomerAuthProvider = ({ children }) => {
         error,
         login,
         register,
+        sendRegistrationOtp,
         sendOtp,
         verifyOtp,
         loginWithOtp: verifyOtp,

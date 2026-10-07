@@ -7,7 +7,9 @@ import { useAuth } from '../../state/AuthContext';
 import { useLanguage } from '../../state/LanguageContext';
 
 const RegisterScreen = ({ navigation }) => {
-  const { register } = useAuth();
+  const [otp, setOtp] = useState('');
+  const [step, setStep] = useState(1);
+  const { register, sendRegistrationOtp } = useAuth();
   const { t } = useLanguage();
 
   const [name, setName] = useState('');
@@ -76,9 +78,27 @@ const RegisterScreen = ({ navigation }) => {
     }
   };
 
-  const handleRegister = async () => {
+  const handleSendOtp = async () => {
     if (!name || !phone || !password || !drivingLicenceNumber) {
       Alert.alert('Missing Required Fields', 'Full name, mobile number, password, and driving licence number are mandatory.');
+      return;
+    }
+
+    setLoading(true);
+    const res = await sendRegistrationOtp(phone.trim());
+    setLoading(false);
+
+    if (res.success) {
+      setStep(2);
+      Alert.alert('OTP Sent', `OTP sent successfully to ${phone}`);
+    } else {
+      Alert.alert('Error', res.message || 'Could not send OTP');
+    }
+  };
+
+  const handleRegister = async () => {
+    if (!otp.trim()) {
+      Alert.alert('Required', 'Please enter the OTP.');
       return;
     }
 
@@ -89,6 +109,7 @@ const RegisterScreen = ({ navigation }) => {
       name: name.trim(),
       phone: phone.trim(),
       password,
+      otp: otp.trim(),
       drivingLicenceNumber: drivingLicenceNumber.trim(),
       driverPhoto: photoDataUri,
       email: email ? email.trim() : undefined,
@@ -112,13 +133,18 @@ const RegisterScreen = ({ navigation }) => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-      <TouchableOpacity style={styles.backRow} onPress={() => navigation.goBack()}>
+      <TouchableOpacity style={styles.backRow} onPress={() => {
+        if (step === 2) setStep(1);
+        else navigation.goBack();
+      }}>
         <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-        <Text style={styles.backText}>Back to Login</Text>
+        <Text style={styles.backText}>{step === 2 ? 'Back to Form' : 'Back to Login'}</Text>
       </TouchableOpacity>
 
-      <Text style={styles.screenTitle}>{t('register')}</Text>
-      <Text style={styles.screenSub}>Join YatraSewanp.com as a verified multi-modal driver partner</Text>
+      <Text style={styles.screenTitle}>{step === 1 ? t('register') : 'Verify OTP'}</Text>
+      <Text style={styles.screenSub}>
+        {step === 1 ? 'Join YatraSewanp.com as a verified multi-modal driver partner' : `Enter the 6-digit OTP sent to ${phone}`}
+      </Text>
 
       {/* Notice Pill */}
       <View style={styles.noticePill}>
@@ -128,126 +154,160 @@ const RegisterScreen = ({ navigation }) => {
         </Text>
       </View>
 
-      {/* Driver Photo Upload */}
-      <Text style={styles.label}>Driver Profile Photo (Verification Image)</Text>
-      {driverPhotoAsset ? (
-        <View style={styles.photoPreviewCard}>
-          <Image source={{ uri: driverPhotoAsset.uri }} style={styles.previewImage} />
-          <View style={styles.photoActionsRow}>
-            <TouchableOpacity style={styles.photoActionBtn} onPress={handleTakePhoto}>
-              <Ionicons name="camera" size={16} color="#FFF" />
-              <Text style={styles.photoActionText}>Retake</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.photoActionBtn} onPress={handlePickGalleryPhoto}>
-              <Ionicons name="images" size={16} color="#FFF" />
-              <Text style={styles.photoActionText}>Gallery</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.removePhotoBtn} onPress={() => setDriverPhotoAsset(null)}>
-              <Ionicons name="trash" size={16} color="#dc2626" />
-            </TouchableOpacity>
-          </View>
-        </View>
+      {step === 1 ? (
+        <>
+          {/* Driver Photo Upload */}
+          <Text style={styles.label}>Driver Profile Photo (Verification Image)</Text>
+          {driverPhotoAsset ? (
+            <View style={styles.photoPreviewCard}>
+              <Image source={{ uri: driverPhotoAsset.uri }} style={styles.previewImage} />
+              <View style={styles.photoActionsRow}>
+                <TouchableOpacity style={styles.photoActionBtn} onPress={handleTakePhoto}>
+                  <Ionicons name="camera" size={16} color="#FFF" />
+                  <Text style={styles.photoActionText}>Retake</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.photoActionBtn} onPress={handlePickGalleryPhoto}>
+                  <Ionicons name="images" size={16} color="#FFF" />
+                  <Text style={styles.photoActionText}>Gallery</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.removePhotoBtn} onPress={() => setDriverPhotoAsset(null)}>
+                  <Ionicons name="trash" size={16} color="#dc2626" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.photoPickerContainer}>
+              <TouchableOpacity style={styles.photoPickerBtn} onPress={handleTakePhoto}>
+                <Ionicons name="camera" size={26} color={COLORS.primaryLight} />
+                <Text style={styles.photoPickerText}>Take Photo</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.photoPickerBtn} onPress={handlePickGalleryPhoto}>
+                <Ionicons name="images" size={26} color={COLORS.primaryLight} />
+                <Text style={styles.photoPickerText}>Choose Gallery</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Full Name */}
+          <Text style={styles.label}>Full Name *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. Hari Bahadur"
+            placeholderTextColor={COLORS.textMuted}
+            value={name}
+            onChangeText={setName}
+          />
+
+          {/* Mobile Number */}
+          <Text style={styles.label}>Mobile Phone Number *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. 9841000001"
+            placeholderTextColor={COLORS.textMuted}
+            keyboardType="phone-pad"
+            value={phone}
+            onChangeText={setPhone}
+          />
+
+          {/* Driving Licence Number */}
+          <Text style={styles.label}>Driving Licence Number *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. DL-01-2024-9982"
+            placeholderTextColor={COLORS.textMuted}
+            value={drivingLicenceNumber}
+            onChangeText={setDrivingLicenceNumber}
+          />
+
+          {/* Password */}
+          <Text style={styles.label}>Password *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Minimum 6 characters"
+            placeholderTextColor={COLORS.textMuted}
+            secureTextEntry
+            value={password}
+            onChangeText={setPassword}
+          />
+
+          {/* Email (Optional) */}
+          <Text style={styles.label}>Email Address (Optional)</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. hari.driver@platform.com"
+            placeholderTextColor={COLORS.textMuted}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            value={email}
+            onChangeText={setEmail}
+          />
+
+          {/* Address */}
+          <Text style={styles.label}>City / Address</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. Kalanki, Kathmandu"
+            placeholderTextColor={COLORS.textMuted}
+            value={address}
+            onChangeText={setAddress}
+          />
+
+          {/* Emergency Contact */}
+          <Text style={styles.label}>Emergency Contact Phone</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="e.g. 9800000000 (Family Contact)"
+            placeholderTextColor={COLORS.textMuted}
+            keyboardType="phone-pad"
+            value={emergencyPhone}
+            onChangeText={setEmergencyPhone}
+          />
+
+          {/* Submit Button */}
+          <TouchableOpacity
+            style={styles.submitBtn}
+            onPress={handleSendOtp}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.submitBtnText}>Send OTP</Text>
+            )}
+          </TouchableOpacity>
+        </>
       ) : (
-        <View style={styles.photoPickerContainer}>
-          <TouchableOpacity style={styles.photoPickerBtn} onPress={handleTakePhoto}>
-            <Ionicons name="camera" size={26} color={COLORS.primaryLight} />
-            <Text style={styles.photoPickerText}>Take Photo</Text>
+        <>
+          <Text style={styles.label}>OTP Code *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="6-digit code"
+            placeholderTextColor={COLORS.textMuted}
+            keyboardType="number-pad"
+            maxLength={6}
+            value={otp}
+            onChangeText={setOtp}
+          />
+
+          <TouchableOpacity
+            style={styles.submitBtn}
+            onPress={handleRegister}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={styles.submitBtnText}>Verify OTP & Submit</Text>
+            )}
           </TouchableOpacity>
-          <TouchableOpacity style={styles.photoPickerBtn} onPress={handlePickGalleryPhoto}>
-            <Ionicons name="images" size={26} color={COLORS.primaryLight} />
-            <Text style={styles.photoPickerText}>Choose Gallery</Text>
+          
+          <TouchableOpacity onPress={handleSendOtp} style={{ marginTop: 16, alignItems: 'center' }}>
+            <Text style={{ color: COLORS.primary, fontWeight: '600' }}>Resend OTP</Text>
           </TouchableOpacity>
-        </View>
+        </>
       )}
-
-      {/* Full Name */}
-      <Text style={styles.label}>Full Name *</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. Hari Bahadur"
-        placeholderTextColor={COLORS.textMuted}
-        value={name}
-        onChangeText={setName}
-      />
-
-      {/* Mobile Number */}
-      <Text style={styles.label}>Mobile Phone Number *</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. 9841000001"
-        placeholderTextColor={COLORS.textMuted}
-        keyboardType="phone-pad"
-        value={phone}
-        onChangeText={setPhone}
-      />
-
-      {/* Driving Licence Number */}
-      <Text style={styles.label}>Driving Licence Number *</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. DL-01-2024-9982"
-        placeholderTextColor={COLORS.textMuted}
-        value={drivingLicenceNumber}
-        onChangeText={setDrivingLicenceNumber}
-      />
-
-      {/* Password */}
-      <Text style={styles.label}>Password *</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Minimum 6 characters"
-        placeholderTextColor={COLORS.textMuted}
-        secureTextEntry
-        value={password}
-        onChangeText={setPassword}
-      />
-
-      {/* Email (Optional) */}
-      <Text style={styles.label}>Email Address (Optional)</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. hari.driver@platform.com"
-        placeholderTextColor={COLORS.textMuted}
-        keyboardType="email-address"
-        autoCapitalize="none"
-        value={email}
-        onChangeText={setEmail}
-      />
-
-      {/* Address */}
-      <Text style={styles.label}>City / Address</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. Kalanki, Kathmandu"
-        placeholderTextColor={COLORS.textMuted}
-        value={address}
-        onChangeText={setAddress}
-      />
-
-      {/* Emergency Contact */}
-      <Text style={styles.label}>Emergency Contact Phone</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="e.g. 9800000000 (Family Contact)"
-        placeholderTextColor={COLORS.textMuted}
-        keyboardType="phone-pad"
-        value={emergencyPhone}
-        onChangeText={setEmergencyPhone}
-      />
-
-      {/* Submit Button */}
-      <TouchableOpacity
-        style={styles.submitBtn}
-        onPress={handleRegister}
-        disabled={loading}
-        activeOpacity={0.8}
-      >
-        {loading ? (
-          <ActivityIndicator color="#FFF" />
-        ) : (
-          <Text style={styles.submitBtnText}>Submit Driver Registration</Text>
-        )}
-      </TouchableOpacity>
     </ScrollView>
   );
 };

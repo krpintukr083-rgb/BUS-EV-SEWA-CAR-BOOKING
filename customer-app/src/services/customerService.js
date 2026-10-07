@@ -12,6 +12,11 @@ export const customerService = {
     return res.data;
   },
 
+  sendRegistrationOtp: async phone => {
+    const res = await api.post('/auth/register/send-otp', { phone });
+    return res.data;
+  },
+
   sendOtp: async phone => {
     const res = await api.post('/auth/send-otp', { phone });
     return res.data;

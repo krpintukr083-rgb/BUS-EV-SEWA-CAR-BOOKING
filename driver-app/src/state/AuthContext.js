@@ -160,6 +160,19 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const sendRegistrationOtp = async (phone) => {
+    try {
+      const res = await driverService.sendRegistrationOtp(phone);
+      if (res.data?.success) {
+        return { success: true, message: res.data.message };
+      }
+      return { success: false, message: res.data?.message || 'Failed to send OTP' };
+    } catch (e) {
+      const msg = e.response?.data?.message || 'Failed to send OTP';
+      return { success: false, message: msg };
+    }
+  };
+
   const toggleOnlineStatus = async (newStatus) => {
     try {
       const res = await driverService.toggleStatus(newStatus);
@@ -211,6 +224,7 @@ export const AuthProvider = ({ children }) => {
         sendLoginOtp,
         verifyLoginOtp,
         register,
+        sendRegistrationOtp,
         toggleOnlineStatus,
         fetchFreshProfile,
         updateDriverProfilePhoto,

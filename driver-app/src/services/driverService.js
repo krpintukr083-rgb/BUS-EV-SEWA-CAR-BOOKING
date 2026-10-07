@@ -9,6 +9,7 @@ export const driverService = {
   sendPasswordResetOtp: (phone) => apiClient.post('/driver/auth/password-reset/send-otp', { phone }),
   verifyPasswordResetOtp: (phone, otp) => apiClient.post('/driver/auth/password-reset/verify-otp', { phone, otp }),
   resetPassword: (phone, newPassword) => apiClient.post('/driver/auth/password-reset/set-password', { phone, newPassword }),
+  sendRegistrationOtp: (phone) => apiClient.post('/auth/driver-register/send-otp', { phone }),
   register: (data) => apiClient.post(ENDPOINTS.REGISTER, data),
   registerPushToken: (data) => apiClient.post('/driver/push-token', data),
 
