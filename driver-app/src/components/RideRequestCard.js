@@ -99,7 +99,7 @@ const RideRequestCard = ({ request, onAccept, onReject }) => {
           onPress={() => onReject(request._id)}
           activeOpacity={0.8}
         >
-          <Text style={styles.rejectBtnText}>Reject</Text>
+          <Text style={styles.rejectBtnText}>Cancel Request</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.acceptBtn}
@@ -299,7 +299,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(239, 68, 68, 0.4)',
     paddingVertical: SPACING.md,
     borderRadius: 12,
-    alignItems: 'center'
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   rejectBtnText: {
     color: COLORS.danger,
@@ -307,7 +308,7 @@ const styles = StyleSheet.create({
     fontWeight: '800'
   },
   acceptBtn: {
-    flex: 2,
+    flex: 1,
     flexDirection: 'row',
     backgroundColor: COLORS.primary,
     paddingVertical: SPACING.md,

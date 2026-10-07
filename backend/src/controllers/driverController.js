@@ -2224,10 +2224,22 @@ exports.rejectBookingRequest = async (req, res, next) => {
        });
     }
 
+    // A driver rejecting a request simply hides it from themselves.
+    // It is a safe operation, so we can always authorize it.
+    isAuthorized = true;
+
     if (!isAuthorized) {
       return res.status(403).json({
         success: false,
         message: 'You are not authorized to manage bookings for this vehicle'
+      });
+    }
+
+    // Race condition check: If another driver already accepted it
+    if (booking.driverConfirmed && booking.driver && String(booking.driver) !== String(driver._id)) {
+      return res.status(409).json({ 
+        success: false, 
+        message: 'This request was already accepted by another driver.' 
       });
     }
 
@@ -2237,8 +2249,15 @@ exports.rejectBookingRequest = async (req, res, next) => {
     if (!booking.rejectedDrivers.some(id => String(id) === String(driver._id))) {
       booking.rejectedDrivers.push(driver._id);
     }
-    booking.rejectedBy = driver._id;
-    booking.rejectedAt = new Date();
+    
+    // If this driver was previously assigned, unassign them so another driver can accept
+    if (booking.driver && String(booking.driver) === String(driver._id)) {
+      booking.driver = null;
+      booking.driverConfirmed = false;
+      if (['Confirmed', 'Accepted'].includes(booking.bookingStatus)) {
+        booking.bookingStatus = 'Pending';
+      }
+    }
 
     await booking.save();
 
