@@ -42,3 +42,7 @@ yarn-error.log*
 .idea/
 .DS_Store
 Thumbs.db
+
+# Database backups
+backend/backup/
+
