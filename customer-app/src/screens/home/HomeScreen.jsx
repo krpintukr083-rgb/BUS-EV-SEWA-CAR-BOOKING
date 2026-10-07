@@ -183,8 +183,8 @@ const HomeScreen = ({ navigation }) => {
       bookingMode: 'NORMAL',
       vehicle: bus,
       baseFare: bus.fareRate,
-      pickupLocation: bus.route?.origin || 'Delhi (Kashmere Gate ISBT)',
-      dropLocation: bus.route?.destination || 'Jaipur (Sindhi Camp)'
+      pickupLocation: bus.route?.origin || 'Nepalgunj',
+      dropLocation: bus.route?.destination || 'Kathmandu'
     });
     navigation.navigate('BusDetails', { busId: bus._id, bus });
   };
@@ -512,7 +512,7 @@ const HomeScreen = ({ navigation }) => {
                       <View style={styles.routePillSmall}>
                         <Ionicons name="navigate-circle" size={14} color={COLORS.primary} />
                         <Text style={styles.homeRouteText} numberOfLines={1}>
-                          {bus.route?.origin ? bus.route.origin.split('(')[0].trim() : 'Delhi'} → {bus.route?.destination ? bus.route.destination.split('(')[0].trim() : 'Jaipur'}
+                          {bus.route?.origin ? bus.route.origin.split('(')[0].trim() : 'Nepalgunj'} → {bus.route?.destination ? bus.route.destination.split('(')[0].trim() : 'Kathmandu'}
                         </Text>
                       </View>
 

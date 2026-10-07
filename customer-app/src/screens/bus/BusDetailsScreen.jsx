@@ -175,9 +175,9 @@ const BusDetailsScreen = ({ navigation, route }) => {
             <View style={styles.stopItem}>
               <Ionicons name="radio-button-on" size={16} color={COLORS.primary} />
               <View style={{ flex: 1 }}>
-                <Text style={styles.stopName}>Origin: {schedule?.origin || bus.route?.origin || 'Delhi ISBT'}</Text>
+                <Text style={styles.stopName}>Origin: {schedule?.origin || bus.route?.origin || 'Nepalgunj'}</Text>
                 <Text style={styles.stopSub}>
-                  Boarding: {formatPoints(bus.route?.boardingPoints, schedule?.origin || bus.route?.origin || 'ISBT Gate 3')}
+                  Boarding: {formatPoints(bus.route?.boardingPoints, schedule?.origin || bus.route?.origin || 'Bus Park')}
                 </Text>
               </View>
             </View>
@@ -187,9 +187,9 @@ const BusDetailsScreen = ({ navigation, route }) => {
             <View style={styles.stopItem}>
               <Ionicons name="location" size={16} color="#ef4444" />
               <View style={{ flex: 1 }}>
-                <Text style={styles.stopName}>Destination: {schedule?.destination || bus.route?.destination || 'Jaipur Sindhi Camp'}</Text>
+                <Text style={styles.stopName}>Destination: {schedule?.destination || bus.route?.destination || 'Kathmandu'}</Text>
                 <Text style={styles.stopSub}>
-                  Dropping: {formatPoints(bus.route?.droppingPoints, schedule?.destination || bus.route?.destination || 'Platform 4')}
+                  Dropping: {formatPoints(bus.route?.droppingPoints, schedule?.destination || bus.route?.destination || 'Gongabu Bus Park')}
                 </Text>
               </View>
             </View>

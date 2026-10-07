@@ -41,12 +41,12 @@ const EvSewaDetailsScreen = ({ navigation, route }) => {
               selectedEv.schedule?.origin ||
               selectedEv.pickupDropDetails?.pickupLocation ||
               selectedEv.route?.origin ||
-              'Connaught Place, New Delhi',
+              'Nepalgunj',
             dropLocation:
               selectedEv.schedule?.destination ||
               selectedEv.pickupDropDetails?.dropLocation ||
               selectedEv.route?.destination ||
-              'Sector 62 Electronic City, Noida',
+              'Kathmandu',
             scheduleId: selectedEv.schedule?._id || null,
             schedule: selectedEv.schedule,
             selectedSeats: [],
@@ -104,12 +104,12 @@ const EvSewaDetailsScreen = ({ navigation, route }) => {
         ev.schedule?.origin ||
         ev.pickupDropDetails?.pickupLocation ||
         ev.route?.origin ||
-        'Connaught Place, New Delhi',
+        'Nepalgunj',
       dropLocation:
         ev.schedule?.destination ||
         ev.pickupDropDetails?.dropLocation ||
         ev.route?.destination ||
-        'Sector 62 Electronic City, Noida',
+        'Kathmandu',
       scheduleId: ev.schedule?._id || null,
       schedule: ev.schedule || null,
       passengerCount: 1,
@@ -243,7 +243,7 @@ const EvSewaDetailsScreen = ({ navigation, route }) => {
                 <Text style={styles.stopText}>
                   {ev.route?.origin ||
                     ev.pickupDropDetails?.pickupLocation ||
-                    'Connaught Place, New Delhi'}
+                    'Nepalgunj'}
                 </Text>
               </View>
             </View>
@@ -259,7 +259,7 @@ const EvSewaDetailsScreen = ({ navigation, route }) => {
                 <Text style={styles.stopText}>
                   {ev.route?.destination ||
                     ev.pickupDropDetails?.dropLocation ||
-                    'Sector 62 Electronic City, Noida'}
+                    'Kathmandu'}
                 </Text>
               </View>
             </View>

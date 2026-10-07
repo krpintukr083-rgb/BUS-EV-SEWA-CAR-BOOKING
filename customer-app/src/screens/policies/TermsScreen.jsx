@@ -37,7 +37,7 @@ const TermsScreen = ({ navigation }) => {
 
           <Text style={styles.heading}>6. Governing Law</Text>
           <Text style={styles.paragraph}>
-            These terms are governed in accordance with the laws of India. Any disputes arising in connection with transport services shall be subject to the exclusive jurisdiction of the competent courts of New Delhi.
+            These terms are governed in accordance with the laws of Nepal. Any disputes arising in connection with transport services shall be subject to the exclusive jurisdiction of the competent courts of Kathmandu.
           </Text>
         </View>
       </ScrollView>

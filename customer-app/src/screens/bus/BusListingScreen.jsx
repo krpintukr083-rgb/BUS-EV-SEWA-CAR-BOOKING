@@ -58,10 +58,10 @@ const BusListingScreen = ({ navigation, route }) => {
       vehicle: bus,
       baseFare: routeFare ?? schedule?.fareRate ?? bus.fareRate,
       pickupLocation: routeFare == null
-        ? (from || schedule?.origin || bus.route?.origin || 'Delhi ISBT Kashmere Gate')
+        ? (from || schedule?.origin || bus.route?.origin || 'Nepalgunj')
         : from,
       dropLocation: routeFare == null
-        ? (to || schedule?.destination || bus.route?.destination || 'Jaipur Sindhi Camp')
+        ? (to || schedule?.destination || bus.route?.destination || 'Kathmandu')
         : to,
       scheduleId: schedule?._id || null,
       schedule
@@ -205,13 +205,13 @@ const BusListingScreen = ({ navigation, route }) => {
                     <View style={styles.stopRow}>
                       <Ionicons name="radio-button-on" size={14} color={COLORS.primary} />
                       <Text style={styles.stopText} numberOfLines={1}>
-                        Boarding: {getFirstStop(vehicle.route?.boardingPoints, schedule?.origin || vehicle.route?.origin || vehicle.pickupDropDetails?.pickupLocation || 'Delhi ISBT')}
+                        Boarding: {getFirstStop(vehicle.route?.boardingPoints, schedule?.origin || vehicle.route?.origin || vehicle.pickupDropDetails?.pickupLocation || 'Nepalgunj')}
                       </Text>
                     </View>
                     <View style={styles.stopRow}>
                       <Ionicons name="location" size={14} color="#ef4444" />
                       <Text style={styles.stopText} numberOfLines={1}>
-                        Dropping: {getFirstStop(vehicle.route?.droppingPoints, schedule?.destination || vehicle.route?.destination || vehicle.pickupDropDetails?.dropLocation || 'Jaipur Sindhi Camp')}
+                        Dropping: {getFirstStop(vehicle.route?.droppingPoints, schedule?.destination || vehicle.route?.destination || vehicle.pickupDropDetails?.dropLocation || 'Kathmandu')}
                       </Text>
                     </View>
                   </View>

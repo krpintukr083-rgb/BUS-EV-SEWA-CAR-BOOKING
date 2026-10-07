@@ -122,7 +122,7 @@ const PickupDropScreen = ({ navigation }) => {
               </View>
             ) : (
               <Input
-                placeholder="e.g. Kashmere Gate ISBT / Airport T3"
+                placeholder="e.g. Nepalgunj Bus Park / Gongabu"
                 value={pickup}
                 onChangeText={t => {
                   setPickup(t);
@@ -163,7 +163,7 @@ const PickupDropScreen = ({ navigation }) => {
               </View>
             ) : (
               <Input
-                placeholder="e.g. Sindhi Camp Bus Stand / Cyber Hub"
+                placeholder="e.g. Kathmandu New Bus Park / Kalanki"
                 value={drop}
                 onChangeText={t => {
                   setDrop(t);

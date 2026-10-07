@@ -47,8 +47,8 @@ const InstantBookingRouteScreen = ({ navigation, route }) => {
           </View>
         </View>
 
-        <Input label="From / Pickup Location" placeholder="e.g. Kathmandu" value={pickupLocation} onChangeText={setPickupLocation} />
-        <Input label="To / Destination" placeholder="e.g. Pokhara" value={dropLocation} onChangeText={setDropLocation} />
+        <Input label="From / Pickup Location" placeholder="e.g. Nepalgunj" value={pickupLocation} onChangeText={setPickupLocation} />
+        <Input label="To / Destination" placeholder="e.g. Kathmandu" value={dropLocation} onChangeText={setDropLocation} />
         
         <View style={styles.counterContainer}>
           <Text style={styles.counterLabel}>How many passengers?</Text>
