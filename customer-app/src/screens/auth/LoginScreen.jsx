@@ -50,7 +50,7 @@ const LoginScreen = ({ navigation }) => {
       const url = await getEffectiveBaseUrl();
       setCurrentServerUrl(url);
       setCustomInputUrl(url);
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const handleTestConnection = async (targetUrl = null) => {
@@ -139,7 +139,7 @@ const LoginScreen = ({ navigation }) => {
 
           <Input
             label="Email Address"
-            placeholder="name@example.com"
+            placeholder="Mobile-Number"
             value={identifier}
             onChangeText={setIdentifier}
             keyboardType="email-address"
@@ -162,8 +162,8 @@ const LoginScreen = ({ navigation }) => {
             loading={loading}
             style={{ marginTop: 8 }}
           />
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             onPress={() => navigation.navigate('ForgotPassword')}
             style={{ alignItems: 'center', marginTop: 16 }}
           >

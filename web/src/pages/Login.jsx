@@ -80,29 +80,16 @@ const Login = () => {
       >
         {/* Brand Header */}
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 16px',
-              backgroundColor: '#eff6ff',
-              borderRadius: '999px',
-              color: '#1d4ed8',
-              fontSize: '0.8rem',
-              fontWeight: '700',
-              marginBottom: '16px'
-            }}
-          >
-            <Sparkles size={14} />
-            <span>Unified Platform Portal</span>
-          </div>
-
+          <img
+            src="/logo.png"
+            alt="YatraSewanp.com"
+            style={{ width: '64px', height: '64px', borderRadius: '14px', objectFit: 'contain', marginBottom: '12px' }}
+          />
           <h1 style={{ fontSize: '1.5rem', fontWeight: '800', color: '#0f172a', letterSpacing: '-0.02em' }}>
-            Portal Sign In
+            YatraSewanp.com
           </h1>
-          <p style={{ fontSize: '0.875rem', color: '#64748b', marginTop: '6px' }}>
-            Enter your credentials to access your Admin or Driver workspace.
+          <p style={{ fontSize: '0.875rem', color: '#64748b', marginTop: '4px' }}>
+            Your Travel Partner in Nepal · Portal Sign In
           </p>
         </div>
 

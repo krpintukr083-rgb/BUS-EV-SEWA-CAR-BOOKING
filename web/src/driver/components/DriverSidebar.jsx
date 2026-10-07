@@ -45,11 +45,18 @@ const DriverSidebar = ({ isCollapsed, isMobileOpen, onCloseMobile, onOpenLogout 
   return (
     <aside className={`sidebar ${isMobileOpen ? 'mobile-open' : ''}`}>
       <div className="sidebar-header">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <div className="sidebar-brand-title">{t('brandTitle')}</div>
-          <span className="sidebar-brand-badge" style={{ backgroundColor: '#2563eb' }}>
-            {t('driverPanel')}
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <img
+            src="/logo.png"
+            alt="YatraSewanp.com"
+            style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'contain' }}
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div className="sidebar-brand-title">YatraSewanp.com</div>
+            <span className="sidebar-brand-badge" style={{ backgroundColor: '#2563eb' }}>
+              {t('driverPanel')}
+            </span>
+          </div>
         </div>
         <button
           type="button"

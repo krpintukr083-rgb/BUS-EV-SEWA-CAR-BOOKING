@@ -36,9 +36,16 @@ const AdminSidebar = ({ isCollapsed, isMobileOpen, onCloseMobile, onOpenLogout }
   return (
     <aside className={`sidebar ${isMobileOpen ? 'mobile-open' : ''}`}>
       <div className="sidebar-header">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-          <div className="sidebar-brand-title">Fleet Command</div>
-          <span className="sidebar-brand-badge">Super Admin</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <img
+            src="/logo.png"
+            alt="YatraSewanp.com"
+            style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'contain' }}
+          />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <div className="sidebar-brand-title">YatraSewanp.com</div>
+            <span className="sidebar-brand-badge">Super Admin</span>
+          </div>
         </div>
         <button
           type="button"

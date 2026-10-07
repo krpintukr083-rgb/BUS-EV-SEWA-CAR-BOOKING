@@ -72,7 +72,7 @@ const LoginScreen = ({ navigation }) => {
             <Ionicons name="mail-outline" size={18} color={COLORS.textMuted} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="driver@platform.com"
+              placeholder="Mobile-Number"
               placeholderTextColor={COLORS.textMuted}
               keyboardType="email-address"
               autoCapitalize="none"

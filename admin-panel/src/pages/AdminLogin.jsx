@@ -4,8 +4,8 @@ import { useAdminAuth } from '../context/AdminAuthContext';
 import { LogIn, AlertCircle } from 'lucide-react';
 
 const AdminLogin = () => {
-  const [identifier, setIdentifier] = useState('admin@platform.com');
-  const [password, setPassword] = useState('admin123');
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -86,7 +86,7 @@ const AdminLogin = () => {
             <input
               type="text"
               className="form-control"
-              placeholder="admin@platform.com"
+              placeholder="Enter email or mobile number"
               value={identifier}
               onChange={e => setIdentifier(e.target.value)}
               required
@@ -115,26 +115,6 @@ const AdminLogin = () => {
             <span>{loading ? 'Verifying Super Admin...' : 'Authenticate Super Admin'}</span>
           </button>
         </form>
-
-        <div
-          style={{
-            marginTop: '24px',
-            paddingTop: '16px',
-            borderTop: '1px solid #e2e8f0',
-            fontSize: '0.8rem',
-            color: '#64748b',
-            textAlign: 'center',
-            backgroundColor: '#f8fafc',
-            borderRadius: '6px',
-            padding: '10px'
-          }}
-        >
-          <strong>Super Admin Default Credentials:</strong>
-          <br />
-          Email: <code>admin@platform.com</code>
-          <br />
-          Password: <code>admin123</code>
-        </div>
       </div>
     </div>
   );
