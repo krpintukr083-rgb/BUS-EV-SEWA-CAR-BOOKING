@@ -14,13 +14,6 @@ import Input from '../../components/Input';
 import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
 
-const popularRoutes = [
-  { from: 'Delhi', to: 'Jaipur' },
-  { from: 'Delhi', to: 'Agra' },
-  { from: 'Delhi', to: 'Chandigarh' },
-  { from: 'Jaipur', to: 'Delhi' }
-];
-
 const BusSearchScreen = ({ navigation }) => {
   const { updateDraft, bookingDraft } = useBooking();
   const [fromLocation, setFromLocation] = useState('Delhi');
@@ -116,28 +109,6 @@ const BusSearchScreen = ({ navigation }) => {
             </Text>
           </TouchableOpacity>
         </View>
-
-        {/* Popular Intercity Routes */}
-        <View style={styles.popularSection}>
-          <Text style={styles.popularTitle}>Popular Bus Routes</Text>
-          <View style={styles.popularGrid}>
-            {popularRoutes.map((route, idx) => (
-              <TouchableOpacity
-                key={idx}
-                style={styles.routeChip}
-                onPress={() => {
-                  setFromLocation(route.from);
-                  setToLocation(route.to);
-                }}
-              >
-                <Ionicons name="bus-outline" size={16} color={COLORS.primary} />
-                <Text style={styles.routeChipText}>
-                  {route.from} → {route.to}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
       </ScrollView>
     </View>
   );
@@ -194,36 +165,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 3,
     elevation: 4
-  },
-  popularSection: {
-    marginTop: 24
-  },
-  popularTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: COLORS.darkNavy,
-    marginBottom: 12
-  },
-  popularGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10
-  },
-  routeChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#ffffff',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10
-  },
-  routeChipText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.textPrimary
   }
 });
 

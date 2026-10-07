@@ -671,6 +671,42 @@ exports.updateDriverStatus = async (req, res, next) => {
   }
 };
 
+// @desc    Delete driver
+// @route   DELETE /api/admin/drivers/:id
+exports.deleteDriver = async (req, res, next) => {
+  try {
+    const id = req.params.id;
+    
+    const driver = await Driver.findById(id);
+    if (!driver) {
+      return res.status(404).json({ success: false, message: 'Driver not found' });
+    }
+
+    const activeBookings = await Booking.find({
+      driver: id,
+      bookingStatus: { $in: ['Pending', 'Confirmed', 'Ongoing', 'Pending Driver Confirmation', 'Awaiting Cash Collection'] }
+    });
+
+    if (activeBookings && activeBookings.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'This driver has active bookings and cannot be deleted.'
+      });
+    }
+
+    await Vehicle.updateMany({ assignedDriver: id }, { assignedDriver: null });
+    await Driver.findByIdAndDelete(id);
+
+    if (driver.user) {
+      await User.findByIdAndDelete(driver.user);
+    }
+
+    res.json({ success: true, message: 'Driver deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // ==========================================
 // 4. VEHICLE MANAGEMENT (BUS, EV-SEWA, CAR, TRUCK & MARKET HIRE)
 // ==========================================

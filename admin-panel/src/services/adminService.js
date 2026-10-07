@@ -112,6 +112,11 @@ export const adminService = {
     return res.data;
   },
 
+  deleteDriver: async id => {
+    const res = await api.delete(`/admin/drivers/${id}`);
+    return res.data;
+  },
+
   // 4. Vehicle Management (Bus, EV-Sewa, Car, Truck & Market Hire)
   getVehicles: async (type, source) => {
     const res = await api.get('/admin/vehicles', { 

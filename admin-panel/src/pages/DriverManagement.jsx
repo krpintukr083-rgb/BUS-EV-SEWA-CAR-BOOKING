@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { adminService } from '../services/adminService';
 import { useAdminAuth } from '../context/AdminAuthContext';
@@ -23,12 +23,15 @@ const DriverManagement = () => {
   const canEditDrivers = isSuperAdmin() || hasPermission('driver.edit');
   const canSuspendDrivers = isSuperAdmin() || hasPermission('driver.suspend');
   const canActivateDrivers = isSuperAdmin() || hasPermission('driver.activate');
+  const canDeleteDrivers = isSuperAdmin() || hasPermission('driver.delete');
   const [drivers, setDrivers] = useState([]);
   const [vehicles, setVehicles] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [driverToDelete, setDriverToDelete] = useState(null);
   const [currentDriver, setCurrentDriver] = useState(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -68,6 +71,26 @@ const DriverManagement = () => {
   useEffect(() => {
     fetchDriversAndVehicles();
   }, [canViewVehicles]);
+
+  const handleDeleteConfirm = async () => {
+    if (!driverToDelete) return;
+    try {
+      const res = await adminService.deleteDriver(driverToDelete._id);
+      if (res.success) {
+        setMessage(res.message || 'Driver deleted successfully');
+        setIsDeleteModalOpen(false);
+        setDriverToDelete(null);
+        fetchDriversAndVehicles();
+        setTimeout(() => setMessage(''), 3000);
+      } else {
+        setError(res.message);
+        setTimeout(() => setError(''), 3000);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete driver');
+      setTimeout(() => setError(''), 3000);
+    }
+  };
 
   const handlePhotoSelect = e => {
     const file = e.target.files?.[0];
@@ -406,6 +429,19 @@ const DriverManagement = () => {
                             style={{ color: '#ef4444', borderColor: '#fca5a5' }}
                           >
                             Block
+                          </button>
+                        )}
+                        {canDeleteDrivers && (
+                          <button
+                            onClick={() => {
+                              setDriverToDelete(d);
+                              setIsDeleteModalOpen(true);
+                            }}
+                            className="btn btn-sm btn-outline"
+                            style={{ color: '#dc2626', borderColor: '#fecaca' }}
+                            title="Delete Driver"
+                          >
+                            <Trash2 size={13} /> Delete
                           </button>
                         )}
                       </div>
@@ -777,6 +813,48 @@ const DriverManagement = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && driverToDelete && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '400px' }}>
+            <div className="card-header-flex">
+              <h3 className="card-title" style={{ color: '#dc2626' }}>Delete Driver?</h3>
+              <button type="button" className="btn btn-outline btn-sm" onClick={() => setIsDeleteModalOpen(false)} aria-label="Close">
+                <X size={15} />
+              </button>
+            </div>
+            
+            <div style={{ padding: '20px 0', fontSize: '0.95rem', color: '#334155' }}>
+              <p style={{ marginBottom: '16px' }}>Are you sure you want to delete this driver?</p>
+              
+              <div style={{ backgroundColor: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '16px' }}>
+                <div style={{ display: 'flex', marginBottom: '8px' }}>
+                  <span style={{ fontWeight: '600', width: '70px', color: '#64748b' }}>Driver:</span>
+                  <span style={{ fontWeight: '600', color: '#0f172a' }}>{driverToDelete.name}</span>
+                </div>
+                <div style={{ display: 'flex' }}>
+                  <span style={{ fontWeight: '600', width: '70px', color: '#64748b' }}>Mobile:</span>
+                  <span style={{ color: '#0f172a' }}>{driverToDelete.mobileNumber}</span>
+                </div>
+              </div>
+              
+              <p style={{ color: '#dc2626', fontWeight: '500', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <AlertCircle size={15} /> This action cannot be undone.
+              </p>
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px', paddingTop: '16px', borderTop: '1px solid #e2e8f0' }}>
+              <button type="button" className="btn btn-outline" onClick={() => setIsDeleteModalOpen(false)}>
+                Cancel
+              </button>
+              <button type="button" className="btn" style={{ backgroundColor: '#dc2626', color: 'white' }} onClick={handleDeleteConfirm}>
+                Delete Driver
+              </button>
+            </div>
           </div>
         </div>
       )}

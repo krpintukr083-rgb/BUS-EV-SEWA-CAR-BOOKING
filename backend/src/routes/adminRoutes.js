@@ -10,6 +10,7 @@ const {
   updateDriver,
   verifyDriverDocuments,
   updateDriverStatus,
+  deleteDriver,
   getVehicles,
   addVehicle,
   updateVehicle,
@@ -115,6 +116,7 @@ router.patch('/drivers/:id/kyc/documents/:docType/reject', requirePermission('dr
   return verifyDriverDocuments(req, res, next);
 });
 router.put('/drivers/:id/status', requirePermission('driver.suspend'), updateDriverStatus);
+router.delete('/drivers/:id', requirePermission('driver.delete'), deleteDriver);
 
 // 4. Vehicle Management
 router.get('/vehicles', requirePermission('vehicle.view'), getVehicles);
