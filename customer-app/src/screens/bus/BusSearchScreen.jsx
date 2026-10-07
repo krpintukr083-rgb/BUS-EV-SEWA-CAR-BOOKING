@@ -14,10 +14,17 @@ import Input from '../../components/Input';
 import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
 
+const popularRoutes = [
+  { from: 'Nepalgunj', to: 'Kathmandu' },
+  { from: 'Bhairahawa', to: 'Kathmandu' },
+  { from: 'Birgunj', to: 'Kathmandu' },
+  { from: 'Janakpur', to: 'Kathmandu' }
+];
+
 const BusSearchScreen = ({ navigation }) => {
   const { updateDraft, bookingDraft } = useBooking();
-  const [fromLocation, setFromLocation] = useState('Delhi');
-  const [toLocation, setToLocation] = useState('Jaipur');
+  const [fromLocation, setFromLocation] = useState('');
+  const [toLocation, setToLocation] = useState('');
   const [travelDate, setTravelDate] = useState(new Date().toISOString().split('T')[0]);
 
   const handleSearch = () => {
@@ -55,7 +62,7 @@ const BusSearchScreen = ({ navigation }) => {
           <View style={styles.locationsWrapper}>
             <Input
               label="From Location"
-              placeholder="e.g. Delhi ISBT"
+              placeholder="Select Location"
               value={fromLocation}
               onChangeText={setFromLocation}
               icon={<Ionicons name="location-outline" size={18} color={COLORS.primary} />}
@@ -67,7 +74,7 @@ const BusSearchScreen = ({ navigation }) => {
 
             <Input
               label="To Location"
-              placeholder="e.g. Jaipur Sindhi Camp"
+              placeholder="Select Location"
               value={toLocation}
               onChangeText={setToLocation}
               icon={<Ionicons name="navigate-outline" size={18} color="#ef4444" />}
@@ -108,6 +115,27 @@ const BusSearchScreen = ({ navigation }) => {
               Browse All Available Buses →
             </Text>
           </TouchableOpacity>
+        </View>
+
+        <View style={styles.popularSection}>
+          <Text style={styles.popularTitle}>Popular Bus Routes</Text>
+          <View style={styles.popularGrid}>
+            {popularRoutes.map((route, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={styles.routeChip}
+                onPress={() => {
+                  setFromLocation(route.from);
+                  setToLocation(route.to);
+                }}
+              >
+                <Ionicons name="bus-outline" size={16} color={COLORS.primary} />
+                <Text style={styles.routeChipText}>
+                  {route.from} → {route.to}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -165,6 +193,36 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 3,
     elevation: 4
+  },
+  popularSection: {
+    marginTop: 24
+  },
+  popularTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: COLORS.darkNavy,
+    marginBottom: 12
+  },
+  popularGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10
+  },
+  routeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10
+  },
+  routeChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.textPrimary
   }
 });
 
