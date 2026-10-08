@@ -30,6 +30,7 @@ const LoginScreen = ({ navigation }) => {
   // Email login state
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Server settings modal state
@@ -152,8 +153,10 @@ const LoginScreen = ({ navigation }) => {
             placeholder="Enter password"
             value={password}
             onChangeText={setPassword}
-            secureTextEntry
+            secureTextEntry={!showPassword}
             icon={<Ionicons name="lock-closed-outline" size={18} color="#94a3b8" />}
+            rightIcon={<Ionicons name={showPassword ? "eye-off-outline" : "eye-outline"} size={20} color="#94a3b8" />}
+            onRightIconPress={() => setShowPassword(!showPassword)}
           />
 
           <Button
