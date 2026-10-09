@@ -29,8 +29,28 @@ const TermsAndConditions = () => {
       <h2>5. Changes to Terms</h2>
       <p>We reserve the right to modify these terms at any time. Your continued use of the application constitutes your acceptance of the new terms.</p>
       
-      <h2>6. Contact</h2>
-      <p>For any questions regarding these terms, please contact us at support@transportplatform.com.</p>
+      <h2>6. Contact Information</h2>
+      <p>For any questions regarding these Terms and Conditions or our services, please contact us:</p>
+      <div style={{ marginTop: '16px', padding: '16px 20px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+        <p style={{ margin: '8px 0' }}>
+          <strong>Email:</strong>{' '}
+          <a href="mailto:krpintukr083@gmail.com" style={{ color: '#2563eb', textDecoration: 'none' }}>
+            krpintukr083@gmail.com
+          </a>
+        </p>
+        <p style={{ margin: '8px 0' }}>
+          <strong>Phone:</strong>{' '}
+          <a href="tel:+917482940073" style={{ color: '#2563eb', textDecoration: 'none' }}>
+            +91 74829 40073
+          </a>
+        </p>
+        <p style={{ margin: '8px 0' }}>
+          <strong>Website:</strong>{' '}
+          <a href="https://yatrasewanp.com" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'none' }}>
+            https://yatrasewanp.com
+          </a>
+        </p>
+      </div>
     </div>
   );
 };

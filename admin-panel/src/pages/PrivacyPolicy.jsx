@@ -56,14 +56,30 @@ const PrivacyPolicy = () => {
         We may update this Privacy Policy from time to time. If we make significant changes, we will notify you through the App or by other means before the changes take effect.
       </p>
 
-      <h2>7. Contact Us</h2>
+      <h2>7. Contact Information</h2>
       <p>
-        If you have any questions about this Privacy Policy, your data, or if you wish to request account deletion, please contact us at:
+        If you have any questions about this Privacy Policy, your data, or if you wish to request account deletion, please contact us:
       </p>
-      <p>
-        <strong>Email:</strong> support@transportplatform.com<br />
-        <strong>Developer/Operator Name:</strong> YatraSewanp.com
-      </p>
+      <div style={{ marginTop: '16px', padding: '16px 20px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+        <p style={{ margin: '8px 0' }}>
+          <strong>Email:</strong>{' '}
+          <a href="mailto:krpintukr083@gmail.com" style={{ color: '#2563eb', textDecoration: 'none' }}>
+            krpintukr083@gmail.com
+          </a>
+        </p>
+        <p style={{ margin: '8px 0' }}>
+          <strong>Phone:</strong>{' '}
+          <a href="tel:+917482940073" style={{ color: '#2563eb', textDecoration: 'none' }}>
+            +91 74829 40073
+          </a>
+        </p>
+        <p style={{ margin: '8px 0' }}>
+          <strong>Website:</strong>{' '}
+          <a href="https://yatrasewanp.com" target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb', textDecoration: 'none' }}>
+            https://yatrasewanp.com
+          </a>
+        </p>
+      </div>
     </div>
   );
 };
