@@ -30,6 +30,8 @@ import ApprovalManagement from './pages/ApprovalManagement';
 import VehicleApproval from './pages/VehicleApproval';
 import ScheduleApproval from './pages/ScheduleApproval';
 import SubAdminManagement from './pages/SubAdminManagement';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsAndConditions from './pages/TermsAndConditions';
 
 const PermissionDenied = () => (
   <div className="content-card" role="alert">
@@ -79,6 +81,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<AdminLogin />} />
+      <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+      <Route path="/terms-and-conditions" element={<TermsAndConditions />} />
 
       <Route
         path="/"
