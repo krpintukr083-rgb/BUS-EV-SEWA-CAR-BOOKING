@@ -626,3 +626,67 @@ exports.getPolicies = async (req, res, next) => {
     next(error);
   }
 };
+
+// 17. Public Customer Account Deletion Request
+exports.requestAccountDeletion = async (req, res, next) => {
+  try {
+    const { name, phone, email, reason, confirmed } = req.body;
+
+    if (!confirmed) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please confirm that you understand the account deletion terms.'
+      });
+    }
+
+    if (!phone && !email) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide the registered mobile phone number or email address associated with your account.'
+      });
+    }
+
+    const cleanPhone = phone ? phone.toString().trim().replace(/[^0-9+]/g, '') : '';
+    const cleanEmail = email ? email.toString().trim().toLowerCase() : '';
+
+    const query = [];
+    if (cleanPhone) query.push({ phone: { $regex: cleanPhone.slice(-10), $options: 'i' } });
+    if (cleanEmail) query.push({ email: cleanEmail });
+
+    const existingUser = query.length > 0 ? await User.findOne({ $or: query }) : null;
+
+    const trackingId = `DEL-${Date.now().toString().slice(-6)}${Math.floor(100 + Math.random() * 900)}`;
+
+    const ticket = await Support.create({
+      ticketId: trackingId,
+      requesterName: (existingUser && existingUser.name) || name || 'Customer',
+      role: 'customer',
+      mobileNumber: cleanPhone || (existingUser && existingUser.phone) || 'N/A',
+      category: 'KYC/Account',
+      bookingId: 'N/A',
+      supportIssue: 'Account Deletion Request',
+      supportInformation: `Public Account Deletion Request submitted via yatrasewanp.com/delete-account.
+Name: ${name || (existingUser && existingUser.name) || 'Not specified'}
+Registered Phone: ${cleanPhone || 'N/A'}
+Registered Email: ${cleanEmail || 'N/A'}
+User Found: ${existingUser ? `Yes (ID: ${existingUser._id}, Role: ${existingUser.role})` : 'Pending manual verification'}
+Reason for Deletion: ${reason || 'User requested account closure'}
+Submission Time: ${new Date().toISOString()}`,
+      status: 'Open',
+      resolutionNotes: ''
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Your account deletion request has been registered successfully. Our administrative team will review and process it.',
+      trackingId: ticket.ticketId,
+      data: {
+        ticketId: ticket.ticketId,
+        status: ticket.status,
+        submittedAt: ticket.createdAt
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};

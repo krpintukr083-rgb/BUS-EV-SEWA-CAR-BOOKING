@@ -402,5 +402,12 @@ export const adminService = {
     params.append('page', page);
     const res = await api.get(`/admin/audit-logs?${params}`);
     return res.data;
+  },
+
+  // Public Customer Account Deletion Request
+  submitAccountDeletionRequest: async (payload) => {
+    const res = await api.post('/customer/deletion-request', payload);
+    return res.data;
   }
 };
+

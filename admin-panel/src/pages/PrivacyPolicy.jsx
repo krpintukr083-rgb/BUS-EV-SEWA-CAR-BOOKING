@@ -43,7 +43,7 @@ const PrivacyPolicy = () => {
         We retain your personal information only for as long as necessary to fulfill the purposes outlined in this Privacy Policy, or as required by law. 
       </p>
       <p>
-        <strong>Account Deletion:</strong> You can request the deletion of your account and associated personal data at any time. To do so, please contact us at the email provided below or use the account deletion option within the App (if available). Upon receiving your request, we will delete your account and personal data, except for information we are legally required to retain (e.g., transaction records).
+        <strong>Account Deletion:</strong> You can request the deletion of your account and associated personal data at any time. You can submit an online request directly via our public <a href="/delete-account" style={{ color: '#2563eb', fontWeight: 'bold' }}>Account Deletion Portal</a>, or contact us at <a href="mailto:krpintukr083@gmail.com" style={{ color: '#2563eb' }}>krpintukr083@gmail.com</a>. Upon receiving your request, we will verify your identity and delete your account and personal data, except for information we are legally required to retain (e.g., transaction records).
       </p>
 
       <h2>5. Security</h2>
@@ -79,6 +79,11 @@ const PrivacyPolicy = () => {
             https://yatrasewanp.com
           </a>
         </p>
+      </div>
+
+      <div style={{ marginTop: '40px', paddingTop: '20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', fontSize: '0.9rem' }}>
+        <a href="/terms-and-conditions" style={{ color: '#2563eb', textDecoration: 'none' }}>&larr; Terms and Conditions</a>
+        <a href="/delete-account" style={{ color: '#dc2626', textDecoration: 'none', fontWeight: '600' }}>Delete Account Portal &rarr;</a>
       </div>
     </div>
   );
