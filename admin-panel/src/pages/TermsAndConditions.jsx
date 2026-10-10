@@ -51,6 +51,11 @@ const TermsAndConditions = () => {
           </a>
         </p>
       </div>
+
+      <div style={{ marginTop: '40px', paddingTop: '20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', fontSize: '0.9rem' }}>
+        <a href="/privacy-policy" style={{ color: '#2563eb', textDecoration: 'none' }}>&larr; Privacy Policy</a>
+        <a href="/delete-account" style={{ color: '#dc2626', textDecoration: 'none', fontWeight: '600' }}>Delete Account Portal &rarr;</a>
+      </div>
     </div>
   );
 };

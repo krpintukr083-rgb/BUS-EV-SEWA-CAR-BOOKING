@@ -17,7 +17,8 @@ const {
   getNotifications,
   getInsuranceInfo,
   getSupportInfo,
-  getPolicies
+  getPolicies,
+  requestAccountDeletion
 } = require('../controllers/customerController');
 const { verifyToken } = require('../middleware/auth');
 const { handleProfileImageUpload } = require('../middleware/upload');
@@ -34,6 +35,7 @@ router.get('/cars', getCars);
 router.get('/cars/:id', getCarDetails);
 router.get('/support', getSupportInfo);
 router.get('/policies', getPolicies);
+router.post('/deletion-request', requestAccountDeletion);
 const { getBusOffer } = require('../controllers/settingsController');
 const { getActiveBanners } = require('../controllers/bannerController');
 router.get('/bus-offer', getBusOffer);
