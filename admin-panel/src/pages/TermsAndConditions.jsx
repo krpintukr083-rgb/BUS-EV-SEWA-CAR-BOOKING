@@ -43,6 +43,14 @@ const TermsAndConditions = () => {
           <a href="tel:+917482940073" style={{ color: '#2563eb', textDecoration: 'none' }}>
             +91 74829 40073
           </a>
+          {', '}
+          <a href="tel:+9779802539199" style={{ color: '#2563eb', textDecoration: 'none' }}>
+            +977 98025 39199
+          </a>
+          {', '}
+          <a href="tel:+9779864472976" style={{ color: '#2563eb', textDecoration: 'none' }}>
+            +977 98644 72976
+          </a>
         </p>
         <p style={{ margin: '8px 0' }}>
           <strong>Website:</strong>{' '}

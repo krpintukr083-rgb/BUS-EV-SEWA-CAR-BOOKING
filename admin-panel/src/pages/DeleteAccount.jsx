@@ -168,8 +168,10 @@ const DeleteAccount = () => {
             </div>
             <div>
               <div style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', fontWeight: '600' }}>Support Phone</div>
-              <div style={{ fontSize: '0.95rem', fontWeight: '700', color: '#2563eb', marginTop: '4px' }}>
+              <div style={{ fontSize: '0.95rem', fontWeight: '700', color: '#2563eb', marginTop: '4px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 <a href="tel:+917482940073" style={{ color: '#2563eb', textDecoration: 'none' }}>+91 74829 40073</a>
+                <a href="tel:+9779802539199" style={{ color: '#2563eb', textDecoration: 'none' }}>+977 98025 39199</a>
+                <a href="tel:+9779864472976" style={{ color: '#2563eb', textDecoration: 'none' }}>+977 98644 72976</a>
               </div>
             </div>
           </div>
@@ -212,7 +214,9 @@ const DeleteAccount = () => {
                 </li>
                 <li>
                   <strong>Phone Support:</strong> Contact our helpline at{' '}
-                  <a href="tel:+917482940073" style={{ color: '#2563eb', textDecoration: 'none', fontWeight: '600' }}>+91 74829 40073</a>{' '}
+                  <a href="tel:+917482940073" style={{ color: '#2563eb', textDecoration: 'none', fontWeight: '600' }}>+91 74829 40073</a>,{' '}
+                  <a href="tel:+9779802539199" style={{ color: '#2563eb', textDecoration: 'none', fontWeight: '600' }}>+977 98025 39199</a>, or{' '}
+                  <a href="tel:+9779864472976" style={{ color: '#2563eb', textDecoration: 'none', fontWeight: '600' }}>+977 98644 72976</a>{' '}
                   during business hours (10:00 AM &ndash; 6:00 PM IST/NPT).
                 </li>
               </ul>
@@ -288,7 +292,9 @@ const DeleteAccount = () => {
                 To check the status of your request at any time, contact our support team at{' '}
                 <a href="mailto:krpintukr083@gmail.com" style={{ color: '#2563eb', textDecoration: 'none', fontWeight: '600' }}>krpintukr083@gmail.com</a>{' '}
                 or call{' '}
-                <a href="tel:+917482940073" style={{ color: '#2563eb', textDecoration: 'none', fontWeight: '600' }}>+91 74829 40073</a>, quoting your registered phone number or Tracking Reference ID.
+                <a href="tel:+917482940073" style={{ color: '#2563eb', textDecoration: 'none', fontWeight: '600' }}>+91 74829 40073</a> /{' '}
+                <a href="tel:+9779802539199" style={{ color: '#2563eb', textDecoration: 'none', fontWeight: '600' }}>+977 98025 39199</a> /{' '}
+                <a href="tel:+9779864472976" style={{ color: '#2563eb', textDecoration: 'none', fontWeight: '600' }}>+977 98644 72976</a>, quoting your registered phone number or Tracking Reference ID.
               </p>
             </div>
           </div>
@@ -595,7 +601,7 @@ const DeleteAccount = () => {
                 Who can I contact if I have further questions?
               </h3>
               <p style={{ fontSize: '0.875rem', color: '#475569', lineHeight: '1.6', margin: 0 }}>
-                You can reach our dedicated support desk directly at <a href="mailto:krpintukr083@gmail.com" style={{ color: '#2563eb' }}>krpintukr083@gmail.com</a> or phone <a href="tel:+917482940073" style={{ color: '#2563eb' }}>+91 74829 40073</a>.
+                You can reach our dedicated support desk directly at <a href="mailto:krpintukr083@gmail.com" style={{ color: '#2563eb' }}>krpintukr083@gmail.com</a> or phone <a href="tel:+917482940073" style={{ color: '#2563eb' }}>+91 74829 40073</a> / <a href="tel:+9779802539199" style={{ color: '#2563eb' }}>+977 98025 39199</a> / <a href="tel:+9779864472976" style={{ color: '#2563eb' }}>+977 98644 72976</a>.
               </p>
             </div>
           </div>
