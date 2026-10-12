@@ -242,25 +242,27 @@ const verifyDriverRouteOtpAccess = async (driver, booking) => {
   ]);
 
   let assignedBySchedule = false;
+  let scheduleDoc = null;
   if (booking.bookingMode === 'SCHEDULE' && booking.scheduleId) {
-    const schedule = await Schedule.findOne({
+    scheduleDoc = await Schedule.findOne({
       _id: booking.scheduleId._id || booking.scheduleId,
       status: 'Active'
-    }).select('driver').lean();
-    assignedBySchedule = Boolean(schedule && driverIds.includes(String(schedule.driver)));
+    }).select('driver vehicle origin destination route').lean();
+    assignedBySchedule = Boolean(scheduleDoc && driverIds.includes(String(scheduleDoc.driver)));
   }
 
   let assignedByVehicle = false;
-  if (!bookingDriverId && !booking.scheduleId && booking.vehicle) {
-    const vehicleId = booking.vehicle._id || booking.vehicle;
-    const vehicle = await Vehicle.findOne({
+  let vehicleDoc = null;
+  const vehicleId = booking.vehicle?._id || booking.vehicle;
+  if (vehicleId) {
+    vehicleDoc = await Vehicle.findOne({
       _id: vehicleId,
       vehicleStatus: 'Active'
-    }).select('_id assignedDriver').lean();
+    }).select('_id assignedDriver route pickupLocation dropLocation pickupDropDetails').lean();
     const driverVehicleId = driver.assignedVehicle?._id || driver.assignedVehicle;
-    assignedByVehicle = Boolean(vehicle && (
-      driverIds.includes(String(vehicle.assignedDriver || '')) ||
-      String(driverVehicleId || '') === String(vehicle._id)
+    assignedByVehicle = Boolean(vehicleDoc && (
+      driverIds.includes(String(vehicleDoc.assignedDriver || '')) ||
+      String(driverVehicleId || '') === String(vehicleDoc._id)
     ));
   }
 
@@ -270,8 +272,31 @@ const verifyDriverRouteOtpAccess = async (driver, booking) => {
     ));
   if (!authorizedRecipient) return false;
 
+  // Build effective driver and booking references for robust route evaluation
+  let effectiveDriver = driver;
+  const hasDriverRoute = Boolean((driver.route?.origin || '').trim() && (driver.route?.destination || '').trim());
+  if (!hasDriverRoute) {
+    let populatedAssignedVehicle = driver.assignedVehicle && typeof driver.assignedVehicle === 'object' && driver.assignedVehicle.route
+      ? driver.assignedVehicle
+      : null;
+    if (!populatedAssignedVehicle && driver.assignedVehicle) {
+      populatedAssignedVehicle = await Vehicle.findById(driver.assignedVehicle._id || driver.assignedVehicle).select('route pickupLocation dropLocation pickupDropDetails').lean();
+    }
+
+    effectiveDriver = {
+      ...(driver.toObject ? driver.toObject() : driver),
+      assignedVehicle: populatedAssignedVehicle || driver.assignedVehicle
+    };
+  }
+
+  const effectiveBooking = {
+    ...(booking.toObject ? booking.toObject() : booking),
+    scheduleId: scheduleDoc || booking.scheduleId,
+    vehicle: vehicleDoc || booking.vehicle
+  };
+
   const serviceControl = await ServiceControl.findOne().select('oppositeRouteNotifications').lean();
-  return driverMatchesBookingRoute(driver, booking, {
+  return driverMatchesBookingRoute(effectiveDriver, effectiveBooking, {
     allowOpposite: serviceControl?.oppositeRouteNotifications === true
   });
 };

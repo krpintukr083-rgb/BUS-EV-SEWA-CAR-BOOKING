@@ -6,14 +6,22 @@ const driverBookingResponse = (booking, canViewCustomerPhone) => {
   const user = data.user && typeof data.user === 'object'
     ? { ...data.user }
     : data.user;
-  const driver = data.driver && typeof data.driver === 'object'
-    ? { ...data.driver }
-    : data.driver;
-
-  if (driver && typeof driver === 'object') {
-    delete driver.canViewCustomerPhone;
-    data.driver = driver;
+  let driver = data.driver;
+  if (driver) {
+    if (driver._bsontype === 'ObjectID' || driver.buffer || (typeof driver === 'object' && !driver.name && !driver._id)) {
+      data.driver = String(driver);
+    } else if (typeof driver === 'object') {
+      driver = { ...driver };
+      delete driver.canViewCustomerPhone;
+      data.driver = driver;
+    }
   }
+  // SECURITY: Never expose customer verification OTPs or hashes to drivers
+  delete data.customerViewOtp;
+  delete data.confirmationOtp;
+  delete data.confirmationOtpHash;
+  delete data.rideOtp;
+
   if (canViewCustomerPhone) {
     const phone = user?.phone || customer?.phone || data.customerPhone || data.passengerPhone;
     if (customer && typeof customer === 'object') {

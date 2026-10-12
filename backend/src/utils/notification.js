@@ -2,6 +2,8 @@ const Notification = require('../models/Notification');
 const Driver = require('../models/Driver');
 const Schedule = require('../models/Schedule');
 const ServiceControl = require('../models/ServiceControl');
+const User = require('../models/User');
+const Vehicle = require('../models/Vehicle');
 const { getRouteSegmentFare } = require('./routeFares');
 const { isSameRoute, isEligibleForBooking, driverMatchesBookingRoute } = require('./routeMatching');
 
@@ -105,12 +107,40 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
     const eligibleDrivers = await Driver.find({
       driverStatus: { $in: ['Active', 'Approved'] },
       isOnline: true,
-      'route.origin': { $exists: true, $ne: '' },
-      'route.destination': { $exists: true, $ne: '' }
+      $or: [
+        { 'route.origin': { $exists: true, $ne: '' }, 'route.destination': { $exists: true, $ne: '' } },
+        { assignedVehicle: { $exists: true, $ne: null } }
+      ]
     })
-      .select('_id name mobileNumber driverStatus isOnline route pushToken fcmToken user')
+      .select('_id name mobileNumber driverStatus isOnline route pushToken fcmToken user assignedVehicle')
       .populate('user', '_id name phone status')
+      .populate('assignedVehicle', 'route vehicleNumber vehicleType')
       .lean();
+
+    if (booking.driver) {
+      const assigned = await Driver.findById(booking.driver)
+        .select('_id name mobileNumber driverStatus isOnline route pushToken fcmToken user assignedVehicle')
+        .populate('user', '_id name phone status')
+        .populate('assignedVehicle', 'route vehicleNumber vehicleType')
+        .lean();
+      if (assigned && !eligibleDrivers.some(d => String(d._id) === String(assigned._id))) {
+        eligibleDrivers.push(assigned);
+      }
+    }
+    if (booking.vehicle) {
+      const vDoc = await Vehicle.findById(booking.vehicle).select('assignedDriver').lean();
+      if (vDoc && vDoc.assignedDriver) {
+        const assigned = await Driver.findById(vDoc.assignedDriver)
+          .select('_id name mobileNumber driverStatus isOnline route pushToken fcmToken user assignedVehicle')
+          .populate('user', '_id name phone status')
+          .populate('assignedVehicle', 'route vehicleNumber vehicleType')
+          .lean();
+        if (assigned && !eligibleDrivers.some(d => String(d._id) === String(assigned._id))) {
+          eligibleDrivers.push(assigned);
+        }
+      }
+    }
+
     const matchedDrivers = eligibleDrivers.filter(driver =>
       driver.user &&
       driver.user.status !== 'Blocked' &&
@@ -128,7 +158,7 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
       matchedDriverCount: matchedDrivers.length,
       matchedDriverIds: matchedDrivers.map(driver => String(driver._id)),
       matchedDriverRoutes: matchedDrivers.map(driver =>
-        `${driver.route.origin} → ${driver.route.destination}`
+        `${driver.route?.origin || driver.assignedVehicle?.route?.origin || ''} → ${driver.route?.destination || driver.assignedVehicle?.route?.destination || ''}`
       )
     }));
 
@@ -227,7 +257,7 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
       console.log(`Service Type: ${serviceType}`);
       console.log(`Driver: ${driver.name || 'Unknown'}`);
       console.log(`Driver ID: ${driver._id}`);
-      console.log(`Driver Route: ${driver.route.origin} â†’ ${driver.route.destination}`);
+      console.log(`Driver Route: ${driver.route?.origin || driver.assignedVehicle?.route?.origin || ''} → ${driver.route?.destination || driver.assignedVehicle?.route?.destination || ''}`);
       console.log('Route Match: true');
       console.log('Eligible: true');
       console.log(`Notification function name: notifyEligibleDriversForBooking`);

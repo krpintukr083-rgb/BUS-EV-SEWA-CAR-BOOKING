@@ -457,7 +457,14 @@ const review = (kind, status) => async (req, res, next) => {
     }
     await doc.save();
     if (kind === 'vehicle' && status === 'Active') {
-      await Driver.findByIdAndUpdate(doc.assignedDriver, { assignedVehicle: doc._id });
+      const driverUpdates = { assignedVehicle: doc._id };
+      if (doc.route?.origin && doc.route?.destination) {
+        driverUpdates.route = {
+          origin: doc.route.origin,
+          destination: doc.route.destination
+        };
+      }
+      await Driver.findByIdAndUpdate(doc.assignedDriver, driverUpdates);
     }
     if (kind === 'schedule' && status === 'Active') {
       const vehicleUpdate = {};
@@ -467,6 +474,11 @@ const review = (kind, status) => async (req, res, next) => {
       if (doc.destination) vehicleUpdate['route.destination'] = doc.destination;
       if (doc.fareRate) vehicleUpdate['fareRate'] = doc.fareRate;
       await Vehicle.findByIdAndUpdate(doc.vehicle, vehicleUpdate);
+      if (doc.driver && doc.origin && doc.destination) {
+        await Driver.findByIdAndUpdate(doc.driver, {
+          route: { origin: doc.origin, destination: doc.destination }
+        });
+      }
     }
     const driver = kind === 'vehicle' ? doc.submission.submittedByDriver : doc.driver;
     const eventType = `${kind.toUpperCase()}_${status === 'Active' ? 'APPROVED' : 'REJECTED'}`;
