@@ -20,7 +20,8 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "com.travelease.driver",
-      "googleServicesFile": "./android/app/google-services.json"
+      "googleServicesFile": "./google-services.json",
+      "versionCode": 3
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -39,7 +40,18 @@
           "color": "#1D4ED8",
           "defaultChannel": "driver-booking-requests"
         }
-      ]
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 24,
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36
+          }
+        }
+      ],
+      "expo-font"
     ]
   }
 }
