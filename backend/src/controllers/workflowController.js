@@ -6,7 +6,7 @@ const Notification = require('../models/Notification');
 const Driver = require('../models/Driver');
 const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
 const { validateRoutePricing } = require('../utils/routeFares');
-const { normalizeScheduleTime, validateScheduleTime } = require('../utils/timeFormat');
+const { normalizeScheduleTime, validateScheduleTime, isScheduleDeparted } = require('../utils/timeFormat');
 
 const notifyDriver = async (driver, title, message, eventType, entityType, entityId) => {
   if (!driver) return;
@@ -304,6 +304,13 @@ exports.createSchedule = async (req, res, next) => {
     const endOfDay = new Date(body.travelDate);
     endOfDay.setHours(23, 59, 59, 999);
 
+    if (isScheduleDeparted(body.travelDate, departureTime)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot create a schedule for a past departure date and time.'
+      });
+    }
+
     const duplicate = await Schedule.findOne({
       vehicle: vehicle._id,
       departureTime,
@@ -399,6 +406,11 @@ exports.getActiveSchedules = async (req, res, next) => {
     let data = await Schedule.find(filter).populate({
       path: 'vehicle', match: { vehicleStatus: 'Active' }, populate: { path: 'assignedDriver' }
     }).sort({ travelDate: 1, departureTime: 1 }).lean();
+
+    const { includeExpired } = req.query;
+    if (includeExpired !== 'true') {
+      data = data.filter(s => !isScheduleDeparted(s.travelDate, s.departureTime));
+    }
     if (from || to) {
       const { isRouteSegmentWithin, normalizeLocation } = require('../utils/routeFares');
       data = data.filter(schedule => {

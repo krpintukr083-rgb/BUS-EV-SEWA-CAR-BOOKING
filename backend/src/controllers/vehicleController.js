@@ -3,7 +3,7 @@ const Booking = require('../models/Booking');
 const Schedule = require('../models/Schedule');
 const Driver = require('../models/Driver');
 const mongoose = require('mongoose');
-const { normalizeScheduleTime } = require('../utils/timeFormat');
+const { normalizeScheduleTime, isScheduleDeparted } = require('../utils/timeFormat');
 const { isRouteSegmentWithin, normalizeLocation } = require('../utils/routeFares');
 
 const formatVehicle = (vehicleDoc, req) => {
@@ -100,6 +100,7 @@ exports.getVehicles = async (req, res, next) => {
       const scheduleByVehicle = new Map();
 
       for (const schedule of schedules) {
+        if (isScheduleDeparted(schedule.travelDate, schedule.departureTime)) continue;
         const vehicle = vehicles.find(candidate => String(candidate._id) === String(schedule.vehicle));
         if (!vehicle || scheduleByVehicle.has(String(schedule.vehicle))) continue;
         if (scheduleId) {

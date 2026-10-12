@@ -107,6 +107,16 @@ const CarDetailsScreen = ({ route, navigation }) => {
   const handleBookNow = () => {
     const schedule = selectedSchedule;
 
+    if (travelDate) {
+      const selected = new Date(travelDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (selected < today) {
+        Alert.alert('Invalid Travel Date', 'Please select today or a future date for Car schedules.');
+        return;
+      }
+    }
+
     updateDraft({
       serviceType: 'Car',
       vehicle: car,

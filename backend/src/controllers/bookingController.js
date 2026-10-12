@@ -17,6 +17,7 @@ const {
 } = require('../utils/notification');
 const { getRouteSegmentFare, isRouteSegmentWithin } = require('../utils/routeFares');
 const { getAvailableInstantVehicleDrivers } = require('../utils/instantBookingAvailability');
+const { isScheduleDeparted } = require('../utils/timeFormat');
 
 const getBookingQuery = (idOrCode) => {
   return mongoose.isValidObjectId(idOrCode)
@@ -224,10 +225,8 @@ const createScheduleBooking = async (req, res, next) => {
           && bookingDate.getFullYear() === scheduleDate.getFullYear()
           && bookingDate.getMonth() === scheduleDate.getMonth()
           && bookingDate.getDate() === scheduleDate.getDate();
-        const sameRoute = String(activeSchedule.origin).trim().toLowerCase() === String(pickupLocation).trim().toLowerCase()
-          && String(activeSchedule.destination).trim().toLowerCase() === String(dropLocation).trim().toLowerCase();
-        if (!sameDate || !sameRoute) {
-          return res.status(400).json({ success: false, message: 'Selected Car schedule does not match this route and travel date' });
+        if (!sameDate) {
+          return res.status(400).json({ success: false, message: 'Selected Car schedule does not match this travel date' });
         }
       }
     } else if (serviceType === 'Bus' && bookingMode !== 'INSTANT') {
@@ -266,6 +265,31 @@ const createScheduleBooking = async (req, res, next) => {
         && String(activeSchedule.destination).trim().toLowerCase() === String(dropLocation).trim().toLowerCase();
       if (!sameDate || !sameRoute) {
         return res.status(400).json({ success: false, message: 'Selected schedule does not match this route and travel date' });
+      }
+    }
+
+    // Reject booking creation if schedule has already departed, expired, or is inactive
+    if (bookingMode === 'SCHEDULE' || activeSchedule) {
+      if (activeSchedule) {
+        if (activeSchedule.status !== 'Active') {
+          return res.status(400).json({ success: false, message: 'Selected schedule is no longer active' });
+        }
+        if (isScheduleDeparted(activeSchedule.travelDate, activeSchedule.departureTime)) {
+          return res.status(400).json({
+            success: false,
+            message: `Selected schedule departure (${activeSchedule.departureTime}) has already passed for this date.`
+          });
+        }
+      } else if (bookingMode === 'SCHEDULE' && travelDate) {
+        const candidateDate = new Date(travelDate);
+        const startOfToday = new Date();
+        startOfToday.setHours(0, 0, 0, 0);
+        if (candidateDate < startOfToday) {
+          return res.status(400).json({
+            success: false,
+            message: 'Cannot create scheduled booking for a past travel date.'
+          });
+        }
       }
     }
     // 3. Check Seat Availability on Backend for Buses (DATE-SPECIFIC)
@@ -342,8 +366,8 @@ const createScheduleBooking = async (req, res, next) => {
       loadCapacity: vehicle.loadCapacity || '',
       notes: vehicle.hireDetails?.notes || ''
     } : undefined;
-    const bookingPickupLocation = serviceType === 'Car' && activeSchedule ? activeSchedule.origin : pickupLocation;
-    const bookingDropLocation = serviceType === 'Car' && activeSchedule ? activeSchedule.destination : dropLocation;
+    const bookingPickupLocation = pickupLocation || (serviceType === 'Car' && activeSchedule ? activeSchedule.origin : pickupLocation);
+    const bookingDropLocation = dropLocation || (serviceType === 'Car' && activeSchedule ? activeSchedule.destination : dropLocation);
     const bookingTravelDate = serviceType === 'Car' && activeSchedule
       ? activeSchedule.travelDate
       : travelDate ? new Date(travelDate) : new Date();

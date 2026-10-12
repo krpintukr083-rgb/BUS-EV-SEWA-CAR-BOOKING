@@ -140,12 +140,40 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
         }
       }
     }
+    if (booking.scheduleId) {
+      const scheduleIdVal = booking.scheduleId._id || booking.scheduleId;
+      const sDoc = await Schedule.findById(scheduleIdVal).select('driver').lean();
+      if (sDoc && sDoc.driver) {
+        const assigned = await Driver.findById(sDoc.driver)
+          .select('_id name mobileNumber driverStatus isOnline route pushToken fcmToken user assignedVehicle')
+          .populate('user', '_id name phone status')
+          .populate('assignedVehicle', 'route vehicleNumber vehicleType')
+          .lean();
+        if (assigned && !eligibleDrivers.some(d => String(d._id) === String(assigned._id))) {
+          eligibleDrivers.push(assigned);
+        }
+      }
+    }
 
-    const matchedDrivers = eligibleDrivers.filter(driver =>
-      driver.user &&
-      driver.user.status !== 'Blocked' &&
-      driverMatchesBookingRoute(driver, booking, { allowOpposite })
-    );
+    const isCarBooking = String(serviceType || '').trim().toLowerCase() === 'car';
+
+    const matchedDrivers = eligibleDrivers.filter(driver => {
+      if (!driver.user || driver.user.status === 'Blocked') return false;
+
+      if (isCarBooking) {
+        const driverIdStr = String(driver._id);
+        const bookingDriverStr = booking.driver ? String(booking.driver._id || booking.driver) : null;
+        const isAssignedBookingDriver = bookingDriverStr && bookingDriverStr === driverIdStr;
+        const driverAssignedVehicleId = driver.assignedVehicle ? String(driver.assignedVehicle._id || driver.assignedVehicle) : null;
+        const bookingVehicleId = booking.vehicle ? String(booking.vehicle._id || booking.vehicle) : null;
+        const isAssignedVehicleDriver = bookingVehicleId && driverAssignedVehicleId && bookingVehicleId === driverAssignedVehicleId;
+        if (isAssignedBookingDriver || isAssignedVehicleDriver) {
+          return true;
+        }
+      }
+
+      return driverMatchesBookingRoute(driver, booking, { allowOpposite });
+    });
 
     const tQueryEnd = Date.now();
     console.log(`[NOTIFY] eligible driver query completed: ${tQueryEnd - tQueryStart} ms`);

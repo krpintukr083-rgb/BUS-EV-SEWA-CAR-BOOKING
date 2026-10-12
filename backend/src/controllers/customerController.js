@@ -10,7 +10,7 @@ const Policy = require('../models/Policy');
 const ServiceControl = require('../models/ServiceControl');
 const User = require('../models/User');
 const Schedule = require('../models/Schedule');
-const { normalizeScheduleTime } = require('../utils/timeFormat');
+const { normalizeScheduleTime, isScheduleDeparted } = require('../utils/timeFormat');
 const { notifyEligibleDriversForBooking } = require('../utils/notification');
 
 const getBookingQuery = (idOrCode) => {
@@ -49,8 +49,10 @@ exports.getBuses = async (req, res, next) => {
 
     const busesWithSchedule = await Promise.all(
       buses.map(async bus => {
-        const latestSchedule = await Schedule.findOne({ vehicle: bus._id, status: 'Active' })
-          .sort({ travelDate: -1, createdAt: -1 });
+        const candidateSchedules = await Schedule.find({ vehicle: bus._id, status: 'Active' })
+          .sort({ travelDate: 1, departureTime: 1 }).lean();
+        const latestSchedule = candidateSchedules.find(s => !isScheduleDeparted(s.travelDate, s.departureTime))
+          || candidateSchedules[candidateSchedules.length - 1];
         const busObj = bus.toObject();
         if (latestSchedule) {
           if (!busObj.route) busObj.route = {};
@@ -108,8 +110,10 @@ exports.getBusDetails = async (req, res, next) => {
       }
     });
 
-    const latestSchedule = await Schedule.findOne({ vehicle: bus._id, status: 'Active' })
-      .sort({ travelDate: -1, createdAt: -1 });
+    const candidateSchedules = await Schedule.find({ vehicle: bus._id, status: 'Active' })
+      .sort({ travelDate: 1, departureTime: 1 }).lean();
+    const latestSchedule = candidateSchedules.find(s => !isScheduleDeparted(s.travelDate, s.departureTime))
+      || candidateSchedules[candidateSchedules.length - 1];
     const busObj = bus.toObject();
     if (latestSchedule) {
       if (!busObj.route) busObj.route = {};
