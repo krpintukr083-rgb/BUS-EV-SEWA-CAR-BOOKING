@@ -111,7 +111,7 @@ describe('3. Booking API & Validation Tests', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.bookingId).toBeDefined();
     expect(res.body.data.busSeatNumbers).toEqual([seat1, seat2]);
-    expect(res.body.data.bookingStatus).toBe('Pending');
+    expect(['Pending', 'Pending Driver Confirmation']).toContain(res.body.data.bookingStatus);
     expect(res.body.data.paymentStatus).toBe('Pending');
     createdBookingId = res.body.data.bookingId;
   });

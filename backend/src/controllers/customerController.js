@@ -410,15 +410,22 @@ exports.processPayment = async (req, res, next) => {
 // 10. Get Customer Bookings (Upcoming & Completed)
 exports.getMyBookings = async (req, res, next) => {
   try {
-    if (req.user.role === 'driver') {
-      return res.status(403).json({ success: false, message: 'Customer booking history is not available to drivers' });
+    const userQuery = [];
+    if (req.user?._id) userQuery.push({ user: req.user._id });
+    if (req.user?.phone) {
+      const cleanPhone = String(req.user.phone).trim();
+      const last10 = cleanPhone.replace(/\D/g, '').slice(-10);
+      userQuery.push({ 'customer.phone': cleanPhone });
+      if (last10.length >= 7) {
+        userQuery.push({ 'customer.phone': { $regex: new RegExp(last10 + '$') } });
+      }
+    }
+    if (req.user?.email) userQuery.push({ 'customer.email': req.user.email.toLowerCase().trim() });
+
+    if (userQuery.length === 0) {
+      return res.json({ success: true, count: 0, data: { all: [], upcoming: [], completed: [] } });
     }
 
-    const userQuery = [
-      { 'customer.phone': req.user.phone },
-      ...(req.user.email ? [{ 'customer.email': req.user.email }] : []),
-      ...(req.user._id ? [{ user: req.user._id }] : [])
-    ];
     const bookings = await Booking.find({ $or: userQuery })
       .populate('vehicle')
       .populate('driver')
@@ -433,11 +440,12 @@ exports.getMyBookings = async (req, res, next) => {
       return obj;
     });
 
-    const upcoming = formattedBookings.filter(b => ['Pending Admin Confirmation', 'PENDING_ADMIN_CONFIRMATION', 'Admin Confirmed', 'ADMIN_CONFIRMED', 'Pending', 'Pending Driver Confirmation', 'Awaiting Cash Collection', 'Confirmed', 'Ongoing'].includes(b.bookingStatus));
-    const completed = formattedBookings.filter(b => ['Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus));
+    const upcoming = formattedBookings.filter(b => ['Pending Admin Confirmation', 'PENDING_ADMIN_CONFIRMATION', 'Admin Confirmed', 'ADMIN_CONFIRMED', 'Pending', 'Pending Driver Confirmation', 'Awaiting Cash Collection', 'Confirmed', 'Ongoing', 'In-Transit', 'Assigned'].includes(b.bookingStatus));
+    const completed = formattedBookings.filter(b => ['Completed', 'Cancelled', 'Rejected', 'Refunded'].includes(b.bookingStatus));
 
     res.json({
       success: true,
+      count: formattedBookings.length,
       data: {
         all: formattedBookings,
         upcoming,
@@ -452,10 +460,6 @@ exports.getMyBookings = async (req, res, next) => {
 // 11. Get Single Booking Details & Ticket
 exports.getBookingDetails = async (req, res, next) => {
   try {
-    if (req.user.role === 'driver') {
-      return res.status(403).json({ success: false, message: 'Customer booking details are not available to drivers' });
-    }
-
     const booking = await Booking.findOne(getBookingQuery(req.params.id))
       .populate('vehicle')
       .populate('driver', '-canViewCustomerPhone')
@@ -463,6 +467,20 @@ exports.getBookingDetails = async (req, res, next) => {
 
     if (!booking) {
       return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+
+    const userPhoneDigits = req.user?.phone ? String(req.user.phone).replace(/\D/g, '').slice(-10) : '';
+    const customerPhoneDigits = booking.customer?.phone ? String(booking.customer.phone).replace(/\D/g, '').slice(-10) : '';
+
+    const isOwner = (booking.user && req.user?._id && booking.user.toString() === req.user._id.toString()) ||
+      (booking.customer?.email && req.user?.email && booking.customer.email.toLowerCase().trim() === req.user.email.toLowerCase().trim()) ||
+      (booking.customer?.phone && req.user?.phone && (
+        booking.customer.phone === req.user.phone ||
+        (userPhoneDigits.length >= 7 && customerPhoneDigits.length >= 7 && userPhoneDigits === customerPhoneDigits)
+      ));
+
+    if (!isOwner && !['admin', 'sub_admin', 'superadmin'].includes(req.user?.role)) {
+      return res.status(403).json({ success: false, message: 'Access denied. You do not have permission to view this booking.' });
     }
 
     const payment = await Payment.findOne({ booking: booking._id });

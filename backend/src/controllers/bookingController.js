@@ -562,39 +562,54 @@ exports.getInstantBookingAvailability = async (req, res, next) => {
 // @access  Private (Customer)
 exports.getMyBookings = async (req, res, next) => {
   try {
-    if (req.user.role === 'driver') {
-      return res.status(403).json({ success: false, message: 'Customer booking history is not available to drivers' });
+    const orConditions = [];
+    if (req.user?._id) {
+      orConditions.push({ user: req.user._id });
+    }
+    if (req.user?.phone) {
+      const cleanPhone = String(req.user.phone).trim();
+      const last10 = cleanPhone.replace(/\D/g, '').slice(-10);
+      orConditions.push({ 'customer.phone': cleanPhone });
+      if (last10.length >= 7) {
+        orConditions.push({ 'customer.phone': { $regex: new RegExp(last10 + '$') } });
+      }
+    }
+    if (req.user?.email) {
+      orConditions.push({ 'customer.email': req.user.email.toLowerCase().trim() });
     }
 
-    let query = {};
-    if (req.user.role === 'customer') {
-      const orConditions = [
-        { 'customer.phone': req.user.phone },
-        ...(req.user.email ? [{ 'customer.email': req.user.email }] : []),
-        ...(req.user._id ? [{ user: req.user._id }] : [])
-      ];
-      query = { $or: orConditions };
+    if (orConditions.length === 0) {
+      return res.json({
+        success: true,
+        count: 0,
+        data: {
+          all: [],
+          upcoming: [],
+          completed: []
+        }
+      });
     }
+
+    const query = { $or: orConditions };
 
     const bookings = await Booking.find(query)
       .populate('vehicle')
       .populate('driver')
+      .populate('scheduleId')
       .sort({ createdAt: -1 });
 
     const formattedBookings = bookings.map((b) => {
       const obj = b.toObject();
-      if (req.user.role === 'customer') {
-        obj.confirmationOtp = obj.customerViewOtp;
-      }
+      obj.confirmationOtp = obj.customerViewOtp;
       delete obj.confirmationOtpHash;
       delete obj.customerViewOtp;
       return obj;
     });
 
     const upcoming = formattedBookings.filter((b) =>
-      ['Pending Admin Confirmation', 'PENDING_ADMIN_CONFIRMATION', 'Admin Confirmed', 'ADMIN_CONFIRMED', 'Pending', 'Pending Driver Confirmation', 'Awaiting Cash Collection', 'Confirmed', 'Ongoing'].includes(b.bookingStatus)
+      ['Pending Admin Confirmation', 'PENDING_ADMIN_CONFIRMATION', 'Admin Confirmed', 'ADMIN_CONFIRMED', 'Pending', 'Pending Driver Confirmation', 'Awaiting Cash Collection', 'Confirmed', 'Ongoing', 'In-Transit', 'Assigned'].includes(b.bookingStatus)
     );
-    const completed = formattedBookings.filter((b) => ['Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus));
+    const completed = formattedBookings.filter((b) => ['Completed', 'Cancelled', 'Rejected', 'Refunded'].includes(b.bookingStatus));
 
     res.set({
       'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -623,10 +638,8 @@ exports.getBookingById = async (req, res, next) => {
   try {
     const bookingQuery = Booking.findOne(getBookingQuery(req.params.id))
       .populate('vehicle')
-      .populate('driver', '-canViewCustomerPhone');
-    if (req.user.role === 'customer') {
-      bookingQuery.populate('scheduleId', 'origin destination travelDate departureTime');
-    }
+      .populate('driver', '-canViewCustomerPhone')
+      .populate('scheduleId', 'origin destination travelDate departureTime');
     const booking = await bookingQuery;
 
     if (!booking) {
@@ -637,35 +650,43 @@ exports.getBookingById = async (req, res, next) => {
     }
 
     // Ownership check for customer
-    if (
-      req.user.role === 'customer' &&
-      booking.customer.phone !== req.user.phone &&
-      booking.customer.email !== req.user.email
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. You do not have permission to view this booking.'
-      });
-    }
+    const userPhoneDigits = req.user?.phone ? String(req.user.phone).replace(/\D/g, '').slice(-10) : '';
+    const customerPhoneDigits = booking.customer?.phone ? String(booking.customer.phone).replace(/\D/g, '').slice(-10) : '';
 
-    let driver;
-    if (req.user.role === 'driver') {
-      driver = await Driver.findOne({ user: req.user._id });
-      if (!driver) {
-        return res.status(404).json({ success: false, message: 'Driver profile not found' });
-      }
+    const isOwner = (booking.user && req.user?._id && booking.user.toString() === req.user._id.toString()) ||
+      (booking.customer?.email && req.user?.email && booking.customer.email.toLowerCase().trim() === req.user.email.toLowerCase().trim()) ||
+      (booking.customer?.phone && req.user?.phone && (
+        booking.customer.phone === req.user.phone ||
+        (userPhoneDigits.length >= 7 && customerPhoneDigits.length >= 7 && userPhoneDigits === customerPhoneDigits)
+      ));
 
-      const bookingDriverId = booking.driver?._id || booking.driver;
-      const isAssignedToDriver = bookingDriverId &&
-        [driver._id.toString(), req.user._id.toString()].includes(bookingDriverId.toString());
-      const bookingVehicleId = booking.vehicle?._id || booking.vehicle;
-      const ownedVehicle = await Vehicle.findOne({
-        _id: bookingVehicleId,
-        ...getDriverVehicleOwnershipQuery(driver)
-      }).select('_id').lean();
+    let driver = null;
+    if (!isOwner) {
+      if (['admin', 'sub_admin', 'superadmin'].includes(req.user?.role)) {
+        // Admin access granted
+      } else if (req.user?.role === 'driver') {
+        driver = await Driver.findOne({ user: req.user._id });
+        if (!driver) {
+          return res.status(404).json({ success: false, message: 'Driver profile not found' });
+        }
 
-      if (!isAssignedToDriver && !ownedVehicle) {
-        return res.status(403).json({ success: false, message: 'You are not authorized to view this booking' });
+        const bookingDriverId = booking.driver?._id || booking.driver;
+        const isAssignedToDriver = bookingDriverId &&
+          [driver._id.toString(), req.user._id.toString()].includes(bookingDriverId.toString());
+        const bookingVehicleId = booking.vehicle?._id || booking.vehicle;
+        const ownedVehicle = await Vehicle.findOne({
+          _id: bookingVehicleId,
+          ...getDriverVehicleOwnershipQuery(driver)
+        }).select('_id').lean();
+
+        if (!isAssignedToDriver && !ownedVehicle) {
+          return res.status(403).json({ success: false, message: 'You are not authorized to view this booking' });
+        }
+      } else {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied. You do not have permission to view this booking.'
+        });
       }
     }
 
@@ -681,7 +702,7 @@ exports.getBookingById = async (req, res, next) => {
     const obj = driver
       ? driverBookingResponse(bookingForResponse, driver.canViewCustomerPhone === true)
       : booking.toObject();
-    if (req.user.role === 'customer') {
+    if (isOwner || req.user?.role === 'customer') {
       obj.confirmationOtp = obj.customerViewOtp;
     }
     delete obj.confirmationOtpHash;
