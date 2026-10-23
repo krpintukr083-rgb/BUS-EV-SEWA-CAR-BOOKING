@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,8 @@ export default function EarningsScreen({ navigation }) {
   const [period, setPeriod] = useState('TODAY'); // 'TODAY', 'WEEKLY', 'MONTHLY'
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
+  const activeRequestRef = useRef(0);
   const [earningsData, setEarningsData] = useState({
     grossFare: 0,
     commission: 0,
@@ -36,15 +38,27 @@ export default function EarningsScreen({ navigation }) {
   });
 
   useEffect(() => {
+    setLoading(true);
     fetchEarnings();
   }, [period]);
 
   const fetchEarnings = async () => {
+    const requestId = ++activeRequestRef.current;
     try {
-      const [earningsRes, historyRes] = await Promise.all([
-        driverService.getEarnings(period.toLowerCase()),
+      setError(null);
+      const currentPeriodParam = period.toLowerCase();
+      const [rawEarningsRes, rawHistoryRes] = await Promise.all([
+        driverService.getEarnings(currentPeriodParam),
         driverService.getBookingHistory ? driverService.getBookingHistory() : driverService.getHistory()
       ]);
+
+      // Guard against stale response if user rapidly switched tabs
+      if (requestId !== activeRequestRef.current) {
+        return;
+      }
+
+      const earningsPayload = rawEarningsRes?.data !== undefined && rawEarningsRes?.status !== undefined ? rawEarningsRes.data : rawEarningsRes;
+      const historyPayload = rawHistoryRes?.data !== undefined && rawHistoryRes?.status !== undefined ? rawHistoryRes.data : rawHistoryRes;
 
       let baseData = {
         grossFare: 0,
@@ -60,28 +74,47 @@ export default function EarningsScreen({ navigation }) {
         history: []
       };
 
-      if (earningsRes.success && earningsRes.data) {
+      const earningsDataObj = earningsPayload?.data || (earningsPayload && earningsPayload.netDriverEarning !== undefined ? earningsPayload : null);
+
+      if (earningsDataObj) {
+        const gross = Number(earningsDataObj.grossFare || 0);
+        const charge = Number(earningsDataObj.platformCharge !== undefined ? earningsDataObj.platformCharge : (earningsDataObj.commission || 0));
+        const net = Number(earningsDataObj.netDriverEarning !== undefined ? earningsDataObj.netDriverEarning : (earningsDataObj.netEarnings || 0));
+
         baseData = {
           ...baseData,
-          ...earningsRes.data,
-          grossFare: Number(earningsRes.data.grossFare || 0),
-          platformCharge: Number(earningsRes.data.platformCharge !== undefined ? earningsRes.data.platformCharge : (earningsRes.data.commission || 0)),
-          netEarnings: Number(earningsRes.data.netDriverEarning !== undefined ? earningsRes.data.netDriverEarning : (earningsRes.data.netEarnings || 0)),
-          paidSettlement: Number(earningsRes.data.paidSettlement || 0),
-          pendingSettlement: Number(earningsRes.data.pendingSettlement || 0)
+          ...earningsDataObj,
+          grossFare: Math.round(gross * 100) / 100,
+          platformCharge: Math.round(charge * 100) / 100,
+          commission: Math.round(charge * 100) / 100,
+          netEarnings: Math.round(net * 100) / 100,
+          netDriverEarning: Math.round(net * 100) / 100,
+          paidSettlement: Number(earningsDataObj.paidSettlement || 0),
+          pendingSettlement: Number(earningsDataObj.pendingSettlement || 0)
         };
+      } else if (earningsPayload?.success === false) {
+        setError(earningsPayload.message || 'Failed to fetch earnings summary');
       }
 
-      if (historyRes.success && Array.isArray(historyRes.data)) {
-        baseData.history = historyRes.data.slice(0, 10);
-      }
+      const historyDataList = Array.isArray(historyPayload)
+        ? historyPayload
+        : Array.isArray(historyPayload?.data)
+        ? historyPayload.data
+        : [];
 
+      baseData.history = historyDataList.slice(0, 10);
       setEarningsData(baseData);
     } catch (err) {
-      console.log('Error fetching earnings:', err);
+      if (requestId === activeRequestRef.current) {
+        console.log('Error fetching earnings:', err);
+        const errMsg = err.response?.data?.message || err.message || 'Network error fetching earnings';
+        setError(errMsg);
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestId === activeRequestRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   };
 
@@ -134,13 +167,31 @@ export default function EarningsScreen({ navigation }) {
           />
         }
       >
+        {/* Error State Banner */}
+        {error ? (
+          <View style={styles.errorCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <MaterialCommunityIcons name="alert-circle" size={20} color={COLORS.danger} />
+              <Text style={styles.errorTitle}>Earnings Sync Notice</Text>
+            </View>
+            <Text style={styles.errorMessage}>{error}</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={fetchEarnings}>
+              <MaterialCommunityIcons name="refresh" size={16} color={COLORS.white} />
+              <Text style={styles.retryBtnText}>Retry Sync</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
         {loading ? (
           <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 40 }} />
         ) : (
           <>
             {/* Primary Net Earnings Card */}
             <View style={styles.heroCard}>
-              <Text style={styles.heroSubtitle}>{t('netDriverEarnings')}</Text>
+              <Text style={styles.heroSubtitle}>
+                {period === 'TODAY' ? "Today's " : period === 'WEEKLY' ? "This Week's " : "This Month's "}
+                {t('netDriverEarnings')}
+              </Text>
               <Text style={styles.heroAmount}>₹{Number(effectiveNet || 0).toFixed(2)}</Text>
               <View style={styles.heroBadge}>
                 <MaterialCommunityIcons name="check-circle" size={14} color={COLORS.success} />
@@ -150,7 +201,10 @@ export default function EarningsScreen({ navigation }) {
 
             {/* Authoritative Financial Breakdown Card */}
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>{t('fareAndCommissionBreakdown')}</Text>
+              <Text style={styles.cardTitle}>
+                {period === 'TODAY' ? "Today's " : period === 'WEEKLY' ? "Weekly " : "Monthly "}
+                {t('fareAndCommissionBreakdown')}
+              </Text>
 
               <View style={styles.row}>
                 <Text style={styles.rowLabel}>{t('grossFare')}</Text>
@@ -332,6 +386,41 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: SPACING.m,
     paddingBottom: SPACING.xl,
+  },
+  errorCard: {
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.m,
+    padding: SPACING.m,
+    borderWidth: 1,
+    borderColor: COLORS.danger + '60',
+    marginBottom: SPACING.m,
+  },
+  errorTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.danger,
+  },
+  errorMessage: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.s,
+    lineHeight: 18,
+  },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    paddingVertical: 8,
+    paddingHorizontal: SPACING.m,
+    borderRadius: RADIUS.s,
+    gap: 6,
+    alignSelf: 'flex-start',
+  },
+  retryBtnText: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: '700',
   },
   heroCard: {
     backgroundColor: COLORS.bgCard,

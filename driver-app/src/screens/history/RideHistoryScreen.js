@@ -21,6 +21,7 @@ export default function RideHistoryScreen({ navigation }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
   const [filterType, setFilterType] = useState('ALL'); // 'ALL', 'BUS', 'CAB'
 
   useEffect(() => {
@@ -29,12 +30,24 @@ export default function RideHistoryScreen({ navigation }) {
 
   const fetchHistory = async () => {
     try {
-      const res = await driverService.getRideHistory();
-      if (res.success && res.data) {
-        setHistory(res.data);
+      setError(null);
+      const rawRes = await driverService.getRideHistory();
+      const payload = rawRes?.data !== undefined && rawRes?.status !== undefined ? rawRes.data : rawRes;
+      const historyList = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.data)
+        ? payload.data
+        : null;
+
+      if (historyList) {
+        setHistory(historyList);
+      } else if (payload?.success === false) {
+        setError(payload.message || 'Failed to load ride history');
       }
     } catch (err) {
       console.log('Error fetching history:', err);
+      const errMsg = err.response?.data?.message || err.message || 'Network error loading ride history';
+      setError(errMsg);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -189,6 +202,16 @@ export default function RideHistoryScreen({ navigation }) {
           <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>{t('loading')}</Text>
         </View>
+      ) : error ? (
+        <View style={styles.centerContainer}>
+          <MaterialCommunityIcons name="alert-circle-outline" size={56} color={COLORS.danger} />
+          <Text style={[styles.emptyTitle, { color: COLORS.danger }]}>Failed to Load Rides</Text>
+          <Text style={styles.emptySub}>{error}</Text>
+          <TouchableOpacity style={styles.retryBtn} onPress={fetchHistory}>
+            <MaterialCommunityIcons name="refresh" size={16} color={COLORS.white} />
+            <Text style={styles.retryBtnText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       ) : filteredHistory.length === 0 ? (
         <View style={styles.centerContainer}>
           <MaterialCommunityIcons name="history" size={56} color={COLORS.textMuted} />
@@ -199,7 +222,7 @@ export default function RideHistoryScreen({ navigation }) {
         <FlatList
           data={filteredHistory}
           renderItem={renderHistoryCard}
-          keyExtractor={(item) => item._id}
+          keyExtractor={(item, index) => item.id || item.bookingId || item._id || index.toString()}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
@@ -386,5 +409,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: COLORS.textMuted,
     marginTop: 4,
+    textAlign: 'center',
+    marginBottom: SPACING.m,
+  },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    paddingVertical: 10,
+    paddingHorizontal: SPACING.l,
+    borderRadius: RADIUS.s,
+    gap: 6,
+    marginTop: SPACING.s,
+  },
+  retryBtnText: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

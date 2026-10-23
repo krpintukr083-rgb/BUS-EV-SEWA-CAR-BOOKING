@@ -141,7 +141,8 @@ const PlatformChargeSettings = () => {
 
       const res = await adminService.updatePlatformChargeSettings(payload);
       if (res.success) {
-        setSettings(res.data);
+        // Refetch authoritative persisted settings directly from backend
+        await fetchSettings();
         setMessage({
           text: 'Platform charge settings updated successfully! New configuration will apply to new bookings only.',
           type: 'success'
