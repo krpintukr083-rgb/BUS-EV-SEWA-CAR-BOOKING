@@ -1660,6 +1660,18 @@ input, select, textarea {
   box-sizing: border-box;
 }
 
+.manifest-table-hint {
+  display: none;
+  background-color: #f0f7ff;
+  border-bottom: 1px solid #dbeafe;
+  padding: 8px 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #1d4ed8;
+  text-align: center;
+  letter-spacing: 0.01em;
+}
+
 .manifest-table-container {
   width: 100%;
   max-width: 100%;
@@ -1775,6 +1787,7 @@ input, select, textarea {
     gap: 12px;
     width: 100%;
     max-width: 100%;
+    min-width: 0;
   }
   .manifest-header {
     flex-direction: column;
@@ -1784,7 +1797,10 @@ input, select, textarea {
   .manifest-header .btn {
     width: 100%;
     justify-content: center;
-    min-height: 42px;
+    height: 44px;
+    min-height: 44px;
+    max-height: 44px;
+    box-sizing: border-box;
   }
   .manifest-filter-card {
     padding: 14px;
@@ -1794,6 +1810,15 @@ input, select, textarea {
     grid-template-columns: 1fr;
     gap: 10px;
   }
+  .manifest-filter-field .input-field,
+  .manifest-filter-field .select-field {
+    width: 100%;
+    height: 44px;
+    min-height: 44px;
+    max-height: 44px;
+    font-size: 0.85rem;
+    box-sizing: border-box;
+  }
   .manifest-filter-actions {
     grid-column: span 1;
     flex-direction: column;
@@ -1802,19 +1827,32 @@ input, select, textarea {
   .manifest-filter-actions .btn {
     width: 100%;
     justify-content: center;
-    min-height: 42px;
+    height: 44px;
+    min-height: 44px;
+    max-height: 44px;
+    box-sizing: border-box;
+  }
+
+  /* Workspace single column */
+  .manifest-workspace-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    width: 100%;
+    min-width: 0;
   }
 
   /* Journey list card */
   .manifest-journey-card {
-    max-height: 340px;
+    max-height: 320px;
     border-radius: var(--radius-md);
+    width: 100%;
+    min-width: 0;
   }
   .manifest-journey-header {
     padding: 12px 14px;
   }
   .manifest-journey-list {
-    max-height: 250px;
+    max-height: 240px;
   }
   .manifest-journey-item {
     padding: 12px 14px;
@@ -1825,15 +1863,20 @@ input, select, textarea {
     padding: 14px;
     border-radius: var(--radius-md);
     border-left-width: 4px;
+    width: 100%;
+    min-width: 0;
   }
   .manifest-active-journey-inner {
     flex-direction: column;
     gap: 10px;
     align-items: stretch;
+    width: 100%;
+    min-width: 0;
   }
   .manifest-active-journey-primary {
     flex: 1 1 auto;
     width: 100%;
+    min-width: 0;
   }
   .manifest-badges-row {
     gap: 6px;
@@ -1857,7 +1900,7 @@ input, select, textarea {
     width: 100%;
   }
 
-  /* Compact secondary operator block without whitespace gap */
+  /* Compact secondary operator block */
   .manifest-operator-box {
     text-align: left;
     width: 100%;
@@ -1890,55 +1933,79 @@ input, select, textarea {
     word-break: break-word;
   }
 
-  /* Subfilters & Summary on Mobile */
+  /* Subfilters on Mobile - Compact 44px uniform controls with 10-12px gaps */
   .manifest-subfilter-card {
     flex-direction: column;
     align-items: stretch;
     padding: 12px;
     gap: 12px;
     border-radius: var(--radius-md);
+    width: 100%;
+    min-width: 0;
   }
   .manifest-subfilter-controls {
     flex-direction: column;
     align-items: stretch;
-    gap: 8px;
+    gap: 10px;
     width: 100%;
+    min-width: 0;
   }
   .manifest-subfilter-search-wrap {
     max-width: 100%;
     width: 100%;
     flex: 1 1 auto;
+    min-width: 0;
   }
   .manifest-subfilter-search-input {
     width: 100% !important;
-    min-height: 42px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+    font-size: 0.82rem !important;
+    box-sizing: border-box !important;
   }
   .manifest-subfilter-select {
     width: 100% !important;
     max-width: 100% !important;
-    min-height: 42px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+    font-size: 0.82rem !important;
     flex: 1 1 auto;
+    box-sizing: border-box !important;
   }
+
+  /* Compact 2-column passenger summary badges */
   .manifest-summary-badges {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 6px;
     width: 100%;
+    box-sizing: border-box;
   }
   .manifest-stat-pill {
+    display: flex;
     justify-content: center;
+    align-items: center;
     font-size: 0.74rem;
-    padding: 7px 6px;
-    border-radius: var(--radius-sm);
+    padding: 6px 8px;
+    border-radius: 6px;
     text-align: center;
+    min-height: 32px;
+    box-sizing: border-box;
   }
 
   /* Table on Mobile */
   .manifest-table-card {
     border-radius: var(--radius-md);
+    width: 100%;
+    min-width: 0;
+  }
+  .manifest-table-hint {
+    display: block;
   }
   .manifest-table {
-    min-width: 880px;
+    min-width: 900px;
     font-size: 0.8rem;
   }
   .manifest-table th,
@@ -1960,7 +2027,8 @@ input, select, textarea {
   }
   .manifest-stat-pill {
     font-size: 0.7rem;
-    padding: 6px 4px;
+    padding: 5px 4px;
+    min-height: 30px;
   }
   .manifest-active-reg {
     font-size: 1.05rem;

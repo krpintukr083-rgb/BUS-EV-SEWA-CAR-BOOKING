@@ -494,8 +494,12 @@ const BusPassengerManifest = () => {
                 No passengers found matching the selected filters for this trip.
               </div>
             ) : (
-              <div className="manifest-table-container">
-                <table className="manifest-table">
+              <>
+                <div className="manifest-table-hint">
+                  <span>← Swipe horizontally to view full passenger details →</span>
+                </div>
+                <div className="manifest-table-container">
+                  <table className="manifest-table">
                   <thead>
                     <tr>
                       <th style={{ width: '70px' }}>Seat</th>
@@ -574,6 +578,7 @@ const BusPassengerManifest = () => {
                   </tbody>
                 </table>
               </div>
+            </>
             )}
           </div>
         </div>
