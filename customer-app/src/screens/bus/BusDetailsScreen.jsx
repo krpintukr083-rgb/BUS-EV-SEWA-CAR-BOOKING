@@ -8,6 +8,7 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { customerService } from '../../services/customerService';
 import { useBooking } from '../../context/BookingContext';
 import Header from '../../components/Header';
@@ -26,6 +27,8 @@ const formatPoints = (points, fallback) => {
 };
 
 const BusDetailsScreen = ({ navigation, route }) => {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 0);
   const { busId, bus: initialBus, schedule } = route.params || {};
   const { bookingDraft, updateDraft } = useBooking();
   
@@ -113,7 +116,7 @@ const BusDetailsScreen = ({ navigation, route }) => {
     <View style={styles.container}>
       <Header title="Bus Details" onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 + bottomInset }]} showsVerticalScrollIndicator={false}>
         {/* Vehicle images from the selected vehicle */}
         <View style={styles.imageWrapper}>
           <VehicleImageSlider vehicle={bus} type="Bus" imageStyle={styles.heroImage} />
@@ -221,7 +224,7 @@ const BusDetailsScreen = ({ navigation, route }) => {
       </ScrollView>
 
       {/* Sticky Bottom Action */}
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: bottomInset > 0 ? bottomInset + 8 : 14 }]}>
         <View>
           <Text style={styles.barLabel}>Starting From</Text>
           <Text style={styles.barPrice}>₹{displayFare}</Text>

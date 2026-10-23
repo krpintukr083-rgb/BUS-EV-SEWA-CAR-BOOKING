@@ -9,6 +9,7 @@ import {
   TouchableOpacity
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBooking } from '../../context/BookingContext';
 import { customerService } from '../../services/customerService';
 import Header from '../../components/Header';
@@ -17,6 +18,8 @@ import { COLORS } from '../../constants/colors';
 import { getRouteSegmentFare } from '../../utils/routeFares';
 
 const FareSummaryScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 0);
   const { bookingDraft, updateDraft, setCurrentBookingId } = useBooking();
   const [loading, setLoading] = useState(false);
   const [busOffer, setBusOffer] = useState(null);
@@ -134,7 +137,7 @@ const FareSummaryScreen = ({ navigation }) => {
     <View style={styles.container}>
       <Header title="Fare / Booking Summary" onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 + bottomInset }]} showsVerticalScrollIndicator={false}>
         {/* Service Header Card */}
         <View style={styles.serviceCard}>
           <View style={styles.serviceHeader}>
@@ -357,7 +360,7 @@ const FareSummaryScreen = ({ navigation }) => {
       </ScrollView>
 
       {/* Action Footer */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: bottomInset > 0 ? bottomInset + 8 : 14 }]}>
         <Button
           title={loading ? 'Creating Booking...' : 'Confirm Booking'}
           onPress={handleConfirmBooking}

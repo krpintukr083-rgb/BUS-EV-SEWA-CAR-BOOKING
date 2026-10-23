@@ -10,6 +10,7 @@ import {
   Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { customerService } from '../../services/customerService';
 import { useBooking } from '../../context/BookingContext';
 import Header from '../../components/Header';
@@ -18,6 +19,8 @@ import { COLORS } from '../../constants/colors';
 import VehicleImageSlider from '../../components/VehicleImageSlider';
 
 const CarDetailsScreen = ({ route, navigation }) => {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 0);
   const { carId } = route.params || {};
   const { bookingDraft, updateDraft } = useBooking();
   const initialCar = bookingDraft.vehicle?._id === carId ? bookingDraft.vehicle : null;
@@ -140,7 +143,7 @@ const CarDetailsScreen = ({ route, navigation }) => {
     <View style={styles.container}>
       <Header title="Car Details" onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 + bottomInset }]} showsVerticalScrollIndicator={false}>
         {/* Vehicle images from the selected vehicle */}
         <View style={styles.imageContainer}>
           <VehicleImageSlider vehicle={car} type="Car" imageStyle={styles.heroImage} />
@@ -283,7 +286,7 @@ const CarDetailsScreen = ({ route, navigation }) => {
       </ScrollView>
 
       {/* Bottom Action Footer */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: bottomInset > 0 ? bottomInset + 8 : 14 }]}>
         <View style={styles.footerFare}>
           <Text style={styles.totalLabel}>Payable Fare</Text>
           <Text style={styles.totalValue}>₹{car.fareRate}</Text>

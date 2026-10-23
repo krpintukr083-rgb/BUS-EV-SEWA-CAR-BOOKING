@@ -1,13 +1,16 @@
 import React from 'react';
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { enableFreeze } from 'react-native-screens';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Ionicons } from '@expo/vector-icons';
 import { CustomerAuthProvider } from './src/context/CustomerAuthContext';
 import { BookingProvider } from './src/context/BookingContext';
 import AppNavigator from './src/navigation/AppNavigator';
+
+enableFreeze(false);
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -23,7 +26,7 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider style={styles.container}>
+    <SafeAreaProvider initialWindowMetrics={initialWindowMetrics} style={styles.container}>
       <View style={styles.container}>
         <StatusBar style="light" backgroundColor="#1d4ed8" />
         <CustomerAuthProvider>

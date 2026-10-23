@@ -30,6 +30,10 @@ android/.gradle/
 *.aab
 ios/Pods/
 ios/build/
+*.keystore
+*.jks
+keystore.properties
+!**/debug.keystore
 
 # Logs
 npm-debug.log*

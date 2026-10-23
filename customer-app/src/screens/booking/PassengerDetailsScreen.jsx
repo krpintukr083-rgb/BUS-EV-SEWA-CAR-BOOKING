@@ -10,6 +10,7 @@ import {
   Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBooking } from '../../context/BookingContext';
 import Header from '../../components/Header';
 import Input from '../../components/Input';
@@ -17,6 +18,8 @@ import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
 
 const PassengerDetailsScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 0);
   const { bookingDraft, updateDraft } = useBooking();
 
   const maxAllowedPassengers = bookingDraft.selectedSeats && bookingDraft.selectedSeats.length > 0
@@ -119,7 +122,7 @@ const PassengerDetailsScreen = ({ navigation }) => {
     >
       <Header title="Passenger Details" onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 + bottomInset }]} keyboardShouldPersistTaps="handled">
         {/* Info Header */}
         <View style={styles.topInfo}>
           <Ionicons name="person-circle-outline" size={24} color={serviceColor} />
@@ -236,7 +239,7 @@ const PassengerDetailsScreen = ({ navigation }) => {
       </ScrollView>
 
       {/* Continue Footer */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: bottomInset > 0 ? bottomInset + 8 : 14 }]}>
         <Button
           title="Continue to Fare Summary"
           onPress={handleContinue}

@@ -8,6 +8,7 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { customerService } from '../../services/customerService';
 import { useBooking } from '../../context/BookingContext';
 import Header from '../../components/Header';
@@ -17,6 +18,8 @@ import VehicleImageSlider from '../../components/VehicleImageSlider';
 import { formatBatteryCapacity } from '../../utils/vehicleFormatting';
 
 const EvSewaDetailsScreen = ({ navigation, route }) => {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 0);
   const { evId } = route.params || {};
   const { bookingDraft, updateDraft } = useBooking();
   const [ev, setEv] = useState(null);
@@ -123,7 +126,7 @@ const EvSewaDetailsScreen = ({ navigation, route }) => {
     <View style={styles.container}>
       <Header title="EV-Sewa Vehicle Details" onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 110 + bottomInset }]} showsVerticalScrollIndicator={false}>
         {/* Vehicle images from the selected vehicle */}
         <View style={styles.imageCard}>
           <VehicleImageSlider
@@ -326,7 +329,7 @@ const EvSewaDetailsScreen = ({ navigation, route }) => {
       </ScrollView>
 
       {/* Bottom Sticky Action */}
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: bottomInset > 0 ? bottomInset + 8 : 14 }]}>
         <View>
           <Text style={styles.barLabel}>Standard Trip Fare</Text>
           <Text style={styles.barPrice}>₹{ev.fareRate}</Text>

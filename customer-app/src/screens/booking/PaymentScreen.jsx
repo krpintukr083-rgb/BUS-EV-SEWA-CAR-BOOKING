@@ -13,6 +13,7 @@ import {
   AppState
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { customerService } from '../../services/customerService';
 import { useBooking } from '../../context/BookingContext';
@@ -21,6 +22,8 @@ import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
 
 const PaymentScreen = ({ route, navigation }) => {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 0);
   const { bookingId, bookingCode, bookingMode, amount } = route.params || {};
   const { bookingDraft, updateDraft } = useBooking();
 
@@ -984,7 +987,7 @@ const PaymentScreen = ({ route, navigation }) => {
     <View style={styles.container}>
       <Header title="Payment & Checkout" onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 150 + bottomInset }]} showsVerticalScrollIndicator={false}>
         {/* Pending Driver OTP Verification Card (Online Payment Flow) */}
         {isOnlinePayment && (!bookingObj?.otpVerified || (bookingObj?.fare || 0) === 0) && (
           <View style={styles.otpPendingCard}>
@@ -1265,7 +1268,7 @@ const PaymentScreen = ({ route, navigation }) => {
         )}
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: bottomInset > 0 ? bottomInset + 8 : 16 }]}>
         <Button
           title={
             isOfflineSelected 

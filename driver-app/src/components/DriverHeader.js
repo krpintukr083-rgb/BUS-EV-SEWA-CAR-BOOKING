@@ -96,7 +96,7 @@ const DriverHeader = ({ navigation, title, showBack = false }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView edges={['top']} style={styles.container}>
       {showBack ? (
         <TouchableOpacity style={styles.backButton} onPress={() => navigation?.goBack()}>
           <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
@@ -164,8 +164,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: SPACING.lg,
-    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.md,
+    paddingTop: 4,
+    paddingBottom: 6,
     backgroundColor: COLORS.surface,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border
@@ -173,33 +174,35 @@ const styles = StyleSheet.create({
   leftRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1
+    flex: 1,
+    minWidth: 0,
+    marginRight: 6
   },
   brandLogo: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    marginRight: 8
-  },
-  brandLogoSmall: {
     width: 28,
     height: 28,
     borderRadius: 6,
-    marginLeft: 6,
+    marginRight: 6
+  },
+  brandLogoSmall: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    marginLeft: 4,
     marginRight: 4
   },
   avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    borderWidth: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1.5,
     borderColor: COLORS.primary
   },
   avatarFallback: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    borderWidth: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1.5,
     borderColor: COLORS.primary,
     backgroundColor: COLORS.primary,
     justifyContent: 'center',
@@ -207,39 +210,42 @@ const styles = StyleSheet.create({
   },
   avatarInitials: {
     color: '#FFFFFF',
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: '700'
   },
   driverInfo: {
-    marginLeft: SPACING.sm,
-    flex: 1
+    marginLeft: 6,
+    flex: 1,
+    minWidth: 0
   },
   driverName: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: '700',
     color: COLORS.textPrimary
   },
   statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 2
+    marginTop: 1
   },
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
     marginRight: 4
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600'
   },
   backButton: {
     flexDirection: 'row',
-    alignItems: 'center'
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
     color: COLORS.textPrimary,
     marginLeft: SPACING.sm
@@ -247,18 +253,19 @@ const styles = StyleSheet.create({
   rightActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: SPACING.sm
+    gap: 6,
+    flexShrink: 0
   },
   actionIconBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     borderRadius: 6,
     backgroundColor: COLORS.surfaceLight,
     borderWidth: 1,
     borderColor: COLORS.border
   },
   langCode: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: COLORS.textPrimary
   },
@@ -266,18 +273,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.danger,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 4
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 3
   },
   sosText: {
     color: '#FFF',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800'
   },
   switchContainer: {
-    marginLeft: 4
+    marginLeft: 2
   }
 });
 

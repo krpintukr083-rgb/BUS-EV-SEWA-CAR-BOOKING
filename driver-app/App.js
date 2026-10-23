@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
+import { View, StyleSheet } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import { LanguageProvider } from './src/state/LanguageContext';
@@ -52,15 +53,25 @@ export default function App() {
   }, []);
 
   return (
-    <SafeAreaProvider>
-      <LanguageProvider>
-        <AuthProvider>
-          <NavigationContainer ref={navigationRef}>
-            <StatusBar style="light" backgroundColor="#0B0F19" />
-            <AppNavigator />
-          </NavigationContainer>
-        </AuthProvider>
-      </LanguageProvider>
+    <SafeAreaProvider initialWindowMetrics={initialWindowMetrics} style={styles.container}>
+      <View style={styles.container}>
+        <LanguageProvider>
+          <AuthProvider>
+            <NavigationContainer ref={navigationRef}>
+              <StatusBar style="light" backgroundColor="#0B0F19" />
+              <AppNavigator />
+            </NavigationContainer>
+          </AuthProvider>
+        </LanguageProvider>
+      </View>
     </SafeAreaProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0B0F19'
+  }
+});
+

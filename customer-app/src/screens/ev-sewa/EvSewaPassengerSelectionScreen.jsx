@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBooking } from '../../context/BookingContext';
 import Header from '../../components/Header';
 import Button from '../../components/Button';
@@ -16,6 +17,8 @@ const makePassengers = (count, currentPassengers = []) => (
 );
 
 const EvSewaPassengerSelectionScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 0);
   const { bookingDraft, updateDraft } = useBooking();
   const rawCapacity = Number(bookingDraft.vehicle?.seatingCapacity);
   const capacity = Number.isInteger(rawCapacity) && rawCapacity > 0 ? rawCapacity : 0;
@@ -93,7 +96,7 @@ const EvSewaPassengerSelectionScreen = ({ navigation }) => {
         </View>
       </View>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: bottomInset > 0 ? bottomInset + 8 : 14 }]}>
         <Button
           title="Continue to Pickup & Drop"
           onPress={continueToPickup}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Image, Alert, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, SPACING } from '../../constants/theme';
@@ -79,6 +79,38 @@ const DashboardScreen = ({ navigation }) => {
     }
   };
 
+  const executeRemoveVehicle = async (vehicleId) => {
+    console.log('[DEBUG] Sending DELETE request for vehicleId:', vehicleId);
+    console.log('[DEBUG] HTTP Method: DELETE');
+    console.log('[DEBUG] Endpoint: /driver/vehicles/' + vehicleId);
+    try {
+      const res = await driverService.removeVehicle(vehicleId);
+      console.log('[DEBUG] Response Status:', res?.status);
+      console.log('[DEBUG] Response Data:', JSON.stringify(res?.data || {}));
+
+      setSubmittedVehicles(current => current.filter(item => (item._id || item.id) !== vehicleId));
+      await Promise.all([loadVehicles(), loadDashboard()]);
+      console.log('=== [REMOVE_VEHICLE_DEBUG] SUCCESS ===');
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert('Vehicle removed successfully.');
+      } else {
+        Alert.alert('Success', 'Vehicle removed successfully.');
+      }
+    } catch (error) {
+      console.log('=== [REMOVE_VEHICLE_DEBUG] ERROR ===');
+      console.log('[DEBUG] Error Code:', error?.code);
+      console.log('[DEBUG] Error Message:', error?.message);
+      console.log('[DEBUG] Error Response Status:', error?.response?.status);
+      console.log('[DEBUG] Error Response Data:', JSON.stringify(error?.response?.data || {}));
+      const msg = error.response?.data?.message || error.message || 'Please try again.';
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert(`Unable to remove vehicle: ${msg}`);
+      } else {
+        Alert.alert('Unable to remove vehicle', msg);
+      }
+    }
+  };
+
   const removeVehicle = (vehicle) => {
     const vehicleId = vehicle?._id || vehicle?.id;
     console.log('=== [REMOVE_VEHICLE_DEBUG] START ===');
@@ -91,7 +123,21 @@ const DashboardScreen = ({ navigation }) => {
 
     if (!vehicleId) {
       console.log('[DEBUG] ERROR: No valid vehicle ID found on vehicle object');
-      Alert.alert('Error', 'Invalid vehicle ID.');
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.alert('Invalid vehicle ID.');
+      } else {
+        Alert.alert('Error', 'Invalid vehicle ID.');
+      }
+      return;
+    }
+
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const confirmed = window.confirm(`Remove Vehicle?\n\nAre you sure you want to remove vehicle ${vehicle.vehicleNumber || ''}?`);
+      if (confirmed) {
+        executeRemoveVehicle(vehicleId);
+      } else {
+        console.log('[DEBUG] Remove vehicle cancelled by user');
+      }
       return;
     }
 
@@ -107,31 +153,7 @@ const DashboardScreen = ({ navigation }) => {
         {
           text: 'Remove',
           style: 'destructive',
-          onPress: async () => {
-            console.log('[DEBUG] Sending DELETE request for vehicleId:', vehicleId);
-            console.log('[DEBUG] HTTP Method: DELETE');
-            console.log('[DEBUG] Endpoint: /driver/vehicles/' + vehicleId);
-            try {
-              const res = await driverService.removeVehicle(vehicleId);
-              console.log('[DEBUG] Response Status:', res?.status);
-              console.log('[DEBUG] Response Data:', JSON.stringify(res?.data || {}));
-
-              setSubmittedVehicles(current => current.filter(item => (item._id || item.id) !== vehicleId));
-              await Promise.all([loadVehicles(), loadDashboard()]);
-              console.log('=== [REMOVE_VEHICLE_DEBUG] SUCCESS ===');
-              Alert.alert('Success', 'Vehicle removed successfully.');
-            } catch (error) {
-              console.log('=== [REMOVE_VEHICLE_DEBUG] ERROR ===');
-              console.log('[DEBUG] Error Code:', error?.code);
-              console.log('[DEBUG] Error Message:', error?.message);
-              console.log('[DEBUG] Error Response Status:', error?.response?.status);
-              console.log('[DEBUG] Error Response Data:', JSON.stringify(error?.response?.data || {}));
-              Alert.alert(
-                'Unable to remove vehicle',
-                error.response?.data?.message || error.message || 'Please try again.'
-              );
-            }
-          }
+          onPress: () => executeRemoveVehicle(vehicleId)
         }
       ]
     );
@@ -512,7 +534,8 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background
   },
   scrollContent: {
-    padding: SPACING.lg,
+    paddingHorizontal: SPACING.md,
+    paddingTop: SPACING.sm,
     paddingBottom: SPACING.huge * 2
   },
   statusBanner: {
@@ -520,8 +543,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: COLORS.surface,
-    padding: SPACING.lg,
-    borderRadius: 16,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    borderRadius: 14,
     borderWidth: 1.5,
     marginBottom: SPACING.md
   },

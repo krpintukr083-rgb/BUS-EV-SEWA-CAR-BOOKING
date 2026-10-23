@@ -10,7 +10,7 @@ import {
   RefreshControl,
   Alert,
 } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -140,40 +140,76 @@ export default function DriverKYCScreen({ navigation }) {
 
   // Vehicle image pickers
   const pickImage = async (type) => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 1,
-    });
-    // Support both Expo SDK 48+ (result.assets) and older (result.uri).
-    if (!result.canceled && !result.cancelled) {
-      const asset = result.assets ? result.assets[0] : result;
-      if (!asset?.uri) return;
+    try {
+      try {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted && Platform.OS === 'ios') {
+          Alert.alert('Permission required', 'Allow photo access to upload vehicle photos.');
+          return;
+        }
+      } catch (permErr) {
+        console.log('[DriverKYC] Permission check notice:', permErr?.message);
+      }
 
-      const uri = asset.uri;
-      const extension = uri.split('?')[0].split('.').pop()?.toLowerCase() || 'jpg';
-      if (!['jpg', 'jpeg', 'png'].includes(extension)) {
-        Alert.alert('Invalid image', 'Please select a JPG, JPEG, or PNG image.');
-        return;
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8,
+      });
+
+      // Support both Expo SDK 48+ (result.assets) and older (result.uri).
+      if (!result.canceled && !result.cancelled) {
+        const asset = result.assets ? result.assets[0] : result;
+        if (!asset?.uri) return;
+
+        let mimeType = asset.mimeType || 'image/jpeg';
+        let extension = 'jpg';
+        if (mimeType.includes('png')) {
+          extension = 'png';
+        } else if (mimeType.includes('webp')) {
+          extension = 'webp';
+        } else if (mimeType.includes('jpeg') || mimeType.includes('jpg')) {
+          extension = 'jpg';
+        } else {
+          const rawExt = asset.uri.split('?')[0].split('.').pop()?.toLowerCase();
+          if (rawExt && ['jpg', 'jpeg', 'png', 'webp'].includes(rawExt)) {
+            extension = rawExt === 'jpeg' ? 'jpg' : rawExt;
+            mimeType = extension === 'png' ? 'image/png' : (extension === 'webp' ? 'image/webp' : 'image/jpeg');
+          }
+        }
+
+        let localUri = asset.uri;
+        try {
+          const targetFilename = `vehicle_${type}_${Date.now()}.${extension}`;
+          const targetPath = `${FileSystem.cacheDirectory}${targetFilename}`;
+          await FileSystem.copyAsync({
+            from: asset.uri,
+            to: targetPath,
+          });
+          localUri = targetPath;
+        } catch (copyErr) {
+          console.log('[DriverKYC] File copy to cache fallback to original URI:', copyErr?.message);
+        }
+
+        const fileInfo = await FileSystem.getInfoAsync(localUri);
+        if (fileInfo.exists && fileInfo.size > 5 * 1024 * 1024) {
+          Alert.alert('Image too large', 'Each vehicle image must be 5 MB or smaller.');
+          return;
+        }
+
+        const name = `vehicle-${type}-${Date.now()}.${extension}`;
+        const file = { uri: localUri, name, type: mimeType };
+        if (type === 'front') {
+          setFrontImage(file);
+          setFrontImageUri(localUri);
+        } else {
+          setBackImage(file);
+          setBackImageUri(localUri);
+        }
       }
-      const fileInfo = await FileSystem.getInfoAsync(uri);
-      if (fileInfo.exists && fileInfo.size > 5 * 1024 * 1024) {
-        Alert.alert('Image too large', 'Each vehicle image must be 5 MB or smaller.');
-        return;
-      }
-      const normalizedExtension = extension;
-      const mimeType =
-        asset.mimeType ||
-        (normalizedExtension === 'png' ? 'image/png' : 'image/jpeg');
-      const name = `vehicle-${type}.${normalizedExtension}`;
-      const file = { uri, name, type: mimeType };
-      if (type === 'front') {
-        setFrontImage(file);
-        setFrontImageUri(uri);
-      } else {
-        setBackImage(file);
-        setBackImageUri(uri);
-      }
+    } catch (err) {
+      console.warn('[DriverKYC] Error picking vehicle image:', err);
+      Alert.alert('Photo Selection Error', err.message || 'Could not select photo. Please try again.');
     }
   };
 

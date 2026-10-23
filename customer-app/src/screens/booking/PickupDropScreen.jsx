@@ -16,8 +16,10 @@ import Input from '../../components/Input';
 import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
 import { getRoutePoints } from '../../utils/routeFares';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const PickupDropScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const { bookingDraft, updateDraft } = useBooking();
 
   const [pickup, setPickup] = useState(
@@ -82,7 +84,13 @@ const PickupDropScreen = ({ navigation }) => {
     >
       <Header title="Pickup & Drop" onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: 90 + Math.max(insets.bottom, 14) }
+        ]}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Selected Vehicle Card */}
         <View style={styles.vehicleSummaryCard}>
           <View style={[styles.servicePill, { backgroundColor: serviceColor + '15' }]}>
@@ -186,7 +194,7 @@ const PickupDropScreen = ({ navigation }) => {
       </ScrollView>
 
       {/* Footer */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 14) }]}>
         <Button
           title="Continue"
           onPress={handleContinue}

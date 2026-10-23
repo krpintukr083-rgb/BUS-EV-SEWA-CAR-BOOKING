@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,15 @@ import {
   Alert,
   Image,
   Modal,
-  ActivityIndicator
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import driverService from '../../services/driverService';
 import { getEffectiveBaseUrl } from '../../services/api';
 import { COLORS, SPACING } from '../../constants/theme';
@@ -121,6 +125,7 @@ function EVBatteryRangeCard({ values, onChange, onSave, saved, saving = false })
 }
 
 export default function VehicleSubmissionScreen({ navigation, route }) {
+  const insets = useSafeAreaInsets();
   const vehicleId = route?.params?.vehicleId;
   const isEditing = Boolean(vehicleId);
   const [category, setCategory] = useState('');
@@ -137,6 +142,33 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
   const [editLoadError, setEditLoadError] = useState('');
   const [photos, setPhotos] = useState({ front: null, back: null, left: null, right: null });
   const [busy, setBusy] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const formScrollRef = useRef(null);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardVisible(true);
+        if (e?.endCoordinates?.height) {
+          setKeyboardHeight(e.endCoordinates.height);
+        }
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const update = (key, value) => setForm(current => ({ ...current, [key]: value }));
   const updateRouteStop = (index, key, value) => {
@@ -207,42 +239,80 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
   };
 
   const pickPhoto = async type => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permission required', 'Allow photo access to upload vehicle photos.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 1
-    });
-
-    if (result.canceled || result.cancelled) return;
-    const asset = result.assets ? result.assets[0] : result;
-    if (!asset?.uri) return;
-
-    const extension = asset.uri.split('?')[0].split('.').pop()?.toLowerCase() || 'jpg';
-    if (!['jpg', 'jpeg', 'png'].includes(extension)) {
-      Alert.alert('Invalid image', 'Please select a JPG, JPEG, or PNG image.');
-      return;
-    }
-
-    const fileInfo = await FileSystem.getInfoAsync(asset.uri);
-    if (fileInfo.exists && fileInfo.size > 5 * 1024 * 1024) {
-      Alert.alert('Image too large', 'Each vehicle image must be 5 MB or smaller.');
-      return;
-    }
-
-    setPhotos(current => ({
-      ...current,
-      [type]: {
-        uri: asset.uri,
-        name: `vehicle-${type}.${extension}`,
-        type: asset.mimeType || (extension === 'png' ? 'image/png' : 'image/jpeg')
+    try {
+      // On modern Android (API 33+), the system Photo Picker doesn't require storage permissions.
+      // We check permission gracefully and do not block execution if not granted.
+      try {
+        const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!permission.granted && Platform.OS === 'ios') {
+          Alert.alert('Permission required', 'Allow photo access to upload vehicle photos.');
+          return;
+        }
+      } catch (permErr) {
+        console.log('[VehicleSubmission] Permission check notice:', permErr?.message);
       }
-    }));
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 0.8
+      });
+
+      if (result.canceled || result.cancelled) return;
+      const asset = result.assets ? result.assets[0] : result;
+      if (!asset?.uri) return;
+
+      // Extract extension and mime type safely for both file:// and Android content:// URIs
+      let mimeType = asset.mimeType || 'image/jpeg';
+      let extension = 'jpg';
+
+      if (mimeType.includes('png')) {
+        extension = 'png';
+      } else if (mimeType.includes('webp')) {
+        extension = 'webp';
+      } else if (mimeType.includes('jpeg') || mimeType.includes('jpg')) {
+        extension = 'jpg';
+      } else {
+        const rawExt = asset.uri.split('?')[0].split('.').pop()?.toLowerCase();
+        if (rawExt && ['jpg', 'jpeg', 'png', 'webp'].includes(rawExt)) {
+          extension = rawExt === 'jpeg' ? 'jpg' : rawExt;
+          mimeType = extension === 'png' ? 'image/png' : (extension === 'webp' ? 'image/webp' : 'image/jpeg');
+        }
+      }
+
+      // Ensure file exists and copy Android content:// URI to FileSystem cacheDirectory as local file:// URI
+      // This guarantees React Native FormData native layer can reliably read image bytes without permission expiration
+      let localUri = asset.uri;
+      try {
+        const targetFilename = `vehicle_${type}_${Date.now()}.${extension}`;
+        const targetPath = `${FileSystem.cacheDirectory}${targetFilename}`;
+        await FileSystem.copyAsync({
+          from: asset.uri,
+          to: targetPath
+        });
+        localUri = targetPath;
+      } catch (copyErr) {
+        console.log('[VehicleSubmission] File copy to cache fallback to original URI:', copyErr?.message);
+      }
+
+      const fileInfo = await FileSystem.getInfoAsync(localUri);
+      if (fileInfo.exists && fileInfo.size > 5 * 1024 * 1024) {
+        Alert.alert('Image too large', 'Each vehicle image must be 5 MB or smaller.');
+        return;
+      }
+
+      setPhotos(current => ({
+        ...current,
+        [type]: {
+          uri: localUri,
+          name: `vehicle-${type}-${Date.now()}.${extension}`,
+          type: mimeType
+        }
+      }));
+    } catch (err) {
+      console.warn('[VehicleSubmission] Error picking vehicle photo:', err);
+      Alert.alert('Photo Selection Error', err.message || 'Could not select photo. Please try again.');
+    }
   };
 
   const saveEVValues = async () => {
@@ -330,16 +400,32 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
         Alert.alert('Invalid route', 'Enter a unique name for each route stop.');
         return;
       }
+      const effectiveDestFare = destinationFareFromOrigin !== '' && !isNaN(Number(destinationFareFromOrigin))
+        ? Number(destinationFareFromOrigin)
+        : (routeStops.length > 0
+          ? (routeStops.length === 1
+            ? Number(routeStops[0]?.fareFromOrigin) || 0
+            : routeStops.reduce((sum, s) => sum + (Number(s?.fareFromOrigin) || 0), 0))
+          : 0);
+
       const cumulativeFares = [
         ...routeStops.map(stop => Number(stop.fareFromOrigin)),
-        ...(routeStops.length ? [Number(destinationFareFromOrigin)] : [])
+        ...(routeStops.length ? [effectiveDestFare] : [])
       ];
       if (routeStops.length && cumulativeFares.some(value => !Number.isFinite(value) || value <= 0)) {
         Alert.alert('Invalid route fare', 'Enter a positive customer fare from the origin for every stop and the destination.');
         return;
       }
-      if (cumulativeFares.some((value, index) => index > 0 && value < cumulativeFares[index - 1])) {
-        Alert.alert('Invalid route fare', 'Customer fare from origin must not decrease as the route moves forward.');
+      const invalidDecreasingIndex = cumulativeFares.findIndex((value, index) => index > 0 && value < cumulativeFares[index - 1]);
+      if (invalidDecreasingIndex !== -1) {
+        const prevFare = cumulativeFares[invalidDecreasingIndex - 1];
+        const currentFare = cumulativeFares[invalidDecreasingIndex];
+        const isDest = invalidDecreasingIndex === cumulativeFares.length - 1;
+        const pointName = isDest ? (form.destination?.trim() || 'Destination') : (routeStops[invalidDecreasingIndex]?.name?.trim() || `Stop ${invalidDecreasingIndex + 1}`);
+        Alert.alert(
+          'Invalid route fare',
+          `${pointName} fare (₹${currentFare}) cannot be less than the previous stop fare (₹${prevFare}). Customer fare from origin must not decrease along the route.`
+        );
         return;
       }
       const flatFare = Number(form.fareRate);
@@ -403,16 +489,32 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
           stops: cleanedStops
         };
 
-        if (destinationFareFromOrigin && Number(destinationFareFromOrigin) > 0) {
-          routePayload.destinationFareFromOrigin = Number(destinationFareFromOrigin);
+        const effectiveDestFare = destinationFareFromOrigin !== '' && !isNaN(Number(destinationFareFromOrigin))
+          ? Number(destinationFareFromOrigin)
+          : (cleanedStops.length > 0
+            ? (cleanedStops.length === 1
+              ? Number(cleanedStops[0]?.fareFromOrigin) || 0
+              : cleanedStops.reduce((sum, s) => sum + (Number(s?.fareFromOrigin) || 0), 0))
+            : 0);
+
+        if (effectiveDestFare > 0) {
+          routePayload.destinationFareFromOrigin = effectiveDestFare;
         }
 
-        if (cleanedStops.length > 0 && destinationFareFromOrigin && Number(destinationFareFromOrigin) > 0) {
-          fareRatePayload = Number(destinationFareFromOrigin);
+        if (cleanedStops.length > 0 && effectiveDestFare > 0) {
+          fareRatePayload = effectiveDestFare;
         } else if (form.fareRate && Number(form.fareRate) > 0) {
           fareRatePayload = Number(form.fareRate);
         }
       } else {
+        const effectiveDestFare = destinationFareFromOrigin !== '' && !isNaN(Number(destinationFareFromOrigin))
+          ? Number(destinationFareFromOrigin)
+          : (routeStops.length > 0
+            ? (routeStops.length === 1
+              ? Number(routeStops[0]?.fareFromOrigin) || 0
+              : routeStops.reduce((sum, s) => sum + (Number(s?.fareFromOrigin) || 0), 0))
+            : 0);
+
         routePayload = {
           origin: form.origin.trim(),
           destination: form.destination.trim(),
@@ -421,11 +523,11 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
               name: stop.name.trim(),
               fareFromOrigin: Number(stop.fareFromOrigin)
             })),
-            destinationFareFromOrigin: Number(destinationFareFromOrigin)
+            destinationFareFromOrigin: effectiveDestFare
           } : {})
         };
         fareRatePayload = routeStops.length
-          ? Number(destinationFareFromOrigin)
+          ? effectiveDestFare
           : Number(form.fareRate);
       }
 
@@ -544,7 +646,15 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
 
   if (isEditing) {
     return (
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView
+        contentContainerStyle={[
+          styles.container,
+          {
+            paddingTop: insets.top ? insets.top + SPACING.m : SPACING.l,
+            paddingBottom: insets.bottom ? insets.bottom + SPACING.l : SPACING.xl
+          }
+        ]}
+      >
         <TouchableOpacity style={styles.editBackButton} onPress={() => navigation.goBack()}>
           <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.textPrimary} />
           <Text style={styles.editBackText}>Back to vehicle</Text>
@@ -573,10 +683,54 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
     );
   }
 
+  const safeTopPadding = Math.max(insets.top || 0, Platform.OS === 'android' ? 32 : 20) + SPACING.s;
+
+  const lastStopFare = routeStops.length > 0
+    ? Number(routeStops[routeStops.length - 1]?.fareFromOrigin) || 0
+    : 0;
+
+  // If driver entered a manual destination fare, use it; otherwise automatically calculate from entered route stops
+  const effectiveDestinationFare = destinationFareFromOrigin !== '' && !isNaN(Number(destinationFareFromOrigin))
+    ? Number(destinationFareFromOrigin)
+    : (routeStops.length > 0
+      ? (routeStops.length === 1
+        ? Number(routeStops[0]?.fareFromOrigin) || 0
+        : routeStops.reduce((sum, s) => sum + (Number(s?.fareFromOrigin) || 0), 0))
+      : 0);
+
+  const fullRouteFare = routeStops.length > 0
+    ? effectiveDestinationFare
+    : (Number(form.fareRate) || 0);
+
+  const hasRouteFareDecreaseError = routeStops.length > 0 &&
+    destinationFareFromOrigin !== '' &&
+    Number(destinationFareFromOrigin) > 0 &&
+    lastStopFare > 0 &&
+    Number(destinationFareFromOrigin) < lastStopFare;
+
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Register vehicle</Text>
-      <Text style={styles.help}>New vehicles are reviewed by admin before customers can see them.</Text>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={styles.screenWrapper}
+    >
+      <ScrollView
+        ref={formScrollRef}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.container,
+          {
+            paddingTop: safeTopPadding,
+            paddingBottom: Math.max(insets.bottom || 0, SPACING.xl) + (keyboardVisible && keyboardHeight > 0 ? keyboardHeight + SPACING.l : SPACING.xl + 20)
+          }
+        ]}
+      >
+        <TouchableOpacity style={styles.editBackButton} onPress={() => navigation.goBack()}>
+          <MaterialCommunityIcons name="arrow-left" size={22} color={COLORS.textPrimary} />
+          <Text style={styles.editBackText}>Back to Dashboard</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>Register vehicle</Text>
+        <Text style={styles.help}>New vehicles are reviewed by admin before customers can see them.</Text>
       <Text style={styles.sectionTitle}>Driver Category *</Text>
       <TouchableOpacity
         style={styles.dropdown}
@@ -705,9 +859,23 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
         placeholderTextColor={COLORS.textMuted}
         style={styles.input}
       />
-      <Text style={styles.help}>
-        Add optional stops and enter each fare from the origin. The full-route fare is calculated automatically.
-      </Text>
+      <View style={{ marginTop: 2, marginBottom: SPACING.xs }}>
+        <Text style={[styles.help, styles.routePreviewText]}>
+          {form.origin.trim() || 'Origin'}
+          {routeStops.map(stop => ` → ${stop.name.trim() || 'Stop'}`)}
+          {` → ${form.destination.trim() || 'Destination'}`}
+        </Text>
+        {routeStops.map((stop, index) => (
+          <Text key={`route-preview-${index}`} style={[styles.help, styles.routePreviewText]}>
+            {stop.name.trim() || `Stop ${index + 1}`} — ₹{Number(stop.fareFromOrigin) || 0} from origin
+          </Text>
+        ))}
+        {routeStops.length > 0 && (
+          <Text style={[styles.help, styles.routePreviewText]}>
+            {form.destination.trim() || 'Destination'} — ₹{effectiveDestinationFare} from origin
+          </Text>
+        )}
+      </View>
       {routeStops.map((stop, index) => (
         <View key={`route-stop-${index}`} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <TextInput
@@ -739,36 +907,28 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
           <TextInput
             value={destinationFareFromOrigin}
             onChangeText={setDestinationFareFromOrigin}
-            placeholder={category === 'Car' ? 'Customer Fare from Origin to Destination (₹)' : 'Customer Fare from Origin to Destination (₹) *'}
+            placeholder={effectiveDestinationFare > 0
+              ? `Destination Fare (Auto: ₹${effectiveDestinationFare})`
+              : (category === 'Car' ? 'Customer Fare from Origin to Destination (₹)' : 'Customer Fare from Origin to Destination (₹)')
+            }
             placeholderTextColor={COLORS.textMuted}
             keyboardType="decimal-pad"
-            style={styles.input}
+            style={[styles.input, hasRouteFareDecreaseError && { borderColor: COLORS.danger || '#dc2626', borderWidth: 1 }]}
           />
-          <Text style={styles.help}>
-            Full Route Fare: ₹{Number(destinationFareFromOrigin || form.fareRate) || 0}
-          </Text>
+          {hasRouteFareDecreaseError ? (
+            <Text style={[styles.help, { color: COLORS.danger || '#dc2626', fontWeight: '700' }]}>
+              Destination fare (₹{Number(destinationFareFromOrigin)}) cannot be less than previous stop (₹{lastStopFare}). Customer fare from origin must not decrease.
+            </Text>
+          ) : (
+            <Text style={styles.help}>
+              Full Route Fare: ₹{fullRouteFare}
+            </Text>
+          )}
         </View>
       )}
-      <View style={{ marginBottom: SPACING.s }}>
-        <Text style={styles.help}>
-          {form.origin.trim() || 'Origin'}
-          {routeStops.map(stop => ` → ${stop.name.trim() || 'Stop'}`)}
-          {` → ${form.destination.trim() || 'Destination'}`}
-        </Text>
-        {routeStops.map((stop, index) => (
-          <Text key={`route-preview-${index}`} style={styles.help}>
-            {stop.name.trim() || `Stop ${index + 1}`} — ₹{Number(stop.fareFromOrigin) || 0} from origin
-          </Text>
-        ))}
-        {routeStops.length > 0 && (
-          <Text style={styles.help}>
-            {form.destination.trim() || 'Destination'} — ₹{Number(destinationFareFromOrigin) || 0} from origin
-          </Text>
-        )}
-      </View>
       <TouchableOpacity
         onPress={() => setRouteStops(current => [...current, { name: '', fareFromOrigin: '' }])}
-        style={[styles.button, { backgroundColor: COLORS.bgCard, borderWidth: 1, borderColor: COLORS.border }]}
+        style={[styles.button, styles.addStopButton]}
       >
         <Text style={[styles.buttonText, { color: COLORS.primaryLight }]}>+ Add Stop</Text>
       </TouchableOpacity>
@@ -797,9 +957,15 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
         </>
       )}
 
-      <TouchableOpacity disabled={busy} onPress={submit} style={styles.button}>
+      <TouchableOpacity
+        disabled={busy}
+        onPress={submit}
+        style={styles.button}
+        activeOpacity={0.85}
+      >
         <Text style={styles.buttonText}>{busy ? 'Submitting...' : 'Submit for approval'}</Text>
       </TouchableOpacity>
+      </ScrollView>
 
       <Modal
         visible={categoryOpen}
@@ -882,7 +1048,7 @@ export default function VehicleSubmissionScreen({ navigation, route }) {
           </View>
         </TouchableOpacity>
       </Modal>
-    </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -1050,5 +1216,20 @@ const styles = StyleSheet.create({
   },
   replaceText: { color: COLORS.white, fontSize: 11, fontWeight: '700' },
   button: { backgroundColor: COLORS.primary, padding: SPACING.m, borderRadius: 8, alignItems: 'center', marginTop: SPACING.s },
-  buttonText: { color: COLORS.white, fontWeight: '700' }
+  buttonText: { color: COLORS.white, fontWeight: '700' },
+  routePreviewText: {
+    marginBottom: 0,
+    marginTop: 0,
+  },
+  addStopButton: {
+    backgroundColor: COLORS.bgCard,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    marginTop: SPACING.xs,
+    marginBottom: SPACING.s,
+  },
+  screenWrapper: {
+    flex: 1,
+    backgroundColor: COLORS.bgDark
+  }
 });

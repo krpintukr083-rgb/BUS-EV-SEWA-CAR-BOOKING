@@ -1,7 +1,21 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Alert, ScrollView, Image } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS, SPACING } from '../../constants/theme';
 import { useAuth } from '../../state/AuthContext';
 import { useLanguage } from '../../state/LanguageContext';
@@ -11,6 +25,7 @@ const RegisterScreen = ({ navigation }) => {
   const [step, setStep] = useState(1);
   const { register, sendRegistrationOtp } = useAuth();
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -21,6 +36,99 @@ const RegisterScreen = ({ navigation }) => {
   const [emergencyPhone, setEmergencyPhone] = useState('');
   const [driverPhotoAsset, setDriverPhotoAsset] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  // Keyboard and scroll management
+  const scrollViewRef = useRef(null);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  const inputRefs = {
+    name: useRef(null),
+    phone: useRef(null),
+    drivingLicenceNumber: useRef(null),
+    password: useRef(null),
+    email: useRef(null),
+    address: useRef(null),
+    emergencyPhone: useRef(null),
+    otp: useRef(null),
+  };
+
+  const fieldYPositions = useRef({});
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardVisible(true);
+        if (e?.endCoordinates?.height) {
+          setKeyboardHeight(e.endCoordinates.height);
+        }
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const handleInputFocus = (fieldKey) => {
+    setTimeout(() => {
+      if (!scrollViewRef.current) return;
+
+      const targetY = fieldYPositions.current[fieldKey];
+
+      // For emergencyPhone, address, and otp, scroll to end so Send OTP is right above keyboard
+      if (
+        fieldKey === 'emergencyPhone' ||
+        fieldKey === 'address' ||
+        fieldKey === 'otp'
+      ) {
+        scrollViewRef.current.scrollToEnd({ animated: true });
+      } else if (
+        fieldKey === 'password' ||
+        fieldKey === 'email' ||
+        fieldKey === 'drivingLicenceNumber' ||
+        fieldKey === 'phone'
+      ) {
+        if (targetY !== undefined) {
+          scrollViewRef.current.scrollTo({
+            y: Math.max(0, targetY - 40),
+            animated: true
+          });
+        } else {
+          scrollViewRef.current.scrollToEnd({ animated: true });
+        }
+      } else if (targetY !== undefined) {
+        scrollViewRef.current.scrollTo({
+          y: Math.max(0, targetY - 60),
+          animated: true
+        });
+      }
+
+      // Native scroll responder integration
+      const nodeRef = inputRefs[fieldKey]?.current;
+      if (nodeRef && scrollViewRef.current?.getScrollResponder) {
+        try {
+          const responder = scrollViewRef.current.getScrollResponder();
+          if (responder?.scrollResponderScrollNativeHandleToKeyboard) {
+            responder.scrollResponderScrollNativeHandleToKeyboard(
+              nodeRef,
+              120,
+              true
+            );
+          }
+        } catch (_) {}
+      }
+    }, 150);
+  };
 
   const handlePickGalleryPhoto = async () => {
     try {
@@ -132,183 +240,235 @@ const RegisterScreen = ({ navigation }) => {
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-      <TouchableOpacity style={styles.backRow} onPress={() => {
-        if (step === 2) setStep(1);
-        else navigation.goBack();
-      }}>
-        <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-        <Text style={styles.backText}>{step === 2 ? 'Back to Form' : 'Back to Login'}</Text>
-      </TouchableOpacity>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.container}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
+    >
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: Math.max(insets.top || 0, SPACING.lg),
+            paddingBottom: Math.max(insets.bottom || 0, SPACING.xl) + (keyboardVisible && keyboardHeight > 0 ? keyboardHeight + SPACING.xl : SPACING.huge * 2)
+          }
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <TouchableOpacity style={styles.backRow} onPress={() => {
+          if (step === 2) setStep(1);
+          else navigation.goBack();
+        }}>
+          <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+          <Text style={styles.backText}>{step === 2 ? 'Back to Form' : 'Back to Login'}</Text>
+        </TouchableOpacity>
 
-      <Text style={styles.screenTitle}>{step === 1 ? t('register') : 'Verify OTP'}</Text>
-      <Text style={styles.screenSub}>
-        {step === 1 ? 'Join YatraSewanp.com as a verified multi-modal driver partner' : `Enter the 6-digit OTP sent to ${phone}`}
-      </Text>
-
-      {/* Notice Pill */}
-      <View style={styles.noticePill}>
-        <Ionicons name="information-circle" size={18} color={COLORS.primaryLight} />
-        <Text style={styles.noticeText}>
-          Accounts start in <Text style={{ fontWeight: '800' }}>Pending Verification</Text> until KYC documents are approved.
+        <Text style={styles.screenTitle}>{step === 1 ? t('register') : 'Verify OTP'}</Text>
+        <Text style={styles.screenSub}>
+          {step === 1 ? 'Join YatraSewanp.com as a verified multi-modal driver partner' : `Enter the 6-digit OTP sent to ${phone}`}
         </Text>
-      </View>
 
-      {step === 1 ? (
-        <>
-          {/* Driver Photo Upload */}
-          <Text style={styles.label}>Driver Profile Photo (Verification Image)</Text>
-          {driverPhotoAsset ? (
-            <View style={styles.photoPreviewCard}>
-              <Image source={{ uri: driverPhotoAsset.uri }} style={styles.previewImage} />
-              <View style={styles.photoActionsRow}>
-                <TouchableOpacity style={styles.photoActionBtn} onPress={handleTakePhoto}>
-                  <Ionicons name="camera" size={16} color="#FFF" />
-                  <Text style={styles.photoActionText}>Retake</Text>
+        {/* Notice Pill */}
+        <View style={styles.noticePill}>
+          <Ionicons name="information-circle" size={18} color={COLORS.primaryLight} />
+          <Text style={styles.noticeText}>
+            Accounts start in <Text style={{ fontWeight: '800' }}>Pending Verification</Text> until KYC documents are approved.
+          </Text>
+        </View>
+
+        {step === 1 ? (
+          <>
+            {/* Driver Photo Upload */}
+            <Text style={styles.label}>Driver Profile Photo (Verification Image)</Text>
+            {driverPhotoAsset ? (
+              <View style={styles.photoPreviewCard}>
+                <Image source={{ uri: driverPhotoAsset.uri }} style={styles.previewImage} />
+                <View style={styles.photoActionsRow}>
+                  <TouchableOpacity style={styles.photoActionBtn} onPress={handleTakePhoto}>
+                    <Ionicons name="camera" size={16} color="#FFF" />
+                    <Text style={styles.photoActionText}>Retake</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.photoActionBtn} onPress={handlePickGalleryPhoto}>
+                    <Ionicons name="images" size={16} color="#FFF" />
+                    <Text style={styles.photoActionText}>Gallery</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.removePhotoBtn} onPress={() => setDriverPhotoAsset(null)}>
+                    <Ionicons name="trash" size={16} color="#dc2626" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.photoPickerContainer}>
+                <TouchableOpacity style={styles.photoPickerBtn} onPress={handleTakePhoto}>
+                  <Ionicons name="camera" size={26} color={COLORS.primaryLight} />
+                  <Text style={styles.photoPickerText}>Take Photo</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.photoActionBtn} onPress={handlePickGalleryPhoto}>
-                  <Ionicons name="images" size={16} color="#FFF" />
-                  <Text style={styles.photoActionText}>Gallery</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.removePhotoBtn} onPress={() => setDriverPhotoAsset(null)}>
-                  <Ionicons name="trash" size={16} color="#dc2626" />
+                <TouchableOpacity style={styles.photoPickerBtn} onPress={handlePickGalleryPhoto}>
+                  <Ionicons name="images" size={26} color={COLORS.primaryLight} />
+                  <Text style={styles.photoPickerText}>Choose Gallery</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-          ) : (
-            <View style={styles.photoPickerContainer}>
-              <TouchableOpacity style={styles.photoPickerBtn} onPress={handleTakePhoto}>
-                <Ionicons name="camera" size={26} color={COLORS.primaryLight} />
-                <Text style={styles.photoPickerText}>Take Photo</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.photoPickerBtn} onPress={handlePickGalleryPhoto}>
-                <Ionicons name="images" size={26} color={COLORS.primaryLight} />
-                <Text style={styles.photoPickerText}>Choose Gallery</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* Full Name */}
-          <Text style={styles.label}>Full Name *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Hari Bahadur"
-            placeholderTextColor={COLORS.textMuted}
-            value={name}
-            onChangeText={setName}
-          />
-
-          {/* Mobile Number */}
-          <Text style={styles.label}>Mobile Phone Number *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. 9841000001"
-            placeholderTextColor={COLORS.textMuted}
-            keyboardType="phone-pad"
-            value={phone}
-            onChangeText={setPhone}
-          />
-
-          {/* Driving Licence Number */}
-          <Text style={styles.label}>Driving Licence Number *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. DL-01-2024-9982"
-            placeholderTextColor={COLORS.textMuted}
-            value={drivingLicenceNumber}
-            onChangeText={setDrivingLicenceNumber}
-          />
-
-          {/* Password */}
-          <Text style={styles.label}>Password *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Minimum 6 characters"
-            placeholderTextColor={COLORS.textMuted}
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-          />
-
-          {/* Email (Optional) */}
-          <Text style={styles.label}>Email Address (Optional)</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. hari.driver@platform.com"
-            placeholderTextColor={COLORS.textMuted}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={setEmail}
-          />
-
-          {/* Address */}
-          <Text style={styles.label}>City / Address</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Kalanki, Kathmandu"
-            placeholderTextColor={COLORS.textMuted}
-            value={address}
-            onChangeText={setAddress}
-          />
-
-          {/* Emergency Contact */}
-          <Text style={styles.label}>Emergency Contact Phone</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. 9800000000 (Family Contact)"
-            placeholderTextColor={COLORS.textMuted}
-            keyboardType="phone-pad"
-            value={emergencyPhone}
-            onChangeText={setEmergencyPhone}
-          />
-
-          {/* Submit Button */}
-          <TouchableOpacity
-            style={styles.submitBtn}
-            onPress={handleSendOtp}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <Text style={styles.submitBtnText}>Send OTP</Text>
             )}
-          </TouchableOpacity>
-        </>
-      ) : (
-        <>
-          <Text style={styles.label}>OTP Code *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="6-digit code"
-            placeholderTextColor={COLORS.textMuted}
-            keyboardType="number-pad"
-            maxLength={6}
-            value={otp}
-            onChangeText={setOtp}
-          />
 
-          <TouchableOpacity
-            style={styles.submitBtn}
-            onPress={handleRegister}
-            disabled={loading}
-            activeOpacity={0.8}
-          >
-            {loading ? (
-              <ActivityIndicator color="#FFF" />
-            ) : (
-              <Text style={styles.submitBtnText}>Verify OTP & Submit</Text>
-            )}
-          </TouchableOpacity>
-          
-          <TouchableOpacity onPress={handleSendOtp} style={{ marginTop: 16, alignItems: 'center' }}>
-            <Text style={{ color: COLORS.primary, fontWeight: '600' }}>Resend OTP</Text>
-          </TouchableOpacity>
-        </>
-      )}
-    </ScrollView>
+            {/* Full Name */}
+            <View onLayout={(e) => { fieldYPositions.current['name'] = e.nativeEvent.layout.y; }}>
+              <Text style={styles.label}>Full Name *</Text>
+              <TextInput
+                ref={inputRefs.name}
+                style={styles.input}
+                placeholder="e.g. Hari Bahadur"
+                placeholderTextColor={COLORS.textMuted}
+                value={name}
+                onChangeText={setName}
+                onFocus={() => handleInputFocus('name')}
+              />
+            </View>
+
+            {/* Mobile Number */}
+            <View onLayout={(e) => { fieldYPositions.current['phone'] = e.nativeEvent.layout.y; }}>
+              <Text style={styles.label}>Mobile Phone Number *</Text>
+              <TextInput
+                ref={inputRefs.phone}
+                style={styles.input}
+                placeholder="e.g. 9841000001"
+                placeholderTextColor={COLORS.textMuted}
+                keyboardType="phone-pad"
+                value={phone}
+                onChangeText={setPhone}
+                onFocus={() => handleInputFocus('phone')}
+              />
+            </View>
+
+            {/* Driving Licence Number */}
+            <View onLayout={(e) => { fieldYPositions.current['drivingLicenceNumber'] = e.nativeEvent.layout.y; }}>
+              <Text style={styles.label}>Driving Licence Number *</Text>
+              <TextInput
+                ref={inputRefs.drivingLicenceNumber}
+                style={styles.input}
+                placeholder="e.g. DL-01-2024-9982"
+                placeholderTextColor={COLORS.textMuted}
+                value={drivingLicenceNumber}
+                onChangeText={setDrivingLicenceNumber}
+                onFocus={() => handleInputFocus('drivingLicenceNumber')}
+              />
+            </View>
+
+            {/* Password */}
+            <View onLayout={(e) => { fieldYPositions.current['password'] = e.nativeEvent.layout.y; }}>
+              <Text style={styles.label}>Password *</Text>
+              <TextInput
+                ref={inputRefs.password}
+                style={styles.input}
+                placeholder="Minimum 6 characters"
+                placeholderTextColor={COLORS.textMuted}
+                secureTextEntry
+                value={password}
+                onChangeText={setPassword}
+                onFocus={() => handleInputFocus('password')}
+              />
+            </View>
+
+            {/* Email (Optional) */}
+            <View onLayout={(e) => { fieldYPositions.current['email'] = e.nativeEvent.layout.y; }}>
+              <Text style={styles.label}>Email Address (Optional)</Text>
+              <TextInput
+                ref={inputRefs.email}
+                style={styles.input}
+                placeholder="e.g. hari.driver@platform.com"
+                placeholderTextColor={COLORS.textMuted}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={email}
+                onChangeText={setEmail}
+                onFocus={() => handleInputFocus('email')}
+              />
+            </View>
+
+            {/* Address */}
+            <View onLayout={(e) => { fieldYPositions.current['address'] = e.nativeEvent.layout.y; }}>
+              <Text style={styles.label}>City / Address</Text>
+              <TextInput
+                ref={inputRefs.address}
+                style={styles.input}
+                placeholder="e.g. Kalanki, Kathmandu"
+                placeholderTextColor={COLORS.textMuted}
+                value={address}
+                onChangeText={setAddress}
+                onFocus={() => handleInputFocus('address')}
+              />
+            </View>
+
+            {/* Emergency Contact */}
+            <View onLayout={(e) => { fieldYPositions.current['emergencyPhone'] = e.nativeEvent.layout.y; }}>
+              <Text style={styles.label}>Emergency Contact Phone</Text>
+              <TextInput
+                ref={inputRefs.emergencyPhone}
+                style={styles.input}
+                placeholder="e.g. 9800000000 (Family Contact)"
+                placeholderTextColor={COLORS.textMuted}
+                keyboardType="phone-pad"
+                value={emergencyPhone}
+                onChangeText={setEmergencyPhone}
+                onFocus={() => handleInputFocus('emergencyPhone')}
+              />
+            </View>
+
+            {/* Submit Button */}
+            <View onLayout={(e) => { fieldYPositions.current['submitBtn'] = e.nativeEvent.layout.y; }}>
+              <TouchableOpacity
+                style={styles.submitBtn}
+                onPress={handleSendOtp}
+                disabled={loading}
+                activeOpacity={0.8}
+              >
+                {loading ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <Text style={styles.submitBtnText}>Send OTP</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          <>
+            <View onLayout={(e) => { fieldYPositions.current['otp'] = e.nativeEvent.layout.y; }}>
+              <Text style={styles.label}>OTP Code *</Text>
+              <TextInput
+                ref={inputRefs.otp}
+                style={styles.input}
+                placeholder="6-digit code"
+                placeholderTextColor={COLORS.textMuted}
+                keyboardType="number-pad"
+                maxLength={6}
+                value={otp}
+                onChangeText={setOtp}
+                onFocus={() => handleInputFocus('otp')}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={styles.submitBtn}
+              onPress={handleRegister}
+              disabled={loading}
+              activeOpacity={0.8}
+            >
+              {loading ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <Text style={styles.submitBtnText}>Verify OTP & Submit</Text>
+              )}
+            </TouchableOpacity>
+            
+            <TouchableOpacity onPress={handleSendOtp} style={{ marginTop: 16, alignItems: 'center' }}>
+              <Text style={{ color: COLORS.primary, fontWeight: '600' }}>Resend OTP</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -317,7 +477,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background
   },
+  scrollView: {
+    flex: 1
+  },
   scrollContent: {
+    flexGrow: 1,
     padding: SPACING.xl,
     paddingBottom: SPACING.huge * 2
   },
@@ -373,7 +537,7 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     paddingVertical: 14,
     alignItems: 'center',
-    justify: 'center',
+    justifyContent: 'center',
     gap: 6
   },
   photoPickerText: {

@@ -251,7 +251,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: '#ffffff',
     borderRadius: 16,
-    padding: 20,
+    padding: 14,
     marginVertical: 10,
     borderWidth: 1.5,
     borderColor: '#3b82f6',
@@ -309,7 +309,8 @@ const styles = StyleSheet.create({
     marginVertical: 16
   },
   otpSection: {
-    alignItems: 'center'
+    alignItems: 'center',
+    width: '100%'
   },
   otpSectionTitle: {
     fontSize: 12,
@@ -328,24 +329,26 @@ const styles = StyleSheet.create({
   },
   digitBoxesRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    gap: 6,
     marginBottom: SPACING.m
   },
   otpInput: {
-    width: 48,
+    flex: 1,
     height: 48,
     borderWidth: 1,
     borderColor: '#D6E4F0',
-    borderRadius: 10,
+    borderRadius: 8,
     backgroundColor: '#FFFFFF',
     color: '#111827',
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '800',
     textAlign: 'center',
     textAlignVertical: 'center',
     padding: 0,
-    opacity: 1,
+    minWidth: 0,
   },
   digitBoxFilled: {
     borderColor: '#3b82f6',

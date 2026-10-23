@@ -8,6 +8,7 @@ import {
   Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useBooking } from '../../context/BookingContext';
 import { customerService } from '../../services/customerService';
 import Header from '../../components/Header';
@@ -28,6 +29,8 @@ const seatRows = [
 ];
 
 const BusSeatSelectionScreen = ({ navigation, route }) => {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 0);
   const { busId, bus: passedBus } = route.params || {};
   const { bookingDraft, updateDraft } = useBooking();
   const targetBusId = busId || passedBus?._id || bookingDraft.vehicle?._id;
@@ -128,7 +131,7 @@ const BusSeatSelectionScreen = ({ navigation, route }) => {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 + bottomInset }]} showsVerticalScrollIndicator={false}>
         {/* Bus Cabin Outer Shell */}
         <View style={styles.busCabin}>
           {/* Driver Cockpit */}
@@ -185,7 +188,7 @@ const BusSeatSelectionScreen = ({ navigation, route }) => {
       </ScrollView>
 
       {/* Selected Seats Summary Bottom Bar */}
-      <View style={styles.bottomBar}>
+      <View style={[styles.bottomBar, { paddingBottom: bottomInset > 0 ? bottomInset + 8 : 14 }]}>
         <View style={{ flex: 1 }}>
           <Text style={styles.barSeatsLabel}>
             Seats: {selectedSeats.length > 0 ? selectedSeats.join(', ') : 'None'}

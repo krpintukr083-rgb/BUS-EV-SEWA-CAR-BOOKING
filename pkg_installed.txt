@@ -1,0 +1,281 @@
+Activity Resolver Table:
+  Schemes:
+      com.travelease.customer:
+        6a1f742 com.travelease.customer/.MainActivity filter 6cc3490
+          Action: "android.intent.action.VIEW"
+          Category: "android.intent.category.DEFAULT"
+          Category: "android.intent.category.BROWSABLE"
+          Scheme: "com.travelease.customer"
+
+  Non-Data Actions:
+      android.intent.action.MAIN:
+        6a1f742 com.travelease.customer/.MainActivity filter b589353
+          Action: "android.intent.action.MAIN"
+          Category: "android.intent.category.LAUNCHER"
+
+Receiver Resolver Table:
+  Non-Data Actions:
+      android.intent.action.QUICKBOOT_POWERON:
+        4567189 com.travelease.customer/expo.modules.notifications.service.NotificationsService filter 85c458e
+          Action: "android.intent.action.QUICKBOOT_POWERON"
+          Action: "com.htc.intent.action.QUICKBOOT_POWERON"
+          Action: "expo.modules.notifications.NOTIFICATION_EVENT"
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.intent.action.MY_PACKAGE_REPLACED"
+          Action: "android.intent.action.REBOOT"
+          mPriority=-1, mOrder=0, mHasStaticPartialTypes=false, mHasDynamicPartialTypes=false
+      com.htc.intent.action.QUICKBOOT_POWERON:
+        4567189 com.travelease.customer/expo.modules.notifications.service.NotificationsService filter 85c458e
+          Action: "android.intent.action.QUICKBOOT_POWERON"
+          Action: "com.htc.intent.action.QUICKBOOT_POWERON"
+          Action: "expo.modules.notifications.NOTIFICATION_EVENT"
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.intent.action.MY_PACKAGE_REPLACED"
+          Action: "android.intent.action.REBOOT"
+          mPriority=-1, mOrder=0, mHasStaticPartialTypes=false, mHasDynamicPartialTypes=false
+      androidx.profileinstaller.action.SAVE_PROFILE:
+        9ab9d45 com.travelease.customer/androidx.profileinstaller.ProfileInstallReceiver filter f8a05a8
+          Action: "androidx.profileinstaller.action.SAVE_PROFILE"
+      expo.modules.notifications.NOTIFICATION_EVENT:
+        4567189 com.travelease.customer/expo.modules.notifications.service.NotificationsService filter 85c458e
+          Action: "android.intent.action.QUICKBOOT_POWERON"
+          Action: "com.htc.intent.action.QUICKBOOT_POWERON"
+          Action: "expo.modules.notifications.NOTIFICATION_EVENT"
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.intent.action.MY_PACKAGE_REPLACED"
+          Action: "android.intent.action.REBOOT"
+          mPriority=-1, mOrder=0, mHasStaticPartialTypes=false, mHasDynamicPartialTypes=false
+      androidx.profileinstaller.action.INSTALL_PROFILE:
+        9ab9d45 com.travelease.customer/androidx.profileinstaller.ProfileInstallReceiver filter 5b2c9a
+          Action: "androidx.profileinstaller.action.INSTALL_PROFILE"
+      com.google.android.c2dm.intent.RECEIVE:
+        64f11af com.travelease.customer/com.google.firebase.iid.FirebaseInstanceIdReceiver filter 36809bc
+          Action: "com.google.android.c2dm.intent.RECEIVE"
+      androidx.profileinstaller.action.SKIP_FILE:
+        9ab9d45 com.travelease.customer/androidx.profileinstaller.ProfileInstallReceiver filter 78519cb
+          Action: "androidx.profileinstaller.action.SKIP_FILE"
+      androidx.profileinstaller.action.BENCHMARK_OPERATION:
+        9ab9d45 com.travelease.customer/androidx.profileinstaller.ProfileInstallReceiver filter 36dc8c1
+          Action: "androidx.profileinstaller.action.BENCHMARK_OPERATION"
+      android.intent.action.BOOT_COMPLETED:
+        4567189 com.travelease.customer/expo.modules.notifications.service.NotificationsService filter 85c458e
+          Action: "android.intent.action.QUICKBOOT_POWERON"
+          Action: "com.htc.intent.action.QUICKBOOT_POWERON"
+          Action: "expo.modules.notifications.NOTIFICATION_EVENT"
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.intent.action.MY_PACKAGE_REPLACED"
+          Action: "android.intent.action.REBOOT"
+          mPriority=-1, mOrder=0, mHasStaticPartialTypes=false, mHasDynamicPartialTypes=false
+      android.intent.action.MY_PACKAGE_REPLACED:
+        4567189 com.travelease.customer/expo.modules.notifications.service.NotificationsService filter 85c458e
+          Action: "android.intent.action.QUICKBOOT_POWERON"
+          Action: "com.htc.intent.action.QUICKBOOT_POWERON"
+          Action: "expo.modules.notifications.NOTIFICATION_EVENT"
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.intent.action.MY_PACKAGE_REPLACED"
+          Action: "android.intent.action.REBOOT"
+          mPriority=-1, mOrder=0, mHasStaticPartialTypes=false, mHasDynamicPartialTypes=false
+      android.intent.action.REBOOT:
+        4567189 com.travelease.customer/expo.modules.notifications.service.NotificationsService filter 85c458e
+          Action: "android.intent.action.QUICKBOOT_POWERON"
+          Action: "com.htc.intent.action.QUICKBOOT_POWERON"
+          Action: "expo.modules.notifications.NOTIFICATION_EVENT"
+          Action: "android.intent.action.BOOT_COMPLETED"
+          Action: "android.intent.action.MY_PACKAGE_REPLACED"
+          Action: "android.intent.action.REBOOT"
+          mPriority=-1, mOrder=0, mHasStaticPartialTypes=false, mHasDynamicPartialTypes=false
+
+Service Resolver Table:
+  Non-Data Actions:
+      com.google.firebase.MESSAGING_EVENT:
+        94dd454 com.travelease.customer/expo.modules.notifications.service.ExpoFirebaseMessagingService filter 9cd2ffd
+          Action: "com.google.firebase.MESSAGING_EVENT"
+          mPriority=-1, mOrder=0, mHasStaticPartialTypes=false, mHasDynamicPartialTypes=false
+        baab4f2 com.travelease.customer/com.google.firebase.messaging.FirebaseMessagingService filter ffcf743
+          Action: "com.google.firebase.MESSAGING_EVENT"
+          mPriority=-500, mOrder=0, mHasStaticPartialTypes=false, mHasDynamicPartialTypes=false
+      com.google.android.gms.metadata.MODULE_DEPENDENCIES:
+        f2f7866 com.travelease.customer/com.google.android.gms.metadata.ModuleDependencies filter 2c987a7
+          Action: "com.google.android.gms.metadata.MODULE_DEPENDENCIES"
+
+Domain verification status:
+
+Permissions:
+  Permission [com.travelease.customer.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION] (e61e49e):
+    sourcePackage=com.travelease.customer
+    uid=10220 gids=[] type=0 prot=signature
+    perm=PermissionInfo{38aab7f com.travelease.customer.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION}
+    flags=0x0
+
+Registered ContentProviders:
+  com.travelease.customer/expo.modules.imagepicker.fileprovider.ImagePickerFileProvider:
+    Provider{585e74c com.travelease.customer/expo.modules.imagepicker.fileprovider.ImagePickerFileProvider}
+  com.travelease.customer/com.canhub.cropper.CropFileProvider:
+    Provider{744d395 com.travelease.customer/com.canhub.cropper.CropFileProvider}
+  com.travelease.customer/androidx.startup.InitializationProvider:
+    Provider{b03acaa com.travelease.customer/androidx.startup.InitializationProvider}
+  com.travelease.customer/com.reactnativecommunity.webview.RNCWebViewFileProvider:
+    Provider{4a8809b com.travelease.customer/com.reactnativecommunity.webview.RNCWebViewFileProvider}
+  com.travelease.customer/expo.modules.filesystem.FileSystemFileProvider:
+    Provider{5d02c38 com.travelease.customer/expo.modules.filesystem.FileSystemFileProvider}
+  com.travelease.customer/com.google.firebase.provider.FirebaseInitProvider:
+    Provider{26c1411 com.travelease.customer/com.google.firebase.provider.FirebaseInitProvider}
+
+ContentProvider Authorities:
+  [com.travelease.customer.androidx-startup]:
+    Provider{b03acaa com.travelease.customer/androidx.startup.InitializationProvider}
+      applicationInfo=ApplicationInfo{c47e976 com.travelease.customer}
+  [com.travelease.customer.firebaseinitprovider]:
+    Provider{26c1411 com.travelease.customer/com.google.firebase.provider.FirebaseInitProvider}
+      applicationInfo=ApplicationInfo{b048b77 com.travelease.customer}
+  [com.travelease.customer.fileprovider]:
+    Provider{4a8809b com.travelease.customer/com.reactnativecommunity.webview.RNCWebViewFileProvider}
+      applicationInfo=ApplicationInfo{877d3e4 com.travelease.customer}
+  [com.travelease.customer.FileSystemFileProvider]:
+    Provider{5d02c38 com.travelease.customer/expo.modules.filesystem.FileSystemFileProvider}
+      applicationInfo=ApplicationInfo{3ece04d com.travelease.customer}
+  [com.travelease.customer.ImagePickerFileProvider]:
+    Provider{585e74c com.travelease.customer/expo.modules.imagepicker.fileprovider.ImagePickerFileProvider}
+      applicationInfo=ApplicationInfo{c12702 com.travelease.customer}
+  [com.travelease.customer.cropper.fileprovider]:
+    Provider{744d395 com.travelease.customer/com.canhub.cropper.CropFileProvider}
+      applicationInfo=ApplicationInfo{9ac6813 com.travelease.customer}
+
+Key Set Manager:
+  [com.travelease.customer]
+      Signing KeySets: 64
+
+Packages:
+  Package [com.travelease.customer] (7c7a3fc):
+    appId=10220
+    pkg=Package{7d04a50 com.travelease.customer}
+    codePath=/data/app/~~dzElkQw8pXRO4Bg6nsr7bg==/com.travelease.customer-VF9_iG06YD5YpwdRfHxaUw==
+    resourcePath=/data/app/~~dzElkQw8pXRO4Bg6nsr7bg==/com.travelease.customer-VF9_iG06YD5YpwdRfHxaUw==
+    legacyNativeLibraryDir=/data/app/~~dzElkQw8pXRO4Bg6nsr7bg==/com.travelease.customer-VF9_iG06YD5YpwdRfHxaUw==/lib
+    extractNativeLibs=false
+    primaryCpuAbi=x86_64
+    secondaryCpuAbi=null
+    cpuAbiOverride=null
+    versionCode=3 minSdk=24 targetSdk=36
+    minExtensionVersions=[]
+    versionName=1.0.2
+    hiddenApiEnforcementPolicy=2
+    usesNonSdkApi=false
+    splits=[base]
+    apkSigningVersion=2
+    flags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP ]
+    privateFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION ALLOW_AUDIO_PLAYBACK_CAPTURE PARTIALLY_DIRECT_BOOT_AWARE PRIVATE_FLAG_ALLOW_NATIVE_HEAP_POINTER_TAGGING ]
+    forceQueryable=false
+    pageSizeCompat=0
+    queriesIntents=[Intent { act=android.intent.action.VIEW cat=[android.intent.category.BROWSABLE] dat=https:/... }, Intent { act=android.intent.action.OPEN_DOCUMENT_TREE }, Intent { act=android.media.action.IMAGE_CAPTURE }, Intent { act=android.media.action.ACTION_VIDEO_CAPTURE }, Intent { act=android.intent.action.GET_CONTENT cat=[android.intent.category.OPENABLE] dat=content://*/... typ=*/* }]
+    scannedAsStoppedSystemApp=false
+    supportsScreens=[small, medium, large, xlarge, resizeable, anyDensity]
+    timeStamp=2026-10-13 11:39:24
+    lastUpdateTime=2026-10-13 11:39:25
+    installerPackageName=null
+    installerPackageUid=-1
+    initiatingPackageName=com.android.shell
+    originatingPackageName=null
+    packageSource=1
+    appMetadataFilePath=null
+    appMetadataSource=0
+    signatures=PackageSignatures{4343449 version:2, signatures:[51ed3f60], past signatures:[]}
+    installPermissionsFixed=false
+    pkgFlags=[ HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP ]
+    privatePkgFlags=[ PRIVATE_FLAG_ACTIVITIES_RESIZE_MODE_RESIZEABLE_VIA_SDK_VERSION ALLOW_AUDIO_PLAYBACK_CAPTURE PARTIALLY_DIRECT_BOOT_AWARE PRIVATE_FLAG_ALLOW_NATIVE_HEAP_POINTER_TAGGING ]
+    apexModuleName=null
+    declared permissions:
+      com.travelease.customer.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION: prot=signature
+    requested permissions:
+      com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE
+      com.sonyericsson.home.permission.BROADCAST_BADGE
+      android.permission.POST_NOTIFICATIONS
+      com.google.android.c2dm.permission.RECEIVE
+      android.permission.SYSTEM_ALERT_WINDOW
+      com.oppo.launcher.permission.WRITE_SETTINGS
+      me.everything.badger.permission.BADGE_COUNT_READ
+      com.anddoes.launcher.permission.UPDATE_COUNT
+      com.sec.android.provider.badge.permission.READ
+      me.everything.badger.permission.BADGE_COUNT_WRITE
+      com.huawei.android.launcher.permission.WRITE_SETTINGS
+      android.permission.RECEIVE_BOOT_COMPLETED
+      android.permission.INTERNET
+      android.permission.READ_EXTERNAL_STORAGE
+      android.permission.READ_APP_BADGE
+      com.majeur.launcher.permission.UPDATE_BADGE
+      android.permission.ACCESS_NETWORK_STATE
+      com.oppo.launcher.permission.READ_SETTINGS
+      android.permission.CAMERA
+      com.sonymobile.home.permission.PROVIDER_INSERT_BADGE
+      com.huawei.android.launcher.permission.READ_SETTINGS
+      com.sec.android.provider.badge.permission.WRITE
+      android.permission.WRITE_EXTERNAL_STORAGE
+      android.permission.VIBRATE
+      com.huawei.android.launcher.permission.CHANGE_BADGE
+      com.htc.launcher.permission.UPDATE_SHORTCUT
+      android.permission.RECORD_AUDIO
+      com.htc.launcher.permission.READ_SETTINGS
+      android.permission.WAKE_LOCK
+      com.travelease.customer.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION
+    install permissions:
+      com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE: granted=true
+      com.google.android.c2dm.permission.RECEIVE: granted=true
+      android.permission.RECEIVE_BOOT_COMPLETED: granted=true
+      android.permission.INTERNET: granted=true
+      android.permission.ACCESS_NETWORK_STATE: granted=true
+      android.permission.VIBRATE: granted=true
+      android.permission.WAKE_LOCK: granted=true
+      com.travelease.customer.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION: granted=true
+    User 0: ceDataInode=353944 deDataInode=90690 installed=true hidden=false suspended=false distractionFlags=0 stopped=true notLaunched=true enabled=0 instant=false virtual=false quarantined=false
+      installReason=0
+      dataDir=/data/user/0/com.travelease.customer
+      firstInstallTime=2026-10-13 11:39:25
+      uninstallReason=0
+      overlay paths:
+        /product/overlay/NavigationBarModeGestural/NavigationBarModeGesturalOverlay.apk
+        /data/resource-cache/com.android.systemui-neutral-Yfsu.frro
+        /data/resource-cache/com.android.systemui-accent-c2V3.frro
+        /data/resource-cache/com.android.systemui-dynamic-wSoS.frro
+      legacy overlay paths:
+        /product/overlay/NavigationBarModeGestural/NavigationBarModeGesturalOverlay.apk
+      gids=[3003]
+      runtime permissions:
+        android.permission.POST_NOTIFICATIONS: granted=false, flags=[ USER_SENSITIVE_WHEN_GRANTED|USER_SENSITIVE_WHEN_DENIED]
+        android.permission.READ_EXTERNAL_STORAGE: granted=false, flags=[ USER_SENSITIVE_WHEN_GRANTED|USER_SENSITIVE_WHEN_DENIED|RESTRICTION_INSTALLER_EXEMPT]
+        android.permission.CAMERA: granted=false, flags=[ USER_SENSITIVE_WHEN_GRANTED|USER_SENSITIVE_WHEN_DENIED]
+        android.permission.WRITE_EXTERNAL_STORAGE: granted=false, flags=[ USER_SENSITIVE_WHEN_GRANTED|USER_SENSITIVE_WHEN_DENIED|RESTRICTION_INSTALLER_EXEMPT]
+        android.permission.RECORD_AUDIO: granted=false, flags=[ USER_SENSITIVE_WHEN_GRANTED|USER_SENSITIVE_WHEN_DENIED]
+
+Queries:
+  system apps queryable: false
+  queries via forceQueryable:
+  queries via package name:
+  queries via component:
+    com.google.android.as:
+      com.travelease.customer
+    com.google.android.settings.intelligence:
+      com.travelease.customer
+    com.google.android.apps.messaging:
+      com.travelease.customer
+    com.google.android.apps.accessibility.voiceaccess:
+      com.travelease.customer
+    com.travelease.customer:
+      com.google.android.documentsui
+      com.android.chrome
+      com.android.camera2
+      com.google.android.apps.docs
+      com.google.android.apps.photos
+      com.google.android.photopicker
+  queryable via interaction:
+    User 0:
+  queryable via uses-library:
+
+Dexopt state:
+  [com.travelease.customer]
+    path: /data/app/~~dzElkQw8pXRO4Bg6nsr7bg==/com.travelease.customer-VF9_iG06YD5YpwdRfHxaUw==/base.apk
+      x86_64: [status=verify] [reason=install] [primary-abi]
+        [location is /data/app/~~dzElkQw8pXRO4Bg6nsr7bg==/com.travelease.customer-VF9_iG06YD5YpwdRfHxaUw==/oat/x86_64/base.odex]
+
+Compiler stats:
+  [com.travelease.customer]
+     base.apk - 13570

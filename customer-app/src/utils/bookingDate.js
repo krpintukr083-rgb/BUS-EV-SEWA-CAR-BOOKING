@@ -5,24 +5,32 @@ const getLocalDateKey = (date = new Date()) => {
   return `${year}-${month}-${day}`;
 };
 
-const getBookingDateKey = travelDate => {
-  if (!travelDate) return null;
-  if (typeof travelDate === 'string') {
-    const datePrefix = travelDate.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (datePrefix) return `${datePrefix[1]}-${datePrefix[2]}-${datePrefix[3]}`;
+const getBookingDateKey = (travelDate, fallbackDate) => {
+  const raw = travelDate || fallbackDate;
+  if (!raw) return null;
+
+  // Pure date string without time (e.g. "2026-10-13")
+  if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.trim())) {
+    return raw.trim();
   }
 
-  const date = travelDate instanceof Date ? travelDate : new Date(travelDate);
+  const date = raw instanceof Date ? raw : new Date(raw);
   return Number.isNaN(date.getTime()) ? null : getLocalDateKey(date);
 };
 
 const filterBookingsForLocalDate = (bookings, date = new Date()) => {
+  if (!Array.isArray(bookings)) return [];
   const todayKey = getLocalDateKey(date);
-  return bookings.filter(booking => getBookingDateKey(booking.travelDate) === todayKey);
+  return bookings.filter(booking => {
+    const key = getBookingDateKey(booking.travelDate, booking.createdAt);
+    return key === todayKey;
+  });
 };
 
-const formatBookingDate = travelDate => {
-  const key = getBookingDateKey(travelDate);
+const formatBookingDate = (travelDate, fallbackDate) => {
+  const raw = travelDate || fallbackDate;
+  if (!raw) return 'Date unavailable';
+  const key = getBookingDateKey(raw);
   if (!key) return 'Date unavailable';
   const [year, month, day] = key.split('-').map(Number);
   return new Date(year, month - 1, day).toLocaleDateString('en-IN', {
@@ -34,5 +42,7 @@ const formatBookingDate = travelDate => {
 
 module.exports = {
   filterBookingsForLocalDate,
-  formatBookingDate
+  formatBookingDate,
+  getLocalDateKey,
+  getBookingDateKey
 };

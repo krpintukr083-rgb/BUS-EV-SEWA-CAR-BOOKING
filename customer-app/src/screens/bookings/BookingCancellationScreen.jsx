@@ -9,6 +9,7 @@ import {
   Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { customerService } from '../../services/customerService';
 import Header from '../../components/Header';
 import Button from '../../components/Button';
@@ -16,6 +17,8 @@ import Input from '../../components/Input';
 import { COLORS } from '../../constants/colors';
 
 const BookingCancellationScreen = ({ route, navigation }) => {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 0);
   const { bookingId, bookingData } = route.params || {};
   const [reason, setReason] = useState('Change of travel plan');
   const [customNote, setCustomNote] = useState('');
@@ -78,7 +81,7 @@ const BookingCancellationScreen = ({ route, navigation }) => {
     <View style={styles.container}>
       <Header title="Booking Cancellation" onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 + bottomInset }]} showsVerticalScrollIndicator={false}>
         {/* Warning Banner */}
         <View style={styles.warningBanner}>
           <Ionicons name="warning-outline" size={24} color="#b45309" />
@@ -177,7 +180,7 @@ const BookingCancellationScreen = ({ route, navigation }) => {
       </ScrollView>
 
       {/* Footer Actions */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: bottomInset > 0 ? bottomInset + 8 : 14 }]}>
         <Button
           title={loading ? 'Processing Cancellation...' : 'Confirm Cancellation'}
           onPress={handleConfirmCancellation}

@@ -13,6 +13,7 @@ import { customerService } from '../../services/customerService';
 import Header from '../../components/Header';
 import StatusBadge from '../../components/StatusBadge';
 import { COLORS } from '../../constants/colors';
+import { formatBookingDate } from '../../utils/bookingDate';
 
 const BookingHistoryScreen = ({ navigation }) => {
   const [history, setHistory] = useState([]);
@@ -24,8 +25,8 @@ const BookingHistoryScreen = ({ navigation }) => {
       const res = await customerService.getMyBookings();
       if (res && res.success) {
         const list = Array.isArray(res.data)
-          ? res.data.filter(b => ['Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus))
-          : (res.data?.completed || res.data?.all || []);
+          ? res.data.filter(b => ['Completed', 'Cancelled', 'Rejected', 'Refunded'].includes(b.bookingStatus))
+          : (res.data?.completed || (Array.isArray(res.data?.all) ? res.data.all.filter(b => ['Completed', 'Cancelled', 'Rejected', 'Refunded'].includes(b.bookingStatus)) : []));
         setHistory(list);
       }
     } catch (err) {
@@ -73,13 +74,7 @@ const BookingHistoryScreen = ({ navigation }) => {
             />
           }
           renderItem={({ item }) => {
-            const dateStr = item.travelDate
-              ? new Date(item.travelDate).toLocaleDateString('en-IN', {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric'
-                })
-              : 'Past Date';
+            const dateStr = formatBookingDate(item.travelDate, item.createdAt);
 
             return (
               <TouchableOpacity

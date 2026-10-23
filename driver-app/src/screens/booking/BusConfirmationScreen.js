@@ -102,6 +102,7 @@ export default function BusConfirmationScreen({ navigation, route }) {
   const [highlightNotFound, setHighlightNotFound] = useState(false);
   const [activeTab, setActiveTab] = useState('PENDING'); // 'PENDING', 'CONFIRMED', 'ALL'
   const fetchRequestId = useRef(0);
+  const initialTabSet = useRef(false);
 
   // Action states
   const [actionLoadingId, setActionLoadingId] = useState(null);
@@ -133,7 +134,8 @@ export default function BusConfirmationScreen({ navigation, route }) {
           });
           setBookings(selectedBookings);
           setHighlightNotFound(false);
-          if (highlightBookingId && selectedBookings[0]) {
+          if (highlightBookingId && selectedBookings[0] && !initialTabSet.current) {
+            initialTabSet.current = true;
             if (isBookingPending(selectedBookings[0])) {
               setActiveTab('PENDING');
             } else if (isBookingConfirmed(selectedBookings[0])) {
@@ -599,8 +601,13 @@ export default function BusConfirmationScreen({ navigation, route }) {
           data={filteredBookings}
           renderItem={renderBookingItem}
           keyExtractor={(item) => item._id}
+          removeClippedSubviews={false}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+          initialNumToRender={8}
           contentContainerStyle={[
             styles.listContent,
+            { paddingBottom: Math.max(insets.bottom, 16) + 80 },
             filteredBookings.length === 0 && styles.emptyListContent
           ]}
           ListEmptyComponent={

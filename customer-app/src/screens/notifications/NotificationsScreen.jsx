@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
-    paddingBottom: 30
+    paddingBottom: 36
   },
   notificationCard: {
     backgroundColor: '#ffffff',

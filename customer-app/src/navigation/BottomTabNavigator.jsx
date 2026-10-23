@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import HomeScreen from '../screens/home/HomeScreen';
 import MyBookingsScreen from '../screens/bookings/MyBookingsScreen';
@@ -10,20 +11,33 @@ import { COLORS } from '../constants/colors';
 const Tab = createBottomTabNavigator();
 
 const BottomTabNavigator = () => {
+  const insets = useSafeAreaInsets();
+
+  const tabBarStyle = useMemo(() => {
+    // Obtain real bottom inset from react-native-safe-area-context.
+    // On gesture navigation, insets.bottom is typically 24-34dp; on 3-button navigation, 48dp.
+    // When insets.bottom is 0 (legacy mode or hardware nav), default to 8dp padding.
+    const bottomInset = Math.max(insets.bottom, 0);
+    const paddingBottom = bottomInset > 0 ? bottomInset + 4 : 8;
+    const height = 56 + paddingBottom;
+
+    return {
+      backgroundColor: '#0F1B3D',
+      borderTopWidth: 1,
+      borderTopColor: '#0F1B3D',
+      height,
+      paddingBottom,
+      paddingTop: 6
+    };
+  }, [insets.bottom]);
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: '#3B82F6',
         tabBarInactiveTintColor: '#64748B',
-        tabBarStyle: {
-          backgroundColor: '#0F1B3D',
-          borderTopWidth: 1,
-          borderTopColor: '#0F1B3D',
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 6
-        },
+        tabBarStyle,
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '700'

@@ -75,7 +75,9 @@ const HomeScreen = ({ navigation }) => {
       try {
         const bRes = await customerService.getMyBookings();
         if (bRes && bRes.success) {
-          const bookings = Array.isArray(bRes.data?.all) ? bRes.data.all : [];
+          const bookings = Array.isArray(bRes.data?.all)
+            ? bRes.data.all
+            : (Array.isArray(bRes.data) ? bRes.data : []);
           
           let foundRecent = null;
           if (currentBookingId) {
@@ -89,11 +91,11 @@ const HomeScreen = ({ navigation }) => {
           setTodayBookings(filterBookingsForLocalDate(bookings));
           setTodayBookingsError('');
         } else {
-          setTodayBookingsError('Unable to load today’s bookings.');
+          setTodayBookingsError(bRes?.message || 'Unable to load today’s bookings.');
         }
       } catch (err) {
         console.log('Error fetching my bookings on Home:', err);
-        setTodayBookingsError('Unable to load today’s bookings.');
+        setTodayBookingsError(err?.response?.data?.message || 'Unable to load today’s bookings.');
       }
 
       // 4. Fetch Bus Offer Configuration (Dynamic Admin-Controlled Discount % — UNTOUCHED)
@@ -417,7 +419,7 @@ const HomeScreen = ({ navigation }) => {
                 <View style={styles.todayBookingFooter}>
                   <View>
                     <Text style={styles.todayBookingDateLabel}>Travel date</Text>
-                    <Text style={styles.todayBookingDate}>{formatBookingDate(booking.travelDate)}</Text>
+                    <Text style={styles.todayBookingDate}>{formatBookingDate(booking.travelDate, booking.createdAt)}</Text>
                   </View>
                   <View style={styles.todayBookingFareContainer}>
                     <Text style={styles.todayBookingDateLabel}>Fare</Text>
@@ -621,7 +623,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
-    paddingBottom: 40
+    paddingBottom: 48
   },
   heroBannerCard: {
     backgroundColor: '#1e293b',

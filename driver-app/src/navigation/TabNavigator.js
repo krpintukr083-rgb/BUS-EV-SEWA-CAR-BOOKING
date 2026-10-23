@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../constants/theme';
 import { useLanguage } from '../state/LanguageContext';
@@ -14,19 +15,31 @@ const Tab = createBottomTabNavigator();
 
 export default function TabNavigator() {
   const { t } = useLanguage();
+  const insets = useSafeAreaInsets();
+
+  const tabBarStyle = useMemo(() => {
+    // Obtain real bottom inset from react-native-safe-area-context.
+    // On gesture navigation, insets.bottom is typically 24-34dp; on 3-button navigation, 48dp.
+    // When insets.bottom is 0 (legacy mode or hardware nav), default to 8dp padding.
+    const bottomInset = Math.max(insets.bottom, 0);
+    const paddingBottom = bottomInset > 0 ? bottomInset + 4 : 8;
+    const height = 56 + paddingBottom;
+
+    return {
+      backgroundColor: '#0F1B3D',
+      borderTopColor: '#0F1B3D',
+      borderTopWidth: 1,
+      height,
+      paddingBottom,
+      paddingTop: 6,
+    };
+  }, [insets.bottom]);
 
   return (
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: '#0F1B3D',
-          borderTopColor: '#0F1B3D',
-          borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 8,
-          paddingTop: 6,
-        },
+        tabBarStyle,
         tabBarActiveTintColor: '#3B82F6',
         tabBarInactiveTintColor: '#64748B',
         tabBarLabelStyle: {

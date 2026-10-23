@@ -14,22 +14,44 @@ import { customerService } from '../../services/customerService';
 import Header from '../../components/Header';
 import StatusBadge from '../../components/StatusBadge';
 import { COLORS } from '../../constants/colors';
+import { formatBookingDate } from '../../utils/bookingDate';
+
+const UPCOMING_STATUSES = [
+  'Pending',
+  'Pending Driver Confirmation',
+  'Pending Admin Confirmation',
+  'PENDING_ADMIN_CONFIRMATION',
+  'Admin Confirmed',
+  'ADMIN_CONFIRMED',
+  'Awaiting Cash Collection',
+  'Confirmed',
+  'In-Transit',
+  'Ongoing',
+  'Assigned'
+];
+
+const COMPLETED_STATUSES = ['Completed', 'Cancelled', 'Rejected', 'Refunded'];
 
 const MyBookingsScreen = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('Upcoming'); // 'Upcoming' | 'Completed'
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
 
   const fetchBookings = async () => {
     try {
+      setError('');
       const res = await customerService.getMyBookings();
       if (res && res.success) {
         const list = Array.isArray(res.data) ? res.data : (res.data?.all || []);
         setBookings(list);
+      } else {
+        setError(res?.message || 'Unable to load bookings.');
       }
     } catch (err) {
       console.log('Error fetching my bookings:', err);
+      setError(err?.response?.data?.message || 'Unable to load bookings. Please check your connection.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -43,17 +65,11 @@ const MyBookingsScreen = ({ navigation }) => {
   );
 
   const upcomingBookings = bookings.filter(
-    b =>
-      b.bookingStatus === 'Pending' ||
-      b.bookingStatus === 'Pending Driver Confirmation' ||
-      b.bookingStatus === 'Awaiting Cash Collection' ||
-      b.bookingStatus === 'Confirmed' ||
-      b.bookingStatus === 'In-Transit' ||
-      b.bookingStatus === 'Ongoing'
+    b => UPCOMING_STATUSES.includes(b.bookingStatus) || !COMPLETED_STATUSES.includes(b.bookingStatus)
   );
 
   const completedBookings = bookings.filter(
-    b => b.bookingStatus === 'Completed' || b.bookingStatus === 'Cancelled' || b.bookingStatus === 'Rejected'
+    b => COMPLETED_STATUSES.includes(b.bookingStatus)
   );
 
   const displayedBookings = activeTab === 'Upcoming' ? upcomingBookings : completedBookings;
@@ -93,6 +109,21 @@ const MyBookingsScreen = ({ navigation }) => {
           <ActivityIndicator size="large" color={COLORS.primary} />
           <Text style={styles.loadingText}>Loading your journeys...</Text>
         </View>
+      ) : error && bookings.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Ionicons name="alert-circle-outline" size={56} color="#ef4444" />
+          <Text style={styles.emptyTitle}>Could not load bookings</Text>
+          <Text style={styles.emptySub}>{error}</Text>
+          <TouchableOpacity
+            style={styles.bookNowBtn}
+            onPress={() => {
+              setLoading(true);
+              fetchBookings();
+            }}
+          >
+            <Text style={styles.bookNowText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       ) : displayedBookings.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Ionicons name="calendar-outline" size={56} color="#cbd5e1" />
@@ -114,7 +145,7 @@ const MyBookingsScreen = ({ navigation }) => {
       ) : (
         <FlatList
           data={displayedBookings}
-          keyExtractor={item => item._id}
+          keyExtractor={item => item._id || item.bookingId}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -127,13 +158,7 @@ const MyBookingsScreen = ({ navigation }) => {
             />
           }
           renderItem={({ item }) => {
-            const dateStr = item.travelDate
-              ? new Date(item.travelDate).toLocaleDateString('en-IN', {
-                  day: 'numeric',
-                  month: 'short',
-                  year: 'numeric'
-                })
-              : 'Today';
+            const dateStr = formatBookingDate(item.travelDate, item.createdAt);
 
             return (
               <TouchableOpacity
@@ -243,7 +268,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
-    paddingBottom: 30
+    paddingBottom: 36
   },
   card: {
     backgroundColor: '#ffffff',
