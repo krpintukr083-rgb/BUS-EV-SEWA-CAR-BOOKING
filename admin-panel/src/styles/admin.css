@@ -1457,17 +1457,18 @@ input, select, textarea {
 }
 
 /* Right Content Area */
+/* Right Content Area */
 .manifest-main-content {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
   min-width: 0;
   width: 100%;
 }
 
-/* Selected Journey Summary Card */
+/* Selected Journey Summary Card - Content-driven height, zero blank gaps */
 .manifest-active-journey-card {
-  padding: 18px 22px;
+  padding: 16px 20px;
   border-radius: var(--radius-lg);
   background: var(--card-bg);
   border: 1px solid var(--border-color);
@@ -1475,6 +1476,7 @@ input, select, textarea {
   box-shadow: var(--shadow-sm);
   width: 100%;
   min-width: 0;
+  height: auto;
   box-sizing: border-box;
 }
 
@@ -1483,14 +1485,17 @@ input, select, textarea {
   justify-content: space-between;
   align-items: flex-start;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 14px;
   width: 100%;
   min-width: 0;
 }
 
 .manifest-active-journey-primary {
   min-width: 0;
-  flex: 1 1 320px;
+  flex: 1 1 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .manifest-active-reg {
@@ -1510,14 +1515,13 @@ input, select, textarea {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-bottom: 8px;
 }
 
 .manifest-journey-meta-pills {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 14px;
+  gap: 12px;
   font-size: 0.82rem;
   color: var(--text-main);
 }
@@ -1533,13 +1537,16 @@ input, select, textarea {
   text-align: right;
   font-size: 0.8rem;
   color: var(--text-muted);
-  line-height: 1.55;
+  line-height: 1.5;
   background: #fbfcfe;
-  padding: 10px 14px;
+  padding: 8px 12px;
   border-radius: var(--radius-sm);
   border: 1px solid #f1f5f9;
   flex-shrink: 0;
   max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .manifest-operator-item {
@@ -1560,7 +1567,7 @@ input, select, textarea {
 
 /* Secondary Filter Bar & Summary Counters */
 .manifest-subfilter-card {
-  padding: 14px 18px;
+  padding: 12px 16px;
   border-radius: var(--radius-md);
   background: var(--card-bg);
   border: 1px solid var(--border-color);
@@ -1569,7 +1576,7 @@ input, select, textarea {
   justify-content: space-between;
   align-items: center;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
@@ -1753,17 +1760,17 @@ input, select, textarea {
 @media (max-width: 991px) {
   .manifest-workspace-grid {
     grid-template-columns: 1fr;
-    gap: 16px;
+    gap: 14px;
   }
   .manifest-journey-card {
-    max-height: 380px;
+    max-height: 340px;
   }
   .manifest-journey-list {
-    max-height: 290px;
+    max-height: 260px;
   }
   .manifest-active-journey-inner {
     flex-direction: column;
-    gap: 14px;
+    gap: 10px;
   }
   .manifest-operator-box {
     text-align: left;
@@ -1778,13 +1785,13 @@ input, select, textarea {
 /* Mobile Screens (max-width: 767px) */
 @media (max-width: 767px) {
   .page-container {
-    padding: 12px 10px 24px;
+    padding: 10px 8px 24px;
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
   }
   .manifest-page-wrapper {
-    gap: 12px;
+    gap: 10px;
     width: 100%;
     max-width: 100%;
     min-width: 0;
@@ -1792,31 +1799,31 @@ input, select, textarea {
   .manifest-header {
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
+    gap: 8px;
   }
   .manifest-header .btn {
     width: 100%;
     justify-content: center;
-    height: 44px;
-    min-height: 44px;
-    max-height: 44px;
+    height: 42px;
+    min-height: 42px;
+    max-height: 42px;
     box-sizing: border-box;
   }
   .manifest-filter-card {
-    padding: 14px;
+    padding: 12px;
     border-radius: var(--radius-md);
   }
   .manifest-filter-grid {
     grid-template-columns: 1fr;
-    gap: 10px;
+    gap: 8px;
   }
   .manifest-filter-field .input-field,
   .manifest-filter-field .select-field {
     width: 100%;
-    height: 44px;
-    min-height: 44px;
-    max-height: 44px;
-    font-size: 0.85rem;
+    height: 42px;
+    min-height: 42px;
+    max-height: 42px;
+    font-size: 0.84rem;
     box-sizing: border-box;
   }
   .manifest-filter-actions {
@@ -1827,64 +1834,65 @@ input, select, textarea {
   .manifest-filter-actions .btn {
     width: 100%;
     justify-content: center;
-    height: 44px;
-    min-height: 44px;
-    max-height: 44px;
+    height: 42px;
+    min-height: 42px;
+    max-height: 42px;
     box-sizing: border-box;
   }
 
   /* Workspace single column */
   .manifest-workspace-grid {
     grid-template-columns: 1fr;
-    gap: 14px;
+    gap: 10px;
     width: 100%;
     min-width: 0;
   }
 
-  /* Journey list card */
+  /* Journey list card - compact and content-driven */
   .manifest-journey-card {
-    max-height: 320px;
+    max-height: 280px;
     border-radius: var(--radius-md);
     width: 100%;
     min-width: 0;
   }
   .manifest-journey-header {
-    padding: 12px 14px;
+    padding: 10px 12px;
   }
   .manifest-journey-list {
-    max-height: 240px;
+    max-height: 210px;
   }
   .manifest-journey-item {
-    padding: 12px 14px;
+    padding: 10px 12px;
   }
 
-  /* Active Journey Card - Compact, Zero Blank Gap */
+  /* Active Journey Card - Strictly content-driven, zero blank vertical gap */
   .manifest-active-journey-card {
-    padding: 14px;
+    padding: 12px;
     border-radius: var(--radius-md);
     border-left-width: 4px;
     width: 100%;
     min-width: 0;
+    height: auto;
   }
   .manifest-active-journey-inner {
     flex-direction: column;
-    gap: 10px;
+    gap: 8px;
     align-items: stretch;
     width: 100%;
     min-width: 0;
   }
   .manifest-active-journey-primary {
-    flex: 1 1 auto;
+    flex: 0 0 auto;
     width: 100%;
     min-width: 0;
+    gap: 5px;
   }
   .manifest-badges-row {
     gap: 6px;
-    margin-bottom: 6px;
     align-items: center;
   }
   .manifest-active-reg {
-    font-size: 1.12rem;
+    font-size: 1.1rem;
   }
   .manifest-active-vname {
     font-size: 0.8rem;
@@ -1893,32 +1901,32 @@ input, select, textarea {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 5px;
+    gap: 4px;
     font-size: 0.78rem;
   }
   .manifest-meta-item {
     width: 100%;
   }
 
-  /* Compact secondary operator block */
+  /* Compact secondary operator block without whitespace gap */
   .manifest-operator-box {
     text-align: left;
     width: 100%;
-    margin-top: 4px;
-    padding: 10px 12px;
+    margin-top: 2px;
+    padding: 8px 10px;
     border-radius: var(--radius-sm);
     background: #f8fafc;
     border: 1px solid #e2e8f0;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
     box-sizing: border-box;
   }
   .manifest-operator-item {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    font-size: 0.76rem;
+    font-size: 0.75rem;
     gap: 8px;
   }
   .manifest-op-label {
@@ -1933,12 +1941,12 @@ input, select, textarea {
     word-break: break-word;
   }
 
-  /* Subfilters on Mobile - Compact 44px uniform controls with 10-12px gaps */
+  /* Subfilters on Mobile - Compact 42px uniform controls with 8px gaps */
   .manifest-subfilter-card {
     flex-direction: column;
     align-items: stretch;
-    padding: 12px;
-    gap: 12px;
+    padding: 10px;
+    gap: 8px;
     border-radius: var(--radius-md);
     width: 100%;
     min-width: 0;
@@ -1946,7 +1954,7 @@ input, select, textarea {
   .manifest-subfilter-controls {
     flex-direction: column;
     align-items: stretch;
-    gap: 10px;
+    gap: 8px;
     width: 100%;
     min-width: 0;
   }
@@ -1958,18 +1966,18 @@ input, select, textarea {
   }
   .manifest-subfilter-search-input {
     width: 100% !important;
-    height: 44px !important;
-    min-height: 44px !important;
-    max-height: 44px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    max-height: 42px !important;
     font-size: 0.82rem !important;
     box-sizing: border-box !important;
   }
   .manifest-subfilter-select {
     width: 100% !important;
     max-width: 100% !important;
-    height: 44px !important;
-    min-height: 44px !important;
-    max-height: 44px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    max-height: 42px !important;
     font-size: 0.82rem !important;
     flex: 1 1 auto;
     box-sizing: border-box !important;
@@ -1979,7 +1987,7 @@ input, select, textarea {
   .manifest-summary-badges {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 6px;
+    gap: 5px;
     width: 100%;
     box-sizing: border-box;
   }
@@ -1987,11 +1995,11 @@ input, select, textarea {
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 0.74rem;
-    padding: 6px 8px;
+    font-size: 0.72rem;
+    padding: 5px 6px;
     border-radius: 6px;
     text-align: center;
-    min-height: 32px;
+    min-height: 30px;
     box-sizing: border-box;
   }
 
@@ -2003,6 +2011,8 @@ input, select, textarea {
   }
   .manifest-table-hint {
     display: block;
+    padding: 6px 10px;
+    font-size: 0.7rem;
   }
   .manifest-table {
     min-width: 900px;
@@ -2010,30 +2020,30 @@ input, select, textarea {
   }
   .manifest-table th,
   .manifest-table td {
-    padding: 10px 11px;
+    padding: 9px 10px;
   }
 }
 
 /* Small Mobile (max-width: 480px) */
 @media (max-width: 480px) {
   .page-container {
-    padding: 10px 8px 20px;
+    padding: 8px 6px 18px;
   }
   .manifest-title {
     font-size: 1.05rem;
   }
   .manifest-subtitle {
-    font-size: 0.76rem;
+    font-size: 0.74rem;
   }
   .manifest-stat-pill {
-    font-size: 0.7rem;
-    padding: 5px 4px;
-    min-height: 30px;
+    font-size: 0.68rem;
+    padding: 4px 4px;
+    min-height: 28px;
   }
   .manifest-active-reg {
-    font-size: 1.05rem;
+    font-size: 1.02rem;
   }
   .manifest-operator-item {
-    font-size: 0.74rem;
+    font-size: 0.72rem;
   }
 }

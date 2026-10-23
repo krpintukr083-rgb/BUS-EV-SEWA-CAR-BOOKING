@@ -387,10 +387,10 @@ const BusPassengerManifest = () => {
                     <span className="manifest-op-value">{activeJourney.operatorName || 'N/A'}</span>
                   </div>
                   <div className="manifest-operator-item">
-                    <span className="manifest-op-label">Assigned Driver:</span>
+                    <span className="manifest-op-label">Driver:</span>
                     <span className="manifest-op-value">
-                      {activeJourney.driverName || 'Not Assigned'}{' '}
-                      {activeJourney.driverPhone ? `(${activeJourney.driverPhone})` : ''}
+                      {activeJourney.driverName || 'Not Assigned'}
+                      {activeJourney.driverPhone ? ` (${activeJourney.driverPhone})` : ''}
                     </span>
                   </div>
                   <div className="manifest-operator-item">
