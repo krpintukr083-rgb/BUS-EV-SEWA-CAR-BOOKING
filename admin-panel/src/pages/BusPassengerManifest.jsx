@@ -135,27 +135,29 @@ const BusPassengerManifest = () => {
   const activeJourney = journeys.find(j => j.journeyKey === selectedJourneyKey) || null;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* 1. Header & Controls */}
-      <div className="card-header-flex">
-        <div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Bus size={22} style={{ color: 'var(--primary-blue)' }} />
+    <div className="manifest-page-wrapper">
+      {/* 1. Page Header & Refresh Action */}
+      <div className="manifest-header">
+        <div className="manifest-title-area">
+          <h1 className="manifest-title">
+            <Bus size={24} style={{ color: 'var(--primary-blue)' }} />
             Bus Passenger Manifest
-          </h2>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Search and select bus trips to view verified real-time passenger manifests, allocated seats, boarding points, and booking statuses.
+          </h1>
+          <p className="manifest-subtitle">
+            Search and select bus trips to inspect verified passenger manifests, allocated seats, boarding points, and booking statuses.
           </p>
         </div>
-        <button
-          className="btn btn-outline"
-          onClick={() => fetchJourneys()}
-          disabled={loadingJourneys || loadingManifest}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-        >
-          <RotateCw size={15} className={loadingJourneys || loadingManifest ? 'spin' : ''} />
-          Refresh
-        </button>
+        <div>
+          <button
+            className="btn btn-outline"
+            onClick={() => fetchJourneys()}
+            disabled={loadingJourneys || loadingManifest}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', minHeight: '40px' }}
+          >
+            <RotateCw size={15} className={loadingJourneys || loadingManifest ? 'spin' : ''} />
+            <span>Refresh Manifest</span>
+          </button>
+        </div>
       </div>
 
       {/* Global Error Banner */}
@@ -165,33 +167,42 @@ const BusPassengerManifest = () => {
             backgroundColor: 'var(--status-blocked-bg)',
             border: '1px solid #fecaca',
             color: 'var(--status-blocked)',
-            padding: '12px 16px',
+            padding: '12px 18px',
             borderRadius: 'var(--radius-md)',
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
-            fontSize: '0.875rem'
+            gap: '10px',
+            fontSize: '0.85rem',
+            fontWeight: '500'
           }}
         >
-          <AlertTriangle size={18} />
+          <AlertTriangle size={18} style={{ flexShrink: 0 }} />
           <span>{error}</span>
         </div>
       )}
 
       {/* 2. Top Filter Controls: Search & Select Journey / Bus */}
-      <div className="content-card" style={{ padding: '16px 20px' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px', alignItems: 'flex-end' }}>
+      <div className="manifest-filter-card">
+        <div className="manifest-filter-grid">
           {/* Search by Registration / Driver / Operator / Route */}
-          <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '6px' }}>
-              SEARCH BUS / ROUTE / DRIVER
-            </label>
+          <div className="manifest-filter-field">
+            <label className="manifest-filter-label">Search Bus / Route / Driver</label>
             <div style={{ position: 'relative' }}>
-              <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-light)' }} />
+              <Search
+                size={16}
+                style={{
+                  position: 'absolute',
+                  left: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--text-light)',
+                  pointerEvents: 'none'
+                }}
+              />
               <input
                 type="text"
                 className="input-field"
-                style={{ paddingLeft: '36px' }}
+                style={{ paddingLeft: '38px', minHeight: '42px' }}
                 placeholder="Reg no, operator, driver, city..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
@@ -201,16 +212,13 @@ const BusPassengerManifest = () => {
           </div>
 
           {/* Specific Bus Dropdown */}
-          <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '6px' }}>
-              FILTER BY BUS REGISTRATION
-            </label>
+          <div className="manifest-filter-field">
+            <label className="manifest-filter-label">Filter by Bus Registration</label>
             <select
               className="select-field"
+              style={{ minHeight: '42px' }}
               value={selectedBusId}
-              onChange={e => {
-                setSelectedBusId(e.target.value);
-              }}
+              onChange={e => setSelectedBusId(e.target.value)}
             >
               <option value="">All Registered Buses ({buses.length})</option>
               {buses.map(b => (
@@ -222,29 +230,34 @@ const BusPassengerManifest = () => {
           </div>
 
           {/* Journey Date Filter */}
-          <div>
-            <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '6px' }}>
-              JOURNEY DATE
-            </label>
+          <div className="manifest-filter-field">
+            <label className="manifest-filter-label">Journey Date</label>
             <div style={{ position: 'relative' }}>
-              <Calendar size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-light)' }} />
+              <Calendar
+                size={16}
+                style={{
+                  position: 'absolute',
+                  left: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  color: 'var(--text-light)',
+                  pointerEvents: 'none'
+                }}
+              />
               <input
                 type="date"
                 className="input-field"
-                style={{ paddingLeft: '36px' }}
+                style={{ paddingLeft: '38px', minHeight: '42px' }}
                 value={selectedTravelDate}
-                onChange={e => {
-                  setSelectedTravelDate(e.target.value);
-                }}
+                onChange={e => setSelectedTravelDate(e.target.value)}
               />
             </div>
           </div>
 
-          {/* Apply Filter Button */}
-          <div style={{ display: 'flex', gap: '8px' }}>
+          {/* Action Buttons */}
+          <div className="manifest-filter-actions">
             <button
               className="btn btn-primary"
-              style={{ flex: 1 }}
               onClick={() => fetchJourneys()}
               disabled={loadingJourneys}
             >
@@ -268,13 +281,13 @@ const BusPassengerManifest = () => {
       </div>
 
       {/* 3. Main Workspace: Journeys & Active Manifest */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 340px) 1fr', gap: '20px', alignItems: 'flex-start' }}>
+      <div className="manifest-workspace-grid">
         
         {/* Left Column: Bus & Journey Selection List */}
-        <div className="content-card" style={{ padding: '0', overflow: 'hidden' }}>
-          <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="manifest-journey-card">
+          <div className="manifest-journey-header">
             <div>
-              <div style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-main)' }}>
+              <div style={{ fontSize: '0.92rem', fontWeight: '800', color: 'var(--text-main)' }}>
                 Bus Journeys & Trips
               </div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
@@ -284,56 +297,52 @@ const BusPassengerManifest = () => {
           </div>
 
           {loadingJourneys ? (
-            <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+            <div style={{ padding: '36px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              <RotateCw size={20} className="spin" style={{ margin: '0 auto 10px', display: 'block', color: 'var(--primary-blue)' }} />
               Loading journeys...
             </div>
           ) : journeys.length === 0 ? (
-            <div style={{ padding: '30px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              <Bus size={32} style={{ color: 'var(--text-light)', margin: '0 auto 8px', display: 'block' }} />
+            <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              <Bus size={36} style={{ color: 'var(--text-light)', margin: '0 auto 10px', display: 'block' }} />
               No bus journeys match the selected criteria.
             </div>
           ) : (
-            <div style={{ maxHeight: '720px', overflowY: 'auto' }}>
+            <div className="manifest-journey-list">
               {journeys.map(j => {
                 const isSelected = j.journeyKey === selectedJourneyKey;
                 return (
                   <div
                     key={j.journeyKey}
                     onClick={() => handleSelectJourney(j)}
-                    style={{
-                      padding: '14px 16px',
-                      borderBottom: '1px solid var(--border-color)',
-                      backgroundColor: isSelected ? 'var(--primary-blue-light)' : 'transparent',
-                      borderLeft: isSelected ? '4px solid var(--primary-blue)' : '4px solid transparent',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease'
-                    }}
+                    className={`manifest-journey-item ${isSelected ? 'active' : ''}`}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
-                      <span style={{ fontWeight: '700', fontSize: '0.9rem', color: isSelected ? 'var(--primary-blue)' : 'var(--text-main)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontWeight: '800', fontSize: '0.9rem', color: isSelected ? 'var(--primary-blue)' : 'var(--text-main)', letterSpacing: '-0.01em' }}>
                         {j.vehicleNumber}
                       </span>
-                      <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)' }}>
+                      <span style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
                         {j.travelDate || 'Any Date'}
                       </span>
                     </div>
 
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-main)', marginBottom: '4px', fontWeight: '500' }}>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: '600' }}>
                       {j.origin} → {j.destination}
                     </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '6px' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                         <Clock size={12} /> {j.departureTime}
                       </span>
                       <span>•</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
                         <Users size={12} /> {j.totalPassengers} Pax ({j.totalBookings} Bkg)
                       </span>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.7rem', color: 'var(--text-light)' }}>
-                      <span>Driver: {j.driverName}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', color: 'var(--text-light)', marginTop: '2px' }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '200px' }}>
+                        Driver: {j.driverName}
+                      </span>
                       <ChevronRight size={14} style={{ color: isSelected ? 'var(--primary-blue)' : 'var(--text-light)' }} />
                     </div>
                   </div>
@@ -344,41 +353,40 @@ const BusPassengerManifest = () => {
         </div>
 
         {/* Right Column: Selected Journey Passenger Manifest */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div className="manifest-main-content">
           
           {/* Selected Journey Header Info */}
           {activeJourney && (
-            <div className="content-card" style={{ padding: '16px 20px', borderLeft: '4px solid var(--primary-blue)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '1.15rem', fontWeight: '800', color: 'var(--text-main)' }}>
-                      {activeJourney.vehicleNumber}
-                    </span>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                      ({activeJourney.vehicleName})
-                    </span>
-                    <StatusBadge status={activeJourney.status} />
+            <div className="manifest-active-journey-card">
+              <div className="manifest-active-journey-inner">
+                <div style={{ minWidth: 0, flex: '1 1 320px' }}>
+                  <div className="manifest-badges-row">
+                    <span className="manifest-active-reg">{activeJourney.vehicleNumber}</span>
+                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>({activeJourney.vehicleName})</span>
+                    <StatusBadge status={activeJourney.status || 'Active'} />
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <MapPin size={14} style={{ color: 'var(--primary-blue)' }} />
+                  <div className="manifest-journey-meta-pills">
+                    <span>
+                      <MapPin size={15} style={{ color: 'var(--primary-blue)' }} />
                       <strong>Route:</strong> {activeJourney.origin} → {activeJourney.destination}
                     </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Calendar size={14} style={{ color: 'var(--primary-blue)' }} />
+                    <span>
+                      <Calendar size={15} style={{ color: 'var(--primary-blue)' }} />
                       <strong>Date:</strong> {activeJourney.travelDate || 'All Dates'}
                     </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Clock size={14} style={{ color: 'var(--primary-blue)' }} />
+                    <span>
+                      <Clock size={15} style={{ color: 'var(--primary-blue)' }} />
                       <strong>Departure:</strong> {activeJourney.departureTime}
                     </span>
                   </div>
                 </div>
 
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'right' }}>
+                <div className="manifest-operator-box">
                   <div><strong>Operator:</strong> {activeJourney.operatorName}</div>
-                  <div><strong>Assigned Driver:</strong> {activeJourney.driverName} {activeJourney.driverPhone ? `(${activeJourney.driverPhone})` : ''}</div>
+                  <div>
+                    <strong>Assigned Driver:</strong> {activeJourney.driverName}{' '}
+                    {activeJourney.driverPhone ? `(${activeJourney.driverPhone})` : ''}
+                  </div>
                   <div><strong>Capacity:</strong> {activeJourney.seatingCapacity} seats</div>
                 </div>
               </div>
@@ -387,134 +395,141 @@ const BusPassengerManifest = () => {
 
           {/* Manifest Filter Toolbar & Summary */}
           {activeJourney && (
-            <div className="content-card" style={{ padding: '12px 18px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                
+            <div className="manifest-subfilter-card">
+              <div className="manifest-subfilter-controls">
                 {/* Search within manifest */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: '1 1 240px' }}>
-                  <div style={{ position: 'relative', width: '100%', maxWidth: '280px' }}>
-                    <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-light)' }} />
-                    <input
-                      type="text"
-                      className="input-field"
-                      style={{ paddingLeft: '32px', fontSize: '0.8rem', height: '36px' }}
-                      placeholder="Search passenger, seat, booking ID..."
-                      value={passengerSearch}
-                      onChange={e => setPassengerSearch(e.target.value)}
-                    />
-                  </div>
-
-                  {/* Status filter */}
-                  <select
-                    className="select-field"
-                    style={{ fontSize: '0.8rem', height: '36px', width: 'auto' }}
-                    value={filterStatus}
-                    onChange={e => setFilterStatus(e.target.value)}
-                  >
-                    <option value="All">All Statuses</option>
-                    <option value="Confirmed">Confirmed / Admin Confirmed</option>
-                    <option value="Pending Driver Confirmation">Pending Driver Confirmation</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Cancelled">Cancelled</option>
-                  </select>
-
-                  {/* Boarding Point filter */}
-                  {activeJourney.boardingPoints && activeJourney.boardingPoints.length > 0 && (
-                    <select
-                      className="select-field"
-                      style={{ fontSize: '0.8rem', height: '36px', width: 'auto' }}
-                      value={filterBoardingPoint}
-                      onChange={e => setFilterBoardingPoint(e.target.value)}
-                    >
-                      <option value="All">All Boarding Points</option>
-                      {activeJourney.boardingPoints.map((bp, i) => (
-                        <option key={i} value={bp}>{bp}</option>
-                      ))}
-                    </select>
-                  )}
+                <div style={{ position: 'relative', flex: '1 1 200px', maxWidth: '280px' }}>
+                  <Search
+                    size={14}
+                    style={{
+                      position: 'absolute',
+                      left: '11px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: 'var(--text-light)',
+                      pointerEvents: 'none'
+                    }}
+                  />
+                  <input
+                    type="text"
+                    className="input-field"
+                    style={{ paddingLeft: '34px', fontSize: '0.8rem', minHeight: '38px' }}
+                    placeholder="Search passenger, seat, booking ID..."
+                    value={passengerSearch}
+                    onChange={e => setPassengerSearch(e.target.value)}
+                  />
                 </div>
 
-                {/* Compact Manifest Stats */}
-                {manifestSummary && (
-                  <div style={{ display: 'flex', gap: '12px', fontSize: '0.775rem', fontWeight: '600' }}>
-                    <span style={{ color: 'var(--text-main)' }}>Total: {manifestSummary.totalManifestPassengers}</span>
-                    <span style={{ color: 'var(--status-active)' }}>Confirmed: {manifestSummary.confirmedCount}</span>
-                    <span style={{ color: 'var(--status-pending)' }}>Pending: {manifestSummary.pendingCount}</span>
-                    <span style={{ color: 'var(--status-blocked)' }}>Cancelled: {manifestSummary.cancelledCount}</span>
-                  </div>
+                {/* Status filter */}
+                <select
+                  className="select-field"
+                  style={{ fontSize: '0.8rem', minHeight: '38px', width: 'auto', flex: '0 0 auto' }}
+                  value={filterStatus}
+                  onChange={e => setFilterStatus(e.target.value)}
+                >
+                  <option value="All">All Statuses</option>
+                  <option value="Confirmed">Confirmed / Admin Confirmed</option>
+                  <option value="Pending Driver Confirmation">Pending Driver Confirmation</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
+
+                {/* Boarding Point filter */}
+                {activeJourney.boardingPoints && activeJourney.boardingPoints.length > 0 && (
+                  <select
+                    className="select-field"
+                    style={{ fontSize: '0.8rem', minHeight: '38px', width: 'auto', flex: '0 0 auto' }}
+                    value={filterBoardingPoint}
+                    onChange={e => setFilterBoardingPoint(e.target.value)}
+                  >
+                    <option value="All">All Boarding Points</option>
+                    {activeJourney.boardingPoints.map((bp, i) => (
+                      <option key={i} value={bp}>{bp}</option>
+                    ))}
+                  </select>
                 )}
               </div>
+
+              {/* Compact Manifest Stats */}
+              {manifestSummary && (
+                <div className="manifest-summary-badges">
+                  <span className="manifest-stat-pill total">
+                    Total: {manifestSummary.totalManifestPassengers}
+                  </span>
+                  <span className="manifest-stat-pill confirmed">
+                    Confirmed: {manifestSummary.confirmedCount}
+                  </span>
+                  <span className="manifest-stat-pill pending">
+                    Pending: {manifestSummary.pendingCount}
+                  </span>
+                  <span className="manifest-stat-pill cancelled">
+                    Cancelled: {manifestSummary.cancelledCount}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
           {/* 4. Manifest Passenger Table */}
-          <div className="content-card" style={{ padding: '0', overflow: 'hidden' }}>
+          <div className="manifest-table-card">
             {loadingManifest ? (
-              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <RotateCw size={24} className="spin" style={{ margin: '0 auto 12px', display: 'block', color: 'var(--primary-blue)' }} />
                 Loading manifest passengers...
               </div>
             ) : !activeJourney ? (
-              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+              <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <Bus size={36} style={{ color: 'var(--text-light)', margin: '0 auto 12px', display: 'block' }} />
                 Please select a bus journey from the list on the left to view its passenger manifest.
               </div>
             ) : manifestData.length === 0 ? (
-              <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                <Users size={32} style={{ color: 'var(--text-light)', margin: '0 auto 8px', display: 'block' }} />
+              <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <Users size={36} style={{ color: 'var(--text-light)', margin: '0 auto 12px', display: 'block' }} />
                 No passengers found matching the selected filters for this trip.
               </div>
             ) : (
-              <div className="table-responsive">
-                <table className="admin-table">
+              <div className="manifest-table-container">
+                <table className="manifest-table">
                   <thead>
                     <tr>
-                      <th style={{ width: '60px' }}>Seat</th>
-                      <th>Passenger Name</th>
-                      <th>Age / Gender</th>
-                      <th>Mobile Number</th>
-                      <th>Booking ID</th>
-                      <th>Boarding Point</th>
-                      <th>Destination</th>
-                      <th>Booking Status</th>
-                      <th>Payment</th>
-                      <th style={{ textAlign: 'right' }}>Action</th>
+                      <th style={{ width: '70px' }}>Seat</th>
+                      <th style={{ minWidth: '160px' }}>Passenger Name</th>
+                      <th style={{ width: '100px' }}>Age / Gender</th>
+                      <th style={{ minWidth: '120px' }}>Mobile Number</th>
+                      <th style={{ minWidth: '125px' }}>Booking ID</th>
+                      <th style={{ minWidth: '130px' }}>Boarding Point</th>
+                      <th style={{ minWidth: '130px' }}>Destination</th>
+                      <th style={{ minWidth: '120px' }}>Booking Status</th>
+                      <th style={{ minWidth: '95px' }}>Payment</th>
+                      <th style={{ width: '85px', textAlign: 'right' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {manifestData.map(row => (
                       <tr key={row.manifestId}>
                         <td>
-                          <span
-                            style={{
-                              display: 'inline-block',
-                              padding: '2px 8px',
-                              backgroundColor: row.seatNumber !== 'N/A' && row.seatNumber !== 'Unassigned' ? 'var(--primary-blue-light)' : '#f1f5f9',
-                              color: row.seatNumber !== 'N/A' && row.seatNumber !== 'Unassigned' ? 'var(--primary-blue)' : 'var(--text-muted)',
-                              borderRadius: '4px',
-                              fontWeight: '700',
-                              fontSize: '0.8rem'
-                            }}
-                          >
+                          <span className="seat-pill">
                             {row.seatNumber}
                           </span>
                         </td>
                         <td>
-                          <div style={{ fontWeight: '600', color: 'var(--text-main)' }}>
+                          <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '0.84rem' }}>
                             {row.passengerName}
                           </div>
                           {row.isLeadPassenger && row.passengerCountInBooking > 1 && (
-                            <div style={{ fontSize: '0.7rem', color: 'var(--primary-blue)', fontWeight: '500' }}>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--primary-blue)', fontWeight: '600' }}>
                               Lead Passenger ({row.passengerCountInBooking} pax total)
                             </div>
                           )}
                         </td>
-                        <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                           {row.age !== null ? `${row.age} yrs` : 'N/A'} • {row.gender || 'N/A'}
                         </td>
-                        <td style={{ fontSize: '0.8rem', color: 'var(--text-main)' }}>
+                        <td style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '500', whiteSpace: 'nowrap' }}>
                           {row.mobileNumber}
                         </td>
                         <td>
-                          <span style={{ fontFamily: 'monospace', fontWeight: '600', fontSize: '0.8rem', color: 'var(--text-main)' }}>
+                          <span className="booking-ref-code">
                             {row.bookingId}
                           </span>
                         </td>
@@ -533,12 +548,19 @@ const BusPassengerManifest = () => {
                         <td style={{ textAlign: 'right' }}>
                           <button
                             className="btn btn-outline"
-                            style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            style={{
+                              padding: '5px 9px',
+                              fontSize: '0.75rem',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              minHeight: '30px'
+                            }}
                             onClick={() => setSelectedBookingModal(row)}
                             title="View Booking & Passenger Details"
                           >
                             <Eye size={13} />
-                            Details
+                            <span>Details</span>
                           </button>
                         </td>
                       </tr>
@@ -554,11 +576,11 @@ const BusPassengerManifest = () => {
       {/* 5. Passenger & Booking Details Modal */}
       {selectedBookingModal && (
         <div className="modal-backdrop">
-          <div className="modal-content" style={{ maxWidth: '580px', width: '90%' }}>
+          <div className="modal-content" style={{ maxWidth: '600px', width: '92%' }}>
             <div className="modal-header">
               <div>
                 <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <User size={18} style={{ color: 'var(--primary-blue)' }} />
+                  <User size={19} style={{ color: 'var(--primary-blue)' }} />
                   Passenger & Booking Information
                 </h3>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
@@ -575,46 +597,46 @@ const BusPassengerManifest = () => {
 
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', fontSize: '0.85rem' }}>
               {/* Passenger Core Details */}
-              <div style={{ backgroundColor: 'var(--bg-light)', padding: '14px', borderRadius: 'var(--radius-sm)' }}>
-                <div style={{ fontWeight: '700', color: 'var(--text-main)', marginBottom: '8px', fontSize: '0.9rem' }}>
+              <div style={{ backgroundColor: 'var(--bg-light)', padding: '14px 16px', borderRadius: 'var(--radius-md)', border: '1px solid #f1f5f9' }}>
+                <div style={{ fontWeight: '750', color: 'var(--text-main)', marginBottom: '8px', fontSize: '0.88rem' }}>
                   Passenger Details
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Full Name</span>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Full Name</span>
                     <strong style={{ color: 'var(--text-main)' }}>{selectedBookingModal.passengerName}</strong>
                   </div>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Allocated Seat</span>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Allocated Seat</span>
                     <strong style={{ color: 'var(--primary-blue)' }}>{selectedBookingModal.seatNumber}</strong>
                   </div>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Age / Gender</span>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Age / Gender</span>
                     <span>{selectedBookingModal.age ? `${selectedBookingModal.age} years` : 'N/A'} • {selectedBookingModal.gender || 'N/A'}</span>
                   </div>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Passenger Count</span>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Passenger Count</span>
                     <span>{selectedBookingModal.passengerCountInBooking} passenger(s) in booking</span>
                   </div>
                 </div>
               </div>
 
               {/* Contact Information */}
-              <div style={{ backgroundColor: 'var(--bg-light)', padding: '14px', borderRadius: 'var(--radius-sm)' }}>
-                <div style={{ fontWeight: '700', color: 'var(--text-main)', marginBottom: '8px', fontSize: '0.9rem' }}>
+              <div style={{ backgroundColor: 'var(--bg-light)', padding: '14px 16px', borderRadius: 'var(--radius-md)', border: '1px solid #f1f5f9' }}>
+                <div style={{ fontWeight: '750', color: 'var(--text-main)', marginBottom: '8px', fontSize: '0.88rem' }}>
                   Contact Information
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Mobile Number</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Mobile Number</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <Phone size={13} style={{ color: 'var(--text-muted)' }} />
                       {selectedBookingModal.mobileNumber}
                     </span>
                   </div>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Email Address</span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Email Address</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                       <Mail size={13} style={{ color: 'var(--text-muted)' }} />
                       {selectedBookingModal.email || 'N/A'}
                     </span>
@@ -623,63 +645,63 @@ const BusPassengerManifest = () => {
               </div>
 
               {/* Journey & Boarding */}
-              <div style={{ backgroundColor: 'var(--bg-light)', padding: '14px', borderRadius: 'var(--radius-sm)' }}>
-                <div style={{ fontWeight: '700', color: 'var(--text-main)', marginBottom: '8px', fontSize: '0.9rem' }}>
+              <div style={{ backgroundColor: 'var(--bg-light)', padding: '14px 16px', borderRadius: 'var(--radius-md)', border: '1px solid #f1f5f9' }}>
+                <div style={{ fontWeight: '750', color: 'var(--text-main)', marginBottom: '8px', fontSize: '0.88rem' }}>
                   Journey & Boarding
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Boarding Point</span>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Boarding Point</span>
                     <strong>{selectedBookingModal.boardingPoint}</strong>
                   </div>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Destination</span>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Destination</span>
                     <strong>{selectedBookingModal.destination}</strong>
                   </div>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Journey Date</span>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Journey Date</span>
                     <span>{selectedBookingModal.journeyDate}</span>
                   </div>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Departure Time</span>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Departure Time</span>
                     <span>{selectedBookingModal.departureTime}</span>
                   </div>
                 </div>
               </div>
 
               {/* Booking & Financial Status */}
-              <div style={{ backgroundColor: 'var(--bg-light)', padding: '14px', borderRadius: 'var(--radius-sm)' }}>
-                <div style={{ fontWeight: '700', color: 'var(--text-main)', marginBottom: '8px', fontSize: '0.9rem' }}>
+              <div style={{ backgroundColor: 'var(--bg-light)', padding: '14px 16px', borderRadius: 'var(--radius-md)', border: '1px solid #f1f5f9' }}>
+                <div style={{ fontWeight: '750', color: 'var(--text-main)', marginBottom: '8px', fontSize: '0.88rem' }}>
                   Booking & Payment Status
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', alignItems: 'center' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', alignItems: 'center' }}>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem', marginBottom: '2px' }}>Booking Status</span>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem', marginBottom: '3px' }}>Booking Status</span>
                     <StatusBadge status={selectedBookingModal.bookingStatus} />
                   </div>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem', marginBottom: '2px' }}>Payment Status</span>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem', marginBottom: '3px' }}>Payment Status</span>
                     <StatusBadge status={selectedBookingModal.paymentStatus} />
                   </div>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Payment Method</span>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Payment Method</span>
                     <span>{selectedBookingModal.paymentMethod}</span>
                   </div>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Recorded Fare</span>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Recorded Fare</span>
                     <strong>NPR {selectedBookingModal.fare}</strong>
                   </div>
                 </div>
               </div>
 
-              {/* Emergency Contact & Special Assistance (Only if recorded in DB) */}
-              <div style={{ backgroundColor: 'var(--bg-light)', padding: '14px', borderRadius: 'var(--radius-sm)' }}>
-                <div style={{ fontWeight: '700', color: 'var(--text-main)', marginBottom: '8px', fontSize: '0.9rem' }}>
+              {/* Emergency Contact & Special Assistance */}
+              <div style={{ backgroundColor: 'var(--bg-light)', padding: '14px 16px', borderRadius: 'var(--radius-md)', border: '1px solid #f1f5f9' }}>
+                <div style={{ fontWeight: '750', color: 'var(--text-main)', marginBottom: '8px', fontSize: '0.88rem' }}>
                   Emergency & Special Assistance
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Emergency Contact</span>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Emergency Contact</span>
                     {selectedBookingModal.emergencyContact ? (
                       <span>
                         {selectedBookingModal.emergencyContact.name} ({selectedBookingModal.emergencyContact.relationship}) - {selectedBookingModal.emergencyContact.phone}
@@ -689,7 +711,7 @@ const BusPassengerManifest = () => {
                     )}
                   </div>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.75rem' }}>Special Assistance Notes</span>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Special Assistance Notes</span>
                     {selectedBookingModal.specialAssistanceNotes ? (
                       <span>{selectedBookingModal.specialAssistanceNotes}</span>
                     ) : (
@@ -700,7 +722,7 @@ const BusPassengerManifest = () => {
               </div>
             </div>
 
-            <div className="modal-footer" style={{ justifyContent: 'flex-end' }}>
+            <div className="modal-footer" style={{ justifyContent: 'flex-end', paddingTop: '14px' }}>
               <button
                 className="btn btn-outline"
                 onClick={() => setSelectedBookingModal(null)}
