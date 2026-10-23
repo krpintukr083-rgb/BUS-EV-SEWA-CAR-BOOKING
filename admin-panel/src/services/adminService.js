@@ -201,6 +201,17 @@ export const adminService = {
     return res.data;
   },
 
+  // Bus Passenger Manifest & Journeys
+  getBusManifestJourneys: async (params = {}) => {
+    const res = await api.get('/admin/bus-manifest/journeys', { params });
+    return res.data;
+  },
+
+  getBusPassengerManifest: async (params = {}) => {
+    const res = await api.get('/admin/bus-manifest', { params });
+    return res.data;
+  },
+
   // 8. Booking Management
   getBookings: async (serviceType, status) => {
     const res = await api.get('/admin/bookings', { params: { serviceType, status } });

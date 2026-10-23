@@ -58,7 +58,9 @@ const {
   updateServiceControl,
   resetDemoDatabase,
   uploadSingleImage,
-  uploadMultipleImages
+  uploadMultipleImages,
+  getBusManifestJourneys,
+  getBusPassengerManifest
 } = require('../controllers/adminController');
 const { verifyToken, adminAuth, superAdminOnly, requirePermission } = require('../middleware/auth');
 const { handleSingleUpload, handleMultipleUpload } = require('../middleware/upload');
@@ -143,6 +145,8 @@ router.get('/hire-expenses', requirePermission('payment.view'), getHireExpenses)
 
 // 5. Specific Service Vehicles
 router.get('/buses', requirePermission('vehicle.view'), getBuses);
+router.get('/bus-manifest/journeys', requirePermission('vehicle.view'), getBusManifestJourneys);
+router.get('/bus-manifest', requirePermission('booking.view'), getBusPassengerManifest);
 router.get('/ev-sewa', requirePermission('vehicle.view'), getEvSewa);
 router.get('/cars', requirePermission('vehicle.view'), getCars);
 

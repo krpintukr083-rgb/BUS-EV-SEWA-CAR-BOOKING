@@ -45,6 +45,7 @@ const AdminSidebar = ({ onOpenLogout, isOpen, onClose }) => {
         { to: '/vehicle-approval', label: 'Vehicle Approvals', icon: FileCheck2, permission: 'vehicle.approve' },
         { to: '/schedule-approval', label: 'Schedule Approval', icon: CalendarCheck, permission: ['vehicle.view', 'vehicle.approve'] },
         { to: '/bus-management', label: 'Bus Management', icon: Bus, permission: 'vehicle.view' },
+        { to: '/bus-passenger-manifest', label: 'Bus Passenger Manifest', icon: Users, permission: 'booking.view' },
         { to: '/ev-sewa-management', label: 'EV-Sewa Management', icon: Zap, permission: 'vehicle.view' },
         { to: '/car-management', label: 'Car Management', icon: Car, permission: 'vehicle.view' },
         { to: '/driver-assignment', label: 'Driver Assignment', icon: GitPullRequest, permission: 'vehicle.assign_driver' },

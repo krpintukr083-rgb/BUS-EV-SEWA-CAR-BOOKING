@@ -11,6 +11,7 @@ import DriverManagement from './pages/DriverManagement';
 import DriverVerification from './pages/DriverVerification';
 import VehicleManagement from './pages/VehicleManagement';
 import BusManagement from './pages/BusManagement';
+import BusPassengerManifest from './pages/BusPassengerManifest';
 import EvSewaManagement from './pages/EvSewaManagement';
 import CarManagement from './pages/CarManagement';
 import DriverAssignment from './pages/DriverAssignment';
@@ -107,6 +108,7 @@ function AppRoutes() {
         <Route path="vehicle-approval" element={<AdminPage permission="vehicle.approve"><VehicleApproval /></AdminPage>} />
         <Route path="schedule-approval" element={<AdminPage permission={['vehicle.view', 'vehicle.approve']}><ScheduleApproval /></AdminPage>} />
         <Route path="bus-management" element={<AdminPage permission="vehicle.view"><BusManagement /></AdminPage>} />
+        <Route path="bus-passenger-manifest" element={<AdminPage permission="booking.view"><BusPassengerManifest /></AdminPage>} />
         <Route path="ev-sewa-management" element={<AdminPage permission="vehicle.view"><EvSewaManagement /></AdminPage>} />
         <Route path="car-management" element={<AdminPage permission="vehicle.view"><CarManagement /></AdminPage>} />
         <Route path="driver-assignment" element={<AdminPage permission="vehicle.assign_driver"><DriverAssignment /></AdminPage>} />
