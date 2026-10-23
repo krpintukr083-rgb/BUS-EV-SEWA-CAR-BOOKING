@@ -1462,16 +1462,20 @@ input, select, textarea {
   flex-direction: column;
   gap: 18px;
   min-width: 0;
+  width: 100%;
 }
 
 /* Selected Journey Summary Card */
 .manifest-active-journey-card {
-  padding: 20px 24px;
+  padding: 18px 22px;
   border-radius: var(--radius-lg);
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-left: 5px solid var(--primary-blue);
   box-shadow: var(--shadow-sm);
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .manifest-active-journey-inner {
@@ -1480,6 +1484,13 @@ input, select, textarea {
   align-items: flex-start;
   flex-wrap: wrap;
   gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+
+.manifest-active-journey-primary {
+  min-width: 0;
+  flex: 1 1 320px;
 }
 
 .manifest-active-reg {
@@ -1487,6 +1498,11 @@ input, select, textarea {
   font-weight: 800;
   color: var(--text-main);
   letter-spacing: -0.01em;
+}
+
+.manifest-active-vname {
+  font-size: 0.85rem;
+  color: var(--text-muted);
 }
 
 .manifest-badges-row {
@@ -1506,10 +1522,11 @@ input, select, textarea {
   color: var(--text-main);
 }
 
-.manifest-journey-meta-pills span {
+.manifest-meta-item {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
+  min-width: 0;
 }
 
 .manifest-operator-box {
@@ -1521,6 +1538,24 @@ input, select, textarea {
   padding: 10px 14px;
   border-radius: var(--radius-sm);
   border: 1px solid #f1f5f9;
+  flex-shrink: 0;
+  max-width: 100%;
+}
+
+.manifest-operator-item {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.manifest-op-label {
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.manifest-op-value {
+  color: var(--text-muted);
 }
 
 /* Secondary Filter Bar & Summary Counters */
@@ -1535,6 +1570,9 @@ input, select, textarea {
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .manifest-subfilter-controls {
@@ -1544,6 +1582,27 @@ input, select, textarea {
   flex-wrap: wrap;
   flex: 1 1 360px;
   min-width: 0;
+}
+
+.manifest-subfilter-search-wrap {
+  position: relative;
+  flex: 1 1 200px;
+  max-width: 280px;
+  min-width: 0;
+}
+
+.manifest-subfilter-search-input {
+  padding-left: 34px !important;
+  font-size: 0.8rem !important;
+  min-height: 38px !important;
+  width: 100% !important;
+}
+
+.manifest-subfilter-select {
+  font-size: 0.8rem !important;
+  min-height: 38px !important;
+  width: auto !important;
+  flex: 0 0 auto;
 }
 
 .manifest-summary-badges {
@@ -1597,6 +1656,8 @@ input, select, textarea {
   box-shadow: var(--shadow-sm);
   overflow: hidden;
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .manifest-table-container {
@@ -1621,13 +1682,13 @@ input, select, textarea {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  padding: 13px 14px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--border-color);
   white-space: nowrap;
 }
 
 .manifest-table td {
-  padding: 13px 14px;
+  padding: 12px 14px;
   border-bottom: 1px solid #f1f5f9;
   vertical-align: middle;
   color: var(--text-main);
@@ -1680,97 +1741,231 @@ input, select, textarea {
 @media (max-width: 991px) {
   .manifest-workspace-grid {
     grid-template-columns: 1fr;
+    gap: 16px;
   }
   .manifest-journey-card {
-    max-height: 400px;
+    max-height: 380px;
   }
   .manifest-journey-list {
-    max-height: 320px;
+    max-height: 290px;
   }
   .manifest-active-journey-inner {
     flex-direction: column;
+    gap: 14px;
   }
   .manifest-operator-box {
     text-align: left;
     width: 100%;
+    box-sizing: border-box;
+  }
+  .manifest-operator-item {
+    justify-content: flex-start;
   }
 }
 
 /* Mobile Screens (max-width: 767px) */
 @media (max-width: 767px) {
+  .page-container {
+    padding: 12px 10px 24px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
   .manifest-page-wrapper {
-    gap: 14px;
+    gap: 12px;
+    width: 100%;
+    max-width: 100%;
   }
   .manifest-header {
     flex-direction: column;
     align-items: stretch;
+    gap: 10px;
   }
   .manifest-header .btn {
     width: 100%;
     justify-content: center;
-    min-height: 44px;
+    min-height: 42px;
   }
   .manifest-filter-card {
-    padding: 16px;
+    padding: 14px;
+    border-radius: var(--radius-md);
   }
   .manifest-filter-grid {
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: 10px;
   }
   .manifest-filter-actions {
     grid-column: span 1;
     flex-direction: column;
+    gap: 8px;
   }
   .manifest-filter-actions .btn {
     width: 100%;
     justify-content: center;
-    min-height: 44px;
+    min-height: 42px;
   }
+
+  /* Journey list card */
+  .manifest-journey-card {
+    max-height: 340px;
+    border-radius: var(--radius-md);
+  }
+  .manifest-journey-header {
+    padding: 12px 14px;
+  }
+  .manifest-journey-list {
+    max-height: 250px;
+  }
+  .manifest-journey-item {
+    padding: 12px 14px;
+  }
+
+  /* Active Journey Card - Compact, Zero Blank Gap */
+  .manifest-active-journey-card {
+    padding: 14px;
+    border-radius: var(--radius-md);
+    border-left-width: 4px;
+  }
+  .manifest-active-journey-inner {
+    flex-direction: column;
+    gap: 10px;
+    align-items: stretch;
+  }
+  .manifest-active-journey-primary {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+  .manifest-badges-row {
+    gap: 6px;
+    margin-bottom: 6px;
+    align-items: center;
+  }
+  .manifest-active-reg {
+    font-size: 1.12rem;
+  }
+  .manifest-active-vname {
+    font-size: 0.8rem;
+  }
+  .manifest-journey-meta-pills {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 5px;
+    font-size: 0.78rem;
+  }
+  .manifest-meta-item {
+    width: 100%;
+  }
+
+  /* Compact secondary operator block without whitespace gap */
+  .manifest-operator-box {
+    text-align: left;
+    width: 100%;
+    margin-top: 4px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    box-sizing: border-box;
+  }
+  .manifest-operator-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.76rem;
+    gap: 8px;
+  }
+  .manifest-op-label {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+  .manifest-op-value {
+    color: var(--text-main);
+    font-weight: 700;
+    text-align: right;
+    word-break: break-word;
+  }
+
+  /* Subfilters & Summary on Mobile */
   .manifest-subfilter-card {
     flex-direction: column;
     align-items: stretch;
-    padding: 14px;
+    padding: 12px;
+    gap: 12px;
+    border-radius: var(--radius-md);
   }
   .manifest-subfilter-controls {
     flex-direction: column;
     align-items: stretch;
+    gap: 8px;
+    width: 100%;
   }
-  .manifest-subfilter-controls .select-field,
-  .manifest-subfilter-controls .input-field {
+  .manifest-subfilter-search-wrap {
+    max-width: 100%;
+    width: 100%;
+    flex: 1 1 auto;
+  }
+  .manifest-subfilter-search-input {
+    width: 100% !important;
+    min-height: 42px !important;
+  }
+  .manifest-subfilter-select {
     width: 100% !important;
     max-width: 100% !important;
-    min-height: 44px;
+    min-height: 42px !important;
+    flex: 1 1 auto;
   }
   .manifest-summary-badges {
-    justify-content: space-between;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
     width: 100%;
   }
   .manifest-stat-pill {
-    flex: 1 1 auto;
     justify-content: center;
-    font-size: 0.72rem;
-    padding: 6px 8px;
+    font-size: 0.74rem;
+    padding: 7px 6px;
+    border-radius: var(--radius-sm);
+    text-align: center;
   }
-  .manifest-active-journey-card {
-    padding: 16px;
+
+  /* Table on Mobile */
+  .manifest-table-card {
+    border-radius: var(--radius-md);
   }
-  .manifest-journey-meta-pills {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
+  .manifest-table {
+    min-width: 880px;
+    font-size: 0.8rem;
+  }
+  .manifest-table th,
+  .manifest-table td {
+    padding: 10px 11px;
   }
 }
 
 /* Small Mobile (max-width: 480px) */
 @media (max-width: 480px) {
+  .page-container {
+    padding: 10px 8px 20px;
+  }
   .manifest-title {
-    font-size: 1.1rem;
+    font-size: 1.05rem;
   }
   .manifest-subtitle {
-    font-size: 0.78rem;
+    font-size: 0.76rem;
   }
   .manifest-stat-pill {
-    font-size: 0.68rem;
-    padding: 4px 6px;
+    font-size: 0.7rem;
+    padding: 6px 4px;
+  }
+  .manifest-active-reg {
+    font-size: 1.05rem;
+  }
+  .manifest-operator-item {
+    font-size: 0.74rem;
   }
 }

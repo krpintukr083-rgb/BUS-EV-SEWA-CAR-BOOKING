@@ -359,35 +359,44 @@ const BusPassengerManifest = () => {
           {activeJourney && (
             <div className="manifest-active-journey-card">
               <div className="manifest-active-journey-inner">
-                <div style={{ minWidth: 0, flex: '1 1 320px' }}>
+                <div className="manifest-active-journey-primary">
                   <div className="manifest-badges-row">
                     <span className="manifest-active-reg">{activeJourney.vehicleNumber}</span>
-                    <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>({activeJourney.vehicleName})</span>
+                    <span className="manifest-active-vname">({activeJourney.vehicleName})</span>
                     <StatusBadge status={activeJourney.status || 'Active'} />
                   </div>
                   <div className="manifest-journey-meta-pills">
-                    <span>
-                      <MapPin size={15} style={{ color: 'var(--primary-blue)' }} />
-                      <strong>Route:</strong> {activeJourney.origin} → {activeJourney.destination}
+                    <span className="manifest-meta-item">
+                      <MapPin size={15} style={{ color: 'var(--primary-blue)', flexShrink: 0 }} />
+                      <span><strong>Route:</strong> {activeJourney.origin} → {activeJourney.destination}</span>
                     </span>
-                    <span>
-                      <Calendar size={15} style={{ color: 'var(--primary-blue)' }} />
-                      <strong>Date:</strong> {activeJourney.travelDate || 'All Dates'}
+                    <span className="manifest-meta-item">
+                      <Calendar size={15} style={{ color: 'var(--primary-blue)', flexShrink: 0 }} />
+                      <span><strong>Date:</strong> {activeJourney.travelDate || 'All Dates'}</span>
                     </span>
-                    <span>
-                      <Clock size={15} style={{ color: 'var(--primary-blue)' }} />
-                      <strong>Departure:</strong> {activeJourney.departureTime}
+                    <span className="manifest-meta-item">
+                      <Clock size={15} style={{ color: 'var(--primary-blue)', flexShrink: 0 }} />
+                      <span><strong>Departure:</strong> {activeJourney.departureTime}</span>
                     </span>
                   </div>
                 </div>
 
                 <div className="manifest-operator-box">
-                  <div><strong>Operator:</strong> {activeJourney.operatorName}</div>
-                  <div>
-                    <strong>Assigned Driver:</strong> {activeJourney.driverName}{' '}
-                    {activeJourney.driverPhone ? `(${activeJourney.driverPhone})` : ''}
+                  <div className="manifest-operator-item">
+                    <span className="manifest-op-label">Operator:</span>
+                    <span className="manifest-op-value">{activeJourney.operatorName || 'N/A'}</span>
                   </div>
-                  <div><strong>Capacity:</strong> {activeJourney.seatingCapacity} seats</div>
+                  <div className="manifest-operator-item">
+                    <span className="manifest-op-label">Assigned Driver:</span>
+                    <span className="manifest-op-value">
+                      {activeJourney.driverName || 'Not Assigned'}{' '}
+                      {activeJourney.driverPhone ? `(${activeJourney.driverPhone})` : ''}
+                    </span>
+                  </div>
+                  <div className="manifest-operator-item">
+                    <span className="manifest-op-label">Capacity:</span>
+                    <span className="manifest-op-value">{activeJourney.seatingCapacity} seats</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -398,7 +407,7 @@ const BusPassengerManifest = () => {
             <div className="manifest-subfilter-card">
               <div className="manifest-subfilter-controls">
                 {/* Search within manifest */}
-                <div style={{ position: 'relative', flex: '1 1 200px', maxWidth: '280px' }}>
+                <div className="manifest-subfilter-search-wrap">
                   <Search
                     size={14}
                     style={{
@@ -412,8 +421,7 @@ const BusPassengerManifest = () => {
                   />
                   <input
                     type="text"
-                    className="input-field"
-                    style={{ paddingLeft: '34px', fontSize: '0.8rem', minHeight: '38px' }}
+                    className="input-field manifest-subfilter-search-input"
                     placeholder="Search passenger, seat, booking ID..."
                     value={passengerSearch}
                     onChange={e => setPassengerSearch(e.target.value)}
@@ -422,8 +430,7 @@ const BusPassengerManifest = () => {
 
                 {/* Status filter */}
                 <select
-                  className="select-field"
-                  style={{ fontSize: '0.8rem', minHeight: '38px', width: 'auto', flex: '0 0 auto' }}
+                  className="select-field manifest-subfilter-select"
                   value={filterStatus}
                   onChange={e => setFilterStatus(e.target.value)}
                 >
@@ -437,8 +444,7 @@ const BusPassengerManifest = () => {
                 {/* Boarding Point filter */}
                 {activeJourney.boardingPoints && activeJourney.boardingPoints.length > 0 && (
                   <select
-                    className="select-field"
-                    style={{ fontSize: '0.8rem', minHeight: '38px', width: 'auto', flex: '0 0 auto' }}
+                    className="select-field manifest-subfilter-select"
                     value={filterBoardingPoint}
                     onChange={e => setFilterBoardingPoint(e.target.value)}
                   >
