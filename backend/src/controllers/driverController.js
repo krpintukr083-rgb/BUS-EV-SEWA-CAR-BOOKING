@@ -2562,12 +2562,14 @@ const verifyInstantRideOtp = async (req, res, next) => {
         booking.discountPercentage = discountPercentage;
         booking.discountAmount = discountAmount;
         booking.finalFare = finalPayableFare;
-        booking.driverPaymentAmount = Math.round(finalPayableFare * 0.8);
+        const chargeSettings = await PlatformChargeSettings.getEffectiveSettings();
+        const calcRes = calculatePlatformCharge(finalPayableFare, booking.serviceType, booking.bookingMode, chargeSettings);
+        booking.driverPaymentAmount = calcRes.netDriverEarning;
 
         let pRec = await Payment.findOne({ booking: booking._id });
         if (pRec) {
           pRec.bookingAmount = finalPayableFare;
-          pRec.driverPayment = Math.round(finalPayableFare * 0.8);
+          pRec.driverPayment = calcRes.netDriverEarning;
           await pRec.save();
         }
       }

@@ -469,4 +469,40 @@ describe('Driver Earnings Period Filter & Platform Charge Regression Tests', () 
     expect(item.netDriverEarning).toBe(765);
     expect(item.chargeRateOrAmount).toBe(10);
   });
+
+  test('11. Period earnings API with 2 unfinished bookings @ 850 returns 1700 gross, 170 charge, 1530 net at 10%', async () => {
+    // Second unfinished booking
+    const secondUnfinished = await Booking.create({
+      bookingId: `BK-UNFINISHED-2-${Date.now()}`,
+      customer: { name: 'Unfinished Customer 2', phone: '9846666666' },
+      driver: driverProfile._id,
+      serviceType: 'Car',
+      bookingMode: 'INSTANT',
+      pickupLocation: 'Kathmandu',
+      dropLocation: 'Bhaktapur',
+      fare: 850,
+      paymentMethod: 'Offline Cash',
+      paymentStatus: 'Paid',
+      bookingStatus: 'Confirmed',
+      rideStatus: 'Accepted',
+      createdAt: new Date()
+    });
+    createdBookingIds.push(secondUnfinished._id);
+
+    // Query today's earnings (which includes bToday 1000 + 2 unfinished 850 = 2700 gross)
+    const earningsRes = await request(app)
+      .get('/api/driver/earnings?period=today')
+      .set('Authorization', `Bearer ${driverToken}`);
+
+    expect(earningsRes.status).toBe(200);
+    const data = earningsRes.body.data;
+    expect(data.percentageRate).toBe(10);
+    expect(data.isEnabled).toBe(true);
+
+    // bToday (1000 gross, 100 charge, 900 net) + 2x unfinished (1700 gross, 170 charge, 1530 net) = 2700 gross, 270 charge, 2430 net
+    expect(data.grossFare).toBe(2700);
+    expect(data.platformCharge).toBe(270);
+    expect(data.netEarnings).toBe(2430);
+    expect(data.grossFare - data.platformCharge).toBe(data.netEarnings);
+  });
 });

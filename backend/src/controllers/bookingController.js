@@ -8,6 +8,8 @@ const Cancellation = require('../models/Cancellation');
 const Notification = require('../models/Notification');
 const Schedule = require('../models/Schedule');
 const Driver = require('../models/Driver');
+const PlatformChargeSettings = require('../models/PlatformChargeSettings');
+const { calculatePlatformCharge } = require('../utils/platformChargeCalculator');
 const User = require('../models/User');
 const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
 const driverBookingResponse = require('../utils/driverBookingResponse');
@@ -371,6 +373,15 @@ const createScheduleBooking = async (req, res, next) => {
     const bookingTravelDate = serviceType === 'Car' && activeSchedule
       ? activeSchedule.travelDate
       : travelDate ? new Date(travelDate) : new Date();
+    const chargeSettings = await PlatformChargeSettings.getEffectiveSettings();
+    const initialPlatformCharge = calculatePlatformCharge(
+      isOfflineCash ? finalPayableFare : 0,
+      serviceType,
+      bookingMode,
+      chargeSettings
+    );
+    const initialDriverPaymentAmount = isOfflineCash ? initialPlatformCharge.netDriverEarning : 0;
+
     let booking;
     try {
       // Determine schedule ID to store: prefer the explicitly provided scheduleId if valid,
@@ -401,7 +412,7 @@ const createScheduleBooking = async (req, res, next) => {
         discountPercentage: isOfflineCash ? discountPercentage : 0,
         discountAmount: isOfflineCash ? discountAmount : 0,
         finalFare: isOfflineCash ? finalPayableFare : 0,
-        driverPaymentAmount: isOfflineCash ? Math.round(finalPayableFare * 0.8) : 0,
+        driverPaymentAmount: initialDriverPaymentAmount,
         paymentMethod: initialPaymentMethod,
         paymentStatus: initialPaymentStatus,
         cashCollected: false,
@@ -445,7 +456,7 @@ const createScheduleBooking = async (req, res, next) => {
       },
       driver: booking.driver || null,
       bookingAmount: booking.fare,
-      driverPayment: booking.driverPaymentAmount || Math.round(booking.fare * 0.8),
+      driverPayment: booking.driverPaymentAmount || initialDriverPaymentAmount,
       paymentMethod: initialPaymentMethod,
       paymentStatus: initialPaymentStatus,
       transactionReference: isOfflineCash ? `CASH-${booking.bookingId}` : `PENDING-${booking.bookingId}`,

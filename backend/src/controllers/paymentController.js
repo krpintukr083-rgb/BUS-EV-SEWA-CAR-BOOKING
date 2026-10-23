@@ -6,6 +6,8 @@ const Payment = require('../models/Payment');
 const Booking = require('../models/Booking');
 const Insurance = require('../models/Insurance');
 const Notification = require('../models/Notification');
+const PlatformChargeSettings = require('../models/PlatformChargeSettings');
+const { calculatePlatformCharge } = require('../utils/platformChargeCalculator');
 
 const getBookingQuery = (idOrCode) => {
   return mongoose.isValidObjectId(idOrCode)
@@ -282,6 +284,12 @@ exports.verifyRazorpayPayment = async (req, res, next) => {
       payment.paymentTimestamp = new Date();
       await payment.save();
     } else {
+      let driverPayment = booking.driverPaymentAmount;
+      if (!driverPayment && driverPayment !== 0) {
+        const chargeSettings = await PlatformChargeSettings.getEffectiveSettings();
+        const calcRes = calculatePlatformCharge(booking.fare, booking.serviceType, booking.bookingMode, chargeSettings);
+        driverPayment = calcRes.netDriverEarning;
+      }
       payment = await Payment.create({
         booking: booking._id,
         bookingId: booking.bookingId,
@@ -291,7 +299,7 @@ exports.verifyRazorpayPayment = async (req, res, next) => {
         },
         driver: booking.driver || null,
         bookingAmount: booking.fare,
-        driverPayment: booking.driverPaymentAmount || Math.round(booking.fare * 0.8),
+        driverPayment,
         paymentStatus: 'Paid',
         transactionReference: razorpayPaymentId,
         razorpayOrderId,
