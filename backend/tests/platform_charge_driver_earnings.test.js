@@ -1,4 +1,4 @@
-﻿const request = require('supertest');
+const request = require('supertest');
 const mongoose = require('mongoose');
 const app = require('../src/app');
 const { connectTestDB, closeTestDB } = require('./setup');
@@ -469,5 +469,54 @@ describe('Platform Charge on Driver Earnings — Comprehensive Test Suite', () =
     expect(reportRes.body.data.serviceBreakdown).toBeDefined();
     expect(reportRes.body.data.serviceBreakdown.Car).toBeDefined();
     expect(Array.isArray(reportRes.body.data.bookings)).toBe(true);
+  });
+
+  // 13. Persistence & calculation test: Save 10% vs 15% and calculate new booking
+  test('13. Persistence & calculation test: Saving 10% vs 15% and calculating new eligible bookings', async () => {
+    // A. Update setting to 10%
+    const update10Res = await request(app)
+      .put('/api/admin/platform-charge/settings')
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({
+        isEnabled: true,
+        chargeType: 'PERCENTAGE',
+        percentageRate: 10,
+        applicableServices: { bus: true, evSewa: true, car: true },
+        applicableBookingModes: { instant: true, scheduled: true }
+      });
+    expect(update10Res.status).toBe(200);
+
+    // Read back from DB
+    const settings10 = await PlatformChargeSettings.getEffectiveSettings();
+    expect(settings10.percentageRate).toBe(10);
+    expect(settings10.isEnabled).toBe(true);
+
+    // Calculate new booking with 10%: Gross 1000 -> Charge 100, Net 900
+    const calc10 = calculatePlatformCharge(1000, 'Car', 'INSTANT', settings10);
+    expect(calc10.platformCharge).toBe(100);
+    expect(calc10.netDriverEarning).toBe(900);
+
+    // B. Update setting to 15%
+    const update15Res = await request(app)
+      .put('/api/admin/platform-charge/settings')
+      .set('Authorization', `Bearer ${superAdminToken}`)
+      .send({
+        isEnabled: true,
+        chargeType: 'PERCENTAGE',
+        percentageRate: 15,
+        applicableServices: { bus: true, evSewa: true, car: true },
+        applicableBookingModes: { instant: true, scheduled: true }
+      });
+    expect(update15Res.status).toBe(200);
+
+    // Read back from DB
+    const settings15 = await PlatformChargeSettings.getEffectiveSettings();
+    expect(settings15.percentageRate).toBe(15);
+    expect(settings15.isEnabled).toBe(true);
+
+    // Calculate new booking with 15%: Gross 1000 -> Charge 150, Net 850
+    const calc15 = calculatePlatformCharge(1000, 'Car', 'INSTANT', settings15);
+    expect(calc15.platformCharge).toBe(150);
+    expect(calc15.netDriverEarning).toBe(850);
   });
 });

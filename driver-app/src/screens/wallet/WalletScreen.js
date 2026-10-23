@@ -31,6 +31,7 @@ export default function WalletScreen({ navigation }) {
   const [withdrawals, setWithdrawals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
 
   // Payout Modal
   const [payoutModalVisible, setPayoutModalVisible] = useState(false);
@@ -74,21 +75,35 @@ export default function WalletScreen({ navigation }) {
 
   const fetchWalletData = async () => {
     try {
-      const walletRes = await driverService.getWallet();
+      setError(null);
+      const rawRes = await driverService.getWallet();
+      // Account for Axios response wrapper (res.data) or directly normalized payload
+      const responsePayload = rawRes?.data !== undefined && rawRes?.status !== undefined ? rawRes.data : rawRes;
+      const isSuccess = responsePayload?.success !== false;
+      const walletData = responsePayload?.data || (responsePayload && !responsePayload.data && responsePayload.walletBalance !== undefined ? responsePayload : null);
 
-      if (walletRes.data?.success && walletRes.data.data) {
-        const walletData = walletRes.data.data;
+      if (isSuccess && walletData) {
+        const rawPending = (walletData.recentWithdrawals || [])
+          .filter(item => ['Pending', 'Processing'].includes(item.status))
+          .reduce((total, item) => total + Number(item.amount || 0), 0);
+
         setWallet({
           ...walletData,
-          pendingPayouts: (walletData.recentWithdrawals || [])
-            .filter(item => ['Pending', 'Processing'].includes(item.status))
-            .reduce((total, item) => total + Number(item.amount || 0), 0)
+          walletBalance: Number(walletData.walletBalance ?? 0),
+          totalEarnings: Number(walletData.totalEarnings ?? 0),
+          totalWithdrawn: Number(walletData.totalWithdrawn ?? 0),
+          pendingPayouts: rawPending
         });
-        setTransactions(walletData.ledger || []);
-        setWithdrawals(walletData.recentWithdrawals || []);
+        setTransactions(Array.isArray(walletData.ledger) ? walletData.ledger : []);
+        setWithdrawals(Array.isArray(walletData.recentWithdrawals) ? walletData.recentWithdrawals : []);
+      } else {
+        const errMsg = responsePayload?.message || 'Failed to load wallet balance';
+        setError(errMsg);
       }
     } catch (err) {
       console.log('Error loading wallet:', err);
+      const errMsg = err.response?.data?.message || err.message || 'Network error loading wallet data';
+      setError(errMsg);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -234,6 +249,21 @@ export default function WalletScreen({ navigation }) {
           />
         }
       >
+        {/* Error State Banner */}
+        {error ? (
+          <View style={styles.errorCard}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <MaterialCommunityIcons name="alert-circle" size={20} color={COLORS.danger} />
+              <Text style={styles.errorTitle}>Wallet Sync Notice</Text>
+            </View>
+            <Text style={styles.errorMessage}>{error}</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={fetchWalletData}>
+              <MaterialCommunityIcons name="refresh" size={16} color={COLORS.white} />
+              <Text style={styles.retryBtnText}>Retry Sync</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
         {/* Wallet Balance Card */}
         <View style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>{t('availableBalance')}</Text>
@@ -524,6 +554,41 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: SPACING.m,
     paddingBottom: SPACING.xl,
+  },
+  errorCard: {
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.m,
+    padding: SPACING.m,
+    borderWidth: 1,
+    borderColor: COLORS.danger + '60',
+    marginBottom: SPACING.m,
+  },
+  errorTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.danger,
+  },
+  errorMessage: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginBottom: SPACING.s,
+    lineHeight: 18,
+  },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.primary,
+    paddingVertical: 8,
+    paddingHorizontal: SPACING.m,
+    borderRadius: RADIUS.s,
+    gap: 6,
+    alignSelf: 'flex-start',
+  },
+  retryBtnText: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: '700',
   },
   balanceCard: {
     backgroundColor: COLORS.bgCard,

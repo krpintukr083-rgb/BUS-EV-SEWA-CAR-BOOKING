@@ -3074,18 +3074,38 @@ exports.getBookingHistory = async (req, res, next) => {
 exports.getEarnings = async (req, res, next) => {
   try {
     const driver = await Driver.findById(req.driver._id).lean();
+    if (!driver) {
+      return res.status(404).json({ success: false, message: 'Driver profile not found' });
+    }
     const assignedVehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
 
-    const startOfToday = new Date();
+    // Requested period: 'today', 'weekly', or 'monthly' (defaults to 'today')
+    const rawPeriod = String(req.query.period || 'today').toLowerCase();
+    const period = ['today', 'weekly', 'monthly'].includes(rawPeriod) ? rawPeriod : 'today';
+
+    const now = new Date();
+
+    // 1. Business Timezone & Period Date Boundaries:
+    // Today: Start of current day (00:00:00.000) through current time
+    const startOfToday = new Date(now);
     startOfToday.setHours(0, 0, 0, 0);
 
-    const startOfWeek = new Date();
-    startOfWeek.setDate(startOfWeek.getDate() - 7);
+    // Weekly: Rolling 7 days
+    const startOfWeek = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
 
-    const startOfMonth = new Date();
-    startOfMonth.setDate(startOfMonth.getDate() - 30);
+    // Monthly: Rolling 30 days
+    const startOfMonth = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
 
-    const matchDriver = {
+    // Determine active period filter boundary
+    let periodStartDate = startOfToday;
+    if (period === 'weekly') {
+      periodStartDate = startOfWeek;
+    } else if (period === 'monthly') {
+      periodStartDate = startOfMonth;
+    }
+    const periodEndDate = now;
+
+    const matchDriverPaid = {
       $or: [
         { driver: driver._id },
         ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
@@ -3093,17 +3113,18 @@ exports.getEarnings = async (req, res, next) => {
       paymentStatus: 'Paid'
     };
 
-    const [todayAgg, weekAgg, monthAgg, completedCount, cancelledCount] = await Promise.all([
+    // Parallel aggregate queries for rolling overview metrics
+    const [todayAgg, weekAgg, monthAgg, completedCount, cancelledCount, periodBookings] = await Promise.all([
       Booking.aggregate([
-        { $match: { ...matchDriver, createdAt: { $gte: startOfToday } } },
+        { $match: { ...matchDriverPaid, createdAt: { $gte: startOfToday } } },
         { $group: { _id: null, total: { $sum: '$driverPaymentAmount' } } }
       ]),
       Booking.aggregate([
-        { $match: { ...matchDriver, createdAt: { $gte: startOfWeek } } },
+        { $match: { ...matchDriverPaid, createdAt: { $gte: startOfWeek } } },
         { $group: { _id: null, total: { $sum: '$driverPaymentAmount' } } }
       ]),
       Booking.aggregate([
-        { $match: { ...matchDriver, createdAt: { $gte: startOfMonth } } },
+        { $match: { ...matchDriverPaid, createdAt: { $gte: startOfMonth } } },
         { $group: { _id: null, total: { $sum: '$driverPaymentAmount' } } }
       ]),
       Booking.countDocuments({
@@ -3119,32 +3140,76 @@ exports.getEarnings = async (req, res, next) => {
           ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
         ],
         bookingStatus: 'Cancelled'
-      })
+      }),
+      // Fetch all paid bookings within the requested period to aggregate actual financial fields
+      Booking.find({
+        ...matchDriverPaid,
+        createdAt: { $gte: periodStartDate, $lte: periodEndDate }
+      }).lean()
     ]);
 
     const todayEarnings = todayAgg.length > 0 ? (todayAgg[0].total || 0) : 0;
     const weeklyEarnings = weekAgg.length > 0 ? (weekAgg[0].total || 0) : 0;
-    const monthlyEarnings = monthAgg.length > 0 ? (monthAgg[0].total || 0) : (driver.totalEarnings || 0);
+    const monthlyEarnings = monthAgg.length > 0 ? (monthAgg[0].total || 0) : 0;
 
-    const totalCommission = driver.totalCommission || Math.round(monthlyEarnings * 0.25);
-    const netEarnings = monthlyEarnings;
+    // Aggregate period-specific grossFare, platformCharge, and netEarnings from actual bookings
+    let periodGrossFare = 0;
+    let periodPlatformCharge = 0;
+    let periodNetEarnings = 0;
+    let periodCompletedTrips = 0;
+
+    periodBookings.forEach(b => {
+      const snap = b.platformChargeSnapshot && b.platformChargeSnapshot.isCalculated
+        ? b.platformChargeSnapshot
+        : null;
+
+      const gross = snap ? snap.grossFare : (b.fare || 0);
+      const charge = snap
+        ? snap.platformCharge
+        : Math.max(0, gross - (b.driverPaymentAmount || Math.round(gross * 0.8)));
+      const net = snap
+        ? snap.netDriverEarning
+        : (b.driverPaymentAmount || Math.round(gross * 0.8));
+
+      periodGrossFare += gross;
+      periodPlatformCharge += charge;
+      periodNetEarnings += net;
+      if (b.bookingStatus === 'Completed' || b.rideStatus === 'Completed') {
+        periodCompletedTrips += 1;
+      }
+    });
+
+    // Standardize rounding to 2 decimal places
+    periodGrossFare = Math.round(periodGrossFare * 100) / 100;
+    periodPlatformCharge = Math.round(periodPlatformCharge * 100) / 100;
+    periodNetEarnings = Math.round(periodNetEarnings * 100) / 100;
 
     res.json({
       success: true,
       data: {
+        period,
+        startDate: periodStartDate.toISOString(),
+        endDate: periodEndDate.toISOString(),
+        // Period-specific authoritative breakdown
+        grossFare: periodGrossFare,
+        platformCharge: periodPlatformCharge,
+        commission: periodPlatformCharge,
+        netEarnings: periodNetEarnings,
+        netDriverEarning: periodNetEarnings,
+        completedTrips: periodCompletedTrips,
+        // Rolling overview indicators
         todayEarnings,
         weeklyEarnings,
         monthlyEarnings,
-        completedRides: completedCount,
-        cancellations: cancelledCount,
-        commission: totalCommission,
-        platformCharge: totalCommission,
-        netEarnings,
-        netDriverEarning: netEarnings,
-        grossFare: monthlyEarnings + totalCommission,
+        // Overall lifetime counters (kept separate from period breakdown)
+        totalEarnings: driver.totalEarnings || 0,
+        totalCommission: driver.totalCommission || 0,
+        totalWithdrawn: driver.totalWithdrawn || 0,
+        walletBalance: driver.walletBalance || 0,
         paidSettlement: driver.totalEarnings || 0,
-        pendingSettlement: Math.max(0, (driver.walletBalance || 0)),
-        walletBalance: driver.walletBalance || 0
+        pendingSettlement: Math.max(0, driver.walletBalance || 0),
+        completedRides: completedCount,
+        cancellations: cancelledCount
       }
     });
   } catch (error) {
@@ -4191,284 +4256,6 @@ exports.collectCash = async (req, res, next) => {
         cashCollected: booking.cashCollected,
         cashCollectedAt: booking.cashCollectedAt
       }
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// @desc    Get Booking History
-// @route   GET /api/driver/booking-history
-// @access  Private (Driver Only)
-exports.getBookingHistory = async (req, res, next) => {
-  try {
-    const driver = req.driver;
-    const assignedVehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
-
-    const bookings = await Booking.find({
-      $or: [
-        { driver: driver._id },
-        ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
-      ]
-    })
-      .populate('vehicle', 'vehicleNumber vehicleName vehicleType vehicleCategory')
-      .sort({ createdAt: -1 })
-      .lean();
-
-    const history = bookings.map(b => ({
-      id: b._id,
-      bookingId: b.bookingId,
-      date: new Date(b.createdAt).toLocaleDateString(),
-      time: new Date(b.createdAt).toLocaleTimeString(),
-      customer: b.customer?.name || 'Passenger',
-      ...(driver.canViewCustomerPhone === true && b.customer?.phone ? { customerPhone: b.customer.phone } : {}),
-      pickup: b.pickupLocation,
-      drop: b.dropLocation,
-      distance: '15.4 km',
-      fare: b.fare,
-      grossFare: b.platformChargeSnapshot?.isCalculated ? b.platformChargeSnapshot.grossFare : (b.fare || 0),
-      platformCharge: b.platformChargeSnapshot?.isCalculated ? b.platformChargeSnapshot.platformCharge : Math.max(0, (b.fare || 0) - (b.driverPaymentAmount || Math.round((b.fare || 0) * 0.8))),
-      netDriverEarning: b.platformChargeSnapshot?.isCalculated ? b.platformChargeSnapshot.netDriverEarning : (b.driverPaymentAmount || Math.round((b.fare || 0) * 0.8)),
-      chargeType: b.platformChargeSnapshot?.chargeType || 'NONE',
-      settlementStatus: b.paymentStatus === 'Paid' ? 'Paid' : 'Pending',
-      driverEarnings: b.driverPaymentAmount || Math.round(b.fare * 0.8),
-      paymentMethod: b.paymentMethod,
-      paymentStatus: b.paymentStatus,
-      status: b.bookingStatus,
-      rideStatus: b.rideStatus || 'Completed'
-    }));
-
-    res.json({
-      success: true,
-      count: history.length,
-      data: history
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// @desc    Get Authoritative Driver Earnings
-// @route   GET /api/driver/earnings
-// @access  Private (Driver Only)
-exports.getEarnings = async (req, res, next) => {
-  try {
-    const driver = await Driver.findById(req.driver._id).lean();
-    const assignedVehicleId = driver.assignedVehicle ? (driver.assignedVehicle._id || driver.assignedVehicle) : null;
-
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-
-    const startOfWeek = new Date();
-    startOfWeek.setDate(startOfWeek.getDate() - 7);
-
-    const startOfMonth = new Date();
-    startOfMonth.setDate(startOfMonth.getDate() - 30);
-
-    const matchDriver = {
-      $or: [
-        { driver: driver._id },
-        ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
-      ],
-      paymentStatus: 'Paid'
-    };
-
-    const [todayAgg, weekAgg, monthAgg, completedCount, cancelledCount] = await Promise.all([
-      Booking.aggregate([
-        { $match: { ...matchDriver, createdAt: { $gte: startOfToday } } },
-        { $group: { _id: null, total: { $sum: '$driverPaymentAmount' } } }
-      ]),
-      Booking.aggregate([
-        { $match: { ...matchDriver, createdAt: { $gte: startOfWeek } } },
-        { $group: { _id: null, total: { $sum: '$driverPaymentAmount' } } }
-      ]),
-      Booking.aggregate([
-        { $match: { ...matchDriver, createdAt: { $gte: startOfMonth } } },
-        { $group: { _id: null, total: { $sum: '$driverPaymentAmount' } } }
-      ]),
-      Booking.countDocuments({
-        $or: [
-          { driver: driver._id },
-          ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
-        ],
-        bookingStatus: 'Completed'
-      }),
-      Booking.countDocuments({
-        $or: [
-          { driver: driver._id },
-          ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }] : [])
-        ],
-        bookingStatus: 'Cancelled'
-      })
-    ]);
-
-    const todayEarnings = todayAgg.length > 0 ? (todayAgg[0].total || 0) : 0;
-    const weeklyEarnings = weekAgg.length > 0 ? (weekAgg[0].total || 0) : 0;
-    const monthlyEarnings = monthAgg.length > 0 ? (monthAgg[0].total || 0) : (driver.totalEarnings || 0);
-
-    const totalCommission = driver.totalCommission || Math.round(monthlyEarnings * 0.25);
-    const netEarnings = monthlyEarnings;
-
-    res.json({
-      success: true,
-      data: {
-        todayEarnings,
-        weeklyEarnings,
-        monthlyEarnings,
-        completedRides: completedCount,
-        cancellations: cancelledCount,
-        commission: totalCommission,
-        platformCharge: totalCommission,
-        netEarnings,
-        netDriverEarning: netEarnings,
-        grossFare: monthlyEarnings + totalCommission,
-        paidSettlement: driver.totalEarnings || 0,
-        pendingSettlement: Math.max(0, (driver.walletBalance || 0)),
-        walletBalance: driver.walletBalance || 0
-      }
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// @desc    Get Driver Wallet & Transaction Ledger
-// @route   GET /api/driver/wallet
-// @access  Private (Driver Only)
-exports.getDriverWallet = async (req, res, next) => {
-  try {
-    const driver = await Driver.findById(req.driver._id).lean();
-    if (!driver) {
-      return res.status(404).json({ success: false, message: 'Driver profile not found' });
-    }
-    const withdrawals = await Withdrawal.find({ driver: driver._id }).sort({ createdAt: -1 }).limit(10).lean();
-
-    const recentPayments = await Payment.find({ driver: driver._id, paymentStatus: 'Paid' })
-      .sort({ createdAt: -1 })
-      .limit(10)
-      .lean();
-
-    const ledger = recentPayments.map(p => ({
-      id: p._id,
-      date: new Date(p.createdAt).toLocaleDateString(),
-      time: new Date(p.createdAt).toLocaleTimeString(),
-      type: 'Ride Earning',
-      amount: p.driverPayment || Math.round(p.bookingAmount * 0.8),
-      status: 'Credited',
-      referenceId: p.transactionReference || `TXN-${p.bookingId}`
-    }));
-
-    res.set({
-      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-      'Pragma': 'no-cache',
-      'Expires': '0'
-    });
-    res.json({
-      success: true,
-      data: {
-        walletBalance: driver.walletBalance || 0,
-        totalEarnings: driver.totalEarnings || 0,
-        totalBonus: driver.totalBonus || 0,
-        totalCommission: driver.totalCommission || 0,
-        totalWithdrawn: driver.totalWithdrawn || 0,
-        payoutMethods: driver.payoutMethods || {},
-        ledger,
-        recentWithdrawals: withdrawals
-      }
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// @desc    Submit Payout / Withdrawal Request
-// @route   POST /api/driver/withdraw
-// @access  Private (Driver Only)
-exports.requestWithdrawal = async (req, res, next) => {
-  try {
-    const driver = await Driver.findById(req.driver._id);
-    if (!driver) {
-      return res.status(404).json({ success: false, message: 'Driver profile not found' });
-    }
-    const { amount, payoutDetails, accountDetails } = req.body;
-    const methodInput = req.body.payoutMethod || req.body.method || '';
-
-    const withdrawAmount = Number(amount);
-    if (!withdrawAmount || withdrawAmount < 100) {
-      return res.status(400).json({
-        success: false,
-        message: 'Minimum withdrawal amount is â‚¹100'
-      });
-    }
-
-    const availableBalance = driver.walletBalance || 0;
-    if (availableBalance < withdrawAmount) {
-      return res.status(400).json({
-        success: false,
-        message: `Insufficient wallet balance. Current balance: â‚¹${availableBalance}`
-      });
-    }
-
-    let payoutMethod = 'Bank';
-    if (/esewa/i.test(methodInput)) payoutMethod = 'eSewa';
-    else if (/khalti/i.test(methodInput)) payoutMethod = 'Khalti';
-    else if (/bank/i.test(methodInput)) payoutMethod = 'Bank';
-    else payoutMethod = methodInput;
-
-    if (!['Bank', 'eSewa', 'Khalti'].includes(payoutMethod)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Valid payout method is required: Bank, eSewa, or Khalti'
-      });
-    }
-
-    const updatedDriver = await Driver.findOneAndUpdate(
-      { _id: driver._id, walletBalance: { $gte: withdrawAmount } },
-      { $inc: { walletBalance: -withdrawAmount, totalWithdrawn: withdrawAmount } },
-      { new: true }
-    );
-    if (!updatedDriver) {
-      return res.status(400).json({
-        success: false,
-        message: `Insufficient wallet balance. Current balance: â‚¹${driver.walletBalance || 0}`
-      });
-    }
-
-    const isEsewaConfigured = Boolean(process.env.ESEWA_MERCHANT_CODE);
-    const isKhaltiConfigured = Boolean(process.env.KHALTI_SECRET_KEY);
-    const gatewayStatus = payoutMethod === 'eSewa' && !isEsewaConfigured
-      ? 'BLOCKED â€” PAYMENT PROVIDER CONFIGURATION REQUIRED (eSewa merchant credentials missing)'
-      : payoutMethod === 'Khalti' && !isKhaltiConfigured
-      ? 'BLOCKED â€” PAYMENT PROVIDER CONFIGURATION REQUIRED (Khalti merchant secret key missing)'
-      : 'READY';
-
-    let withdrawal;
-    try {
-      withdrawal = await Withdrawal.create({
-        driver: driver._id,
-        user: driver.user,
-        amount: withdrawAmount,
-        payoutMethod,
-        payoutDetails: payoutDetails || accountDetails || driver.payoutMethods,
-        status: 'Pending',
-        adminNotes: gatewayStatus === 'READY' ? 'Withdrawal request logged.' : gatewayStatus
-      });
-    } catch (error) {
-      await Driver.findByIdAndUpdate(driver._id, {
-        $inc: { walletBalance: withdrawAmount, totalWithdrawn: -withdrawAmount }
-      });
-      throw error;
-    }
-
-    res.json({
-      success: true,
-      message: 'Withdrawal request submitted successfully.',
-      data: {
-        ...withdrawal.toObject(),
-        status: withdrawal.status.toLowerCase(),
-        gatewayStatus
-      },
-      newWalletBalance: updatedDriver.walletBalance
     });
   } catch (error) {
     next(error);

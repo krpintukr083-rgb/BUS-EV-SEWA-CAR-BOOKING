@@ -147,12 +147,32 @@ export const driverService = {
   collectCashPayment: (id) => apiClient.post(`/driver/bookings/${id}/collect-cash`, { amountCollected: 0 }),
 
   // Earnings, Wallet & Withdrawals
-  getEarnings: () => apiClient.get(ENDPOINTS.EARNINGS),
-  getWallet: () => apiClient.get(ENDPOINTS.WALLET),
-  requestWithdrawal: (data) => apiClient.post(ENDPOINTS.WITHDRAW, data),
-  getIncentives: () => apiClient.get(ENDPOINTS.INCENTIVES),
-  getHistory: () => apiClient.get(ENDPOINTS.HISTORY),
-  getRideHistory: () => apiClient.get(ENDPOINTS.HISTORY),
+  getEarnings: async (period) => {
+    const res = await apiClient.get(ENDPOINTS.EARNINGS, {
+      params: period ? { period } : undefined
+    });
+    return res?.data ?? res;
+  },
+  getWallet: async () => {
+    const res = await apiClient.get(ENDPOINTS.WALLET);
+    return res?.data ?? res;
+  },
+  requestWithdrawal: async (data) => {
+    const res = await apiClient.post(ENDPOINTS.WITHDRAW, data);
+    return res?.data ?? res;
+  },
+  getIncentives: async () => {
+    const res = await apiClient.get(ENDPOINTS.INCENTIVES);
+    return res?.data ?? res;
+  },
+  getHistory: async () => {
+    const res = await apiClient.get(ENDPOINTS.HISTORY);
+    return res?.data ?? res;
+  },
+  getRideHistory: async () => {
+    const res = await apiClient.get(ENDPOINTS.HISTORY);
+    return res?.data ?? res;
+  },
 
   // EV & Safety
   getEVHub: () => apiClient.get(ENDPOINTS.EV_HUB),
