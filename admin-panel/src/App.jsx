@@ -25,6 +25,8 @@ import CustomerSupport from './pages/CustomerSupport';
 import PoliciesManagement from './pages/PoliciesManagement';
 import BasicReports from './pages/BasicReports';
 import ServiceControl from './pages/ServiceControl';
+import PlatformChargeSettings from './pages/PlatformChargeSettings';
+import PlatformChargeReports from './pages/PlatformChargeReports';
 import BannerManagement from './pages/BannerManagement';
 import ApprovalManagement from './pages/ApprovalManagement';
 import VehicleApproval from './pages/VehicleApproval';
@@ -120,7 +122,9 @@ function AppRoutes() {
         <Route path="support-tickets" element={<AdminPage permission="support.view"><CustomerSupport /></AdminPage>} />
         <Route path="policies" element={<AdminPage superAdminOnly><PoliciesManagement /></AdminPage>} />
         <Route path="reports" element={<AdminPage permission="report.view"><BasicReports /></AdminPage>} />
+        <Route path="platform-charge-reports" element={<AdminPage permission="report.view"><PlatformChargeReports /></AdminPage>} />
         <Route path="service-control" element={<AdminPage superAdminOnly><ServiceControl /></AdminPage>} />
+        <Route path="platform-charges" element={<AdminPage superAdminOnly><PlatformChargeSettings /></AdminPage>} />
         <Route path="subadmin-management" element={<AdminPage permission="admin.view"><SubAdminManagement /></AdminPage>} />
       </Route>
 

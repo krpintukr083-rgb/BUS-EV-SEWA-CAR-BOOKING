@@ -321,6 +321,22 @@ export const adminService = {
     return res.data;
   },
 
+  // Platform Charge & Driver Earnings Settings & Reports
+  getPlatformChargeSettings: async () => {
+    const res = await api.get('/admin/platform-charge/settings');
+    return res.data;
+  },
+
+  updatePlatformChargeSettings: async data => {
+    const res = await api.put('/admin/platform-charge/settings', data);
+    return res.data;
+  },
+
+  getPlatformChargeReports: async params => {
+    const res = await api.get('/admin/platform-charge/reports', { params });
+    return res.data;
+  },
+
 
   // 18. Bus Discount & Promotional Offer Configuration
   getBusOffer: async () => {

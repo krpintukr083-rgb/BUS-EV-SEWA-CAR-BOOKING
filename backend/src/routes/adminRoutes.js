@@ -1,3 +1,8 @@
+const {
+  getPlatformChargeSettings,
+  updatePlatformChargeSettings,
+  getPlatformChargeReport
+} = require('../controllers/platformChargeController');
 const express = require('express');
 const router = express.Router();
 const {
@@ -192,6 +197,11 @@ router.put('/policies/:policyType', superAdminOnly, updatePolicy);
 
 // 16. Basic Reports
 router.get('/reports', requirePermission('report.view'), getBasicReports);
+// Platform Charge Settings & Reports
+router.get('/platform-charge/settings', getPlatformChargeSettings);
+router.put('/platform-charge/settings', superAdminOnly, updatePlatformChargeSettings);
+router.get('/platform-charge/reports', requirePermission('report.view'), getPlatformChargeReport);
+
 
 // 17. Service Control (Super Admin only — global settings)
 router.get('/service-control', getServiceControl);

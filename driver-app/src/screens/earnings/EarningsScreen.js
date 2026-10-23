@@ -24,10 +24,15 @@ export default function EarningsScreen({ navigation }) {
   const [earningsData, setEarningsData] = useState({
     grossFare: 0,
     commission: 0,
+    platformCharge: 0,
     netEarnings: 0,
+    netDriverEarning: 0,
+    paidSettlement: 0,
+    pendingSettlement: 0,
     completedTrips: 0,
     hoursOnline: 0,
     cashCollected: 0,
+    history: []
   });
 
   useEffect(() => {
@@ -36,22 +41,42 @@ export default function EarningsScreen({ navigation }) {
 
   const fetchEarnings = async () => {
     try {
-      const res = await driverService.getEarnings(period.toLowerCase());
-      if (res.success && res.data) {
-        setEarningsData(res.data);
-      } else {
-        // Fallback default calculation
-        const gross = period === 'TODAY' ? 1450 : period === 'WEEKLY' ? 8900 : 34500;
-        const comm = gross * 0.2;
-        setEarningsData({
-          grossFare: gross,
-          commission: comm,
-          netEarnings: gross - comm,
-          completedTrips: period === 'TODAY' ? 4 : period === 'WEEKLY' ? 22 : 88,
-          hoursOnline: period === 'TODAY' ? 6.5 : period === 'WEEKLY' ? 38 : 154,
-          cashCollected: period === 'TODAY' ? 450 : period === 'WEEKLY' ? 2200 : 8500,
-        });
+      const [earningsRes, historyRes] = await Promise.all([
+        driverService.getEarnings(period.toLowerCase()),
+        driverService.getBookingHistory ? driverService.getBookingHistory() : driverService.getHistory()
+      ]);
+
+      let baseData = {
+        grossFare: 0,
+        commission: 0,
+        platformCharge: 0,
+        netEarnings: 0,
+        netDriverEarning: 0,
+        paidSettlement: 0,
+        pendingSettlement: 0,
+        completedTrips: 0,
+        hoursOnline: 0,
+        cashCollected: 0,
+        history: []
+      };
+
+      if (earningsRes.success && earningsRes.data) {
+        baseData = {
+          ...baseData,
+          ...earningsRes.data,
+          grossFare: Number(earningsRes.data.grossFare || 0),
+          platformCharge: Number(earningsRes.data.platformCharge !== undefined ? earningsRes.data.platformCharge : (earningsRes.data.commission || 0)),
+          netEarnings: Number(earningsRes.data.netDriverEarning !== undefined ? earningsRes.data.netDriverEarning : (earningsRes.data.netEarnings || 0)),
+          paidSettlement: Number(earningsRes.data.paidSettlement || 0),
+          pendingSettlement: Number(earningsRes.data.pendingSettlement || 0)
+        };
       }
+
+      if (historyRes.success && Array.isArray(historyRes.data)) {
+        baseData.history = historyRes.data.slice(0, 10);
+      }
+
+      setEarningsData(baseData);
     } catch (err) {
       console.log('Error fetching earnings:', err);
     } finally {
@@ -64,6 +89,10 @@ export default function EarningsScreen({ navigation }) {
     setRefreshing(true);
     fetchEarnings();
   };
+
+  const effectiveGross = earningsData.grossFare || 0;
+  const effectiveCharge = earningsData.platformCharge !== undefined ? earningsData.platformCharge : (earningsData.commission || 0);
+  const effectiveNet = earningsData.netDriverEarning !== undefined ? earningsData.netDriverEarning : earningsData.netEarnings;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -112,39 +141,64 @@ export default function EarningsScreen({ navigation }) {
             {/* Primary Net Earnings Card */}
             <View style={styles.heroCard}>
               <Text style={styles.heroSubtitle}>{t('netDriverEarnings')}</Text>
-              <Text style={styles.heroAmount}>₹{earningsData.netEarnings?.toFixed(2)}</Text>
+              <Text style={styles.heroAmount}>₹{Number(effectiveNet || 0).toFixed(2)}</Text>
               <View style={styles.heroBadge}>
                 <MaterialCommunityIcons name="check-circle" size={14} color={COLORS.success} />
                 <Text style={styles.heroBadgeText}>Credited directly to driver wallet</Text>
               </View>
             </View>
 
-            {/* Authoritative Commission Breakdown */}
+            {/* Authoritative Financial Breakdown Card */}
             <View style={styles.card}>
               <Text style={styles.cardTitle}>{t('fareAndCommissionBreakdown')}</Text>
 
               <View style={styles.row}>
-                <Text style={styles.rowLabel}>{t('grossFare')} (100%)</Text>
-                <Text style={styles.rowValue}>₹{earningsData.grossFare?.toFixed(2)}</Text>
+                <Text style={styles.rowLabel}>{t('grossFare')}</Text>
+                <Text style={styles.rowValue}>₹{Number(effectiveGross).toFixed(2)}</Text>
               </View>
 
               <View style={styles.row}>
                 <View style={styles.commissionLabelRow}>
-                  <Text style={[styles.rowLabel, { color: COLORS.warning }]}>
-                    {t('platformCommission')} (20%)
+                  <Text style={[styles.rowLabel, { color: effectiveCharge > 0 ? COLORS.warning : COLORS.textSecondary }]}>
+                    Platform Charge
                   </Text>
                   <MaterialCommunityIcons name="information-outline" size={14} color={COLORS.textMuted} />
                 </View>
-                <Text style={[styles.rowValue, { color: COLORS.warning }]}>
-                  -₹{earningsData.commission?.toFixed(2)}
+                <Text style={[styles.rowValue, { color: effectiveCharge > 0 ? COLORS.warning : COLORS.success }]}>
+                  {effectiveCharge > 0 ? `-₹${Number(effectiveCharge).toFixed(2)}` : '₹0.00 (Disabled)'}
                 </Text>
               </View>
 
               <View style={styles.divider} />
 
               <View style={styles.row}>
-                <Text style={styles.totalLabel}>{t('netEarnings')} (80%)</Text>
-                <Text style={styles.totalValue}>₹{earningsData.netEarnings?.toFixed(2)}</Text>
+                <Text style={styles.totalLabel}>{t('netEarnings')}</Text>
+                <Text style={styles.totalValue}>₹{Number(effectiveNet).toFixed(2)}</Text>
+              </View>
+            </View>
+
+            {/* Settlement Status Card */}
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Settlement Status</Text>
+
+              <View style={styles.row}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <MaterialCommunityIcons name="check-decagram" size={16} color={COLORS.success} />
+                  <Text style={styles.rowLabel}>Paid / Settled Earnings</Text>
+                </View>
+                <Text style={[styles.rowValue, { color: COLORS.success, fontWeight: '700' }]}>
+                  ₹{Number(earningsData.paidSettlement || 0).toFixed(2)}
+                </Text>
+              </View>
+
+              <View style={styles.row}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <MaterialCommunityIcons name="clock-outline" size={16} color={COLORS.warning} />
+                  <Text style={styles.rowLabel}>Pending Wallet Settlement</Text>
+                </View>
+                <Text style={[styles.rowValue, { color: COLORS.warning, fontWeight: '700' }]}>
+                  ₹{Number(earningsData.pendingSettlement || 0).toFixed(2)}
+                </Text>
               </View>
             </View>
 
@@ -152,39 +206,71 @@ export default function EarningsScreen({ navigation }) {
             <View style={styles.kpiGrid}>
               <View style={styles.kpiCard}>
                 <MaterialCommunityIcons name="car-multiple" size={24} color={COLORS.primary} />
-                <Text style={styles.kpiValue}>{earningsData.completedTrips}</Text>
+                <Text style={styles.kpiValue}>{earningsData.completedTrips || 0}</Text>
                 <Text style={styles.kpiLabel}>{t('completedTrips')}</Text>
               </View>
 
               <View style={styles.kpiCard}>
                 <MaterialCommunityIcons name="clock-outline" size={24} color={COLORS.info} />
-                <Text style={styles.kpiValue}>{earningsData.hoursOnline}h</Text>
+                <Text style={styles.kpiValue}>{earningsData.hoursOnline || 0}h</Text>
                 <Text style={styles.kpiLabel}>{t('hoursOnline')}</Text>
               </View>
 
               <View style={styles.kpiCard}>
                 <MaterialCommunityIcons name="cash" size={24} color={COLORS.warning} />
-                <Text style={styles.kpiValue}>₹{earningsData.cashCollected}</Text>
+                <Text style={styles.kpiValue}>₹{earningsData.cashCollected || 0}</Text>
                 <Text style={styles.kpiLabel}>{t('cashCollected')}</Text>
               </View>
             </View>
 
-            {/* Weekly Earnings Trend Visualization */}
+            {/* Booking-wise Earning History */}
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>{t('earningsTrend')}</Text>
-              <View style={styles.chartContainer}>
-                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, idx) => {
-                  const heightPercent = [40, 65, 30, 85, 95, 70, 50][idx];
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <Text style={styles.cardTitle}>Booking-wise Earning History</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('History')}>
+                  <Text style={{ fontSize: 12, color: COLORS.primary, fontWeight: '700' }}>View All</Text>
+                </TouchableOpacity>
+              </View>
+
+              {!earningsData.history || earningsData.history.length === 0 ? (
+                <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 13, color: COLORS.textMuted }}>No completed bookings found</Text>
+                </View>
+              ) : (
+                earningsData.history.slice(0, 5).map((b, idx) => {
+                  const bGross = Number(b.grossFare !== undefined ? b.grossFare : (b.fare || 0));
+                  const bCharge = Number(b.platformCharge !== undefined ? b.platformCharge : Math.max(0, bGross - (b.driverPaymentAmount || Math.round(bGross * 0.8))));
+                  const bNet = Number(b.netDriverEarning !== undefined ? b.netDriverEarning : (b.driverPaymentAmount || Math.round(bGross * 0.8)));
                   return (
-                    <View key={day} style={styles.chartBarCol}>
-                      <View style={styles.barTrack}>
-                        <View style={[styles.barFill, { height: `${heightPercent}%` }]} />
+                    <View key={b.id || b.bookingId || idx} style={{
+                      paddingVertical: 10,
+                      borderBottomWidth: idx < 4 ? 1 : 0,
+                      borderBottomColor: COLORS.border
+                    }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 13, fontWeight: '700', color: COLORS.textPrimary }}>
+                          #{b.bookingId || b.id?.slice(-6)?.toUpperCase()}
+                        </Text>
+                        <Text style={{ fontSize: 13, fontWeight: '800', color: COLORS.success }}>
+                          +₹{bNet.toFixed(2)}
+                        </Text>
                       </View>
-                      <Text style={styles.barDayText}>{day}</Text>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                        <Text style={{ fontSize: 11, color: COLORS.textMuted }}>
+                          Gross: ₹{bGross.toFixed(2)} · Fee: ₹{bCharge.toFixed(2)}
+                        </Text>
+                        <Text style={{
+                          fontSize: 11,
+                          fontWeight: '700',
+                          color: b.settlementStatus === 'Paid' || b.paymentStatus === 'Paid' ? COLORS.success : COLORS.warning
+                        }}>
+                          {b.settlementStatus === 'Paid' || b.paymentStatus === 'Paid' ? 'Settled' : 'Pending'}
+                        </Text>
+                      </View>
                     </View>
                   );
-                })}
-              </View>
+                })
+              )}
             </View>
           </>
         )}

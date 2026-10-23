@@ -22,6 +22,7 @@ import {
   FileText,
   BarChart3,
   Sliders,
+  Coins,
   LogOut,
 } from 'lucide-react';
 
@@ -55,6 +56,7 @@ const AdminSidebar = ({ onOpenLogout, isOpen, onClose }) => {
       items: [
         { to: '/bookings', label: 'Booking Management', icon: CalendarCheck, permission: 'booking.view' },
         { to: '/payments', label: 'Payment Management', icon: CreditCard, permission: 'payment.view' },
+        { to: '/platform-charge-reports', label: 'Platform Charge Reports', icon: BarChart3, permission: 'report.view' },
         { to: '/withdrawals', label: 'Driver Withdrawals', icon: CreditCard, permission: 'withdrawal.view' },
         { to: '/cancellations', label: 'Cancellation Records', icon: XOctagon, permission: 'cancellation.view' },
         { to: '/banner-management', label: 'Banner & Bus Discount', icon: ImageIcon, superAdminOnly: true },
@@ -64,6 +66,7 @@ const AdminSidebar = ({ onOpenLogout, isOpen, onClose }) => {
     {
       title: 'System & Governance',
       items: [
+        { to: '/platform-charges', label: 'Platform Charge Settings', icon: Coins, superAdminOnly: true },
         { to: '/service-control', label: 'Service Control', icon: Sliders, superAdminOnly: true },
         { to: '/notifications', label: 'Notifications', icon: Bell, permission: 'notification.view' },
         { to: '/support-tickets', label: 'Customer Support', icon: Headphones, permission: 'support.view' },

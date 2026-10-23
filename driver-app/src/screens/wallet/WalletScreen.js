@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,10 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -36,6 +40,33 @@ export default function WalletScreen({ navigation }) {
   const [accountHolder, setAccountHolder] = useState('');
   const [ifscOrBank, setIfscOrBank] = useState('');
   const [submittingPayout, setSubmittingPayout] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const payoutScrollRef = useRef(null);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardVisible(true);
+        if (e?.endCoordinates?.height) {
+          setKeyboardHeight(e.endCoordinates.height);
+        }
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+        setKeyboardHeight(0);
+      }
+    );
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     fetchWalletData();
@@ -208,7 +239,7 @@ export default function WalletScreen({ navigation }) {
           <Text style={styles.balanceLabel}>{t('availableBalance')}</Text>
           <Text style={styles.balanceAmount}>₹{Number(wallet.walletBalance || 0).toFixed(2)}</Text>
           <Text style={styles.commissionNote}>
-            * Net earnings after 20% platform commission fee
+            * Net driver earnings credited after applicable platform charges
           </Text>
 
           <View style={styles.balanceStatsRow}>
@@ -293,108 +324,165 @@ export default function WalletScreen({ navigation }) {
         visible={payoutModalVisible}
         transparent
         animationType="slide"
+        statusBarTranslucent
         onRequestClose={() => setPayoutModalVisible(false)}
       >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.payoutCard}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalBackdrop}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalBackdropDismissArea} />
+          </TouchableWithoutFeedback>
+
+          <View
+            style={[
+              styles.payoutCard,
+              {
+                maxHeight: keyboardVisible ? '85%' : '90%',
+              },
+            ]}
+          >
+            {/* Top Header */}
             <View style={styles.modalTop}>
               <Text style={styles.modalTitle}>{t('requestPayout')}</Text>
-              <TouchableOpacity onPress={() => setPayoutModalVisible(false)}>
+              <TouchableOpacity
+                onPress={() => setPayoutModalVisible(false)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
                 <MaterialCommunityIcons name="close" size={24} color={COLORS.textSecondary} />
               </TouchableOpacity>
             </View>
 
-            {/* Payout Method Selector */}
-            <Text style={styles.inputLabel}>{t('selectPaymentMethod')}</Text>
-            <View style={styles.methodSelectorRow}>
-              {[
-                { id: 'BANK', label: 'Bank Transfer', icon: 'bank' },
-                { id: 'ESEWA', label: 'eSewa', icon: 'wallet' },
-                { id: 'KHALTI', label: 'Khalti', icon: 'cellphone' },
-              ].map((m) => (
-                <TouchableOpacity
-                  key={m.id}
-                  style={[
-                    styles.methodBtn,
-                    payoutMethod === m.id && styles.methodBtnActive,
-                  ]}
-                  onPress={() => setPayoutMethod(m.id)}
-                >
-                  <MaterialCommunityIcons
-                    name={m.icon}
-                    size={18}
-                    color={payoutMethod === m.id ? COLORS.primary : COLORS.textMuted}
-                  />
-                  <Text
-                    style={[
-                      styles.methodBtnText,
-                      payoutMethod === m.id && styles.methodBtnTextActive,
-                    ]}
-                  >
-                    {m.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Amount Input */}
-            <Text style={styles.inputLabel}>{t('amount')} (₹)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. 500"
-              placeholderTextColor={COLORS.textMuted}
-              keyboardType="number-pad"
-              value={payoutAmount}
-              onChangeText={setPayoutAmount}
-            />
-
-            {/* Account Details */}
-            <Text style={styles.inputLabel}>
-              {payoutMethod === 'BANK' ? 'Account Number' : 'Wallet Mobile ID'}
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder={payoutMethod === 'BANK' ? 'Enter Bank Account No.' : 'Enter 10-digit Mobile'}
-              placeholderTextColor={COLORS.textMuted}
-              value={accountNumber}
-              onChangeText={setAccountNumber}
-            />
-
-            <Text style={styles.inputLabel}>Account Holder Name</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Full Name on Account"
-              placeholderTextColor={COLORS.textMuted}
-              value={accountHolder}
-              onChangeText={setAccountHolder}
-            />
-
-            {payoutMethod === 'BANK' && (
-              <>
-                <Text style={styles.inputLabel}>Bank Name & IFSC / Branch</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="e.g. Nabil Bank / SBI"
-                  placeholderTextColor={COLORS.textMuted}
-                  value={ifscOrBank}
-                  onChangeText={setIfscOrBank}
-                />
-              </>
-            )}
-
-            <TouchableOpacity
-              style={[styles.submitPayoutBtn, submittingPayout && { opacity: 0.7 }]}
-              disabled={submittingPayout}
-              onPress={handleRequestPayout}
+            {/* Scrollable Form Body */}
+            <ScrollView
+              ref={payoutScrollRef}
+              style={styles.modalScrollBody}
+              contentContainerStyle={[
+                styles.modalScrollContent,
+                {
+                  paddingBottom: Math.max(insets.bottom || 0, 16) + (keyboardVisible && keyboardHeight > 0 ? keyboardHeight + 16 : 24),
+                },
+              ]}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={true}
+              bounces={false}
             >
-              {submittingPayout ? (
-                <ActivityIndicator color={COLORS.white} />
-              ) : (
-                <Text style={styles.submitPayoutText}>{t('submitPayout')}</Text>
+              {/* Payout Method Selector */}
+              <Text style={styles.inputLabel}>{t('selectPaymentMethod')}</Text>
+              <View style={styles.methodSelectorRow}>
+                {[
+                  { id: 'BANK', label: 'Bank Transfer', icon: 'bank' },
+                  { id: 'ESEWA', label: 'eSewa', icon: 'wallet' },
+                  { id: 'KHALTI', label: 'Khalti', icon: 'cellphone' },
+                ].map((m) => (
+                  <TouchableOpacity
+                    key={m.id}
+                    style={[
+                      styles.methodBtn,
+                      payoutMethod === m.id && styles.methodBtnActive,
+                    ]}
+                    onPress={() => setPayoutMethod(m.id)}
+                  >
+                    <MaterialCommunityIcons
+                      name={m.icon}
+                      size={18}
+                      color={payoutMethod === m.id ? COLORS.primary : COLORS.textMuted}
+                    />
+                    <Text
+                      style={[
+                        styles.methodBtnText,
+                        payoutMethod === m.id && styles.methodBtnTextActive,
+                      ]}
+                    >
+                      {m.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Amount Input */}
+              <Text style={styles.inputLabel}>{t('amount')} (₹)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. 500"
+                placeholderTextColor={COLORS.textMuted}
+                keyboardType="number-pad"
+                value={payoutAmount}
+                onChangeText={setPayoutAmount}
+                onFocus={() => {
+                  setTimeout(() => {
+                    payoutScrollRef.current?.scrollTo({ y: 40, animated: true });
+                  }, 120);
+                }}
+              />
+
+              {/* Account Details */}
+              <Text style={styles.inputLabel}>
+                {payoutMethod === 'BANK' ? 'Account Number' : 'Wallet Mobile ID'}
+              </Text>
+              <TextInput
+                style={styles.input}
+                placeholder={payoutMethod === 'BANK' ? 'Enter Bank Account No.' : 'Enter 10-digit Mobile'}
+                placeholderTextColor={COLORS.textMuted}
+                value={accountNumber}
+                onChangeText={setAccountNumber}
+                onFocus={() => {
+                  setTimeout(() => {
+                    payoutScrollRef.current?.scrollTo({ y: 120, animated: true });
+                  }, 120);
+                }}
+              />
+
+              <Text style={styles.inputLabel}>Account Holder Name</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Full Name on Account"
+                placeholderTextColor={COLORS.textMuted}
+                value={accountHolder}
+                onChangeText={setAccountHolder}
+                onFocus={() => {
+                  setTimeout(() => {
+                    payoutScrollRef.current?.scrollTo({ y: 200, animated: true });
+                  }, 120);
+                }}
+              />
+
+              {payoutMethod === 'BANK' && (
+                <>
+                  <Text style={styles.inputLabel}>Bank Name & IFSC / Branch</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. Nabil Bank / SBI"
+                    placeholderTextColor={COLORS.textMuted}
+                    value={ifscOrBank}
+                    onChangeText={setIfscOrBank}
+                    onFocus={() => {
+                      setTimeout(() => {
+                        payoutScrollRef.current?.scrollTo({ y: 280, animated: true });
+                      }, 120);
+                    }}
+                  />
+                </>
               )}
-            </TouchableOpacity>
+
+              {/* Submit Payout Button as normal scrollable in-flow element */}
+              <TouchableOpacity
+                style={[styles.submitPayoutBtn, submittingPayout && { opacity: 0.7 }]}
+                disabled={submittingPayout}
+                onPress={handleRequestPayout}
+                activeOpacity={0.8}
+              >
+                {submittingPayout ? (
+                  <ActivityIndicator color={COLORS.white} />
+                ) : (
+                  <Text style={styles.submitPayoutText}>{t('submitPayout')}</Text>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -609,11 +697,19 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'flex-end',
   },
+  modalBackdropDismissArea: {
+    flex: 1,
+  },
+  keyboardAvoidingWrap: {
+    width: '100%',
+    justifyContent: 'flex-end',
+  },
   payoutCard: {
     backgroundColor: COLORS.bgSurface,
     borderTopLeftRadius: RADIUS.xl,
     borderTopRightRadius: RADIUS.xl,
-    padding: SPACING.l,
+    paddingTop: SPACING.l,
+    paddingHorizontal: SPACING.l,
     borderTopWidth: 1,
     borderColor: COLORS.border,
   },
@@ -622,6 +718,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: SPACING.m,
+  },
+  modalScrollBody: {
+    flexShrink: 1,
+  },
+  modalScrollContent: {
+    paddingBottom: SPACING.m,
   },
   modalTitle: {
     fontSize: 18,
@@ -679,7 +781,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: RADIUS.m,
     alignItems: 'center',
-    marginTop: SPACING.m,
+    marginTop: SPACING.s,
+    marginBottom: SPACING.m,
   },
   submitPayoutText: {
     color: COLORS.white,

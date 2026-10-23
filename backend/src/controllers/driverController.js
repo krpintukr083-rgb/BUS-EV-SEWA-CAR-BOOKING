@@ -1,3 +1,5 @@
+const PlatformChargeSettings = require('../models/PlatformChargeSettings');
+const { calculatePlatformCharge } = require('../utils/platformChargeCalculator');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 const Driver = require('../models/Driver');
@@ -2758,8 +2760,39 @@ exports.endRide = async (req, res, next) => {
     booking.completedAt = new Date();
 
     const finalFare = booking.fare || 0;
-    const platformCommission = Math.round(finalFare * 0.2);
-    const driverEarning = finalFare - platformCommission;
+    // Calculate platform charge using authoritative settings
+    let platformCommission = 0;
+    let driverEarning = finalFare;
+    let chargeSnapshot = null;
+
+    if (booking.platformChargeSnapshot && booking.platformChargeSnapshot.isCalculated) {
+      // Use existing immutable snapshot
+      chargeSnapshot = booking.platformChargeSnapshot;
+      platformCommission = chargeSnapshot.platformCharge;
+      driverEarning = chargeSnapshot.netDriverEarning;
+    } else {
+      const chargeSettings = await PlatformChargeSettings.getEffectiveSettings();
+      const calcResult = calculatePlatformCharge(
+        finalFare,
+        booking.serviceType,
+        booking.bookingMode,
+        chargeSettings
+      );
+      platformCommission = calcResult.platformCharge;
+      driverEarning = calcResult.netDriverEarning;
+      chargeSnapshot = {
+        grossFare: calcResult.grossFare,
+        platformCharge: calcResult.platformCharge,
+        chargeType: calcResult.chargeType,
+        chargeRateOrAmount: calcResult.chargeRateOrAmount,
+        netDriverEarning: calcResult.netDriverEarning,
+        currency: calcResult.currency,
+        platformChargeSettingsVersion: calcResult.platformChargeSettingsVersion,
+        calculatedAt: calcResult.calculatedAt,
+        isCalculated: true
+      };
+      booking.platformChargeSnapshot = chargeSnapshot;
+    }
 
     booking.driverPaymentAmount = driverEarning;
 
@@ -2788,7 +2821,9 @@ exports.endRide = async (req, res, next) => {
         customer: booking.customer,
         driver: driver._id,
         bookingAmount: finalFare,
+        platformCharge: platformCommission,
         driverPayment: driverEarning,
+        platformChargeSnapshot: chargeSnapshot,
         paymentStatus: 'Paid',
         paymentMethod: booking.paymentMethod
       },
@@ -3011,6 +3046,11 @@ exports.getBookingHistory = async (req, res, next) => {
       drop: b.dropLocation,
       distance: '15.4 km',
       fare: b.fare,
+      grossFare: b.platformChargeSnapshot?.isCalculated ? b.platformChargeSnapshot.grossFare : (b.fare || 0),
+      platformCharge: b.platformChargeSnapshot?.isCalculated ? b.platformChargeSnapshot.platformCharge : Math.max(0, (b.fare || 0) - (b.driverPaymentAmount || Math.round((b.fare || 0) * 0.8))),
+      netDriverEarning: b.platformChargeSnapshot?.isCalculated ? b.platformChargeSnapshot.netDriverEarning : (b.driverPaymentAmount || Math.round((b.fare || 0) * 0.8)),
+      chargeType: b.platformChargeSnapshot?.chargeType || 'NONE',
+      settlementStatus: b.paymentStatus === 'Paid' ? 'Paid' : 'Pending',
       driverEarnings: b.driverPaymentAmount || Math.round(b.fare * 0.8),
       paymentMethod: b.paymentMethod,
       paymentStatus: b.paymentStatus,
@@ -3098,7 +3138,12 @@ exports.getEarnings = async (req, res, next) => {
         completedRides: completedCount,
         cancellations: cancelledCount,
         commission: totalCommission,
+        platformCharge: totalCommission,
         netEarnings,
+        netDriverEarning: netEarnings,
+        grossFare: monthlyEarnings + totalCommission,
+        paidSettlement: driver.totalEarnings || 0,
+        pendingSettlement: Math.max(0, (driver.walletBalance || 0)),
         walletBalance: driver.walletBalance || 0
       }
     });
@@ -3895,8 +3940,39 @@ exports.endRide = async (req, res, next) => {
     booking.completedAt = new Date();
 
     const finalFare = booking.fare || 0;
-    const platformCommission = Math.round(finalFare * 0.2);
-    const driverEarning = finalFare - platformCommission;
+    // Calculate platform charge using authoritative settings
+    let platformCommission = 0;
+    let driverEarning = finalFare;
+    let chargeSnapshot = null;
+
+    if (booking.platformChargeSnapshot && booking.platformChargeSnapshot.isCalculated) {
+      // Use existing immutable snapshot
+      chargeSnapshot = booking.platformChargeSnapshot;
+      platformCommission = chargeSnapshot.platformCharge;
+      driverEarning = chargeSnapshot.netDriverEarning;
+    } else {
+      const chargeSettings = await PlatformChargeSettings.getEffectiveSettings();
+      const calcResult = calculatePlatformCharge(
+        finalFare,
+        booking.serviceType,
+        booking.bookingMode,
+        chargeSettings
+      );
+      platformCommission = calcResult.platformCharge;
+      driverEarning = calcResult.netDriverEarning;
+      chargeSnapshot = {
+        grossFare: calcResult.grossFare,
+        platformCharge: calcResult.platformCharge,
+        chargeType: calcResult.chargeType,
+        chargeRateOrAmount: calcResult.chargeRateOrAmount,
+        netDriverEarning: calcResult.netDriverEarning,
+        currency: calcResult.currency,
+        platformChargeSettingsVersion: calcResult.platformChargeSettingsVersion,
+        calculatedAt: calcResult.calculatedAt,
+        isCalculated: true
+      };
+      booking.platformChargeSnapshot = chargeSnapshot;
+    }
 
     booking.driverPaymentAmount = driverEarning;
 
@@ -3925,7 +4001,9 @@ exports.endRide = async (req, res, next) => {
         customer: booking.customer,
         driver: driver._id,
         bookingAmount: finalFare,
+        platformCharge: platformCommission,
         driverPayment: driverEarning,
+        platformChargeSnapshot: chargeSnapshot,
         paymentStatus: 'Paid',
         paymentMethod: booking.paymentMethod
       },
@@ -4148,6 +4226,11 @@ exports.getBookingHistory = async (req, res, next) => {
       drop: b.dropLocation,
       distance: '15.4 km',
       fare: b.fare,
+      grossFare: b.platformChargeSnapshot?.isCalculated ? b.platformChargeSnapshot.grossFare : (b.fare || 0),
+      platformCharge: b.platformChargeSnapshot?.isCalculated ? b.platformChargeSnapshot.platformCharge : Math.max(0, (b.fare || 0) - (b.driverPaymentAmount || Math.round((b.fare || 0) * 0.8))),
+      netDriverEarning: b.platformChargeSnapshot?.isCalculated ? b.platformChargeSnapshot.netDriverEarning : (b.driverPaymentAmount || Math.round((b.fare || 0) * 0.8)),
+      chargeType: b.platformChargeSnapshot?.chargeType || 'NONE',
+      settlementStatus: b.paymentStatus === 'Paid' ? 'Paid' : 'Pending',
       driverEarnings: b.driverPaymentAmount || Math.round(b.fare * 0.8),
       paymentMethod: b.paymentMethod,
       paymentStatus: b.paymentStatus,
@@ -4235,7 +4318,12 @@ exports.getEarnings = async (req, res, next) => {
         completedRides: completedCount,
         cancellations: cancelledCount,
         commission: totalCommission,
+        platformCharge: totalCommission,
         netEarnings,
+        netDriverEarning: netEarnings,
+        grossFare: monthlyEarnings + totalCommission,
+        paidSettlement: driver.totalEarnings || 0,
+        pendingSettlement: Math.max(0, (driver.walletBalance || 0)),
         walletBalance: driver.walletBalance || 0
       }
     });

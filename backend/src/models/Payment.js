@@ -24,6 +24,21 @@ const paymentSchema = new mongoose.Schema(
       type: Number,
       required: true
     },
+        // Platform Charge Snapshot
+    platformCharge: {
+      type: Number,
+      default: 0
+    },
+    platformChargeSnapshot: {
+      grossFare: { type: Number, default: 0 },
+      platformCharge: { type: Number, default: 0 },
+      chargeType: { type: String, enum: ['PERCENTAGE', 'FIXED', 'NONE'], default: 'NONE' },
+      chargeRateOrAmount: { type: Number, default: 0 },
+      netDriverEarning: { type: Number, default: 0 },
+      currency: { type: String, default: 'NPR' },
+      platformChargeSettingsVersion: { type: Number, default: 1 },
+      calculatedAt: { type: Date, default: null }
+    },
     driverPayment: {
       type: Number,
       default: 0

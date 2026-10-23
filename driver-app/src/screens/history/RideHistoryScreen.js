@@ -57,34 +57,51 @@ export default function RideHistoryScreen({ navigation }) {
   });
 
   const renderHistoryCard = ({ item }) => {
-    const grossFare = item.totalFare || 0;
-    const commission = grossFare * 0.2;
-    const netEarnings = grossFare - commission;
-    const isCompleted = item.bookingStatus === 'Completed' || item.rideStatus === 'Completed';
+    const grossFare = Number(item.grossFare !== undefined ? item.grossFare : (item.fare || item.totalFare || 0));
+    const platformCharge = Number(item.platformCharge !== undefined ? item.platformCharge : (grossFare * 0.2));
+    const netEarnings = Number(item.netDriverEarning !== undefined ? item.netDriverEarning : (grossFare - platformCharge));
+    const isCompleted = item.bookingStatus === 'Completed' || item.status === 'Completed' || item.rideStatus === 'Completed';
+    const settlementStatus = item.settlementStatus || (item.paymentStatus === 'Paid' ? 'Paid' : 'Pending');
 
     return (
       <View style={styles.card}>
         {/* Top Header */}
         <View style={styles.cardHeader}>
           <View>
-            <Text style={styles.tripId}>#{item._id?.slice(-6)?.toUpperCase()}</Text>
+            <Text style={styles.tripId}>#{item.bookingId || item._id?.slice(-6)?.toUpperCase()}</Text>
             <Text style={styles.tripDate}>
-              {item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'Recent Trip'}
+              {item.date || (item.createdAt ? new Date(item.createdAt).toLocaleDateString() : 'Recent Trip')}
             </Text>
           </View>
 
-          <View style={[
-            styles.statusBadge,
-            isCompleted
-              ? { backgroundColor: COLORS.success + '20', borderColor: COLORS.success }
-              : { backgroundColor: COLORS.danger + '20', borderColor: COLORS.danger }
-          ]}>
-            <Text style={[
-              styles.statusBadgeText,
-              { color: isCompleted ? COLORS.success : COLORS.danger }
+          <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+            <View style={[
+              styles.statusBadge,
+              settlementStatus === 'Paid'
+                ? { backgroundColor: COLORS.success + '20', borderColor: COLORS.success }
+                : { backgroundColor: COLORS.warning + '20', borderColor: COLORS.warning }
             ]}>
-              {item.bookingStatus || item.rideStatus || 'Completed'}
-            </Text>
+              <Text style={[
+                styles.statusBadgeText,
+                { color: settlementStatus === 'Paid' ? COLORS.success : COLORS.warning }
+              ]}>
+                {settlementStatus === 'Paid' ? 'Settled' : 'Pending'}
+              </Text>
+            </View>
+
+            <View style={[
+              styles.statusBadge,
+              isCompleted
+                ? { backgroundColor: COLORS.success + '20', borderColor: COLORS.success }
+                : { backgroundColor: COLORS.danger + '20', borderColor: COLORS.danger }
+            ]}>
+              <Text style={[
+                styles.statusBadgeText,
+                { color: isCompleted ? COLORS.success : COLORS.danger }
+              ]}>
+                {item.status || item.bookingStatus || item.rideStatus || 'Completed'}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -93,14 +110,14 @@ export default function RideHistoryScreen({ navigation }) {
           <View style={styles.routePoint}>
             <View style={[styles.dot, { backgroundColor: COLORS.success }]} />
             <Text style={styles.routeText} numberOfLines={1}>
-              {item.pickupLocation || item.from || 'Origin'}
+              {item.pickupLocation || item.pickup || item.from || 'Origin'}
             </Text>
           </View>
           <MaterialCommunityIcons name="arrow-down" size={14} color={COLORS.textMuted} style={{ marginLeft: 3 }} />
           <View style={styles.routePoint}>
             <View style={[styles.dot, { backgroundColor: COLORS.danger }]} />
             <Text style={styles.routeText} numberOfLines={1}>
-              {item.dropLocation || item.to || 'Destination'}
+              {item.dropLocation || item.drop || item.to || 'Destination'}
             </Text>
           </View>
         </View>
@@ -109,16 +126,18 @@ export default function RideHistoryScreen({ navigation }) {
         <View style={styles.fareBreakdown}>
           <View style={styles.fareCol}>
             <Text style={styles.fareLabel}>{t('grossFare')}</Text>
-            <Text style={styles.fareVal}>₹{grossFare}</Text>
+            <Text style={styles.fareVal}>₹{grossFare.toFixed(2)}</Text>
           </View>
           <View style={styles.fareCol}>
-            <Text style={styles.fareLabel}>{t('commission')} (20%)</Text>
-            <Text style={[styles.fareVal, { color: COLORS.warning }]}>-₹{commission.toFixed(0)}</Text>
+            <Text style={styles.fareLabel}>Platform Charge</Text>
+            <Text style={[styles.fareVal, { color: platformCharge > 0 ? COLORS.warning : COLORS.success }]}>
+              {platformCharge > 0 ? `-₹${platformCharge.toFixed(2)}` : '₹0.00'}
+            </Text>
           </View>
           <View style={styles.fareCol}>
-            <Text style={styles.fareLabel}>{t('netEarnings')} (80%)</Text>
+            <Text style={styles.fareLabel}>{t('netEarnings')}</Text>
             <Text style={[styles.fareVal, { color: COLORS.success, fontWeight: '800' }]}>
-              ₹{netEarnings.toFixed(0)}
+              ₹{netEarnings.toFixed(2)}
             </Text>
           </View>
         </View>
@@ -126,7 +145,7 @@ export default function RideHistoryScreen({ navigation }) {
         {/* Payment & Service Type */}
         <View style={styles.bottomRow}>
           <Text style={styles.serviceText}>
-            {item.serviceType === 'EV_SEWA' ? '⚡ EV-Sewa' : item.serviceType === 'BUS' ? '🚌 Bus' : '🚖 Cab'}
+            {item.serviceType === 'EV_SEWA' || item.serviceType === 'EV-Sewa' ? '⚡ EV-Sewa' : item.serviceType === 'BUS' || item.serviceType === 'Bus' ? '🚌 Bus' : '🚖 Cab'}
           </Text>
           <Text style={styles.paymentMethodText}>
             Paid via: {item.paymentMethod || 'CASH'}

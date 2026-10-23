@@ -29,7 +29,9 @@ const titlesMap = {
   '/notifications': 'Platform Broadcast & Notifications',
   '/support-tickets': 'Customer & Driver Support Center',
   '/policies': 'Terms & Privacy Policies',
-  '/reports': 'Basic Operational & Financial Reports'
+  '/reports': 'Basic Operational & Financial Reports',
+  '/platform-charges': 'Earnings & Platform Charges Settings',
+  '/platform-charge-reports': 'Platform Charge & Driver Earnings Reports'
 };
 
 const AdminLayout = () => {
