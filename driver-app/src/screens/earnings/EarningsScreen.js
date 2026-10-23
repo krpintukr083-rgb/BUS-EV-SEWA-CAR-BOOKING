@@ -127,6 +127,24 @@ export default function EarningsScreen({ navigation }) {
   const effectiveCharge = earningsData.platformCharge !== undefined ? earningsData.platformCharge : (earningsData.commission || 0);
   const effectiveNet = earningsData.netDriverEarning !== undefined ? earningsData.netDriverEarning : earningsData.netEarnings;
 
+  // Determine percentage rate dynamically
+  const effectiveChargePercentLabel = (() => {
+    if (earningsData.percentageRate !== undefined && earningsData.percentageRate !== null) {
+      if (earningsData.isEnabled === false || earningsData.percentageRate === 0) {
+        return 'Platform Charge (Disabled)';
+      }
+      return `Platform Charge (${earningsData.percentageRate}%)`;
+    }
+    if (effectiveGross > 0 && effectiveCharge > 0) {
+      const calcRate = Math.round((effectiveCharge / effectiveGross) * 100);
+      return `Platform Charge (${calcRate}%)`;
+    }
+    if (effectiveCharge === 0) {
+      return 'Platform Charge (Disabled)';
+    }
+    return 'Platform Charge';
+  })();
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
@@ -214,12 +232,12 @@ export default function EarningsScreen({ navigation }) {
               <View style={styles.row}>
                 <View style={styles.commissionLabelRow}>
                   <Text style={[styles.rowLabel, { color: effectiveCharge > 0 ? COLORS.warning : COLORS.textSecondary }]}>
-                    Platform Charge
+                    {effectiveChargePercentLabel}
                   </Text>
                   <MaterialCommunityIcons name="information-outline" size={14} color={COLORS.textMuted} />
                 </View>
                 <Text style={[styles.rowValue, { color: effectiveCharge > 0 ? COLORS.warning : COLORS.success }]}>
-                  {effectiveCharge > 0 ? `-₹${Number(effectiveCharge).toFixed(2)}` : '₹0.00 (Disabled)'}
+                  {effectiveCharge > 0 ? `-₹${Number(effectiveCharge).toFixed(2)}` : '₹0.00'}
                 </Text>
               </View>
 
@@ -281,7 +299,7 @@ export default function EarningsScreen({ navigation }) {
             <View style={styles.card}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <Text style={styles.cardTitle}>Booking-wise Earning History</Text>
-                <TouchableOpacity onPress={() => navigation.navigate('History')}>
+                <TouchableOpacity onPress={() => navigation.navigate('RideHistory')}>
                   <Text style={{ fontSize: 12, color: COLORS.primary, fontWeight: '700' }}>View All</Text>
                 </TouchableOpacity>
               </View>
@@ -293,8 +311,17 @@ export default function EarningsScreen({ navigation }) {
               ) : (
                 earningsData.history.slice(0, 5).map((b, idx) => {
                   const bGross = Number(b.grossFare !== undefined ? b.grossFare : (b.fare || 0));
-                  const bCharge = Number(b.platformCharge !== undefined ? b.platformCharge : Math.max(0, bGross - (b.driverPaymentAmount || Math.round(bGross * 0.8))));
-                  const bNet = Number(b.netDriverEarning !== undefined ? b.netDriverEarning : (b.driverPaymentAmount || Math.round(bGross * 0.8)));
+                  const bCharge = Number(b.platformCharge !== undefined ? b.platformCharge : 0);
+                  const bNet = Number(b.netDriverEarning !== undefined ? b.netDriverEarning : (bGross - bCharge));
+
+                  // Booking specific percentage label
+                  const bRate = b.chargeRateOrAmount !== undefined && b.chargeRateOrAmount !== null
+                    ? b.chargeRateOrAmount
+                    : (bGross > 0 && bCharge > 0 ? Math.round((bCharge / bGross) * 100) : null);
+                  const bFeeLabel = bRate !== null && bRate > 0
+                    ? `Fee (${bRate}%): ₹${bCharge.toFixed(2)}`
+                    : (bCharge === 0 ? 'Fee (0%): ₹0.00' : `Fee: ₹${bCharge.toFixed(2)}`);
+
                   return (
                     <View key={b.id || b.bookingId || idx} style={{
                       paddingVertical: 10,
@@ -311,7 +338,7 @@ export default function EarningsScreen({ navigation }) {
                       </View>
                       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
                         <Text style={{ fontSize: 11, color: COLORS.textMuted }}>
-                          Gross: ₹{bGross.toFixed(2)} · Fee: ₹{bCharge.toFixed(2)}
+                          Gross: ₹{bGross.toFixed(2)} · {bFeeLabel}
                         </Text>
                         <Text style={{
                           fontSize: 11,

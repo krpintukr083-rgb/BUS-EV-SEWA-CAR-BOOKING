@@ -71,10 +71,17 @@ export default function RideHistoryScreen({ navigation }) {
 
   const renderHistoryCard = ({ item }) => {
     const grossFare = Number(item.grossFare !== undefined ? item.grossFare : (item.fare || item.totalFare || 0));
-    const platformCharge = Number(item.platformCharge !== undefined ? item.platformCharge : (grossFare * 0.2));
+    const platformCharge = Number(item.platformCharge !== undefined ? item.platformCharge : 0);
     const netEarnings = Number(item.netDriverEarning !== undefined ? item.netDriverEarning : (grossFare - platformCharge));
     const isCompleted = item.bookingStatus === 'Completed' || item.status === 'Completed' || item.rideStatus === 'Completed';
     const settlementStatus = item.settlementStatus || (item.paymentStatus === 'Paid' ? 'Paid' : 'Pending');
+
+    const rate = item.chargeRateOrAmount !== undefined && item.chargeRateOrAmount !== null
+      ? item.chargeRateOrAmount
+      : (grossFare > 0 && platformCharge > 0 ? Math.round((platformCharge / grossFare) * 100) : null);
+    const chargeLabel = rate !== null && rate > 0
+      ? `Platform Charge (${rate}%)`
+      : (platformCharge === 0 ? 'Platform Charge (0%)' : 'Platform Charge');
 
     return (
       <View style={styles.card}>
@@ -142,7 +149,7 @@ export default function RideHistoryScreen({ navigation }) {
             <Text style={styles.fareVal}>₹{grossFare.toFixed(2)}</Text>
           </View>
           <View style={styles.fareCol}>
-            <Text style={styles.fareLabel}>Platform Charge</Text>
+            <Text style={styles.fareLabel}>{chargeLabel}</Text>
             <Text style={[styles.fareVal, { color: platformCharge > 0 ? COLORS.warning : COLORS.success }]}>
               {platformCharge > 0 ? `-₹${platformCharge.toFixed(2)}` : '₹0.00'}
             </Text>

@@ -3035,28 +3035,59 @@ exports.getBookingHistory = async (req, res, next) => {
       .sort({ createdAt: -1 })
       .lean();
 
-    const history = bookings.map(b => ({
-      id: b._id,
-      bookingId: b.bookingId,
-      date: new Date(b.createdAt).toLocaleDateString(),
-      time: new Date(b.createdAt).toLocaleTimeString(),
-      customer: b.customer?.name || 'Passenger',
-      ...(driver.canViewCustomerPhone === true && b.customer?.phone ? { customerPhone: b.customer.phone } : {}),
-      pickup: b.pickupLocation,
-      drop: b.dropLocation,
-      distance: '15.4 km',
-      fare: b.fare,
-      grossFare: b.platformChargeSnapshot?.isCalculated ? b.platformChargeSnapshot.grossFare : (b.fare || 0),
-      platformCharge: b.platformChargeSnapshot?.isCalculated ? b.platformChargeSnapshot.platformCharge : Math.max(0, (b.fare || 0) - (b.driverPaymentAmount || Math.round((b.fare || 0) * 0.8))),
-      netDriverEarning: b.platformChargeSnapshot?.isCalculated ? b.platformChargeSnapshot.netDriverEarning : (b.driverPaymentAmount || Math.round((b.fare || 0) * 0.8)),
-      chargeType: b.platformChargeSnapshot?.chargeType || 'NONE',
-      settlementStatus: b.paymentStatus === 'Paid' ? 'Paid' : 'Pending',
-      driverEarnings: b.driverPaymentAmount || Math.round(b.fare * 0.8),
-      paymentMethod: b.paymentMethod,
-      paymentStatus: b.paymentStatus,
-      status: b.bookingStatus,
-      rideStatus: b.rideStatus || 'Completed'
-    }));
+    const effectiveSettings = await PlatformChargeSettings.getEffectiveSettings();
+
+    const history = bookings.map(b => {
+      const snap = b.platformChargeSnapshot && b.platformChargeSnapshot.isCalculated
+        ? b.platformChargeSnapshot
+        : null;
+
+      const grossFare = snap ? snap.grossFare : (b.fare || 0);
+      let platformCharge;
+      let netDriverEarning;
+      let chargeRateOrAmount;
+
+      if (snap) {
+        platformCharge = snap.platformCharge;
+        netDriverEarning = snap.netDriverEarning;
+        chargeRateOrAmount = snap.chargeRateOrAmount !== undefined ? snap.chargeRateOrAmount : (grossFare > 0 ? Math.round((platformCharge / grossFare) * 100) : null);
+      } else if (b.driverPaymentAmount !== undefined && b.driverPaymentAmount !== null && (b.bookingStatus === 'Completed' || b.rideStatus === 'Completed')) {
+        // Historical completed booking without snapshot: preserve immutable driver payment
+        netDriverEarning = b.driverPaymentAmount;
+        platformCharge = Math.max(0, grossFare - netDriverEarning);
+        chargeRateOrAmount = grossFare > 0 && platformCharge > 0 ? Math.round((platformCharge / grossFare) * 100) : null;
+      } else {
+        // Dynamic estimate using active platform charge settings for non-completed or fresh bookings
+        const calc = calculatePlatformCharge(grossFare, b.serviceType, b.bookingMode, effectiveSettings);
+        platformCharge = calc.platformCharge;
+        netDriverEarning = calc.netDriverEarning;
+        chargeRateOrAmount = calc.chargeRateOrAmount;
+      }
+
+      return {
+        id: b._id,
+        bookingId: b.bookingId,
+        date: new Date(b.createdAt).toLocaleDateString(),
+        time: new Date(b.createdAt).toLocaleTimeString(),
+        customer: b.customer?.name || 'Passenger',
+        ...(driver.canViewCustomerPhone === true && b.customer?.phone ? { customerPhone: b.customer.phone } : {}),
+        pickup: b.pickupLocation,
+        drop: b.dropLocation,
+        distance: '15.4 km',
+        fare: b.fare,
+        grossFare,
+        platformCharge,
+        netDriverEarning,
+        chargeType: snap?.chargeType || (effectiveSettings.isEnabled ? effectiveSettings.chargeType : 'NONE'),
+        chargeRateOrAmount,
+        settlementStatus: b.paymentStatus === 'Paid' ? 'Paid' : 'Pending',
+        driverEarnings: netDriverEarning,
+        paymentMethod: b.paymentMethod,
+        paymentStatus: b.paymentStatus,
+        status: b.bookingStatus,
+        rideStatus: b.rideStatus || 'Completed'
+      };
+    });
 
     res.json({
       success: true,
@@ -3114,7 +3145,7 @@ exports.getEarnings = async (req, res, next) => {
     };
 
     // Parallel aggregate queries for rolling overview metrics
-    const [todayAgg, weekAgg, monthAgg, completedCount, cancelledCount, periodBookings] = await Promise.all([
+    const [todayAgg, weekAgg, monthAgg, completedCount, cancelledCount, periodBookings, effectiveSettings] = await Promise.all([
       Booking.aggregate([
         { $match: { ...matchDriverPaid, createdAt: { $gte: startOfToday } } },
         { $group: { _id: null, total: { $sum: '$driverPaymentAmount' } } }
@@ -3145,7 +3176,8 @@ exports.getEarnings = async (req, res, next) => {
       Booking.find({
         ...matchDriverPaid,
         createdAt: { $gte: periodStartDate, $lte: periodEndDate }
-      }).lean()
+      }).lean(),
+      PlatformChargeSettings.getEffectiveSettings()
     ]);
 
     const todayEarnings = todayAgg.length > 0 ? (todayAgg[0].total || 0) : 0;
@@ -3164,12 +3196,22 @@ exports.getEarnings = async (req, res, next) => {
         : null;
 
       const gross = snap ? snap.grossFare : (b.fare || 0);
-      const charge = snap
-        ? snap.platformCharge
-        : Math.max(0, gross - (b.driverPaymentAmount || Math.round(gross * 0.8)));
-      const net = snap
-        ? snap.netDriverEarning
-        : (b.driverPaymentAmount || Math.round(gross * 0.8));
+      let charge;
+      let net;
+
+      if (snap) {
+        charge = snap.platformCharge;
+        net = snap.netDriverEarning;
+      } else if (b.driverPaymentAmount !== undefined && b.driverPaymentAmount !== null && (b.bookingStatus === 'Completed' || b.rideStatus === 'Completed')) {
+        // Historical completed booking without snapshot: preserve immutable driver payment
+        net = b.driverPaymentAmount;
+        charge = Math.max(0, gross - net);
+      } else {
+        // Active estimate using current admin platform charge settings for pending/uncompleted bookings
+        const calc = calculatePlatformCharge(gross, b.serviceType, b.bookingMode, effectiveSettings);
+        charge = calc.platformCharge;
+        net = calc.netDriverEarning;
+      }
 
       periodGrossFare += gross;
       periodPlatformCharge += charge;
@@ -3197,6 +3239,10 @@ exports.getEarnings = async (req, res, next) => {
         netEarnings: periodNetEarnings,
         netDriverEarning: periodNetEarnings,
         completedTrips: periodCompletedTrips,
+        // Active platform charge settings metadata for driver app dynamic labels
+        percentageRate: effectiveSettings ? effectiveSettings.percentageRate : 10,
+        chargeType: effectiveSettings ? effectiveSettings.chargeType : 'PERCENTAGE',
+        isEnabled: effectiveSettings ? effectiveSettings.isEnabled : true,
         // Rolling overview indicators
         todayEarnings,
         weeklyEarnings,

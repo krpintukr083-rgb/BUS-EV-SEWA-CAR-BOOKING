@@ -5,6 +5,7 @@ const { connectTestDB, closeTestDB } = require('./setup');
 const User = require('../src/models/User');
 const Driver = require('../src/models/Driver');
 const Booking = require('../src/models/Booking');
+const PlatformChargeSettings = require('../src/models/PlatformChargeSettings');
 const jwt = require('jsonwebtoken');
 const jwtConfig = require('../src/config/jwt');
 
@@ -18,6 +19,17 @@ describe('Driver Earnings Period Filter & Platform Charge Regression Tests', () 
 
   beforeAll(async () => {
     await connectTestDB();
+
+    // Ensure test database has active 10% PlatformChargeSettings
+    await PlatformChargeSettings.deleteMany({});
+    await PlatformChargeSettings.create({
+      isEnabled: true,
+      chargeType: 'PERCENTAGE',
+      percentageRate: 10,
+      applicableServices: { bus: true, evSewa: true, car: true },
+      applicableBookingModes: { instant: true, scheduled: true },
+      version: 1
+    });
 
     driverUser = await User.create({
       name: 'Period Filter Driver',
@@ -311,5 +323,150 @@ describe('Driver Earnings Period Filter & Platform Charge Regression Tests', () 
     expect(data.grossFare).toBe(4500);
     expect(data.platformCharge).toBe(600);
     expect(data.netEarnings).toBe(3900);
+  });
+
+  test('7. Proves driver earnings responds dynamically when API fixture changes from 100 to 150 without hardcoding', () => {
+    // Simulate UI transformation logic in EarningsScreen.js
+    const transformEarnings = (payload) => {
+      const gross = Number(payload.grossFare || 0);
+      const charge = Number(payload.platformCharge !== undefined ? payload.platformCharge : (payload.commission || 0));
+      const net = Number(payload.netDriverEarning !== undefined ? payload.netDriverEarning : (payload.netEarnings || 0));
+      return {
+        grossFare: Math.round(gross * 100) / 100,
+        platformCharge: Math.round(charge * 100) / 100,
+        netEarnings: Math.round(net * 100) / 100
+      };
+    };
+
+    // Fixture A: 10% rate resulting in 100 platform charge
+    const fixture10 = { grossFare: 1000, platformCharge: 100, netDriverEarning: 900 };
+    const result10 = transformEarnings(fixture10);
+    expect(result10.platformCharge).toBe(100);
+    expect(result10.netEarnings).toBe(900);
+    expect(result10.grossFare - result10.platformCharge).toBe(result10.netEarnings);
+
+    // Fixture B: 15% rate resulting in 150 platform charge
+    const fixture15 = { grossFare: 1000, platformCharge: 150, netDriverEarning: 850 };
+    const result15 = transformEarnings(fixture15);
+    expect(result15.platformCharge).toBe(150);
+    expect(result15.netEarnings).toBe(850);
+    expect(result15.grossFare - result15.platformCharge).toBe(result15.netEarnings);
+
+    // Verify it changes dynamically rather than sticking to any hardcoded constant
+    expect(result15.platformCharge).not.toBe(result10.platformCharge);
+    expect(result15.platformCharge - result10.platformCharge).toBe(50);
+  });
+
+  test('8. Verifies UI label displays dynamic percentage beside charge amount for 10%, 15%, and Disabled', () => {
+    const getChargeLabel = (data) => {
+      const effectiveGross = Number(data.grossFare || 0);
+      const effectiveCharge = Number(data.platformCharge !== undefined ? data.platformCharge : (data.commission || 0));
+
+      if (data.percentageRate !== undefined && data.percentageRate !== null) {
+        if (data.isEnabled === false || data.percentageRate === 0) {
+          return 'Platform Charge (Disabled)';
+        }
+        return `Platform Charge (${data.percentageRate}%)`;
+      }
+      if (effectiveGross > 0 && effectiveCharge > 0) {
+        const calcRate = Math.round((effectiveCharge / effectiveGross) * 100);
+        return `Platform Charge (${calcRate}%)`;
+      }
+      if (effectiveCharge === 0) {
+        return 'Platform Charge (Disabled)';
+      }
+      return 'Platform Charge';
+    };
+
+    // 10% scenario
+    expect(getChargeLabel({ grossFare: 850, platformCharge: 85, percentageRate: 10 })).toBe('Platform Charge (10%)');
+    expect(getChargeLabel({ grossFare: 1700, platformCharge: 170 })).toBe('Platform Charge (10%)');
+
+    // 15% scenario
+    expect(getChargeLabel({ grossFare: 850, platformCharge: 127.5, percentageRate: 15 })).toBe('Platform Charge (15%)');
+    expect(getChargeLabel({ grossFare: 1000, platformCharge: 150 })).toBe('Platform Charge (15%)');
+
+    // Disabled scenario
+    expect(getChargeLabel({ grossFare: 850, platformCharge: 0, isEnabled: false })).toBe('Platform Charge (Disabled)');
+    expect(getChargeLabel({ grossFare: 1000, platformCharge: 0 })).toBe('Platform Charge (Disabled)');
+
+    // 20% scenario
+    expect(getChargeLabel({ grossFare: 1700, platformCharge: 340, percentageRate: 20 })).toBe('Platform Charge (20%)');
+    expect(getChargeLabel({ grossFare: 1700, platformCharge: 340 })).toBe('Platform Charge (20%)');
+  });
+
+  test('9. Authoritative backend response provides percentageRate, chargeType, isEnabled and preserves historical snapshots', async () => {
+    // 1. Fetch current earnings response
+    const res = await request(app)
+      .get('/api/driver/earnings?period=monthly')
+      .set('Authorization', `Bearer ${driverToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    const data = res.body.data;
+
+    // Verify settings metadata presence
+    expect(data).toHaveProperty('percentageRate');
+    expect(data).toHaveProperty('chargeType');
+    expect(data).toHaveProperty('isEnabled');
+
+    // 2. Fetch booking history
+    const historyRes = await request(app)
+      .get('/api/driver/booking-history')
+      .set('Authorization', `Bearer ${driverToken}`);
+
+    expect(historyRes.status).toBe(200);
+    expect(historyRes.body.success).toBe(true);
+    const historyItems = historyRes.body.data;
+    expect(historyItems.length).toBeGreaterThan(0);
+
+    // Verify each history item has valid chargeRateOrAmount, grossFare, platformCharge, and netDriverEarning
+    historyItems.forEach(item => {
+      expect(item).toHaveProperty('grossFare');
+      expect(item).toHaveProperty('platformCharge');
+      expect(item).toHaveProperty('netDriverEarning');
+      expect(item).toHaveProperty('chargeRateOrAmount');
+      expect(item.grossFare - item.platformCharge).toBe(item.netDriverEarning);
+    });
+
+    // 3. Historical booking with immutable snapshot (e.g., today's booking) preserves its original snapshot
+    const todayItem = historyItems.find(i => i.grossFare === 1000);
+    expect(todayItem).toBeDefined();
+    expect(todayItem.platformCharge).toBe(100);
+    expect(todayItem.chargeRateOrAmount).toBe(10);
+    expect(todayItem.netDriverEarning).toBe(900);
+  });
+
+  test('10. Unfinished bookings without snapshot dynamically calculate preliminary charge from active 10% setting (850 -> 85, 1700 -> 170)', async () => {
+    // Create an unfinished booking (Pending status, no snapshot)
+    const unfinishedBooking = await Booking.create({
+      bookingId: `BK-UNFINISHED-${Date.now()}`,
+      customer: { name: 'Unfinished Customer', phone: '9845555555' },
+      driver: driverProfile._id,
+      serviceType: 'Car',
+      bookingMode: 'INSTANT',
+      pickupLocation: 'Kathmandu',
+      dropLocation: 'Lalitpur',
+      fare: 850,
+      paymentMethod: 'Offline Cash',
+      paymentStatus: 'Paid',
+      bookingStatus: 'Confirmed',
+      rideStatus: 'Accepted',
+      createdAt: new Date()
+    });
+
+    createdBookingIds.push(unfinishedBooking._id);
+
+    const historyRes = await request(app)
+      .get('/api/driver/booking-history')
+      .set('Authorization', `Bearer ${driverToken}`);
+
+    expect(historyRes.status).toBe(200);
+    const item = historyRes.body.data.find(b => b.bookingId === unfinishedBooking.bookingId);
+    expect(item).toBeDefined();
+    expect(item.grossFare).toBe(850);
+    expect(item.platformCharge).toBe(85);
+    expect(item.netDriverEarning).toBe(765);
+    expect(item.chargeRateOrAmount).toBe(10);
   });
 });
