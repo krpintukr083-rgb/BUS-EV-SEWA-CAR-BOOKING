@@ -140,8 +140,42 @@ const isEligibleForBooking = (vOrigin, vDest, bOrigin, bDest, allowOpposite = fa
   return { normalMatch, reverseMatch, finalEligible };
 };
 
-const driverMatchesBookingRoute = (driver, booking, { allowOpposite = false } = {}) => {
+/**
+ * Normalizes vehicle category/type names to canonical tokens.
+ */
+const normalizeVehicleType = (val) => {
+  if (!val) return '';
+  const s = String(val).trim().toLowerCase().replace(/[\s_\-]+/g, '');
+  if (s.includes('bus')) return 'bus';
+  if (s.includes('car') || s.includes('sedan') || s.includes('suv') || s.includes('hatchback')) return 'car';
+  if (s.includes('evsewa') || s.includes('ev')) return 'ev-sewa';
+  if (s.includes('truck')) return 'truck';
+  return s;
+};
+
+/**
+ * Checks if a driver's vehicle type is compatible with a booking's requested service type.
+ * 'Any' or unspecified booking service matches any driver vehicle.
+ */
+const isServiceTypeCompatible = (driverVehicleType, bookingServiceType) => {
+  const normBooking = normalizeVehicleType(bookingServiceType);
+  if (!normBooking || normBooking === 'any') return true;
+  const normDriver = normalizeVehicleType(driverVehicleType);
+  if (!normDriver) return false;
+  return normDriver === normBooking;
+};
+
+const driverMatchesBookingRoute = (driver, booking, { allowOpposite = false, requireServiceTypeMatch = false } = {}) => {
   if (!driver || !booking) return false;
+
+  if (requireServiceTypeMatch) {
+    const driverVehicleType = driver.assignedVehicle?.vehicleType || driver.vehicleType;
+    const bookingServiceType = booking.serviceType || booking.vehicleType;
+    if (!isServiceTypeCompatible(driverVehicleType, bookingServiceType)) {
+      return false;
+    }
+  }
+
   const effectiveRoute = resolveDriverRoute(driver, booking);
   if (!effectiveRoute) return false;
 
@@ -154,11 +188,23 @@ const driverMatchesBookingRoute = (driver, booking, { allowOpposite = false } = 
   ).finalEligible;
 };
 
+const vehicleMatchesBookingRoute = (vehicle, booking, { allowOpposite = false } = {}) => {
+  if (!vehicle || !booking) return false;
+  const vOrigin = vehicle.route?.origin || '';
+  const vDest = vehicle.route?.destination || '';
+  const bOrigin = booking.pickupLocation || booking.origin || booking.route?.origin || '';
+  const bDest = booking.dropLocation || booking.destination || booking.route?.destination || '';
+  return isEligibleForBooking(vOrigin, vDest, bOrigin, bDest, allowOpposite).finalEligible;
+};
+
 module.exports = {
   normalizeRouteLocation,
+  normalizeVehicleType,
+  isServiceTypeCompatible,
   resolveDriverRoute,
   isSameRoute,
   isReverseRoute,
   isEligibleForBooking,
-  driverMatchesBookingRoute
+  driverMatchesBookingRoute,
+  vehicleMatchesBookingRoute
 };

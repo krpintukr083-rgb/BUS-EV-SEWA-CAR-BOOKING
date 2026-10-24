@@ -5,7 +5,13 @@ const ServiceControl = require('../models/ServiceControl');
 const User = require('../models/User');
 const Vehicle = require('../models/Vehicle');
 const { getRouteSegmentFare } = require('./routeFares');
-const { isSameRoute, isEligibleForBooking, driverMatchesBookingRoute } = require('./routeMatching');
+const {
+  isSameRoute,
+  isEligibleForBooking,
+  driverMatchesBookingRoute,
+  isServiceTypeCompatible,
+  normalizeVehicleType
+} = require('./routeMatching');
 
 
 
@@ -160,6 +166,8 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
     const matchedDrivers = eligibleDrivers.filter(driver => {
       if (!driver.user || driver.user.status === 'Blocked') return false;
 
+
+
       if (isCarBooking) {
         const driverIdStr = String(driver._id);
         const bookingDriverStr = booking.driver ? String(booking.driver._id || booking.driver) : null;
@@ -172,7 +180,9 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
         }
       }
 
-      return driverMatchesBookingRoute(driver, booking, { allowOpposite });
+      // Scheduled directional bookings cannot use opposite routes
+      const effectiveAllowOpposite = scheduleBooking ? false : allowOpposite;
+      return driverMatchesBookingRoute(driver, booking, { allowOpposite: effectiveAllowOpposite });
     });
 
     const tQueryEnd = Date.now();
@@ -533,7 +543,7 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
 const notifyAssignedDriverForScheduleBooking = async (booking) => {
   if (!booking || booking.bookingMode !== 'SCHEDULE') return;
   
-  if (booking.serviceType !== 'Car') {
+  if (booking.serviceType !== 'Car' || !booking.scheduleId) {
     return notifyEligibleDriversForBooking(booking, { scheduleBooking: true });
   }
 

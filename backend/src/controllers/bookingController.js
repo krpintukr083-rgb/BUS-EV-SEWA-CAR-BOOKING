@@ -87,7 +87,7 @@ const createInstantBooking = async (req, res, next) => {
 const createScheduleBooking = async (req, res, next) => {
   try {
     const { vehicleId, serviceType, pickupLocation, dropLocation, passengerDetails, passengerCount, selectedSeats, fare, travelDate, scheduleId, paymentMethod } = req.body;
-    const bookingMode = 'SCHEDULE';
+    const bookingMode = req.body.bookingMode === 'NORMAL' ? 'NORMAL' : 'SCHEDULE';
     if (!vehicleId || !serviceType || !pickupLocation || (serviceType !== 'Car' && !dropLocation)) {
       return res.status(400).json({
         success: false,

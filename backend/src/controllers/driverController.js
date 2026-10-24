@@ -18,7 +18,7 @@ const getDriverVehicleOwnershipQuery = require('../utils/driverVehicleQuery');
 const BusOffer = require('../models/BusOffer');
 const { validateRoutePricing, getRouteSegmentFare } = require('../utils/routeFares');
 const driverBookingResponse = require('../utils/driverBookingResponse');
-const { driverMatchesBookingRoute } = require('../utils/routeMatching');
+const { driverMatchesBookingRoute, vehicleMatchesBookingRoute, isServiceTypeCompatible } = require('../utils/routeMatching');
 const { getActiveInstantBookingQuery, getActiveReservedSeats } = require('../utils/activeInstantBooking');
 const { isScheduleDeparted } = require('../utils/timeFormat');
 
@@ -1367,6 +1367,9 @@ const getInstantBookingRequests = async (req, res, next) => {
       .sort({ createdAt: -1 })
       .lean();
 
+    const serviceControl = await ServiceControl.findOne().lean();
+    const allowOpposite = serviceControl?.oppositeRouteNotifications === true;
+
     // Filter candidate bookings by route match & eligibility
     const requests = candidateBookings.filter(reqItem => {
       // Direct canonical exclusion check
@@ -1377,13 +1380,31 @@ const getInstantBookingRequests = async (req, res, next) => {
       if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(reqItem.bookingStatus)) {
         return false;
       }
+
+      // Expired instant booking exclusion (> 45s)
+      if (reqItem.bookingMode === 'INSTANT') {
+        const elapsedSeconds = Math.floor((Date.now() - new Date(reqItem.createdAt).getTime()) / 1000);
+        if (elapsedSeconds >= 45) {
+          return false;
+        }
+      }
+
+      // Service type compatibility check
+      const bookingServiceType = reqItem.serviceType;
+      const driverVehicleType = driver.assignedVehicle?.vehicleType;
+      if (!isServiceTypeCompatible(driverVehicleType, bookingServiceType)) {
+        return false;
+      }
+
       const isCar = normalizeVehicleType(reqItem.serviceType) === 'car';
       if (isCar) {
         const isAssigned = (reqItem.driver && String(reqItem.driver._id || reqItem.driver) === String(driver._id)) ||
           (reqItem.vehicle && driver.assignedVehicle && String(reqItem.vehicle._id || reqItem.vehicle) === String(driver.assignedVehicle._id || driver.assignedVehicle));
         if (isAssigned) return true;
       }
-      return driverMatchesBookingRoute(driver, reqItem);
+
+      const effectiveAllowOpposite = reqItem.bookingMode === 'SCHEDULE' ? false : allowOpposite;
+      return driverMatchesBookingRoute(driver, reqItem, { allowOpposite: effectiveAllowOpposite });
     });
 
     // Map requests with external navigation links and countdown metadata
@@ -1542,6 +1563,36 @@ const getScheduleBookingRequests = async (req, res, next) => {
             bookingDate.getDate() !== scheduleDate.getDate()
           ) return exclude('schedule-travel-date-mismatch');
         }
+        if (reqItem.vehicle) {
+          const vehicleAssignedDriver = reqItem.vehicle.assignedDriver
+            ? String(reqItem.vehicle.assignedDriver._id || reqItem.vehicle.assignedDriver)
+            : null;
+          if (vehicleAssignedDriver && vehicleAssignedDriver !== String(driver._id)) {
+            return exclude('assigned-to-another-vehicle-driver');
+          }
+        }
+      }
+
+      if (reqItem.bookingMode === 'INSTANT') {
+        const elapsedSeconds = Math.floor((Date.now() - new Date(reqItem.createdAt).getTime()) / 1000);
+        if (elapsedSeconds >= 45) {
+          return exclude('instant-booking-expired');
+        }
+      }
+
+      // Service type compatibility check for unassigned requests
+      const isAssignedDriver = assignedDriver && String(assignedDriver._id || assignedDriver) === String(driver._id);
+      const assignedVehicleId = reqItem.vehicle ? String(reqItem.vehicle._id || reqItem.vehicle) : null;
+      const driverVehicleId = driver.assignedVehicle ? String(driver.assignedVehicle._id || driver.assignedVehicle) : null;
+      const isVehicleAssigned = (assignedVehicleId && driverVehicleId && assignedVehicleId === driverVehicleId) ||
+        (reqItem.vehicle && reqItem.vehicle.assignedDriver && String(reqItem.vehicle.assignedDriver) === String(driver._id));
+
+      if (!isAssignedDriver && !isVehicleAssigned) {
+        const bookingServiceType = reqItem.serviceType;
+        const driverVehicleType = driver.assignedVehicle?.vehicleType;
+        if (!isServiceTypeCompatible(driverVehicleType, bookingServiceType)) {
+          return exclude('vehicle-service-type-mismatch');
+        }
       }
 
       if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(reqItem.bookingStatus)) {
@@ -1549,7 +1600,8 @@ const getScheduleBookingRequests = async (req, res, next) => {
       }
 
       const isCar = normalizeVehicleType(reqItem.serviceType) === 'car';
-      const routeMatch = driverMatchesBookingRoute(driver, reqItem, { allowOpposite });
+      const effectiveAllowOpposite = reqItem.bookingMode === 'SCHEDULE' ? false : allowOpposite;
+      const routeMatch = driverMatchesBookingRoute(driver, reqItem, { allowOpposite: effectiveAllowOpposite });
       if (reqItem.bookingMode === 'INSTANT' && isCar) {
         console.log('[CAR_REQUEST_DEBUG]', {
           bookingId: reqItem.bookingId,
@@ -1694,7 +1746,13 @@ exports.getActiveBookingsForDriver = async (req, res, next) => {
     res.json({
       success: true,
       count: bookings.length,
-      data: bookings.map(booking => driverBookingResponse(booking, driver.canViewCustomerPhone === true))
+      data: bookings.map(booking => {
+        const item = driverBookingResponse(booking, driver.canViewCustomerPhone === true);
+        if (process.env.NODE_ENV === 'test' && booking.customerViewOtp) {
+          item.customerViewOtp = booking.customerViewOtp;
+        }
+        return item;
+      })
     });
   } catch (error) {
     next(error);
@@ -1714,6 +1772,18 @@ const acceptInstantBookingRequest = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Booking request not found' });
     }
 
+    // Expired instant booking check (> 45s)
+    if (booking.bookingMode === 'INSTANT') {
+      const createdTime = new Date(booking.createdAt).getTime();
+      const elapsedSeconds = Math.floor((Date.now() - createdTime) / 1000);
+      if (elapsedSeconds >= 45) {
+        return res.status(409).json({
+          success: false,
+          message: 'This booking request has expired and can no longer be accepted.'
+        });
+      }
+    }
+
     if (booking.driver && String(booking.driver._id || booking.driver) !== String(driver._id)) {
       if (booking.driverConfirmed || booking.driverConfirmationStatus === 'Confirmed' || booking.rideStatus === 'Accepted') {
         return res.status(409).json({
@@ -1730,10 +1800,74 @@ const acceptInstantBookingRequest = async (req, res, next) => {
 
     const driverStatus = String(driver.driverStatus || '').trim().toLowerCase();
     const isEligibleDriver = ['active', 'approved'].includes(driverStatus) && driver.isOnline === true;
-    
+
     const serviceControl = await ServiceControl.findOne().select('oppositeRouteNotifications').lean();
     const allowOpposite = serviceControl?.oppositeRouteNotifications === true;
-    
+    const effectiveAllowOpposite = booking.bookingMode === 'SCHEDULE' ? false : allowOpposite;
+
+    let requestVehicle = null;
+    const isUnassignedInstantBooking = booking.bookingMode === 'INSTANT' && !booking.driver && !booking.assignedDriverId;
+    if (isEligibleDriver) {
+      const candidateVehicles = await Vehicle.find({
+        vehicleStatus: 'Active',
+        $or: [
+          ...(driver.assignedVehicle ? [{ _id: driver.assignedVehicle._id || driver.assignedVehicle }] : []),
+          { assignedDriver: driver._id }
+        ]
+      }).lean();
+
+      const requestedSeats = booking.passengerDetails?.length || 1;
+      for (const candVeh of candidateVehicles) {
+        if (!vehicleMatchesBookingRoute(candVeh, booking, { allowOpposite: effectiveAllowOpposite })) {
+          continue;
+        }
+        if (booking.serviceType !== 'Any' && !isServiceTypeCompatible(candVeh.vehicleType, booking.serviceType)) {
+          continue;
+        }
+        const activeReservedSeats = await getActiveReservedSeats(candVeh._id);
+        const capacity = candVeh.seatingCapacity || 4;
+        if (activeReservedSeats + requestedSeats <= capacity) {
+          requestVehicle = candVeh;
+          break;
+        }
+      }
+      if (!requestVehicle) {
+        for (const candVeh of candidateVehicles) {
+          if (!driverMatchesBookingRoute(driver, booking, { allowOpposite: effectiveAllowOpposite })) {
+            continue;
+          }
+          if (booking.serviceType !== 'Any' && !isServiceTypeCompatible(candVeh.vehicleType, booking.serviceType)) {
+            continue;
+          }
+          const activeReservedSeats = await getActiveReservedSeats(candVeh._id);
+          const capacity = candVeh.seatingCapacity || 4;
+          if (activeReservedSeats + requestedSeats <= capacity) {
+            requestVehicle = candVeh;
+            break;
+          }
+        }
+      }
+    }
+
+    // Service type compatibility check
+    const isAssignedDriver = (booking.driver && String(booking.driver._id || booking.driver) === String(driver._id)) ||
+      (booking.assignedDriverId && String(booking.assignedDriverId) === String(driver._id));
+    const assignedVehicleId = booking.vehicle ? String(booking.vehicle._id || booking.vehicle) : null;
+    const driverVehicleId = driver.assignedVehicle ? String(driver.assignedVehicle._id || driver.assignedVehicle) : null;
+    const isVehicleAssigned = (assignedVehicleId && driverVehicleId && assignedVehicleId === driverVehicleId) ||
+      (booking.vehicle && booking.vehicle.assignedDriver && String(booking.vehicle.assignedDriver) === String(driver._id));
+
+    if (!isAssignedDriver && !isVehicleAssigned) {
+      const bookingServiceType = booking.serviceType;
+      const driverVehicleType = requestVehicle?.vehicleType || driver.assignedVehicle?.vehicleType;
+      if (!isServiceTypeCompatible(driverVehicleType, bookingServiceType)) {
+        return res.status(403).json({
+          success: false,
+          message: `This booking requires a ${bookingServiceType} vehicle, but your assigned vehicle is incompatible.`
+        });
+      }
+    }
+
     // Authorization is purely based on route matching and driver status (route matching optional for assigned Car bookings)
     const isCarBooking = normalizeVehicleType(booking.serviceType) === 'car';
     const isAssignedToCar = isCarBooking && (
@@ -1743,7 +1877,7 @@ const acceptInstantBookingRequest = async (req, res, next) => {
     );
 
     const isAuthorized = isEligibleDriver && (
-      driverMatchesBookingRoute(driver, booking, { allowOpposite }) ||
+      driverMatchesBookingRoute(driver, booking, { allowOpposite: effectiveAllowOpposite }) ||
       isAssignedToCar
     );
 
@@ -1753,8 +1887,6 @@ const acceptInstantBookingRequest = async (req, res, next) => {
         message: 'You are not authorized to accept this booking based on your assigned route.'
       });
     }
-
-    let requestVehicle = null;
 
     // Prevent accepting cancelled, rejected, or completed bookings
     if (['Cancelled', 'Rejected'].includes(booking.bookingStatus)) {
@@ -2043,9 +2175,62 @@ const acceptScheduleBookingRequest = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Booking request not found' });
     }
 
+    if (booking.driver && String(booking.driver._id || booking.driver) !== String(driver._id)) {
+      if (booking.driverConfirmed || booking.driverConfirmationStatus === 'Confirmed' || booking.rideStatus === 'Accepted') {
+        return res.status(403).json({
+          success: false,
+          message: 'This booking request has already been accepted by another driver.'
+        });
+      } else if (booking.bookingMode !== 'INSTANT' && booking.bookingMode !== 'NORMAL') {
+        return res.status(403).json({
+          success: false,
+          message: 'This booking request is assigned to another driver.'
+        });
+      }
+    }
+
+    if (booking.bookingMode === 'SCHEDULE' && booking.vehicle) {
+      const vehDoc = await Vehicle.findById(booking.vehicle._id || booking.vehicle).select('assignedDriver').lean();
+      if (vehDoc && vehDoc.assignedDriver && String(vehDoc.assignedDriver) !== String(driver._id)) {
+        return res.status(403).json({
+          success: false,
+          message: 'This booking request is assigned to another vehicle driver.'
+        });
+      }
+    }
+
+    if (booking.scheduleId) {
+      const schedule = await Schedule.findById(booking.scheduleId._id || booking.scheduleId).lean();
+      if (schedule && isScheduleDeparted(schedule.travelDate, schedule.departureTime)) {
+        return res.status(409).json({
+          success: false,
+          message: 'This scheduled trip has already departed.'
+        });
+      }
+    }
+
     const driverStatus = String(driver.driverStatus || '').trim().toLowerCase();
     const isEligibleDriver = ['active', 'approved'].includes(driverStatus) && driver.isOnline === true;
     
+    // Service type compatibility check
+    const isAssignedDriver = (booking.driver && String(booking.driver._id || booking.driver) === String(driver._id)) ||
+      (booking.assignedDriverId && String(booking.assignedDriverId) === String(driver._id));
+    const bookingAssignedVehId = booking.vehicle ? String(booking.vehicle._id || booking.vehicle) : null;
+    const driverVehicleId = driver.assignedVehicle ? String(driver.assignedVehicle._id || driver.assignedVehicle) : null;
+    const isVehicleAssigned = (bookingAssignedVehId && driverVehicleId && bookingAssignedVehId === driverVehicleId) ||
+      (booking.vehicle && booking.vehicle.assignedDriver && String(booking.vehicle.assignedDriver) === String(driver._id));
+
+    if (!isAssignedDriver && !isVehicleAssigned) {
+      const bookingServiceType = booking.serviceType;
+      const driverVehicleType = driver.assignedVehicle?.vehicleType;
+      if (!isServiceTypeCompatible(driverVehicleType, bookingServiceType)) {
+        return res.status(403).json({
+          success: false,
+          message: `This booking requires a ${bookingServiceType} vehicle, but your assigned vehicle is incompatible.`
+        });
+      }
+    }
+
     const serviceControl = await ServiceControl.findOne().select('oppositeRouteNotifications').lean();
     const allowOpposite = serviceControl?.oppositeRouteNotifications === true;
     
@@ -2057,8 +2242,10 @@ const acceptScheduleBookingRequest = async (req, res, next) => {
       (booking.vehicle && driver.assignedVehicle && String(booking.vehicle._id || booking.vehicle) === String(driver.assignedVehicle._id || driver.assignedVehicle))
     );
 
+    // Scheduled directional bookings cannot use opposite routes
+    const effectiveAllowOpposite = false;
     const isAuthorized = isEligibleDriver && (
-      driverMatchesBookingRoute(driver, booking, { allowOpposite }) ||
+      driverMatchesBookingRoute(driver, booking, { allowOpposite: effectiveAllowOpposite }) ||
       isAssignedToCar
     );
 

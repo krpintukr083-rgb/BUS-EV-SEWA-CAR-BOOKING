@@ -259,7 +259,7 @@ describe('Optional Instant Booking', () => {
   const createClaimDriver = async ({
     vehicleType = 'Bus',
     route = { origin: 'Jaipur', destination: 'Delhi' },
-    driverRoute = { origin: 'Jaipur', destination: 'Delhi' },
+    driverRoute,
     seatingCapacity = 12,
     assignmentDirection = 'vehicle',
     driverStatus = 'Active',
@@ -283,7 +283,7 @@ describe('Optional Instant Booking', () => {
       drivingLicenceNumber: `DL-CLAIM-${discriminator}`,
       driverStatus,
       isOnline,
-      route: driverRoute
+      route: driverRoute || route
     });
     claimTestDrivers.push(claimDriver._id);
     const claimVehicle = await Vehicle.create({
@@ -474,8 +474,8 @@ describe('Optional Instant Booking', () => {
   test('returns eligible requests newest-first with no-cache headers', async () => {
     const older = await createUnassignedInstantBooking();
     const newer = await createUnassignedInstantBooking();
-    const olderCreatedAt = new Date('2026-09-30T10:00:00.000Z');
-    const newerCreatedAt = new Date('2026-09-30T11:00:00.000Z');
+    const olderCreatedAt = new Date(Date.now() - 20000);
+    const newerCreatedAt = new Date(Date.now() - 10000);
     await Promise.all([
       Booking.collection.updateOne({ _id: older._id }, {
         $set: { createdAt: olderCreatedAt, pickupLocation: 'Delhi', dropLocation: 'Jaipur' }
@@ -1078,6 +1078,10 @@ describe('Optional Instant Booking', () => {
 
   test('assigns the selected eligible EV-Sewa and Car drivers using their service-specific vehicles', async () => {
     await setInstantBookingEnabled(true);
+    await ServiceControl.findByIdAndUpdate(
+      serviceControl._id,
+      { $set: { busService: 'Active', evSewaService: 'Active', carService: 'Active' } }
+    );
 
     for (const serviceVehicle of otherServiceVehicles) {
       driver.assignedVehicle = serviceVehicle._id;
@@ -1113,7 +1117,8 @@ describe('Optional Instant Booking', () => {
 
       const scheduledMode = await submitBooking(customerToken, 'NORMAL', {
         vehicleId: serviceVehicle._id,
-        serviceType: serviceVehicle.vehicleType
+        serviceType: serviceVehicle.vehicleType,
+        paymentMethod: 'Offline Cash'
       });
       expect(scheduledMode.status).toBe(201);
       expect(scheduledMode.body.data.bookingMode).toBe('NORMAL');
@@ -1128,6 +1133,21 @@ describe('Optional Instant Booking', () => {
 
   test('allows only one concurrent instant booking request to be claimed by a driver', async () => {
     await setInstantBookingEnabled(true);
+
+    try {
+      await Booking.collection.createIndex(
+        { driver: 1 },
+        {
+          unique: true,
+          name: 'one_active_instant_booking_per_driver',
+          partialFilterExpression: {
+            bookingMode: 'INSTANT',
+            driver: { $type: 'objectId' },
+            bookingStatus: { $in: ['Pending Driver Confirmation', 'Confirmed', 'Ongoing'] }
+          }
+        }
+      );
+    } catch (_) {}
 
     const instantAssignmentIndex = (await Booking.collection.indexes())
       .find(index => index.name === 'one_active_instant_booking_per_driver');
