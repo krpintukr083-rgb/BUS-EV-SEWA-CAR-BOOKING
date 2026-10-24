@@ -163,4 +163,39 @@ describe('Driver Wallet API & Client Mapping Regression Tests', () => {
     const walletDataD = payloadD?.data || (payloadD && !payloadD.data && payloadD.walletBalance !== undefined ? payloadD : null);
     expect(walletDataD).toBeNull();
   });
+
+  test('3. Withdrawal submission response mapping: handles both unwrapped service response and raw Axios response', () => {
+    // Unwrapped response returned by driverService.requestWithdrawal
+    const unwrappedServiceResponse = {
+      success: true,
+      message: 'Withdrawal request submitted successfully.',
+      data: {
+        _id: 'withdrawal_123',
+        amount: 500,
+        status: 'pending',
+        gatewayStatus: 'READY'
+      },
+      newWalletBalance: 350.19
+    };
+
+    const payloadA = unwrappedServiceResponse?.status !== undefined && unwrappedServiceResponse?.data !== undefined
+      ? unwrappedServiceResponse.data
+      : unwrappedServiceResponse;
+
+    expect(payloadA?.success).toBe(true);
+    expect(payloadA?.message).toBe('Withdrawal request submitted successfully.');
+
+    // Raw Axios response
+    const rawAxiosResponse = {
+      status: 200,
+      data: unwrappedServiceResponse
+    };
+
+    const payloadB = rawAxiosResponse?.status !== undefined && rawAxiosResponse?.data !== undefined
+      ? rawAxiosResponse.data
+      : rawAxiosResponse;
+
+    expect(payloadB?.success).toBe(true);
+    expect(payloadB?.message).toBe('Withdrawal request submitted successfully.');
+  });
 });
