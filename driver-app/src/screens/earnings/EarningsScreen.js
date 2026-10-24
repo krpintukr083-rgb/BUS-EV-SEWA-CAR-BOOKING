@@ -158,20 +158,31 @@ export default function EarningsScreen({ navigation }) {
       {/* Period Selector Tabs */}
       <View style={styles.tabContainer}>
         {[
-          { id: 'TODAY', label: t('today') },
-          { id: 'WEEKLY', label: t('weekly') },
-          { id: 'MONTHLY', label: t('monthly') },
-        ].map((tab) => (
-          <TouchableOpacity
-            key={tab.id}
-            style={[styles.tabBtn, period === tab.id && styles.tabBtnActive]}
-            onPress={() => setPeriod(tab.id)}
-          >
-            <Text style={[styles.tabText, period === tab.id && styles.tabTextActive]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+          { id: 'TODAY', label: t('today') || 'Today' },
+          { id: 'WEEKLY', label: t('weekly') || 'Weekly' },
+          { id: 'MONTHLY', label: t('monthly') || 'Monthly' },
+        ].map((tab) => {
+          const isActive = period === tab.id;
+          return (
+            <TouchableOpacity
+              key={tab.id}
+              style={[styles.tabBtn, isActive && styles.tabBtnActive]}
+              onPress={() => setPeriod(tab.id)}
+              activeOpacity={0.75}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isActive }}
+              accessibilityLabel={`${tab.label} earnings`}
+            >
+              <Text
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                style={[styles.tabText, isActive && styles.tabTextActive]}
+              >
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       <ScrollView
@@ -391,11 +402,16 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.m,
     borderWidth: 1,
     borderColor: COLORS.border,
+    alignItems: 'stretch',
   },
   tabBtn: {
     flex: 1,
-    paddingVertical: 8,
+    minWidth: 0,
+    minHeight: 44,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
     alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: RADIUS.s,
   },
   tabBtnActive: {
@@ -405,6 +421,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: COLORS.textSecondary,
+    textAlign: 'center',
+    includeFontPadding: false,
   },
   tabTextActive: {
     color: COLORS.white,
