@@ -477,6 +477,15 @@ export default function BusConfirmationScreen({ navigation, route }) {
             booking={item}
             acceptedBookingId={highlightBookingId}
             onVerified={fetchBusBookings}
+            onCancelled={(cancelledBooking) => {
+              const cancelledId = String(cancelledBooking?._id || item._id);
+              const cancelledBookingId = String(cancelledBooking?.bookingId || item.bookingId || '');
+              setBookings((currentBookings) => currentBookings.filter((booking) =>
+                String(booking._id) !== cancelledId &&
+                (!cancelledBookingId || String(booking.bookingId || '') !== cancelledledBookingId)
+              ));
+              fetchBusBookings();
+            }}
           />
         ) : isCompleted ? (
           <View style={styles.completedBox}>
@@ -598,9 +607,12 @@ export default function BusConfirmationScreen({ navigation, route }) {
         </View>
       ) : (
         <FlatList
+          style={styles.bookingList}
           data={filteredBookings}
           renderItem={renderBookingItem}
           keyExtractor={(item) => item._id}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
           removeClippedSubviews={false}
           maxToRenderPerBatch={10}
           windowSize={7}
@@ -740,6 +752,10 @@ const styles = StyleSheet.create({
   listContent: {
     padding: SPACING.m,
     paddingBottom: SPACING.xl,
+  },
+  bookingList: {
+    flex: 1,
+    minHeight: 0,
   },
   emptyListContent: {
     flexGrow: 1,

@@ -15,11 +15,12 @@ import driverService from '../services/driverService';
 import { getBookingDisplayFare } from '../utils/fareResolver';
 import { getOtpBookingId } from '../utils/bookingHandoff';
 
-export default function CustomerOtpVerificationCard({ booking, acceptedBookingId, onVerified, onCancel }) {
+export default function CustomerOtpVerificationCard({ booking, acceptedBookingId, onVerified, onCancelled, onCancel }) {
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const inputRefs = useRef([]);
+  const cancelRequestPending = useRef(false);
 
   if (!booking) return null;
 
@@ -65,37 +66,68 @@ export default function CustomerOtpVerificationCard({ booking, acceptedBookingId
   };
 
   const handleCancelRequest = () => {
+    if (loading || cancelRequestPending.current) return;
+    cancelRequestPending.current = true;
+
+    const cancelRequest = async () => {
+      setLoading(true);
+      setErrorMsg('');
+      try {
+        const targetId = getOtpBookingId(booking, acceptedBookingId);
+        if (!targetId) {
+          throw new Error('Booking ID is unavailable.');
+        }
+        const res = await driverService.rejectBusBooking(targetId, 'Driver cancelled before OTP verification');
+        if (res?.data?.success === true) {
+          Alert.alert('Success', 'Booking request cancelled successfully.');
+          if (onCancelled) onCancelled(res.data.data || booking);
+        } else {
+          Alert.alert('Error', res?.data?.message || 'Failed to cancel booking request');
+        }
+      } catch (err) {
+        Alert.alert('Error', err.response?.data?.message || err.message || 'Failed to cancel booking request');
+      } finally {
+        setLoading(false);
+        cancelRequestPending.current = false;
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm('Are you sure you want to cancel this booking request?')) {
+        cancelRequest();
+      } else {
+        cancelRequestPending.current = false;
+      }
+      return;
+    }
+
+    let confirmed = false;
     Alert.alert(
       'Cancel Request?',
       'Are you sure you want to cancel this booking request?',
       [
-        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+          onPress: () => {
+            cancelRequestPending.current = false;
+          }
+        },
         {
           text: 'Confirm',
           style: 'destructive',
-          onPress: async () => {
-            setLoading(true);
-            setErrorMsg('');
-            try {
-              const targetId = getOtpBookingId(booking, acceptedBookingId);
-              if (!targetId) {
-                throw new Error('Booking ID is unavailable.');
-              }
-              const res = await driverService.rejectBusBooking(targetId, 'Driver cancelled before OTP verification');
-              if (res?.data?.success || res?.status === 200 || res?.data?.status === 'success' || res?.success) {
-                Alert.alert('Success', 'Booking request cancelled successfully.');
-                if (onVerified) onVerified(booking);
-              } else {
-                Alert.alert('Error', res?.data?.message || 'Failed to cancel booking request');
-              }
-            } catch (err) {
-              Alert.alert('Error', err.response?.data?.message || 'Failed to cancel booking request');
-            } finally {
-              setLoading(false);
-            }
+          onPress: () => {
+            confirmed = true;
+            cancelRequest();
           }
         }
-      ]
+      ],
+      {
+        cancelable: true,
+        onDismiss: () => {
+          if (!confirmed) cancelRequestPending.current = false;
+        }
+      }
     );
   };
 
@@ -169,7 +201,7 @@ export default function CustomerOtpVerificationCard({ booking, acceptedBookingId
                 keyboardType="number-pad"
                 maxLength={6}
                 value={digit}
-                autoFocus={idx === 0}
+                autoFocus={false}
                 selectionColor="#2563EB"
                 onChangeText={(val) => {
                   const cleaned = val.replace(/[^0-9]/g, '');

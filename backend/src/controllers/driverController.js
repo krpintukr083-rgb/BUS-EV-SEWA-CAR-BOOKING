@@ -1676,6 +1676,7 @@ exports.getActiveBookingsForDriver = async (req, res, next) => {
         { assignedDriverId: driver._id },
         ...(assignedVehicleId ? [{ vehicle: assignedVehicleId }, { assignedVehicleId }] : [])
       ],
+      rejectedDrivers: { $ne: driver._id },
       bookingStatus: { $nin: ['Cancelled', 'Rejected'] }
     };
 
@@ -2374,14 +2375,23 @@ exports.rejectBookingRequest = async (req, res, next) => {
        });
     }
 
-    // A driver rejecting a request simply hides it from themselves.
-    // It is a safe operation, so we can always authorize it.
-    isAuthorized = true;
-
     if (!isAuthorized) {
       return res.status(403).json({
         success: false,
         message: 'You are not authorized to manage bookings for this vehicle'
+      });
+    }
+
+    if (
+      booking.confirmationOtpVerifiedAt ||
+      booking.otpVerified ||
+      booking.cashCollected ||
+      ['Completed', 'Cancelled', 'Rejected', 'Awaiting Cash Collection'].includes(booking.bookingStatus) ||
+      ['Started', 'In Progress', 'Completed', 'Cancelled'].includes(booking.rideStatus)
+    ) {
+      return res.status(409).json({
+        success: false,
+        message: 'This booking can no longer be rejected.'
       });
     }
 
@@ -2400,11 +2410,11 @@ exports.rejectBookingRequest = async (req, res, next) => {
       booking.rejectedDrivers.push(driver._id);
     }
     
-    // If this driver was previously assigned, unassign them so another driver can accept
+    // If this driver was previously assigned, release the booking so another driver can accept.
     if (booking.driver && String(booking.driver) === String(driver._id)) {
       booking.driver = null;
       booking.driverConfirmed = false;
-      if (['Confirmed', 'Accepted'].includes(booking.bookingStatus)) {
+      if (['Confirmed', 'Accepted', 'Pending Driver Confirmation'].includes(booking.bookingStatus)) {
         booking.bookingStatus = 'Pending';
       }
     }
@@ -3327,7 +3337,13 @@ exports.requestWithdrawal = async (req, res, next) => {
     const methodInput = req.body.payoutMethod || req.body.method || '';
 
     const withdrawAmount = Number(amount);
-    if (!withdrawAmount || withdrawAmount < 100) {
+    if (!Number.isFinite(withdrawAmount) || withdrawAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Withdrawal amount must be a valid positive number'
+      });
+    }
+    if (withdrawAmount < 100) {
       return res.status(400).json({
         success: false,
         message: 'Minimum withdrawal amount is â‚¹100'

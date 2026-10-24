@@ -89,7 +89,8 @@ describe('Driver withdrawal approval flow', () => {
       payoutDetails: {
         bankName: 'Test Bank',
         accountNumber: '1234567890',
-        accountHolderName: 'Withdrawal Driver'
+        accountHolderName: 'Withdrawal Driver',
+        branch: 'Main Branch'
       }
     });
 
@@ -98,12 +99,28 @@ describe('Driver withdrawal approval flow', () => {
     expect(overBalanceRequest.status).toBe(400);
     const emptyAmountRequest = await submitWithdrawal(0);
     expect(emptyAmountRequest.status).toBe(400);
+    const malformedAmountRequest = await request(app)
+      .post('/api/driver/withdraw')
+      .set('Authorization', `Bearer ${driverToken}`)
+      .send({
+        amount: '100abc',
+        payoutMethod: 'Bank',
+        payoutDetails: { accountNumber: '1234567890' }
+      });
+    expect(malformedAmountRequest.status).toBe(400);
     expect((await Driver.findById(driver._id)).walletBalance).toBe(5000);
 
     const firstRequest = await submitWithdrawal();
     expect(firstRequest.status).toBe(200);
+    expect(firstRequest.body.success).toBe(true);
     expect(firstRequest.body.message).toBe('Withdrawal request submitted successfully.');
     expect(firstRequest.body.data.status).toBe('pending');
+    expect(firstRequest.body.data.payoutDetails).toMatchObject({
+      bankName: 'Test Bank',
+      accountNumber: '1234567890',
+      accountHolderName: 'Withdrawal Driver',
+      branch: 'Main Branch'
+    });
     approvedWithdrawalId = firstRequest.body.data._id;
     expect((await Driver.findById(driver._id)).walletBalance).toBe(4000);
 
@@ -229,5 +246,32 @@ describe('Driver withdrawal approval flow', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ reason: '' });
     expect(missingReason.status).toBe(400);
+
+    const esewaRequest = await request(app)
+      .post('/api/driver/withdraw')
+      .set('Authorization', `Bearer ${driverToken}`)
+      .send({
+        amount: 100,
+        payoutMethod: 'ESEWA',
+        payoutDetails: { esewaId: '9841000001', accountHolderName: 'Withdrawal Driver' }
+      });
+    expect(esewaRequest.status).toBe(200);
+    expect(esewaRequest.body.success).toBe(true);
+    expect(esewaRequest.body.data.payoutMethod).toBe('eSewa');
+    expect(esewaRequest.body.data.payoutDetails.esewaId).toBe('9841000001');
+
+    const khaltiRequest = await request(app)
+      .post('/api/driver/withdraw')
+      .set('Authorization', `Bearer ${driverToken}`)
+      .send({
+        amount: 100,
+        payoutMethod: 'KHALTI',
+        payoutDetails: { khaltiId: '9841000002', accountHolderName: 'Withdrawal Driver' }
+      });
+    expect(khaltiRequest.status).toBe(200);
+    expect(khaltiRequest.body.success).toBe(true);
+    expect(khaltiRequest.body.data.payoutMethod).toBe('Khalti');
+    expect(khaltiRequest.body.data.payoutDetails.khaltiId).toBe('9841000002');
+    expect((await Driver.findById(driver._id)).walletBalance).toBe(3800);
   });
 });

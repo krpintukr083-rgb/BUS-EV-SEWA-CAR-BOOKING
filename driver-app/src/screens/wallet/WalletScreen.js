@@ -39,8 +39,11 @@ export default function WalletScreen({ navigation }) {
   const [payoutMethod, setPayoutMethod] = useState('BANK'); // 'BANK', 'ESEWA', 'KHALTI'
   const [accountNumber, setAccountNumber] = useState('');
   const [accountHolder, setAccountHolder] = useState('');
-  const [ifscOrBank, setIfscOrBank] = useState('');
+  const [bankName, setBankName] = useState('');
+  const [bankBranch, setBankBranch] = useState('');
+  const [payoutErrors, setPayoutErrors] = useState({});
   const [submittingPayout, setSubmittingPayout] = useState(false);
+  const payoutSubmissionLock = useRef(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const payoutScrollRef = useRef(null);
@@ -125,53 +128,79 @@ export default function WalletScreen({ navigation }) {
   };
 
   const handleRequestPayout = async () => {
-    const amountNum = parseFloat(payoutAmount);
-    if (isNaN(amountNum) || amountNum <= 0) {
-      Alert.alert(t('error'), 'Please enter a valid withdrawal amount');
-      return;
-    }
+    if (payoutSubmissionLock.current) return;
+
+    const amountValue = payoutAmount.trim();
+    const amountNum = Number(amountValue);
     const availableBalance = Number(wallet.walletBalance) || 0;
-    if (amountNum > availableBalance) {
-      Alert.alert(t('error'), `Withdrawal amount cannot exceed available balance (₹${availableBalance})`);
-      return;
+    const errors = {};
+
+    if (!amountValue || !/^\d+(?:\.\d{1,2})?$/.test(amountValue) || !Number.isFinite(amountNum) || amountNum <= 0) {
+      errors.amount = 'Enter a valid positive amount.';
+    } else if (amountNum < 100) {
+      errors.amount = 'Minimum withdrawal amount is ₹100.';
+    } else if (amountNum > availableBalance) {
+      errors.amount = `Amount cannot exceed your available balance of ₹${availableBalance}.`;
     }
-    if (amountNum < 100) {
-      Alert.alert(t('error'), 'Minimum withdrawal amount is ₹100');
-      return;
+
+    if (!accountNumber.trim()) {
+      errors.accountNumber = payoutMethod === 'BANK'
+        ? 'Enter your bank account number.'
+        : `Enter your ${payoutMethod === 'ESEWA' ? 'eSewa' : 'Khalti'} wallet ID.`;
     }
-    if (!accountNumber) {
-      Alert.alert(t('error'), 'Please enter account/wallet number');
+    if (!accountHolder.trim()) {
+      errors.accountHolder = 'Enter the account holder name.';
+    }
+    if (payoutMethod === 'BANK' && !bankName.trim()) {
+      errors.bankName = 'Enter the bank name.';
+    }
+    if (payoutMethod === 'BANK' && !bankBranch.trim()) {
+      errors.bankBranch = 'Enter the IFSC or branch.';
+    }
+
+    setPayoutErrors(errors);
+    if (Object.keys(errors).length > 0) {
       return;
     }
 
+    payoutSubmissionLock.current = true;
     setSubmittingPayout(true);
     try {
       const payoutPayload = {
         amount: amountNum,
         payoutMethod,
         payoutDetails: payoutMethod === 'BANK'
-          ? { accountNumber, accountHolderName: accountHolder, bankName: ifscOrBank }
+          ? {
+              accountNumber: accountNumber.trim(),
+              accountHolderName: accountHolder.trim(),
+              bankName: bankName.trim(),
+              branch: bankBranch.trim()
+            }
           : payoutMethod === 'ESEWA'
-          ? { esewaId: accountNumber, accountHolderName: accountHolder }
-          : { khaltiId: accountNumber, accountHolderName: accountHolder }
+          ? { esewaId: accountNumber.trim(), accountHolderName: accountHolder.trim() }
+          : { khaltiId: accountNumber.trim(), accountHolderName: accountHolder.trim() }
       };
 
       const res = await driverService.requestWithdrawal(payoutPayload);
-      if (res.data?.success) {
+      const responsePayload = res?.data ?? res;
+      if (responsePayload?.success === true && responsePayload?.data) {
         Alert.alert(t('success'), 'Withdrawal request submitted successfully.');
         setPayoutModalVisible(false);
         setPayoutAmount('');
         setAccountNumber('');
         setAccountHolder('');
-        setIfscOrBank('');
+        setBankName('');
+        setBankBranch('');
+        setPayoutErrors({});
         fetchWalletData();
       } else {
-        Alert.alert(t('error'), res.data?.message || 'Failed to submit withdrawal request');
+        Alert.alert(t('error'), responsePayload?.message || 'Failed to submit withdrawal request');
       }
     } catch (err) {
       Alert.alert(t('error'), err.response?.data?.message || 'Withdrawal request failed');
     } finally {
       setSubmittingPayout(false);
+      payoutSubmissionLock.current = false;
     }
   };
 
@@ -286,7 +315,10 @@ export default function WalletScreen({ navigation }) {
 
           <TouchableOpacity
             style={styles.payoutButton}
-            onPress={() => setPayoutModalVisible(true)}
+            onPress={() => {
+              setPayoutErrors({});
+              setPayoutModalVisible(true);
+            }}
           >
             <MaterialCommunityIcons name="bank-transfer-out" size={20} color={COLORS.white} />
             <Text style={styles.payoutButtonText}>{t('requestPayout')}</Text>
@@ -355,7 +387,9 @@ export default function WalletScreen({ navigation }) {
         transparent
         animationType="slide"
         statusBarTranslucent
-        onRequestClose={() => setPayoutModalVisible(false)}
+        onRequestClose={() => {
+          if (!submittingPayout) setPayoutModalVisible(false);
+        }}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -377,6 +411,7 @@ export default function WalletScreen({ navigation }) {
             <View style={styles.modalTop}>
               <Text style={styles.modalTitle}>{t('requestPayout')}</Text>
               <TouchableOpacity
+                disabled={submittingPayout}
                 onPress={() => setPayoutModalVisible(false)}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
@@ -413,7 +448,10 @@ export default function WalletScreen({ navigation }) {
                       styles.methodBtn,
                       payoutMethod === m.id && styles.methodBtnActive,
                     ]}
-                    onPress={() => setPayoutMethod(m.id)}
+                    onPress={() => {
+                      setPayoutMethod(m.id);
+                      setPayoutErrors({});
+                    }}
                   >
                     <MaterialCommunityIcons
                       name={m.icon}
@@ -438,15 +476,19 @@ export default function WalletScreen({ navigation }) {
                 style={styles.input}
                 placeholder="e.g. 500"
                 placeholderTextColor={COLORS.textMuted}
-                keyboardType="number-pad"
+                keyboardType="decimal-pad"
                 value={payoutAmount}
-                onChangeText={setPayoutAmount}
+                onChangeText={(value) => {
+                  setPayoutAmount(value);
+                  setPayoutErrors((current) => ({ ...current, amount: undefined }));
+                }}
                 onFocus={() => {
                   setTimeout(() => {
                     payoutScrollRef.current?.scrollTo({ y: 40, animated: true });
                   }, 120);
                 }}
               />
+              {payoutErrors.amount ? <Text style={styles.fieldError}>{payoutErrors.amount}</Text> : null}
 
               {/* Account Details */}
               <Text style={styles.inputLabel}>
@@ -457,13 +499,17 @@ export default function WalletScreen({ navigation }) {
                 placeholder={payoutMethod === 'BANK' ? 'Enter Bank Account No.' : 'Enter 10-digit Mobile'}
                 placeholderTextColor={COLORS.textMuted}
                 value={accountNumber}
-                onChangeText={setAccountNumber}
+                onChangeText={(value) => {
+                  setAccountNumber(value);
+                  setPayoutErrors((current) => ({ ...current, accountNumber: undefined }));
+                }}
                 onFocus={() => {
                   setTimeout(() => {
                     payoutScrollRef.current?.scrollTo({ y: 120, animated: true });
                   }, 120);
                 }}
               />
+              {payoutErrors.accountNumber ? <Text style={styles.fieldError}>{payoutErrors.accountNumber}</Text> : null}
 
               <Text style={styles.inputLabel}>Account Holder Name</Text>
               <TextInput
@@ -471,29 +517,50 @@ export default function WalletScreen({ navigation }) {
                 placeholder="Full Name on Account"
                 placeholderTextColor={COLORS.textMuted}
                 value={accountHolder}
-                onChangeText={setAccountHolder}
+                onChangeText={(value) => {
+                  setAccountHolder(value);
+                  setPayoutErrors((current) => ({ ...current, accountHolder: undefined }));
+                }}
                 onFocus={() => {
                   setTimeout(() => {
                     payoutScrollRef.current?.scrollTo({ y: 200, animated: true });
                   }, 120);
                 }}
               />
+              {payoutErrors.accountHolder ? <Text style={styles.fieldError}>{payoutErrors.accountHolder}</Text> : null}
 
               {payoutMethod === 'BANK' && (
                 <>
-                  <Text style={styles.inputLabel}>Bank Name & IFSC / Branch</Text>
+                  <Text style={styles.inputLabel}>Bank Name</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="e.g. Nabil Bank / SBI"
+                    placeholder="Enter bank name"
                     placeholderTextColor={COLORS.textMuted}
-                    value={ifscOrBank}
-                    onChangeText={setIfscOrBank}
+                    value={bankName}
+                    onChangeText={(value) => {
+                      setBankName(value);
+                      setPayoutErrors((current) => ({ ...current, bankName: undefined }));
+                    }}
                     onFocus={() => {
                       setTimeout(() => {
                         payoutScrollRef.current?.scrollTo({ y: 280, animated: true });
                       }, 120);
                     }}
                   />
+                  {payoutErrors.bankName ? <Text style={styles.fieldError}>{payoutErrors.bankName}</Text> : null}
+
+                  <Text style={styles.inputLabel}>IFSC / Branch</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter IFSC or branch"
+                    placeholderTextColor={COLORS.textMuted}
+                    value={bankBranch}
+                    onChangeText={(value) => {
+                      setBankBranch(value);
+                      setPayoutErrors((current) => ({ ...current, bankBranch: undefined }));
+                    }}
+                  />
+                  {payoutErrors.bankBranch ? <Text style={styles.fieldError}>{payoutErrors.bankBranch}</Text> : null}
                 </>
               )}
 
@@ -839,6 +906,12 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
     borderWidth: 1,
     borderColor: COLORS.border,
+    marginBottom: SPACING.s,
+  },
+  fieldError: {
+    color: COLORS.danger,
+    fontSize: 12,
+    marginTop: -SPACING.xs,
     marginBottom: SPACING.s,
   },
   submitPayoutBtn: {

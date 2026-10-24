@@ -528,4 +528,44 @@ describe('Driver / Conductor Bus Booking Confirmation Flow Suite', () => {
     expect(unauthCash.body.success).toBe(false);
     expect(unauthCash.body.message).toMatch(/not authorized/i);
   });
+
+  test('TEST 7: DRIVER CANCELLATION -> Rejected assigned booking disappears from active bookings', async () => {
+    const booking = await Booking.create({
+      bookingId: `BK-DRIVER-CANCEL-${Date.now()}`,
+      user: customerUser._id,
+      customer: { name: customerUser.name, phone: customerUser.phone },
+      driver: driverADoc._id,
+      vehicle: busA._id,
+      serviceType: 'Bus',
+      bookingMode: 'SCHEDULE',
+      pickupLocation: 'Delhi ISBT',
+      dropLocation: 'Jaipur Sindhi Camp',
+      fare: 500,
+      paymentMethod: 'Offline Cash',
+      paymentStatus: 'Pending Cash',
+      bookingStatus: 'Pending Driver Confirmation'
+    });
+
+    const activeBefore = await request(app)
+      .get('/api/driver/active-bookings')
+      .set('Authorization', `Bearer ${driverAToken}`);
+    expect(activeBefore.body.data.some((item) => String(item._id) === String(booking._id))).toBe(true);
+
+    const rejection = await request(app)
+      .post(`/api/driver/booking-requests/${booking._id}/reject`)
+      .set('Authorization', `Bearer ${driverAToken}`)
+      .send({ reason: 'Driver cancelled before OTP verification' });
+
+    expect(rejection.status).toBe(200);
+    expect(rejection.body.success).toBe(true);
+
+    const updatedBooking = await Booking.findById(booking._id);
+    expect(updatedBooking.driver).toBeNull();
+    expect(updatedBooking.rejectedDrivers.map(String)).toContain(String(driverADoc._id));
+
+    const activeAfter = await request(app)
+      .get('/api/driver/active-bookings')
+      .set('Authorization', `Bearer ${driverAToken}`);
+    expect(activeAfter.body.data.some((item) => String(item._id) === String(booking._id))).toBe(false);
+  });
 });
