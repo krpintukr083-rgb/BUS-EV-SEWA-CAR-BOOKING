@@ -182,7 +182,7 @@ export default function WalletScreen({ navigation }) {
       };
 
       const res = await driverService.requestWithdrawal(payoutPayload);
-      const responsePayload = res?.data ?? res;
+      const responsePayload = res?.status !== undefined && res?.data !== undefined ? res.data : res;
       if (responsePayload?.success === true && responsePayload?.data) {
         Alert.alert(t('success'), 'Withdrawal request submitted successfully.');
         setPayoutModalVisible(false);
