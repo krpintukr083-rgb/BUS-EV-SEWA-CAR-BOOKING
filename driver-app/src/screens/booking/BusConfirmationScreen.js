@@ -478,11 +478,11 @@ export default function BusConfirmationScreen({ navigation, route }) {
             acceptedBookingId={highlightBookingId}
             onVerified={fetchBusBookings}
             onCancelled={(cancelledBooking) => {
-              const cancelledId = String(cancelledBooking?._id || item._id);
-              const cancelledBookingId = String(cancelledBooking?.bookingId || item.bookingId || '');
+              const cancelledId = cancelledBooking?._id || item?._id;
+              const cancelledBookingId = cancelledBooking?.bookingId || item?.bookingId;
               setBookings((currentBookings) => currentBookings.filter((booking) =>
-                String(booking._id) !== cancelledId &&
-                (!cancelledBookingId || String(booking.bookingId || '') !== cancelledledBookingId)
+                (cancelledId == null || booking?._id == null || String(booking._id) !== String(cancelledId)) &&
+                (!cancelledBookingId || !booking?.bookingId || String(booking.bookingId) !== String(cancelledBookingId))
               ));
               fetchBusBookings();
             }}
