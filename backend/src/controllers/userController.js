@@ -210,16 +210,28 @@ exports.registerPushToken = async (req, res, next) => {
     const { pushToken, fcmToken, token, expoPushToken } = req.body;
     const userId = req.user?._id || req.user?.id;
 
-    const finalExpoToken = expoPushToken || pushToken || token;
-    const finalFcmToken = fcmToken || pushToken || token;
+    const rawCandidate = (pushToken || token || '').trim();
+    let finalExpoToken = (expoPushToken || '').trim();
+    let finalFcmToken = (fcmToken || '').trim();
+
+    if (!finalExpoToken && (rawCandidate.startsWith('ExponentPushToken[') || rawCandidate.startsWith('ExpoPushToken['))) {
+      finalExpoToken = rawCandidate;
+    }
+    if (!finalFcmToken && rawCandidate && !rawCandidate.startsWith('Expo')) {
+      finalFcmToken = rawCandidate;
+    }
 
     if (!finalExpoToken && !finalFcmToken) {
       return res.status(400).json({ success: false, message: 'Push token is required' });
     }
 
+    const updateFields = {};
+    if (finalExpoToken) updateFields.pushToken = finalExpoToken;
+    if (finalFcmToken) updateFields.fcmToken = finalFcmToken;
+
     const user = await User.findByIdAndUpdate(
       userId,
-      { $set: { pushToken: finalExpoToken, fcmToken: finalFcmToken } },
+      { $set: updateFields },
       { new: true }
     );
 
@@ -230,7 +242,7 @@ exports.registerPushToken = async (req, res, next) => {
     res.json({
       success: true,
       message: 'Push token registered successfully',
-      data: { pushToken: finalExpoToken, fcmToken: finalFcmToken }
+      data: { pushToken: user.pushToken, fcmToken: user.fcmToken }
     });
   } catch (error) {
     next(error);

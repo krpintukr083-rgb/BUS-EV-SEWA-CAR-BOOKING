@@ -287,11 +287,12 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
 
     for (let i = 0; i < newRequestDrivers.length; i++) {
       const driver = newRequestDrivers[i];
-      const token = (driver.pushToken || driver.fcmToken || '').trim();
+      const expoToken = (driver.pushToken && (driver.pushToken.startsWith('ExponentPushToken[') || driver.pushToken.startsWith('ExpoPushToken['))) ? driver.pushToken.trim() : null;
+      const token = expoToken || (driver.pushToken || driver.fcmToken || '').trim();
 
       console.log(`\n[ROUTE-NOTIFICATION-TRACE]`);
       console.log(`Booking: ${bookingIdStr}`);
-      console.log(`Route: ${bookingOrigin} â†’ ${bookingDest}`);
+      console.log(`Route: ${bookingOrigin} → ${bookingDest}`);
       console.log(`Service Type: ${serviceType}`);
       console.log(`Driver: ${driver.name || 'Unknown'}`);
       console.log(`Driver ID: ${driver._id}`);
@@ -300,7 +301,7 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
       console.log('Eligible: true');
       console.log(`Notification function name: notifyEligibleDriversForBooking`);
 
-      if (token) {
+      if (token && (token.startsWith('ExponentPushToken[') || token.startsWith('ExpoPushToken['))) {
         console.log(`Push DISPATCH: PREPARING`);
         const payload = {
           to: token,
@@ -542,8 +543,8 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
 
 const notifyAssignedDriverForScheduleBooking = async (booking) => {
   if (!booking || booking.bookingMode !== 'SCHEDULE') return;
-  
-  if (booking.serviceType !== 'Car' || !booking.scheduleId) {
+
+  if (!booking.scheduleId) {
     return notifyEligibleDriversForBooking(booking, { scheduleBooking: true });
   }
 
@@ -565,20 +566,31 @@ const notifyAssignedDriverForScheduleBooking = async (booking) => {
      driver = await Driver.findById(booking.driver).populate('user', '_id name phone status').lean();
   }
 
+  if (!driver && booking.vehicle) {
+    const vehicle = await Vehicle.findById(booking.vehicle).select('assignedDriver').lean();
+    if (vehicle?.assignedDriver) {
+      driver = await Driver.findById(vehicle.assignedDriver).populate('user', '_id name phone status').lean();
+    }
+  }
+
   console.log('[SCHEDULE_RECIPIENT_DEBUG]', {
     bookingId: bookingIdStr,
     driverId: driver ? String(driver._id) : 'none',
     driverName: driver ? driver.name : 'none',
     driverRoute: driver ? `${driver.route?.origin}->${driver.route?.destination}` : 'none',
     eligible: !!driver,
-    reason: driver ? 'car-schedule-assigned-driver' : 'no-driver-found'
+    reason: driver ? 'schedule-assigned-driver' : 'no-driver-found'
   });
 
-  if (!driver) return;
+  if (!driver) {
+    return notifyEligibleDriversForBooking(booking, { scheduleBooking: true });
+  }
 
   const recipientId = driver.user?._id || driver.user;
-  const notifTitle = `New Scheduled Booking Request`;
+  const serviceLabel = booking.serviceType === 'Car' ? 'Private Car' : booking.serviceType;
+  const notifTitle = `New ${serviceLabel} Schedule Booking Request`;
   const routeText = `${bookingOrigin.split('(')[0].trim()} -> ${bookingDest.split('(')[0].trim()}`;
+  const notifMessage = `Service: ${serviceLabel}. Booking ${bookingIdStr} from ${booking.customer?.name || 'Customer'}: ${bookingOrigin} -> ${bookingDest}. Fare: ${booking.fare}.`;
   
   const result = await Notification.updateOne(
     {
@@ -590,7 +602,7 @@ const notifyAssignedDriverForScheduleBooking = async (booking) => {
     {
       $setOnInsert: {
         title: notifTitle,
-        message: `${notifTitle} ${bookingIdStr}: ${routeText}`,
+        message: notifMessage,
         recipient: `Driver: ${driver.name || 'Driver'}`,
         recipientRole: 'driver',
         recipientId,
@@ -616,7 +628,8 @@ const notifyAssignedDriverForScheduleBooking = async (booking) => {
 
   if (result.upsertedCount === 0) return;
 
-  const token = (driver.pushToken || driver.fcmToken || '').trim();
+  const expoToken = (driver.pushToken && (driver.pushToken.startsWith('ExponentPushToken[') || driver.pushToken.startsWith('ExpoPushToken['))) ? driver.pushToken.trim() : null;
+  const token = expoToken || (driver.pushToken || driver.fcmToken || '').trim();
 
   console.log('[SCHEDULE_PUSH_DEBUG]', {
     bookingId: bookingIdStr,
@@ -625,7 +638,7 @@ const notifyAssignedDriverForScheduleBooking = async (booking) => {
     tokenPrefix: token ? token.substring(0, 15) : 'none'
   });
 
-  if (token) {
+  if (token && (token.startsWith('ExponentPushToken[') || token.startsWith('ExpoPushToken['))) {
     try {
       const pushResponse = await fetch('https://exp.host/--/api/v2/push/send', {
         method: 'POST',
@@ -640,6 +653,7 @@ const notifyAssignedDriverForScheduleBooking = async (booking) => {
           body: `${routeText} booking request. Tap to view.`,
           data: {
             type: 'BOOKING_REQUEST',
+            eventType: 'BOOKING_REQUEST',
             bookingId: bookingIdStr,
             bookingMode: 'SCHEDULE',
             origin: bookingOrigin,

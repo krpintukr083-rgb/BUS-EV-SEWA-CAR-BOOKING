@@ -157,10 +157,14 @@ exports.getVehicles = async (req, res, next) => {
         }
       }
 
-      const formattedVehicles = vehicles.map(vehicle => ({
+      let formattedVehicles = vehicles.map(vehicle => ({
         ...formatVehicle(vehicle, req),
         schedule: scheduleByVehicle.get(String(vehicle._id)) || null
       }));
+
+      if (scheduleId) {
+        formattedVehicles = formattedVehicles.filter(v => v.schedule !== null);
+      }
 
       return res.json({
         success: true,

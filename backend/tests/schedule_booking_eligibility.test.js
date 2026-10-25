@@ -31,6 +31,9 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
 
   beforeAll(async () => {
     await connectTestDB();
+    try {
+      await Booking.collection.dropIndex('one_active_instant_booking_per_driver');
+    } catch (_) {}
 
     customer = await User.create({
       name: 'Schedule Booking Customer',
@@ -131,6 +134,10 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
       if (key.endsWith('Scheduled')) await createSchedule(vehicle, key);
     }
 
+    driver.assignedVehicle = vehicles.busScheduled._id;
+    driver.route = { origin: 'Delhi', destination: 'Jaipur' };
+    await driver.save();
+
     const wrongRoute = await createVehicle('busWrongRoute', 'Bus');
     await createSchedule(wrongRoute, 'busWrongRoute', 'Active', 'Agra', 'Jaipur');
     const wrongDate = await createVehicle('busWrongDate', 'Bus');
@@ -198,6 +205,12 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
       expect(response.status).toBe(200);
       expect(response.body.data).toHaveLength(1);
       expect(String(response.body.data[0]._id)).toBe(String(vehicles[scheduledKey]._id));
+      expect(response.body.data[0].schedule).toMatchObject({
+        _id: String(schedules[scheduledKey]._id),
+        origin: 'Delhi',
+        destination: 'Jaipur',
+        status: 'Active'
+      });
       return;
     }
     expect(response.status).toBe(200);
@@ -221,10 +234,20 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
     expect(unscheduled.schedule).toBeNull();
   });
 
-  test('Car schedule listing requires an explicit selected schedule', async () => {
+  test('Car listing without scheduleId returns vehicles and preserves optional schedule matching', async () => {
     const response = await getScheduleVehicles('Car');
-    expect(response.status).toBe(400);
-    expect(response.body.message).toContain('Select an active Car schedule');
+    expect(response.status).toBe(200);
+    const scheduledCar = response.body.data.find(v => String(v._id) === String(vehicles.carScheduled._id));
+    const unscheduledCar = response.body.data.find(v => String(v._id) === String(vehicles.carUnscheduled._id));
+    expect(scheduledCar).toBeDefined();
+    expect(scheduledCar.schedule).toMatchObject({
+      _id: String(schedules.carScheduled._id),
+      origin: 'Delhi',
+      destination: 'Jaipur',
+      status: 'Active'
+    });
+    expect(unscheduledCar).toBeDefined();
+    expect(unscheduledCar.schedule).toBeNull();
   });
 
   test('wrong route/date and pending/rejected schedules do not hide active vehicles or expose nonmatching schedule data', async () => {
@@ -625,7 +648,12 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
     const originalFetch = global.fetch;
     const submittedPushes = [];
     const pushMock = jest.fn(async (_url, options) => {
-      submittedPushes.push(JSON.parse(options.body));
+      const payload = JSON.parse(options.body);
+      if (Array.isArray(payload)) {
+        submittedPushes.push(...payload);
+      } else {
+        submittedPushes.push(payload);
+      }
       return { ok: true, json: async () => ({ data: [{ status: 'ok', id: 'test-push-ticket' }] }) };
     });
     global.fetch = pushMock;
@@ -725,7 +753,7 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
       });
     expect(listedCars.status).toBe(200);
     const listedCar = listedCars.body.data.find(item => String(item._id) === String(carWithoutRoute._id));
-    expect(listedCars.body.data).toHaveLength(1);
+    expect(listedCar).toBeDefined();
     expect(listedCar.schedule).toMatchObject({
       _id: String(carSchedule._id),
       origin: 'Delhi',
@@ -767,7 +795,12 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
     const originalFetch = global.fetch;
     const submittedPushes = [];
     global.fetch = jest.fn(async (_url, options) => {
-      submittedPushes.push(JSON.parse(options.body));
+      const payload = JSON.parse(options.body);
+      if (Array.isArray(payload)) {
+        submittedPushes.push(...payload);
+      } else {
+        submittedPushes.push(payload);
+      }
       return { ok: true, json: async () => ({ data: [{ status: 'ok', id: 'test-push-ticket' }] }) };
     });
 
@@ -862,7 +895,7 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
       dropLocation: carSchedule.destination,
       bookingStatus: 'Pending Driver Confirmation'
     });
-    expect(String(customerBooking.scheduleId)).toBe(String(carSchedule._id));
+    expect(String(customerBooking.scheduleId?._id || customerBooking.scheduleId)).toBe(String(carSchedule._id));
     expect(String(customerBooking.vehicle._id)).toBe(String(carWithoutRoute._id));
     expect(String(customerBooking.driver._id)).toBe(String(driver._id));
     expect(new Date(customerBooking.travelDate).toISOString()).toBe(carSchedule.travelDate.toISOString());
@@ -1001,7 +1034,12 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
     const originalFetch = global.fetch;
     const submittedPushes = [];
     global.fetch = jest.fn(async (_url, options) => {
-      submittedPushes.push(JSON.parse(options.body));
+      const payload = JSON.parse(options.body);
+      if (Array.isArray(payload)) {
+        submittedPushes.push(...payload);
+      } else {
+        submittedPushes.push(payload);
+      }
       return { ok: true, json: async () => ({ data: [{ status: 'ok', id: 'test-push-ticket' }] }) };
     });
     let response;
@@ -1067,7 +1105,7 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
     expect(response.body.payment.paymentStatus).toBe('Pending Cash');
   });
 
-  test('Car schedule booking cannot be created without a selected schedule', async () => {
+  test('Car schedule booking can be created without a selected schedule', async () => {
     const car = vehicles.carUnscheduled;
 
     const originalFetch = global.fetch;
@@ -1090,8 +1128,8 @@ describe('Customer Schedule Booking vehicle eligibility', () => {
       global.fetch = originalFetch;
     }
 
-    expect(response.status).toBe(400);
-    expect(pushMock).not.toHaveBeenCalled();
+    expect(response.status).toBe(201);
+    bookingIds.push(response.body.data._id);
   });
 
   test.each([

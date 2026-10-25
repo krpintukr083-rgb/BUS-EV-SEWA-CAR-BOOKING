@@ -391,10 +391,50 @@ exports.getDriverDashboard = async (req, res, next) => {
               .limit(20)
               .lean();
 
+            const driverVehicles = await getActiveRequestVehiclesForDriver(driver);
+            const activeOngoingTrip = await Booking.findOne({
+              driver: driver._id,
+              rideStatus: { $in: ['Accepted', 'Arrived', 'Started'] },
+              bookingStatus: { $in: ['Confirmed', 'Ongoing', 'Awaiting Cash Collection', 'Pending Driver Confirmation'] }
+            }).select('vehicle').lean();
+            if (activeOngoingTrip?.vehicle) {
+              const activeTripVehId = String(activeOngoingTrip.vehicle._id || activeOngoingTrip.vehicle);
+              if (!driverVehicles.some(v => String(v._id) === activeTripVehId)) {
+                const v = await Vehicle.findById(activeTripVehId).lean();
+                if (v) driverVehicles.push(v);
+              }
+            }
+            const vehicleCapacityList = await Promise.all(driverVehicles.map(async v => {
+              const reserved = await getActiveReservedSeats(v._id);
+              const cap = Number(v.seatingCapacity) || 4;
+              return { vehicle: v, availableSeats: Math.max(0, cap - reserved) };
+            }));
+
             return candidates.filter(booking => {
               const b = booking;
               if (b.driverConfirmed || b.driverConfirmationStatus === 'Confirmed' || b.confirmationOtpVerifiedAt || b.otpVerified || b.cashCollected || b.rideStatus === 'Accepted') return false;
               if (['Awaiting Cash Collection', 'Confirmed', 'Completed', 'Cancelled', 'Rejected'].includes(b.bookingStatus)) return false;
+              if (b.bookingMode === 'INSTANT' && vehicleCapacityList.length > 0) {
+                const reqPassengers = (Array.isArray(b.passengerDetails) && b.passengerDetails.length > 0)
+                  ? b.passengerDetails.length
+                  : (Number(b.passengerCount) || 1);
+                const hasCapacity = vehicleCapacityList.some(item => {
+                  const matchesType = !b.serviceType || b.serviceType === 'Any' ||
+                    isServiceTypeCompatible(item.vehicle.vehicleType, b.serviceType);
+                  return matchesType && item.availableSeats >= reqPassengers;
+                });
+                if (!hasCapacity) return false;
+              }
+              const assignedDriver = b.driver || b.assignedDriverId;
+              if (assignedDriver && String(assignedDriver._id || assignedDriver) !== String(driver._id)) {
+                if (b.bookingMode !== 'INSTANT' && b.bookingMode !== 'NORMAL') return false;
+              }
+              if (b.bookingMode === 'SCHEDULE' && b.vehicle) {
+                const vehicleAssignedDriver = b.vehicle.assignedDriver
+                  ? String(b.vehicle.assignedDriver._id || b.vehicle.assignedDriver)
+                  : null;
+                if (vehicleAssignedDriver && vehicleAssignedDriver !== String(driver._id)) return false;
+              }
               const isCar = normalizeVehicleType(b.serviceType) === 'car';
               if (isCar) {
                 const isAssigned = (b.driver && String(b.driver._id || b.driver) === String(driver._id)) ||
@@ -1514,6 +1554,25 @@ const getScheduleBookingRequests = async (req, res, next) => {
     const allowOpposite = serviceControl?.oppositeRouteNotifications === true;
     console.log(`[ROUTE-NOTIFICATION-TRACE] polling oppositeRouteNotifications flag = ${allowOpposite}`);
 
+    const driverVehicles = await getActiveRequestVehiclesForDriver(driver);
+    const activeOngoingTrip = await Booking.findOne({
+      driver: driver._id,
+      rideStatus: { $in: ['Accepted', 'Arrived', 'Started'] },
+      bookingStatus: { $in: ['Confirmed', 'Ongoing', 'Awaiting Cash Collection', 'Pending Driver Confirmation'] }
+    }).select('vehicle').lean();
+    if (activeOngoingTrip?.vehicle) {
+      const activeTripVehId = String(activeOngoingTrip.vehicle._id || activeOngoingTrip.vehicle);
+      if (!driverVehicles.some(v => String(v._id) === activeTripVehId)) {
+        const v = await Vehicle.findById(activeTripVehId).lean();
+        if (v) driverVehicles.push(v);
+      }
+    }
+    const vehicleCapacityList = await Promise.all(driverVehicles.map(async v => {
+      const reserved = await getActiveReservedSeats(v._id);
+      const cap = Number(v.seatingCapacity) || 4;
+      return { vehicle: v, availableSeats: Math.max(0, cap - reserved) };
+    }));
+
     // Filter candidate bookings by route match & eligibility
     const requests = candidateBookings.filter(reqItem => {
       const exclude = reason => {
@@ -1562,6 +1621,14 @@ const getScheduleBookingRequests = async (req, res, next) => {
             bookingDate.getMonth() !== scheduleDate.getMonth() ||
             bookingDate.getDate() !== scheduleDate.getDate()
           ) return exclude('schedule-travel-date-mismatch');
+
+          const normalizeLoc = (loc) => String(loc || '').trim().toLowerCase();
+          if (
+            normalizeLoc(reqItem.pickupLocation) !== normalizeLoc(schedule.origin) ||
+            normalizeLoc(reqItem.dropLocation) !== normalizeLoc(schedule.destination)
+          ) {
+            return exclude('schedule-route-mismatch');
+          }
         }
         if (reqItem.vehicle) {
           const vehicleAssignedDriver = reqItem.vehicle.assignedDriver
@@ -1577,6 +1644,19 @@ const getScheduleBookingRequests = async (req, res, next) => {
         const elapsedSeconds = Math.floor((Date.now() - new Date(reqItem.createdAt).getTime()) / 1000);
         if (elapsedSeconds >= 45) {
           return exclude('instant-booking-expired');
+        }
+        if (vehicleCapacityList.length > 0) {
+          const reqPassengers = (Array.isArray(reqItem.passengerDetails) && reqItem.passengerDetails.length > 0)
+            ? reqItem.passengerDetails.length
+            : (Number(reqItem.passengerCount) || 1);
+          const hasCapacity = vehicleCapacityList.some(item => {
+            const matchesType = !reqItem.serviceType || reqItem.serviceType === 'Any' ||
+              isServiceTypeCompatible(item.vehicle.vehicleType, reqItem.serviceType);
+            return matchesType && item.availableSeats >= reqPassengers;
+          });
+          if (!hasCapacity) {
+            return exclude('vehicle-capacity-exceeded');
+          }
         }
       }
 
@@ -3897,24 +3977,35 @@ exports.registerPushToken = async (req, res, next) => {
   try {
     const { pushToken, fcmToken, token, expoPushToken } = req.body;
     
-    // Support separated tokens or legacy fallback
-    const finalExpoToken = expoPushToken || pushToken || token;
-    const finalFcmToken = fcmToken || pushToken || token;
+    const rawCandidate = (pushToken || token || '').trim();
+    let finalExpoToken = (expoPushToken || '').trim();
+    let finalFcmToken = (fcmToken || '').trim();
+
+    if (!finalExpoToken && (rawCandidate.startsWith('ExponentPushToken[') || rawCandidate.startsWith('ExpoPushToken['))) {
+      finalExpoToken = rawCandidate;
+    }
+    if (!finalFcmToken && rawCandidate && !rawCandidate.startsWith('Expo')) {
+      finalFcmToken = rawCandidate;
+    }
 
     if (!finalExpoToken && !finalFcmToken) {
       return res.status(400).json({ success: false, message: 'Push token is required' });
     }
 
-    await Driver.findByIdAndUpdate(
+    const updateFields = {};
+    if (finalExpoToken) updateFields.pushToken = finalExpoToken;
+    if (finalFcmToken) updateFields.fcmToken = finalFcmToken;
+
+    const updated = await Driver.findByIdAndUpdate(
       req.driver._id,
-      { $set: { pushToken: finalExpoToken, fcmToken: finalFcmToken } },
+      { $set: updateFields },
       { new: true }
     );
 
     return res.status(200).json({
       success: true,
       message: 'Push token registered successfully',
-      data: { expoPushToken: finalExpoToken, fcmToken: finalFcmToken }
+      data: { expoPushToken: updated?.pushToken || null, fcmToken: updated?.fcmToken || null }
     });
   } catch (error) {
     next(error);
@@ -4799,24 +4890,35 @@ exports.registerPushToken = async (req, res, next) => {
   try {
     const { pushToken, fcmToken, token, expoPushToken } = req.body;
     
-    // Support separated tokens or legacy fallback
-    const finalExpoToken = expoPushToken || pushToken || token;
-    const finalFcmToken = fcmToken || pushToken || token;
+    const rawCandidate = (pushToken || token || '').trim();
+    let finalExpoToken = (expoPushToken || '').trim();
+    let finalFcmToken = (fcmToken || '').trim();
+
+    if (!finalExpoToken && (rawCandidate.startsWith('ExponentPushToken[') || rawCandidate.startsWith('ExpoPushToken['))) {
+      finalExpoToken = rawCandidate;
+    }
+    if (!finalFcmToken && rawCandidate && !rawCandidate.startsWith('Expo')) {
+      finalFcmToken = rawCandidate;
+    }
 
     if (!finalExpoToken && !finalFcmToken) {
       return res.status(400).json({ success: false, message: 'Push token is required' });
     }
 
-    await Driver.findByIdAndUpdate(
+    const updateFields = {};
+    if (finalExpoToken) updateFields.pushToken = finalExpoToken;
+    if (finalFcmToken) updateFields.fcmToken = finalFcmToken;
+
+    const updated = await Driver.findByIdAndUpdate(
       req.driver._id,
-      { $set: { pushToken: finalExpoToken, fcmToken: finalFcmToken } },
+      { $set: updateFields },
       { new: true }
     );
 
     return res.status(200).json({
       success: true,
       message: 'Push token registered successfully',
-      data: { expoPushToken: finalExpoToken, fcmToken: finalFcmToken }
+      data: { expoPushToken: updated?.pushToken || null, fcmToken: updated?.fcmToken || null }
     });
   } catch (error) {
     next(error);

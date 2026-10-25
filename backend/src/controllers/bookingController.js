@@ -221,6 +221,13 @@ const createScheduleBooking = async (req, res, next) => {
         ) {
           return res.status(400).json({ success: false, message: 'Selected Car schedule driver is not eligible for this vehicle' });
         }
+        const normalizeLoc = (loc) => String(loc || '').trim().toLowerCase();
+        if (
+          normalizeLoc(pickupLocation) !== normalizeLoc(activeSchedule.origin) ||
+          normalizeLoc(dropLocation) !== normalizeLoc(activeSchedule.destination)
+        ) {
+          return res.status(400).json({ success: false, message: 'Selected Car schedule route does not match pickup and drop locations' });
+        }
         const bookingDate = travelDate ? new Date(travelDate) : null;
         const scheduleDate = new Date(activeSchedule.travelDate);
         const sameDate = bookingDate && !Number.isNaN(bookingDate.getTime())
@@ -491,7 +498,7 @@ const createScheduleBooking = async (req, res, next) => {
         assignedDriver: String(booking.driver || 'none'),
         selectedVehicle: String(booking.vehicle || 'none')
       });
-      if (bookingMode === 'SCHEDULE' && serviceType === 'Car') {
+      if (bookingMode === 'SCHEDULE') {
         await notifyAssignedDriverForScheduleBooking(booking);
       } else {
         await notifyEligibleDriversForBooking(booking);
