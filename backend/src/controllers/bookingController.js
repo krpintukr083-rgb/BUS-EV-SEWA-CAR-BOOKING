@@ -69,7 +69,7 @@ const createInstantBooking = async (req, res, next) => {
       customerViewOtp: rawOtp,
       travelDate: travelDate ? new Date(travelDate) : new Date()
     });
-    // Instant requests are broadcast by route; the notification utility deliberately ignores vehicle type.
+    // Instant requests are broadcast to all online eligible drivers on the matching route with compatible vehicle type.
     await notifyEligibleDriversForBooking(booking);
     const bookingObj = booking.toObject();
     bookingObj.confirmationOtp = rawOtp;

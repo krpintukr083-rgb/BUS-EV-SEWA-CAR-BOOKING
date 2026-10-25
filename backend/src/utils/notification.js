@@ -182,7 +182,10 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
 
       // Scheduled directional bookings cannot use opposite routes
       const effectiveAllowOpposite = scheduleBooking ? false : allowOpposite;
-      return driverMatchesBookingRoute(driver, booking, { allowOpposite: effectiveAllowOpposite });
+      return driverMatchesBookingRoute(driver, booking, {
+        allowOpposite: effectiveAllowOpposite,
+        requireServiceTypeMatch: true
+      });
     });
 
     const tQueryEnd = Date.now();
@@ -221,7 +224,7 @@ const notifyEligibleDriversForBooking = async (booking, { scheduleBooking = fals
     // Persist one typed request per driver/booking; only newly inserted requests are pushed.
     const newRequestDrivers = [];
     for (const driver of matchedDrivers) {
-      const recipientId = driver.user._id || driver.user;
+      const recipientId = (driver.user && (driver.user._id || driver.user)) || driver._id;
       try {
         const result = await Notification.updateOne(
           {
