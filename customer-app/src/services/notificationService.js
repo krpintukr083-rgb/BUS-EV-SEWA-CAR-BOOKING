@@ -139,3 +139,31 @@ export const setupCustomerPushTokenChangeListener = () => {
   return null;
 };
 
+// 6. Display Local Notification for Customer Booking Status Updates
+export const notifyCustomerBookingStatus = async (booking, statusTitle, statusMessage) => {
+  try {
+    await initCustomerNotificationChannel();
+    const bId = booking?._id || booking?.bookingId;
+    if (!bId) return;
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: statusTitle || 'Booking Update',
+        body: statusMessage || `Booking #${bId} status updated: ${booking.bookingStatus || ''}`,
+        data: {
+          bookingId: bId,
+          type: 'CUSTOMER_BOOKING_STATUS',
+          screen: 'BookingDetails'
+        },
+        sound: 'default',
+        priority: Notifications.AndroidNotificationPriority.HIGH,
+        channelId: CUSTOMER_CHANNEL_ID,
+      },
+      trigger: null,
+    });
+    console.log(`[CUSTOMER_PUSH] Displayed notification for booking ${bId}: ${statusTitle}`);
+  } catch (err) {
+    console.warn('[CUSTOMER_PUSH] Failed to display local notification:', err?.message || err);
+  }
+};
+

@@ -12,6 +12,7 @@ import Button from '../../components/Button';
 import StatusBadge from '../../components/StatusBadge';
 import { COLORS } from '../../constants/colors';
 import { customerService } from '../../services/customerService';
+import { notifyCustomerBookingStatus } from '../../services/notificationService';
 
 const formatTravelDate = value => {
   if (!value) return 'Not available';
@@ -50,6 +51,38 @@ const formatPickupTime = value => {
 const BookingConfirmationScreen = ({ route, navigation }) => {
   const { booking: initialBooking, payment } = route.params || {};
   const [booking, setBooking] = useState(initialBooking);
+  const notifiedCreatedRef = React.useRef(false);
+  const prevStatusRef = React.useRef(initialBooking?.bookingStatus);
+
+  const handleBookingUpdate = React.useCallback((updatedBooking) => {
+    if (!updatedBooking) return;
+    const oldStatus = prevStatusRef.current;
+    const newStatus = updatedBooking.bookingStatus;
+    if (newStatus && oldStatus && newStatus !== oldStatus) {
+      prevStatusRef.current = newStatus;
+      const bId = updatedBooking.bookingId || updatedBooking._id;
+      notifyCustomerBookingStatus(
+        updatedBooking,
+        `Booking ${newStatus}`,
+        `Booking #${bId} status updated to ${newStatus}. Tap to view.`
+      );
+    }
+    setBooking(updatedBooking);
+  }, []);
+
+  useEffect(() => {
+    if (initialBooking && !notifiedCreatedRef.current) {
+      notifiedCreatedRef.current = true;
+      const bId = initialBooking.bookingId || initialBooking._id;
+      const origin = (initialBooking.pickupLocation || '').split('(')[0].trim();
+      const dest = (initialBooking.dropLocation || '').split('(')[0].trim();
+      notifyCustomerBookingStatus(
+        initialBooking,
+        'Booking Request Submitted',
+        `Booking #${bId}: ${origin} → ${dest}. We will notify you when confirmed.`
+      );
+    }
+  }, [initialBooking]);
 
   useEffect(() => {
     let notificationListener = null;
@@ -62,7 +95,7 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
           try {
             const res = await customerService.getBookingDetails(booking?._id || booking?.bookingId);
             if (res.success) {
-              setBooking(res.data);
+              handleBookingUpdate(res.data);
             }
           } catch(e){}
         }
@@ -77,7 +110,7 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
         try {
           const res = await customerService.getBookingDetails(booking?._id || booking?.bookingId);
           if (res.success) {
-            setBooking(res.data);
+            handleBookingUpdate(res.data);
           }
         } catch(e){}
       }
@@ -92,7 +125,7 @@ const BookingConfirmationScreen = ({ route, navigation }) => {
         } catch(e){}
       }
     };
-  }, [booking]);
+  }, [booking, handleBookingUpdate]);
 
   const { useFocusEffect } = require('@react-navigation/native');
   useFocusEffect(

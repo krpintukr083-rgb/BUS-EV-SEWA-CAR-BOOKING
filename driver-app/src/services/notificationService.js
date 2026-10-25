@@ -271,9 +271,26 @@ export const checkAndNotifyBookingRequests = async (requests, driverId) => {
       const serviceType = item.serviceType || 'Booking';
 
       // Trigger Android Top Heads-Up Notification safely
-      // REMOVED: Prevent duplicate notifications since backend now correctly fires remote push.
       try {
-        // Notifications.scheduleNotificationAsync(...)
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `New ${serviceType} Booking Request`,
+            body: bodyText,
+            data: {
+              bookingId: bId,
+              type: 'BOOKING_REQUEST',
+              screen: 'Requests',
+              serviceType,
+              origin,
+              destination: dest
+            },
+            sound: 'default',
+            priority: Notifications.AndroidNotificationPriority.HIGH,
+            channelId: CHANNEL_ID,
+          },
+          trigger: null, // display immediately in notification shade
+        });
+        console.log(`[DRIVER_NOTIF] Displayed notification in shade for booking ${bId}: ${bodyText}`);
       } catch (notifErr) {
         console.warn('[PUSH] Local notification scheduling failed:', notifErr?.message || notifErr);
       }

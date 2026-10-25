@@ -364,5 +364,53 @@ describe('Route Matching & Driver Request Delivery Regression Tests', () => {
 
       expect([403, 409]).toContain(acceptRes.status);
     });
+
+    test('strict opposite-route rejection: Car driver on Kathmandu->Birgunj MUST NOT see Birgunj->Kathmandu Car instant booking', async () => {
+      const reverseCarBooking = await Booking.create({
+        bookingId: `BK-REVERSE-CAR-${suffix}`,
+        user: carDriverUser._id,
+        customer: { name: 'Reverse Car Customer', phone: '9855555555' },
+        serviceType: 'Car',
+        bookingMode: 'INSTANT',
+        pickupLocation: 'Birgunj',
+        dropLocation: 'Kathmandu',
+        fare: 1400,
+        bookingStatus: 'Pending Driver Confirmation',
+        rideStatus: 'None'
+      });
+      testBookings.push(reverseCarBooking._id);
+
+      const resCar = await request(app)
+        .get('/api/driver/booking-requests')
+        .set('Authorization', `Bearer ${carDriverToken}`)
+        .expect(200);
+
+      const requestIds = resCar.body.data.map(item => String(item._id));
+      expect(requestIds).not.toContain(String(reverseCarBooking._id));
+    });
+
+    test('service-type compatibility: Car driver on Kathmandu->Birgunj MUST NOT see EV-Sewa or Bus bookings', async () => {
+      const busBooking = await Booking.create({
+        bookingId: `BK-BUS-SAME-ROUTE-${suffix}`,
+        user: carDriverUser._id,
+        customer: { name: 'Bus Customer', phone: '9866666666' },
+        serviceType: 'Bus',
+        bookingMode: 'INSTANT',
+        pickupLocation: 'Kathmandu',
+        dropLocation: 'Birgunj',
+        fare: 600,
+        bookingStatus: 'Pending Driver Confirmation',
+        rideStatus: 'None'
+      });
+      testBookings.push(busBooking._id);
+
+      const resCar = await request(app)
+        .get('/api/driver/booking-requests')
+        .set('Authorization', `Bearer ${carDriverToken}`)
+        .expect(200);
+
+      const requestIds = resCar.body.data.map(item => String(item._id));
+      expect(requestIds).not.toContain(String(busBooking._id));
+    });
   });
 });
