@@ -16,6 +16,7 @@ import { customerService } from '../../services/customerService';
 import Header from '../../components/Header';
 import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
+import { OFFICIAL_CONTACT } from '../../constants/contact';
 
 const CustomerSupportScreen = ({ navigation }) => {
   const [supportData, setSupportData] = useState(null);
@@ -83,12 +84,37 @@ const CustomerSupportScreen = ({ navigation }) => {
     }
   };
 
-  const handleCall = phone => {
-    Linking.openURL(`tel:${phone || '+9118001234567'}`);
+  const handleCall = (phone = OFFICIAL_CONTACT.PHONE_RAW) => {
+    const cleanNumber = phone.replace(/[^0-9+]/g, '');
+    Linking.openURL(`tel:${cleanNumber || OFFICIAL_CONTACT.PHONE_RAW}`).catch(() => {
+      Alert.alert('Call Failed', `Unable to make phone call. Please dial ${OFFICIAL_CONTACT.PHONE_DISPLAY} directly.`);
+    });
+  };
+
+  const handleWhatsApp = async () => {
+    const url = OFFICIAL_CONTACT.WHATSAPP_URL_WITH_TEXT('Hello TravelSewa Customer Support');
+    try {
+      const supported = await Linking.canOpenURL(url).catch(() => false);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        await Linking.openURL(url).catch(() => {
+          Alert.alert(
+            'WhatsApp Not Installed',
+            `WhatsApp is not installed on this device. Please call our official support at ${OFFICIAL_CONTACT.PHONE_DISPLAY}.`
+          );
+        });
+      }
+    } catch (err) {
+      Alert.alert(
+        'WhatsApp Not Installed',
+        `Could not open WhatsApp. Please call our official support at ${OFFICIAL_CONTACT.PHONE_DISPLAY}.`
+      );
+    }
   };
 
   const handleEmail = email => {
-    Linking.openURL(`mailto:${email || 'support@transportplatform.com'}`);
+    Linking.openURL(`mailto:${email || OFFICIAL_CONTACT.SUPPORT_EMAIL}`);
   };
 
   return (
@@ -103,7 +129,7 @@ const CustomerSupportScreen = ({ navigation }) => {
           </View>
           <Text style={styles.heroTitle}>24x7 Customer Passenger Support</Text>
           <Text style={styles.heroSub}>
-            Have a question about your booking, boarding points, or statutory insurance claim? Submit a ticket or call our helpline.
+            Have a question about your booking, boarding points, or statutory insurance claim? Submit a ticket, chat on WhatsApp, or call our helpline.
           </Text>
         </View>
 
@@ -112,22 +138,37 @@ const CustomerSupportScreen = ({ navigation }) => {
 
         <TouchableOpacity
           style={styles.contactCard}
-          onPress={() => handleCall('+9118001234567')}
+          onPress={handleWhatsApp}
           activeOpacity={0.8}
         >
           <View style={[styles.channelIcon, { backgroundColor: '#ecfdf5' }]}>
-            <Ionicons name="call" size={20} color={COLORS.success} />
+            <Ionicons name="logo-whatsapp" size={20} color="#25D366" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.channelTitle}>Toll-Free Helpline</Text>
-            <Text style={styles.channelValue}>+91 1800-123-4567 (24 Hours)</Text>
+            <Text style={styles.channelTitle}>WhatsApp Support</Text>
+            <Text style={styles.channelValue}>{OFFICIAL_CONTACT.PHONE_DISPLAY} (Chat with us)</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.contactCard}
-          onPress={() => handleEmail('support@transportplatform.com')}
+          onPress={() => handleCall(OFFICIAL_CONTACT.PHONE_RAW)}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.channelIcon, { backgroundColor: '#eff6ff' }]}>
+            <Ionicons name="call" size={20} color={COLORS.primary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.channelTitle}>Official Helpline</Text>
+            <Text style={styles.channelValue}>{OFFICIAL_CONTACT.PHONE_DISPLAY} (24 Hours)</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.contactCard}
+          onPress={() => handleEmail(OFFICIAL_CONTACT.SUPPORT_EMAIL)}
           activeOpacity={0.8}
         >
           <View style={[styles.channelIcon, { backgroundColor: '#eff6ff' }]}>
@@ -135,7 +176,7 @@ const CustomerSupportScreen = ({ navigation }) => {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.channelTitle}>Support Email</Text>
-            <Text style={styles.channelValue}>support@transportplatform.com</Text>
+            <Text style={styles.channelValue}>{OFFICIAL_CONTACT.SUPPORT_EMAIL}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color="#cbd5e1" />
         </TouchableOpacity>

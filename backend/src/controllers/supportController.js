@@ -55,10 +55,12 @@ exports.getCustomerSupport = async (req, res, next) => {
     res.json({
       success: true,
       data: {
-        helplineNumber: '+91 1800-123-4567 (Toll Free)',
+        helplineNumber: '+977 970-9168447',
+        whatsappNumber: '+9779709168447',
+        whatsappUrl: 'https://wa.me/9779709168447',
         email: 'support@transportplatform.com',
         operationalHours: '24x7 Customer Passenger Helpline',
-        emergencyNumber: '+91 98110 99999',
+        emergencyNumber: '+977 970-9168447',
         supportGuidelines: [
           {
             title: 'Booking & Seat Reservation Inquiries',

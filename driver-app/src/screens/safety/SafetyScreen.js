@@ -29,11 +29,12 @@ export default function SafetyScreen({ navigation }) {
     { title: 'Ambulance / Medical', number: '102', icon: 'ambulance', color: COLORS.warning },
     { title: 'Traffic Police Helpline', number: '103', icon: 'car-emergency', color: COLORS.info },
     { title: 'Highway Emergency Rescue', number: '112', icon: 'shield-car', color: COLORS.primary },
-    { title: 'Platform 24/7 Safety Desk', number: '+977-1-4455667', icon: 'headset', color: COLORS.success },
+    { title: 'Platform 24/7 Safety Desk', number: '+977 970-9168447', icon: 'headset', color: COLORS.success },
   ];
 
   const callNumber = (num) => {
-    Linking.openURL(`tel:${num}`).catch(() => {
+    const clean = num.replace(/[^0-9+]/g, '');
+    Linking.openURL(`tel:${clean || '+9779709168447'}`).catch(() => {
       Alert.alert(t('error'), `Unable to dial ${num}`);
     });
   };

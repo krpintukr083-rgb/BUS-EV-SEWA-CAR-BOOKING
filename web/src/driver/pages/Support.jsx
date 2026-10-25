@@ -156,7 +156,7 @@ const Support = () => {
             </div>
             <div>
               <div style={{ color: '#64748b', fontSize: '12px', fontWeight: '600' }}>24x7 Driver Helpline</div>
-              <div style={{ color: '#f1f5f9', fontSize: '16px', fontWeight: '700' }}>{helpline || '1800-PLATFORM'}</div>
+              <div style={{ color: '#f1f5f9', fontSize: '16px', fontWeight: '700' }}>{helpline || '+977 970-9168447'}</div>
             </div>
           </div>
           <p style={{ margin: '4px 0 0 0', color: '#94a3b8', fontSize: '13px' }}>

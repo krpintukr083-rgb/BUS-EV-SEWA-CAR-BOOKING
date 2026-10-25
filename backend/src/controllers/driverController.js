@@ -3922,7 +3922,9 @@ exports.getDriverSupport = async (req, res, next) => {
     res.json({
       success: true,
       data: {
-        helpline: '+91 98765 00000 / 1800-PLATFORM',
+        helpline: '+977 970-9168447',
+        whatsapp: '+9779709168447',
+        whatsappUrl: 'https://wa.me/9779709168447',
         email: 'driver-support@platform.com',
         faqList,
         tickets
@@ -4835,7 +4837,9 @@ exports.getDriverSupport = async (req, res, next) => {
     res.json({
       success: true,
       data: {
-        helpline: '+91 98765 00000 / 1800-PLATFORM',
+        helpline: '+977 970-9168447',
+        whatsapp: '+9779709168447',
+        whatsappUrl: 'https://wa.me/9779709168447',
         email: 'driver-support@platform.com',
         faqList,
         tickets

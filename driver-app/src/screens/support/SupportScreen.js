@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, SPACING, RADIUS, SHADOWS } from '../../constants/theme';
+import { OFFICIAL_CONTACT } from '../../constants/contact';
 import { useLanguage } from '../../state/LanguageContext';
 import driverService from '../../services/driverService';
 import { useFocusEffect } from '@react-navigation/native';
@@ -111,15 +112,31 @@ export default function SupportScreen({ navigation }) {
     }
   };
 
-  const openWhatsApp = () => {
-    Linking.openURL('https://wa.me/9779801234567?text=Hello%20TravelSewa%20Driver%20Support').catch(() => {
-      Alert.alert(t('error'), 'Unable to open WhatsApp');
-    });
+  const openWhatsApp = async () => {
+    const url = OFFICIAL_CONTACT.WHATSAPP_URL_WITH_TEXT('Hello TravelSewa Driver Support');
+    try {
+      const supported = await Linking.canOpenURL(url).catch(() => false);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        await Linking.openURL(url).catch(() => {
+          Alert.alert(
+            'WhatsApp Not Installed',
+            `WhatsApp is not installed on this device. Please call our official support desk directly at ${OFFICIAL_CONTACT.PHONE_DISPLAY}.`
+          );
+        });
+      }
+    } catch (err) {
+      Alert.alert(
+        'WhatsApp Not Installed',
+        `Could not open WhatsApp. Please call our official support desk directly at ${OFFICIAL_CONTACT.PHONE_DISPLAY}.`
+      );
+    }
   };
 
   const callSupport = () => {
-    Linking.openURL('tel:+97714455667').catch(() => {
-      Alert.alert(t('error'), 'Unable to make phone call');
+    Linking.openURL(OFFICIAL_CONTACT.PHONE_TEL).catch(() => {
+      Alert.alert(t('error') || 'Error', `Unable to make phone call. Please dial ${OFFICIAL_CONTACT.PHONE_DISPLAY}.`);
     });
   };
 
@@ -134,6 +151,22 @@ export default function SupportScreen({ navigation }) {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Official Support Helpline Banner */}
+        <View style={styles.helplineBanner}>
+          <View style={styles.helplineBannerLeft}>
+            <View style={styles.helplineIconBox}>
+              <MaterialCommunityIcons name="headset" size={22} color={COLORS.primary} />
+            </View>
+            <View>
+              <Text style={styles.helplineBannerTitle}>Driver Support Helpline</Text>
+              <Text style={styles.helplineBannerNumber}>{OFFICIAL_CONTACT.PHONE_DISPLAY}</Text>
+            </View>
+          </View>
+          <View style={styles.helplineBadge}>
+            <Text style={styles.helplineBadgeText}>24x7</Text>
+          </View>
+        </View>
+
         {/* Quick Contact Buttons */}
         <View style={styles.quickContactRow}>
           <TouchableOpacity style={styles.quickBtn} onPress={openWhatsApp}>
@@ -288,6 +321,53 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: SPACING.m,
     paddingBottom: SPACING.xl,
+  },
+  helplineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.bgCard,
+    borderRadius: RADIUS.m,
+    padding: SPACING.m,
+    marginBottom: SPACING.m,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    ...SHADOWS.card,
+  },
+  helplineBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  helplineIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: COLORS.primaryLight || '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  helplineBannerTitle: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    fontWeight: '600',
+  },
+  helplineBannerNumber: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+    marginTop: 2,
+  },
+  helplineBadge: {
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  helplineBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#166534',
   },
   quickContactRow: {
     flexDirection: 'row',

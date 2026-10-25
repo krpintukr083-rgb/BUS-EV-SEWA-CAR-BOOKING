@@ -14,7 +14,7 @@ const SafetySOSModal = ({ visible, onClose }) => {
     { name: 'Police Helpline', number: '100', icon: 'shield' },
     { name: 'National Emergency', number: '112', icon: 'call' },
     { name: 'Traffic Police', number: '103', icon: 'car' },
-    { name: 'Platform 24/7 Helpline', number: '+977-1-4200000', icon: 'headset' }
+    { name: 'Platform 24/7 Helpline', number: '+977 970-9168447', icon: 'headset' }
   ];
 
   const handleTriggerSOS = async () => {
@@ -34,7 +34,8 @@ const SafetySOSModal = ({ visible, onClose }) => {
   };
 
   const dialNumber = (number) => {
-    Linking.openURL(`tel:${number}`).catch(() => {
+    const cleanNumber = number.replace(/[^0-9+]/g, '');
+    Linking.openURL(`tel:${cleanNumber || '+9779709168447'}`).catch(() => {
       Alert.alert('Error', `Cannot dial ${number}`);
     });
   };
