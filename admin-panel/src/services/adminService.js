@@ -312,8 +312,14 @@ export const adminService = {
           let rawIfsc = '';
           if (rawDetails.ifscCode !== undefined && rawDetails.ifscCode !== '') {
             rawIfsc = rawDetails.ifscCode;
+          } else if (rawDetails.ifsc !== undefined && rawDetails.ifsc !== '') {
+            rawIfsc = rawDetails.ifsc;
+          } else if (rawDetails.bankIfsc !== undefined && rawDetails.bankIfsc !== '') {
+            rawIfsc = rawDetails.bankIfsc;
+          } else if (rawDetails.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(String(rawDetails.branch).trim())) {
+            rawIfsc = String(rawDetails.branch).trim().toUpperCase();
           } else if (!rawDetails.bankName || rawDetails.bankName === driverPayout.bankName) {
-            rawIfsc = driverPayout.ifscCode || '';
+            rawIfsc = driverPayout.ifscCode || (driverPayout.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(String(driverPayout.branch).trim()) ? driverPayout.branch : '') || '';
           }
           rawIfsc = String(rawIfsc).trim().toUpperCase();
 
@@ -408,6 +414,33 @@ export const adminService = {
           const limit = Math.max(1, parseInt(params.historyLimit, 10) || 6);
           const startIdx = (page - 1) * limit;
 
+          const formattedHistoryItems = driverWithdrawals.map(item => {
+            const details = item.payoutDetails || {};
+            let ifsc = (details.ifscCode || details.ifsc || details.bankIfsc || '').trim().toUpperCase();
+            if (!ifsc && details.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(String(details.branch).trim())) {
+              ifsc = String(details.branch).trim().toUpperCase();
+            }
+            const itemRawAcct = details.accountNumber || '';
+            const itemMasked = itemRawAcct.length > 4 ? '••••••••' + itemRawAcct.slice(-4) : itemRawAcct;
+            return {
+              _id: item._id,
+              referenceId: item.referenceId,
+              createdAt: item.createdAt,
+              amount: item.amount,
+              payoutMethod: item.payoutMethod,
+              status: item.status,
+              actualPaidAmount: ['Completed', 'Paid', 'Successful'].includes(item.status) ? item.amount : 0,
+              bankName: details.bankName || '—',
+              ifscCode: ifsc || (item.payoutMethod === 'Bank' ? 'IFSC not provided' : '—'),
+              maskedAccount: item.payoutMethod === 'Bank'
+                ? itemMasked
+                : details.esewaId || details.khaltiId || '—',
+              processedAt: item.processedAt,
+              rejectionReason: item.rejectionReason || item.adminNotes || '',
+              utrNumber: item.utrNumber || item.referenceId || ''
+            };
+          });
+
           return {
             success: true,
             data: {
@@ -439,13 +472,13 @@ export const adminService = {
               bankAndPayout,
               warnings,
               withdrawalHistory: {
-                total: driverWithdrawals.length,
-                items: driverWithdrawals.slice(startIdx, startIdx + limit),
+                total: formattedHistoryItems.length,
+                items: formattedHistoryItems.slice(startIdx, startIdx + limit),
                 pagination: {
-                  total: driverWithdrawals.length,
+                  total: formattedHistoryItems.length,
                   page,
                   limit,
-                  pages: Math.ceil(driverWithdrawals.length / limit) || 1
+                  pages: Math.ceil(formattedHistoryItems.length / limit) || 1
                 }
               }
             }

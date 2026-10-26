@@ -149,10 +149,15 @@ const WithdrawalManagement = () => {
                   <td><code>{item.referenceId}</code></td>
                   <td style={{ whiteSpace: 'nowrap' }}>{new Date(item.createdAt).toLocaleString('en-IN')}</td>
                   <td>
-                    <div>{item.payoutMethod}</div>
+                    <div style={{ fontWeight: 600 }}>{item.payoutMethod}</div>
                     <div style={{ fontSize: '.75rem', color: '#64748b' }}>
                       {item.payoutDetails?.accountNumber || item.payoutDetails?.esewaId || item.payoutDetails?.khaltiId || '—'}
                     </div>
+                    {item.payoutMethod === 'Bank' && (
+                      <div style={{ fontSize: '.7rem', color: (item.payoutDetails?.ifscCode || item.payoutDetails?.ifsc) ? '#0284c7' : '#ef4444', fontFamily: 'monospace' }}>
+                        IFSC: {item.payoutDetails?.ifscCode || item.payoutDetails?.ifsc || 'Not provided'}
+                      </div>
+                    )}
                   </td>
                   <td>
                     <StatusBadge status={getStatusLabel(item.status)} />

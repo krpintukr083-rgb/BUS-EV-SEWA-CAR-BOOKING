@@ -40,6 +40,7 @@ export default function WalletScreen({ navigation }) {
   const [accountNumber, setAccountNumber] = useState('');
   const [accountHolder, setAccountHolder] = useState('');
   const [bankName, setBankName] = useState('');
+  const [bankIfsc, setBankIfsc] = useState('');
   const [bankBranch, setBankBranch] = useState('');
   const [payoutErrors, setPayoutErrors] = useState({});
   const [submittingPayout, setSubmittingPayout] = useState(false);
@@ -99,6 +100,21 @@ export default function WalletScreen({ navigation }) {
         });
         setTransactions(Array.isArray(walletData.ledger) ? walletData.ledger : []);
         setWithdrawals(Array.isArray(walletData.recentWithdrawals) ? walletData.recentWithdrawals : []);
+
+        if (walletData.payoutMethods) {
+          const pm = walletData.payoutMethods;
+          if (pm.accountNumber) setAccountNumber(prev => prev || pm.accountNumber);
+          if (pm.accountHolderName) setAccountHolder(prev => prev || pm.accountHolderName);
+          if (pm.bankName) setBankName(prev => prev || pm.bankName);
+          if (pm.ifscCode) {
+            setBankIfsc(prev => prev || pm.ifscCode);
+          } else if (pm.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(pm.branch.trim())) {
+            setBankIfsc(prev => prev || pm.branch.trim().toUpperCase());
+          }
+          if (pm.branch && !/^[A-Z]{4}0[A-Z0-9]{6}$/i.test(pm.branch.trim())) {
+            setBankBranch(prev => prev || pm.branch);
+          }
+        }
       } else {
         const errMsg = responsePayload?.message || 'Failed to load wallet balance';
         setError(errMsg);
@@ -151,11 +167,16 @@ export default function WalletScreen({ navigation }) {
     if (!accountHolder.trim()) {
       errors.accountHolder = 'Enter the account holder name.';
     }
-    if (payoutMethod === 'BANK' && !bankName.trim()) {
-      errors.bankName = 'Enter the bank name.';
-    }
-    if (payoutMethod === 'BANK' && !bankBranch.trim()) {
-      errors.bankBranch = 'Enter the IFSC or branch.';
+    if (payoutMethod === 'BANK') {
+      if (!bankName.trim()) {
+        errors.bankName = 'Enter the bank name.';
+      }
+      const trimmedIfsc = bankIfsc.trim().toUpperCase();
+      if (!trimmedIfsc) {
+        errors.bankIfsc = 'Enter your bank IFSC code.';
+      } else if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(trimmedIfsc)) {
+        errors.bankIfsc = 'Enter a valid 11-character Indian IFSC code (e.g. SBIN0001234).';
+      }
     }
 
     setPayoutErrors(errors);
@@ -166,6 +187,7 @@ export default function WalletScreen({ navigation }) {
     payoutSubmissionLock.current = true;
     setSubmittingPayout(true);
     try {
+      const trimmedIfsc = bankIfsc.trim().toUpperCase();
       const payoutPayload = {
         amount: amountNum,
         payoutMethod,
@@ -174,7 +196,11 @@ export default function WalletScreen({ navigation }) {
               accountNumber: accountNumber.trim(),
               accountHolderName: accountHolder.trim(),
               bankName: bankName.trim(),
-              branch: bankBranch.trim()
+              ifscCode: trimmedIfsc,
+              ifsc: trimmedIfsc,
+              bankIfsc: trimmedIfsc,
+              branch: bankBranch.trim(),
+              branchName: bankBranch.trim()
             }
           : payoutMethod === 'ESEWA'
           ? { esewaId: accountNumber.trim(), accountHolderName: accountHolder.trim() }
@@ -187,10 +213,6 @@ export default function WalletScreen({ navigation }) {
         Alert.alert(t('success'), responsePayload?.message || 'Withdrawal request submitted successfully.');
         setPayoutModalVisible(false);
         setPayoutAmount('');
-        setAccountNumber('');
-        setAccountHolder('');
-        setBankName('');
-        setBankBranch('');
         setPayoutErrors({});
         fetchWalletData();
       } else {
@@ -317,6 +339,22 @@ export default function WalletScreen({ navigation }) {
             style={styles.payoutButton}
             onPress={() => {
               setPayoutErrors({});
+              if (wallet?.payoutMethods) {
+                const pm = wallet.payoutMethods;
+                if (!accountNumber && pm.accountNumber) setAccountNumber(pm.accountNumber);
+                if (!accountHolder && (pm.accountHolderName || wallet.name)) setAccountHolder(pm.accountHolderName || wallet.name || '');
+                if (!bankName && pm.bankName) setBankName(pm.bankName);
+                if (!bankIfsc) {
+                  if (pm.ifscCode) {
+                    setBankIfsc(pm.ifscCode);
+                  } else if (pm.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(pm.branch.trim())) {
+                    setBankIfsc(pm.branch.trim().toUpperCase());
+                  }
+                }
+                if (!bankBranch && pm.branch && !/^[A-Z]{4}0[A-Z0-9]{6}$/i.test(pm.branch.trim())) {
+                  setBankBranch(pm.branch);
+                }
+              }
               setPayoutModalVisible(true);
             }}
           >
@@ -549,15 +587,42 @@ export default function WalletScreen({ navigation }) {
                   />
                   {payoutErrors.bankName ? <Text style={styles.fieldError}>{payoutErrors.bankName}</Text> : null}
 
-                  <Text style={styles.inputLabel}>IFSC / Branch</Text>
+                  <Text style={styles.inputLabel}>IFSC Code</Text>
                   <TextInput
                     style={styles.input}
-                    placeholder="Enter IFSC or branch"
+                    placeholder="e.g. SBIN0001234"
+                    placeholderTextColor={COLORS.textMuted}
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    maxLength={11}
+                    value={bankIfsc}
+                    onChangeText={(value) => {
+                      const upper = value.toUpperCase();
+                      setBankIfsc(upper);
+                      setPayoutErrors((current) => ({ ...current, bankIfsc: undefined }));
+                    }}
+                    onFocus={() => {
+                      setTimeout(() => {
+                        payoutScrollRef.current?.scrollTo({ y: 350, animated: true });
+                      }, 120);
+                    }}
+                  />
+                  {payoutErrors.bankIfsc ? <Text style={styles.fieldError}>{payoutErrors.bankIfsc}</Text> : null}
+
+                  <Text style={styles.inputLabel}>Branch Name (Optional)</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. Connaught Place"
                     placeholderTextColor={COLORS.textMuted}
                     value={bankBranch}
                     onChangeText={(value) => {
                       setBankBranch(value);
                       setPayoutErrors((current) => ({ ...current, bankBranch: undefined }));
+                    }}
+                    onFocus={() => {
+                      setTimeout(() => {
+                        payoutScrollRef.current?.scrollTo({ y: 420, animated: true });
+                      }, 120);
                     }}
                   />
                   {payoutErrors.bankBranch ? <Text style={styles.fieldError}>{payoutErrors.bankBranch}</Text> : null}

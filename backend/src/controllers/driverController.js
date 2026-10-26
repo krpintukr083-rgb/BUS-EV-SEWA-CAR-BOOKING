@@ -3660,14 +3660,41 @@ exports.requestWithdrawal = async (req, res, next) => {
       : 'READY';
 
     const rawDetails = payoutDetails || accountDetails || driver.payoutMethods || {};
+
+    // 1. Extract IFSC code robustly from any provided property
+    let ifscCode = (
+      rawDetails.ifscCode ||
+      rawDetails.ifsc ||
+      rawDetails.bankIfsc ||
+      ''
+    ).trim().toUpperCase();
+
+    // 2. Backward compatibility: if IFSC was entered into the branch field (legacy driver app)
+    if (!ifscCode && rawDetails.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(String(rawDetails.branch).trim())) {
+      ifscCode = String(rawDetails.branch).trim().toUpperCase();
+    }
+
+    // 3. Fallback to driver's saved payout profile if not supplied in the request
+    if (!ifscCode && driver.payoutMethods?.ifscCode) {
+      ifscCode = String(driver.payoutMethods.ifscCode).trim().toUpperCase();
+    } else if (!ifscCode && driver.payoutMethods?.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(String(driver.payoutMethods.branch).trim())) {
+      ifscCode = String(driver.payoutMethods.branch).trim().toUpperCase();
+    }
+
+    // 4. Branch name handling
+    let branch = String(rawDetails.branch || rawDetails.branchName || driver.payoutMethods?.branch || '').trim();
+    if (branch.toUpperCase() === ifscCode && !rawDetails.branchName) {
+      branch = '';
+    }
+
     const normalizedPayoutDetails = {
-      bankName: rawDetails.bankName || driver.payoutMethods?.bankName || '',
-      accountNumber: rawDetails.accountNumber || driver.payoutMethods?.accountNumber || '',
-      accountHolderName: rawDetails.accountHolderName || driver.payoutMethods?.accountHolderName || '',
-      branch: rawDetails.branch || driver.payoutMethods?.branch || '',
-      ifscCode: (rawDetails.ifscCode || rawDetails.ifsc || driver.payoutMethods?.ifscCode || '').trim().toUpperCase(),
-      esewaId: rawDetails.esewaId || driver.payoutMethods?.esewaId || '',
-      khaltiId: rawDetails.khaltiId || driver.payoutMethods?.khaltiId || ''
+      bankName: String(rawDetails.bankName || driver.payoutMethods?.bankName || '').trim(),
+      accountNumber: String(rawDetails.accountNumber || driver.payoutMethods?.accountNumber || '').trim(),
+      accountHolderName: String(rawDetails.accountHolderName || driver.payoutMethods?.accountHolderName || driver.name || '').trim(),
+      branch,
+      ifscCode,
+      esewaId: String(rawDetails.esewaId || driver.payoutMethods?.esewaId || '').trim(),
+      khaltiId: String(rawDetails.khaltiId || driver.payoutMethods?.khaltiId || '').trim()
     };
 
     let withdrawal;
@@ -3681,6 +3708,30 @@ exports.requestWithdrawal = async (req, res, next) => {
         status: 'Pending',
         adminNotes: gatewayStatus === 'READY' ? 'Withdrawal request logged.' : gatewayStatus
       });
+
+      // Persist verified non-empty bank/payout details to driver profile for future requests
+      if (payoutMethod === 'Bank') {
+        const currentPayout = driver.payoutMethods?.toObject ? driver.payoutMethods.toObject() : (driver.payoutMethods || {});
+        const updatedPayout = { ...currentPayout };
+        if (normalizedPayoutDetails.bankName) updatedPayout.bankName = normalizedPayoutDetails.bankName;
+        if (normalizedPayoutDetails.accountNumber) updatedPayout.accountNumber = normalizedPayoutDetails.accountNumber;
+        if (normalizedPayoutDetails.accountHolderName) updatedPayout.accountHolderName = normalizedPayoutDetails.accountHolderName;
+        if (normalizedPayoutDetails.branch) updatedPayout.branch = normalizedPayoutDetails.branch;
+        if (normalizedPayoutDetails.ifscCode) updatedPayout.ifscCode = normalizedPayoutDetails.ifscCode;
+        await Driver.findByIdAndUpdate(driver._id, { payoutMethods: updatedPayout });
+      } else if (payoutMethod === 'eSewa') {
+        const currentPayout = driver.payoutMethods?.toObject ? driver.payoutMethods.toObject() : (driver.payoutMethods || {});
+        const updatedPayout = { ...currentPayout };
+        if (normalizedPayoutDetails.esewaId) updatedPayout.esewaId = normalizedPayoutDetails.esewaId;
+        if (normalizedPayoutDetails.accountHolderName) updatedPayout.accountHolderName = normalizedPayoutDetails.accountHolderName;
+        await Driver.findByIdAndUpdate(driver._id, { payoutMethods: updatedPayout });
+      } else if (payoutMethod === 'Khalti') {
+        const currentPayout = driver.payoutMethods?.toObject ? driver.payoutMethods.toObject() : (driver.payoutMethods || {});
+        const updatedPayout = { ...currentPayout };
+        if (normalizedPayoutDetails.khaltiId) updatedPayout.khaltiId = normalizedPayoutDetails.khaltiId;
+        if (normalizedPayoutDetails.accountHolderName) updatedPayout.accountHolderName = normalizedPayoutDetails.accountHolderName;
+        await Driver.findByIdAndUpdate(driver._id, { payoutMethods: updatedPayout });
+      }
     } catch (error) {
       await Driver.findByIdAndUpdate(driver._id, {
         $inc: { walletBalance: withdrawAmount, totalWithdrawn: -withdrawAmount }

@@ -1811,7 +1811,7 @@ const maskAccountNumber = (accountNumber) => {
 
 exports.getWithdrawals = async (req, res, next) => {
   try {
-    const withdrawals = await Withdrawal.find()
+    const rawWithdrawals = await Withdrawal.find()
       .populate({
         path: 'driver',
         select: 'name mobileNumber walletBalance driverStatus profilePhoto driverPhoto'
@@ -1819,6 +1819,18 @@ exports.getWithdrawals = async (req, res, next) => {
       .populate('user', 'name phone email')
       .sort({ createdAt: -1 })
       .lean();
+
+    const withdrawals = rawWithdrawals.map(w => {
+      if (w.payoutDetails) {
+        let ifsc = (w.payoutDetails.ifscCode || w.payoutDetails.ifsc || w.payoutDetails.bankIfsc || '').trim().toUpperCase();
+        if (!ifsc && w.payoutDetails.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(String(w.payoutDetails.branch).trim())) {
+          ifsc = String(w.payoutDetails.branch).trim().toUpperCase();
+        }
+        w.payoutDetails.ifscCode = ifsc;
+      }
+      return w;
+    });
+
     res.set({
       'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
       'Pragma': 'no-cache',
@@ -1893,8 +1905,14 @@ exports.getWithdrawalVerificationDetails = async (req, res, next) => {
       let rawIfsc = '';
       if (rawDetails.ifscCode !== undefined && rawDetails.ifscCode !== '') {
         rawIfsc = rawDetails.ifscCode;
+      } else if (rawDetails.ifsc !== undefined && rawDetails.ifsc !== '') {
+        rawIfsc = rawDetails.ifsc;
+      } else if (rawDetails.bankIfsc !== undefined && rawDetails.bankIfsc !== '') {
+        rawIfsc = rawDetails.bankIfsc;
+      } else if (rawDetails.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(String(rawDetails.branch).trim())) {
+        rawIfsc = String(rawDetails.branch).trim().toUpperCase();
       } else if (!rawDetails.bankName || rawDetails.bankName === driverPayout.bankName) {
-        rawIfsc = driverPayout.ifscCode || '';
+        rawIfsc = driverPayout.ifscCode || (driverPayout.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(String(driverPayout.branch).trim()) ? driverPayout.branch : '') || '';
       }
       rawIfsc = String(rawIfsc).trim().toUpperCase();
 
@@ -2101,7 +2119,10 @@ exports.getWithdrawalVerificationDetails = async (req, res, next) => {
 
     const formattedHistory = historyList.map(item => {
       const details = item.payoutDetails || {};
-      const ifsc = (details.ifscCode || '').trim().toUpperCase();
+      let ifsc = (details.ifscCode || details.ifsc || details.bankIfsc || '').trim().toUpperCase();
+      if (!ifsc && details.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(String(details.branch).trim())) {
+        ifsc = String(details.branch).trim().toUpperCase();
+      }
       const rawAcct = details.accountNumber || '';
       return {
         _id: item._id,
