@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { adminService } from '../services/adminService';
 import StatusBadge from '../components/StatusBadge';
 import {
@@ -135,7 +135,6 @@ const BusPassengerManifest = () => {
         travelDate: journey.travelDate !== 'All Dates' ? journey.travelDate : undefined,
         scheduleId: journey.scheduleId || undefined,
         status: filterStatus !== 'All' ? filterStatus : undefined,
-        search: passengerSearch.trim() || undefined,
         boardingPoint: filterBoardingPoint !== 'All' ? filterBoardingPoint : undefined
       };
 
@@ -165,7 +164,7 @@ const BusPassengerManifest = () => {
     loadManifestForJourney(journey);
   };
 
-  // When filters (status, boarding point, passenger search) change, re-fetch active journey manifest
+  // When filters (status, boarding point) change, re-fetch active journey manifest
   useEffect(() => {
     if (selectedJourneyKey) {
       const activeJourney = journeys.find(j => j.journeyKey === selectedJourneyKey);
@@ -173,7 +172,61 @@ const BusPassengerManifest = () => {
         loadManifestForJourney(activeJourney);
       }
     }
-  }, [filterStatus, filterBoardingPoint, passengerSearch]);
+  }, [filterStatus, filterBoardingPoint]);
+
+  // Client-side immediate filtering across passenger rows as user types
+  const displayedManifestRows = useMemo(() => {
+    if (!manifestData || manifestData.length === 0) return [];
+    const query = (passengerSearch || '').trim();
+    if (!query) return manifestData;
+
+    const qLower = query.toLowerCase();
+    const normalize = str => (str ? String(str).toLowerCase().replace(/[\s\-_/\\,.]/g, '') : '');
+    const qNorm = normalize(query);
+
+    return manifestData.filter(row => {
+      // 1. Actual Booking ID matching (exact, partial, normalized without hyphens)
+      const bookingId = row.bookingId ? String(row.bookingId).toLowerCase() : '';
+      const bookingRef = row.bookingReference ? String(row.bookingReference).toLowerCase() : '';
+      const normBookingId = normalize(row.bookingId);
+      const normBookingRef = normalize(row.bookingReference);
+
+      const matchesBookingId =
+        bookingId.includes(qLower) ||
+        bookingRef.includes(qLower) ||
+        (Boolean(qNorm) && (normBookingId.includes(qNorm) || normBookingRef.includes(qNorm)));
+
+      // 2. Passenger Name
+      const passengerName = row.passengerName ? String(row.passengerName).toLowerCase() : '';
+      const normPassengerName = normalize(row.passengerName);
+      const matchesName =
+        passengerName.includes(qLower) ||
+        (Boolean(qNorm) && normPassengerName.includes(qNorm));
+
+      // 3. Seat Number (specific assigned seat, or booking seats if unassigned)
+      const seatNumber = row.seatNumber ? String(row.seatNumber).toLowerCase() : '';
+      const normSeatNumber = normalize(row.seatNumber);
+      const isSeatUnassigned = !row.seatNumber || row.seatNumber === 'N/A' || row.seatNumber === 'Unassigned';
+      const matchesSeat =
+        seatNumber.includes(qLower) ||
+        (Boolean(qNorm) && normSeatNumber.includes(qNorm)) ||
+        (isSeatUnassigned &&
+          Array.isArray(row.allBookingSeats) &&
+          row.allBookingSeats.some(s => {
+            const sLower = String(s).toLowerCase();
+            return sLower.includes(qLower) || (Boolean(qNorm) && normalize(s).includes(qNorm));
+          }));
+
+      // 4. Mobile Number
+      const mobileNumber = row.mobileNumber ? String(row.mobileNumber).toLowerCase() : '';
+      const normMobile = normalize(row.mobileNumber);
+      const matchesMobile =
+        mobileNumber.includes(qLower) ||
+        (Boolean(qNorm) && normMobile.includes(qNorm));
+
+      return Boolean(matchesBookingId || matchesName || matchesSeat || matchesMobile);
+    });
+  }, [manifestData, passengerSearch]);
 
   const activeJourney = journeys.find(j => j.journeyKey === selectedJourneyKey) || null;
 
@@ -548,7 +601,7 @@ const BusPassengerManifest = () => {
             <div className="manifest-subfilter-card">
               <div className="manifest-subfilter-controls">
                 {/* Search within manifest */}
-                <div className="manifest-subfilter-search-wrap">
+                <div className="manifest-subfilter-search-wrap" style={{ position: 'relative' }}>
                   <Search
                     size={14}
                     style={{
@@ -566,7 +619,31 @@ const BusPassengerManifest = () => {
                     placeholder="Search passenger, seat, booking ID..."
                     value={passengerSearch}
                     onChange={e => setPassengerSearch(e.target.value)}
+                    style={{ paddingRight: passengerSearch ? '28px' : '10px' }}
                   />
+                  {passengerSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setPassengerSearch('')}
+                      style={{
+                        position: 'absolute',
+                        right: '8px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '2px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--text-light)'
+                      }}
+                      title="Clear search"
+                    >
+                      <X size={14} />
+                    </button>
+                  )}
                 </div>
 
                 {/* Status filter */}
@@ -601,16 +678,16 @@ const BusPassengerManifest = () => {
               {manifestSummary && (
                 <div className="manifest-summary-badges">
                   <span className="manifest-stat-pill total">
-                    Total: {manifestSummary.totalManifestPassengers}
+                    Total: {passengerSearch.trim() ? displayedManifestRows.length : manifestSummary.totalManifestPassengers}
                   </span>
                   <span className="manifest-stat-pill confirmed">
-                    Confirmed: {manifestSummary.confirmedCount}
+                    Confirmed: {passengerSearch.trim() ? displayedManifestRows.filter(r => ['Confirmed', 'Admin Confirmed', 'ADMIN_CONFIRMED', 'Completed'].includes(r.bookingStatus)).length : manifestSummary.confirmedCount}
                   </span>
                   <span className="manifest-stat-pill pending">
-                    Pending: {manifestSummary.pendingCount}
+                    Pending: {passengerSearch.trim() ? displayedManifestRows.filter(r => ['Pending', 'Pending Admin Confirmation', 'Pending Driver Confirmation'].includes(r.bookingStatus)).length : manifestSummary.pendingCount}
                   </span>
                   <span className="manifest-stat-pill cancelled">
-                    Cancelled: {manifestSummary.cancelledCount}
+                    Cancelled: {passengerSearch.trim() ? displayedManifestRows.filter(r => ['Cancelled', 'Rejected'].includes(r.bookingStatus)).length : manifestSummary.cancelledCount}
                   </span>
                 </div>
               )}
@@ -629,10 +706,10 @@ const BusPassengerManifest = () => {
                 <Bus size={36} style={{ color: 'var(--text-light)', margin: '0 auto 12px', display: 'block' }} />
                 Please select a bus journey from the list on the left to view its passenger manifest.
               </div>
-            ) : manifestData.length === 0 ? (
+            ) : displayedManifestRows.length === 0 ? (
               <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
                 <Users size={36} style={{ color: 'var(--text-light)', margin: '0 auto 12px', display: 'block' }} />
-                No passengers found matching the selected filters for this trip.
+                No passengers or bookings found
               </div>
             ) : (
               <>
@@ -656,7 +733,7 @@ const BusPassengerManifest = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {manifestData.map(row => (
+                    {displayedManifestRows.map(row => (
                       <tr key={row.manifestId}>
                         <td>
                           <span className="seat-pill">

@@ -3229,6 +3229,11 @@ exports.getBusManifestJourneys = async (req, res, next) => {
         );
       }
 
+      if (/^bk/i.test(rawSearch)) {
+        const bkFlexible = rawSearch.replace(/^bk/i, 'BK[-_\\s]*');
+        bookingOrConditions.push({ bookingId: { $regex: bkFlexible, $options: 'i' } });
+      }
+
       if (mongoose.Types.ObjectId.isValid(rawSearch)) {
         const objId = new mongoose.Types.ObjectId(rawSearch);
         bookingOrConditions.push(
@@ -3776,6 +3781,8 @@ exports.getBusPassengerManifest = async (req, res, next) => {
       const qNorm = normalizeTextLocal(cleanQ);
 
       filteredManifest = filteredManifest.filter(row => {
+        const isSeatUnassigned = !row.seatNumber || row.seatNumber === 'N/A' || row.seatNumber === 'Unassigned';
+
         const textMatch =
           (row.passengerName && row.passengerName.toLowerCase().includes(qLower)) ||
           (row.bookingId && row.bookingId.toLowerCase().includes(qLower)) ||
@@ -3783,7 +3790,7 @@ exports.getBusPassengerManifest = async (req, res, next) => {
           (row.mobileNumber && row.mobileNumber.toLowerCase().includes(qLower)) ||
           (row.email && row.email.toLowerCase().includes(qLower)) ||
           (row.seatNumber && row.seatNumber.toLowerCase().includes(qLower)) ||
-          (row.allBookingSeats && row.allBookingSeats.some(s => s.toLowerCase().includes(qLower))) ||
+          (isSeatUnassigned && row.allBookingSeats && row.allBookingSeats.some(s => s.toLowerCase().includes(qLower))) ||
           (row.boardingPoint && row.boardingPoint.toLowerCase().includes(qLower)) ||
           (row.destination && row.destination.toLowerCase().includes(qLower)) ||
           (row.bookingStatus && row.bookingStatus.toLowerCase().includes(qLower)) ||
@@ -3794,12 +3801,14 @@ exports.getBusPassengerManifest = async (req, res, next) => {
           (row.emergencyContact && row.emergencyContact.phone && row.emergencyContact.phone.toLowerCase().includes(qLower));
 
         const normMatch =
-          qNorm &&
-          (normalizeTextLocal(row.mobileNumber).includes(qNorm) ||
-            normalizeTextLocal(row.bookingId).includes(qNorm) ||
+          Boolean(qNorm) &&
+          (normalizeTextLocal(row.bookingId).includes(qNorm) ||
             normalizeTextLocal(row.bookingReference).includes(qNorm) ||
-            (row.emergencyContact && normalizeTextLocal(row.emergencyContact.phone).includes(qNorm)) ||
-            normalizeTextLocal(row.passengerName).includes(qNorm));
+            normalizeTextLocal(row.passengerName).includes(qNorm) ||
+            normalizeTextLocal(row.seatNumber).includes(qNorm) ||
+            (isSeatUnassigned && row.allBookingSeats && row.allBookingSeats.some(s => normalizeTextLocal(s).includes(qNorm))) ||
+            normalizeTextLocal(row.mobileNumber).includes(qNorm) ||
+            (row.emergencyContact && normalizeTextLocal(row.emergencyContact.phone).includes(qNorm)));
 
         return Boolean(textMatch || normMatch);
       });
