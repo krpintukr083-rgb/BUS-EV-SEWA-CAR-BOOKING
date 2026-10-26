@@ -611,11 +611,11 @@ const DriverWithdrawalVerificationModal = ({
                               padding: '2px 6px',
                               borderRadius: 4,
                               fontWeight: 700,
-                              background: bankAndPayout.isValidIfscFormat ? '#dcfce7' : '#fee2e2',
-                              color: bankAndPayout.isValidIfscFormat ? '#15803d' : '#b91c1c'
+                              background: bankAndPayout.isValidIfscFormat ? '#dcfce7' : '#f1f5f9',
+                              color: bankAndPayout.isValidIfscFormat ? '#15803d' : '#475569'
                             }}
                           >
-                            {bankAndPayout.isValidIfscFormat ? 'Valid Indian IFSC' : 'Invalid IFSC Format'}
+                            {bankAndPayout.ifscFormatLabel || (bankAndPayout.isValidIfscFormat ? 'Standard Indian IFSC' : 'Branch / Routing Code')}
                           </span>
                         )}
                       </div>

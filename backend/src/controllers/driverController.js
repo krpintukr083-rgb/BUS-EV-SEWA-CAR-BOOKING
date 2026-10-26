@@ -3669,16 +3669,25 @@ exports.requestWithdrawal = async (req, res, next) => {
       ''
     ).trim().toUpperCase();
 
-    // 2. Backward compatibility: if IFSC was entered into the branch field (legacy driver app)
-    if (!ifscCode && rawDetails.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(String(rawDetails.branch).trim())) {
+    const isCodeLike = (str) => {
+      if (!str || typeof str !== 'string') return false;
+      const trimmed = str.trim();
+      if (!trimmed) return false;
+      if (/\s/.test(trimmed)) return false;
+      if (/^[A-Z]{4}0[A-Z0-9]{6}$/i.test(trimmed)) return true;
+      if (/\d/.test(trimmed) && /^[A-Z0-9-]{4,25}$/i.test(trimmed)) return true;
+      return false;
+    };
+
+    // 2. Backward compatibility: if ifscCode was not sent separately, extract from branch
+    // (legacy single-field "IFSC / Branch" form sends entered IFSC in branch field)
+    if (!ifscCode && rawDetails.branch && isCodeLike(rawDetails.branch)) {
       ifscCode = String(rawDetails.branch).trim().toUpperCase();
     }
 
-    // 3. Fallback to driver's saved payout profile if not supplied in the request
-    if (!ifscCode && driver.payoutMethods?.ifscCode) {
+    // 3. Fallback to driver's saved payout profile only if bank matches and not supplied
+    if (!ifscCode && driver.payoutMethods?.ifscCode && (!rawDetails.bankName || rawDetails.bankName === driver.payoutMethods.bankName)) {
       ifscCode = String(driver.payoutMethods.ifscCode).trim().toUpperCase();
-    } else if (!ifscCode && driver.payoutMethods?.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(String(driver.payoutMethods.branch).trim())) {
-      ifscCode = String(driver.payoutMethods.branch).trim().toUpperCase();
     }
 
     // 4. Branch name handling

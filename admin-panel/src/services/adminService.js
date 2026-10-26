@@ -309,6 +309,16 @@ export const adminService = {
           const rawAccount = String(rawDetails.accountNumber !== undefined && rawDetails.accountNumber !== '' ? rawDetails.accountNumber : driverPayout.accountNumber || '');
           const maskedAccount = rawAccount.length > 4 ? '••••••••' + rawAccount.slice(-4) : rawAccount;
 
+          const isCodeLike = (str) => {
+            if (!str || typeof str !== 'string') return false;
+            const trimmed = str.trim();
+            if (!trimmed) return false;
+            if (/\s/.test(trimmed)) return false;
+            if (/^[A-Z]{4}0[A-Z0-9]{6}$/i.test(trimmed)) return true;
+            if (/\d/.test(trimmed) && /^[A-Z0-9-]{4,25}$/i.test(trimmed)) return true;
+            return false;
+          };
+
           let rawIfsc = '';
           if (rawDetails.ifscCode !== undefined && rawDetails.ifscCode !== '') {
             rawIfsc = rawDetails.ifscCode;
@@ -316,21 +326,18 @@ export const adminService = {
             rawIfsc = rawDetails.ifsc;
           } else if (rawDetails.bankIfsc !== undefined && rawDetails.bankIfsc !== '') {
             rawIfsc = rawDetails.bankIfsc;
-          } else if (rawDetails.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(String(rawDetails.branch).trim())) {
+          } else if (rawDetails.branch && isCodeLike(rawDetails.branch)) {
             rawIfsc = String(rawDetails.branch).trim().toUpperCase();
-          } else if (!rawDetails.bankName || rawDetails.bankName === driverPayout.bankName) {
-            rawIfsc = driverPayout.ifscCode || (driverPayout.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(String(driverPayout.branch).trim()) ? driverPayout.branch : '') || '';
           }
           rawIfsc = String(rawIfsc).trim().toUpperCase();
 
           const isIfscMissing = !rawIfsc;
-          const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
-          const isValidIfscFormat = isIfscMissing ? false : ifscRegex.test(rawIfsc);
+          const isStandardIndianFormat = isIfscMissing ? false : /^[A-Z]{4}0[A-Z0-9]{6}$/.test(rawIfsc);
 
           const warnings = [];
           if (payoutMethod === 'Bank') {
             if (isIfscMissing) warnings.push('IFSC code is not provided for this bank payout.');
-            else if (!isValidIfscFormat) warnings.push('Saved IFSC code format is invalid (expected 11-character Indian IFSC: 4 letters, 0, 6 alphanumeric).');
+            else if (!isStandardIndianFormat) warnings.push('Saved IFSC code format is invalid (expected 11-character Indian IFSC: 4 letters, 0, 6 alphanumeric).');
             if (!rawAccount) warnings.push('Bank account number is missing.');
           } else if (payoutMethod === 'eSewa' && !(rawDetails.esewaId || driverPayout.esewaId)) {
             warnings.push('eSewa ID is missing for this payout.');
@@ -358,14 +365,16 @@ export const adminService = {
             ...(payoutMethod === 'Bank' ? {
               accountHolderName: rawDetails.accountHolderName || driverPayout.accountHolderName || targetDriver.name || '',
               bankName: rawDetails.bankName || driverPayout.bankName || '',
-              branch: rawDetails.branch || driverPayout.branch || '',
+              branch: (rawDetails.branch && rawDetails.branch.toUpperCase() !== rawIfsc ? rawDetails.branch : '') || driverPayout.branch || '',
               ifscCode: rawIfsc,
               ifscDisplay: isIfscMissing ? 'IFSC not provided' : rawIfsc,
               isIfscProvided: !isIfscMissing,
-              isValidIfscFormat,
+              isStandardIndianFormat,
+              isValidIfscFormat: isStandardIndianFormat,
+              ifscFormatLabel: isIfscMissing ? 'Not Provided' : isStandardIndianFormat ? 'Standard Indian IFSC' : 'Branch / Routing Code',
               maskedAccountNumber: maskedAccount,
               rawAccountNumber: rawAccount,
-              bankVerificationStatus: targetDriver.drivingLicenceStatus === 'Approved' && !isIfscMissing && isValidIfscFormat ? 'Verified' : 'Pending Verification',
+              bankVerificationStatus: 'Pending Verification',
               isComplete: Boolean(rawAccount && (rawDetails.bankName || driverPayout.bankName) && rawIfsc)
             } : payoutMethod === 'eSewa' ? {
               esewaId: rawDetails.esewaId || driverPayout.esewaId || '',
@@ -417,7 +426,7 @@ export const adminService = {
           const formattedHistoryItems = driverWithdrawals.map(item => {
             const details = item.payoutDetails || {};
             let ifsc = (details.ifscCode || details.ifsc || details.bankIfsc || '').trim().toUpperCase();
-            if (!ifsc && details.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(String(details.branch).trim())) {
+            if (!ifsc && details.branch && isCodeLike(details.branch)) {
               ifsc = String(details.branch).trim().toUpperCase();
             }
             const itemRawAcct = details.accountNumber || '';

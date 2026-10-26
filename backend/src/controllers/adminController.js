@@ -1809,6 +1809,16 @@ const maskAccountNumber = (accountNumber) => {
   return '••••••••' + last4;
 };
 
+const isCodeLike = (str) => {
+  if (!str || typeof str !== 'string') return false;
+  const trimmed = str.trim();
+  if (!trimmed) return false;
+  if (/\s/.test(trimmed)) return false;
+  if (/^[A-Z]{4}0[A-Z0-9]{6}$/i.test(trimmed)) return true;
+  if (/\d/.test(trimmed) && /^[A-Z0-9-]{4,25}$/i.test(trimmed)) return true;
+  return false;
+};
+
 exports.getWithdrawals = async (req, res, next) => {
   try {
     const rawWithdrawals = await Withdrawal.find()
@@ -1823,7 +1833,7 @@ exports.getWithdrawals = async (req, res, next) => {
     const withdrawals = rawWithdrawals.map(w => {
       if (w.payoutDetails) {
         let ifsc = (w.payoutDetails.ifscCode || w.payoutDetails.ifsc || w.payoutDetails.bankIfsc || '').trim().toUpperCase();
-        if (!ifsc && w.payoutDetails.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(String(w.payoutDetails.branch).trim())) {
+        if (!ifsc && w.payoutDetails.branch && isCodeLike(w.payoutDetails.branch)) {
           ifsc = String(w.payoutDetails.branch).trim().toUpperCase();
         }
         w.payoutDetails.ifscCode = ifsc;
@@ -1909,19 +1919,17 @@ exports.getWithdrawalVerificationDetails = async (req, res, next) => {
         rawIfsc = rawDetails.ifsc;
       } else if (rawDetails.bankIfsc !== undefined && rawDetails.bankIfsc !== '') {
         rawIfsc = rawDetails.bankIfsc;
-      } else if (rawDetails.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(String(rawDetails.branch).trim())) {
+      } else if (rawDetails.branch && isCodeLike(rawDetails.branch)) {
         rawIfsc = String(rawDetails.branch).trim().toUpperCase();
-      } else if (!rawDetails.bankName || rawDetails.bankName === driverPayout.bankName) {
-        rawIfsc = driverPayout.ifscCode || (driverPayout.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(String(driverPayout.branch).trim()) ? driverPayout.branch : '') || '';
       }
       rawIfsc = String(rawIfsc).trim().toUpperCase();
 
       const isIfscMissing = !rawIfsc;
-      const isValidIfscFormat = isIfscMissing ? false : validateIndianIfsc(rawIfsc);
+      const isStandardIndianFormat = isIfscMissing ? false : validateIndianIfsc(rawIfsc);
 
       if (isIfscMissing) {
         warnings.push('IFSC code is not provided for this bank payout.');
-      } else if (!isValidIfscFormat) {
+      } else if (!isStandardIndianFormat) {
         warnings.push('Saved IFSC code format is invalid (expected 11-character Indian IFSC: 4 letters, 0, 6 alphanumeric).');
       }
 
@@ -1937,12 +1945,12 @@ exports.getWithdrawalVerificationDetails = async (req, res, next) => {
         ifscCode: rawIfsc, // Full complete saved IFSC code provided to authorized admin
         ifscDisplay: isIfscMissing ? 'IFSC not provided' : rawIfsc,
         isIfscProvided: !isIfscMissing,
-        isValidIfscFormat,
+        isStandardIndianFormat,
+        isValidIfscFormat: isStandardIndianFormat,
+        ifscFormatLabel: isIfscMissing ? 'Not Provided' : isStandardIndianFormat ? 'Standard Indian IFSC' : 'Branch / Routing Code',
         maskedAccountNumber: maskAccountNumber(rawAccount),
         rawAccountNumber: rawAccount,
-        bankVerificationStatus: driver.drivingLicenceStatus === 'Approved' && !isIfscMissing && isValidIfscFormat
-          ? 'Verified'
-          : 'Pending Verification',
+        bankVerificationStatus: 'Pending Verification',
         isComplete: Boolean(rawAccount && (rawDetails.bankName || driverPayout.bankName) && rawIfsc)
       };
     } else if (payoutMethod === 'eSewa') {
@@ -2120,7 +2128,7 @@ exports.getWithdrawalVerificationDetails = async (req, res, next) => {
     const formattedHistory = historyList.map(item => {
       const details = item.payoutDetails || {};
       let ifsc = (details.ifscCode || details.ifsc || details.bankIfsc || '').trim().toUpperCase();
-      if (!ifsc && details.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(String(details.branch).trim())) {
+      if (!ifsc && details.branch && isCodeLike(details.branch)) {
         ifsc = String(details.branch).trim().toUpperCase();
       }
       const rawAcct = details.accountNumber || '';

@@ -177,7 +177,7 @@ describe('Driver IFSC Code End-to-End Persistence and Verification Flow', () => 
 
   // TEST 6: Missing IFSC generates the expected explicit warning and 'IFSC not provided' display
   test('6. Missing IFSC in raw withdrawal and driver profile is handled with explicit warning', async () => {
-    // Create an explicit withdrawal record without IFSC
+    // Create an explicit withdrawal record without IFSC and without branch
     const noIfscWithdrawal = await Withdrawal.create({
       driver: driverA._id,
       user: driverUserA._id,
@@ -187,7 +187,7 @@ describe('Driver IFSC Code End-to-End Persistence and Verification Flow', () => 
         bankName: 'Random Rural Bank',
         accountNumber: '999988887777',
         accountHolderName: 'Amit Driver A',
-        branch: 'Village Center',
+        branch: '',
         ifscCode: ''
       },
       status: 'Pending'
@@ -206,7 +206,7 @@ describe('Driver IFSC Code End-to-End Persistence and Verification Flow', () => 
   });
 
   // TEST 7: Branch name and IFSC are not accidentally mixed
-  test('7. Branch name and IFSC are stored separately; legacy branch IFSC is gracefully extracted', async () => {
+  test('7. Branch name and IFSC are stored separately; legacy branch IFSC including custom codes is gracefully extracted', async () => {
     // Submitting separate branch and IFSC
     const separateRes = await request(app)
       .post('/api/driver/withdraw')
@@ -219,7 +219,8 @@ describe('Driver IFSC Code End-to-End Persistence and Verification Flow', () => 
           accountHolderName: 'Binod Driver B',
           bankName: 'HDFC Bank',
           ifscCode: 'HDFC0005678',
-          branch: 'Indiranagar 100ft Road'
+          branch: 'Indiranagar 100ft Road',
+          branchName: 'Indiranagar 100ft Road'
         }
       });
 
@@ -244,6 +245,33 @@ describe('Driver IFSC Code End-to-End Persistence and Verification Flow', () => 
 
     expect(legacyRes.status).toBe(200);
     expect(legacyRes.body.data.payoutDetails.ifscCode).toBe('HDFC0005678');
+
+    // Custom/routing code like SYC-828272727:
+    const customCodeRes = await request(app)
+      .post('/api/driver/withdraw')
+      .set('Authorization', `Bearer ${tokenB}`)
+      .send({
+        amount: 100,
+        payoutMethod: 'Bank',
+        payoutDetails: {
+          accountNumber: '998877665544',
+          accountHolderName: 'Binod Driver B',
+          bankName: 'Hehwh',
+          branch: 'SYC-828272727'
+        }
+      });
+
+    expect(customCodeRes.status).toBe(200);
+    expect(customCodeRes.body.data.payoutDetails.ifscCode).toBe('SYC-828272727');
+
+    const verifyCustomRes = await request(app)
+      .get(`/api/admin/withdrawals/${customCodeRes.body.data._id}/verification-details`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(verifyCustomRes.status).toBe(200);
+    expect(verifyCustomRes.body.data.bankAndPayout.ifscCode).toBe('SYC-828272727');
+    expect(verifyCustomRes.body.data.bankAndPayout.ifscDisplay).toBe('SYC-828272727');
+    expect(verifyCustomRes.body.data.bankAndPayout.isIfscProvided).toBe(true);
   });
 
   // TEST 8: eSewa and Khalti requests continue working without bank or IFSC interference

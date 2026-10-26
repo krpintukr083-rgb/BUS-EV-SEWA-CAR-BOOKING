@@ -108,10 +108,10 @@ export default function WalletScreen({ navigation }) {
           if (pm.bankName) setBankName(prev => prev || pm.bankName);
           if (pm.ifscCode) {
             setBankIfsc(prev => prev || pm.ifscCode);
-          } else if (pm.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(pm.branch.trim())) {
+          } else if (pm.branch) {
             setBankIfsc(prev => prev || pm.branch.trim().toUpperCase());
           }
-          if (pm.branch && !/^[A-Z]{4}0[A-Z0-9]{6}$/i.test(pm.branch.trim())) {
+          if (pm.branch && pm.ifscCode && pm.branch !== pm.ifscCode) {
             setBankBranch(prev => prev || pm.branch);
           }
         }
@@ -173,9 +173,9 @@ export default function WalletScreen({ navigation }) {
       }
       const trimmedIfsc = bankIfsc.trim().toUpperCase();
       if (!trimmedIfsc) {
-        errors.bankIfsc = 'Enter your bank IFSC code.';
-      } else if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(trimmedIfsc)) {
-        errors.bankIfsc = 'Enter a valid 11-character Indian IFSC code (e.g. SBIN0001234).';
+        errors.bankIfsc = 'Enter your bank IFSC / routing code.';
+      } else if (!/^[A-Z0-9-]{4,18}$/i.test(trimmedIfsc)) {
+        errors.bankIfsc = 'Enter a valid IFSC or routing code (e.g. SBIN0001234).';
       }
     }
 
@@ -199,7 +199,7 @@ export default function WalletScreen({ navigation }) {
               ifscCode: trimmedIfsc,
               ifsc: trimmedIfsc,
               bankIfsc: trimmedIfsc,
-              branch: bankBranch.trim(),
+              branch: bankBranch.trim() || trimmedIfsc,
               branchName: bankBranch.trim()
             }
           : payoutMethod === 'ESEWA'
@@ -347,11 +347,11 @@ export default function WalletScreen({ navigation }) {
                 if (!bankIfsc) {
                   if (pm.ifscCode) {
                     setBankIfsc(pm.ifscCode);
-                  } else if (pm.branch && /^[A-Z]{4}0[A-Z0-9]{6}$/i.test(pm.branch.trim())) {
+                  } else if (pm.branch) {
                     setBankIfsc(pm.branch.trim().toUpperCase());
                   }
                 }
-                if (!bankBranch && pm.branch && !/^[A-Z]{4}0[A-Z0-9]{6}$/i.test(pm.branch.trim())) {
+                if (!bankBranch && pm.branch && pm.ifscCode && pm.branch !== pm.ifscCode) {
                   setBankBranch(pm.branch);
                 }
               }
