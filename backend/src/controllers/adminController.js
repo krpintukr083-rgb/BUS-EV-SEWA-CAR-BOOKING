@@ -1933,7 +1933,7 @@ exports.getWithdrawalVerificationDetails = async (req, res, next) => {
         ...bankAndPayout,
         accountHolderName: rawDetails.accountHolderName || driverPayout.accountHolderName || driver.name || '',
         bankName: rawDetails.bankName || driverPayout.bankName || '',
-        branch: rawDetails.branch || driverPayout.branch || '',
+        branch: (rawDetails.branch && rawDetails.branch.toUpperCase() !== rawIfsc ? rawDetails.branch : '') || driverPayout.branch || '',
         ifscCode: rawIfsc, // Full complete saved IFSC code provided to authorized admin
         ifscDisplay: isIfscMissing ? 'IFSC not provided' : rawIfsc,
         isIfscProvided: !isIfscMissing,
