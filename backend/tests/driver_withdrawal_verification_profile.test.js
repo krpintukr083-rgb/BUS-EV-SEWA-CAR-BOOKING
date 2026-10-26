@@ -474,4 +474,56 @@ describe('Driver Financial Profile & Withdrawal Verification System Tests', () =
     expect(res.body.data.withdrawalHistory.pagination.limit).toBe(2);
     expect(res.body.data.withdrawalHistory.items.every(i => i.status === 'Pending')).toBe(true);
   });
+
+  // TEST 16: Invalid withdrawal ID returns 400 with descriptive error
+  test('16. Invalid withdrawal ID returns 400 with descriptive error', async () => {
+    const res = await request(app)
+      .get('/api/admin/withdrawals/malformed-id-123/verification-details')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toMatch(/Invalid withdrawal ID format/i);
+  });
+
+  // TEST 17: Missing withdrawal record returns 404
+  test('17. Missing withdrawal record returns 404', async () => {
+    const nonExistentId = new mongoose.Types.ObjectId();
+    const res = await request(app)
+      .get(`/api/admin/withdrawals/${nonExistentId}/verification-details`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(404);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toMatch(/Withdrawal request not found/i);
+  });
+
+  // TEST 18: Valid withdrawal ID with missing driver profile returns 404
+  test('18. Valid withdrawal ID with missing driver profile returns 404', async () => {
+    const orphanedDriverId = new mongoose.Types.ObjectId();
+    const orphanedWithdrawal = await Withdrawal.create({
+      driver: orphanedDriverId,
+      user: driverUser._id,
+      amount: 1200,
+      payoutMethod: 'Bank',
+      payoutDetails: {
+        accountNumber: '9988776655',
+        bankName: 'Test Bank',
+        ifscCode: 'TEST0001234'
+      },
+      status: 'Pending',
+      referenceId: `WDR-ORPHAN-${Date.now()}`
+    });
+
+    const res = await request(app)
+      .get(`/api/admin/withdrawals/${orphanedWithdrawal._id}/verification-details`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(404);
+    expect(res.body.success).toBe(false);
+    expect(res.body.message).toMatch(/Driver profile associated with this withdrawal was not found/i);
+
+    // Clean up
+    await Withdrawal.findByIdAndDelete(orphanedWithdrawal._id);
+  });
 });

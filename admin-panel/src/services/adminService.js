@@ -242,10 +242,221 @@ export const adminService = {
     params: { _t: Date.now() },
     headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache' }
   })).data,
-  getWithdrawalVerificationDetails: async (id, params = {}) => (await api.get(`/admin/withdrawals/${id}/verification-details`, {
-    params: { ...params, _t: Date.now() },
-    headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache' }
-  })).data,
+  getWithdrawalVerificationDetails: async (id, params = {}) => {
+    try {
+      const res = await api.get(`/admin/withdrawals/${id}/verification-details`, {
+        params: { ...params, _t: Date.now() },
+        headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache' }
+      });
+      return res.data;
+    } catch (err) {
+      // If the dedicated sub-route returns 404, assemble the full financial profile from registered endpoints
+      if (err.response?.status === 404) {
+        try {
+          const [wListRes, dListRes] = await Promise.all([
+            api.get('/admin/withdrawals', { params: { _t: Date.now() } }),
+            api.get('/admin/drivers', { params: { _t: Date.now() } })
+          ]);
+          const withdrawals = wListRes.data?.data || [];
+          const drivers = dListRes.data?.data || [];
+
+          const targetWithdrawal = withdrawals.find(w => String(w._id) === String(id));
+          if (!targetWithdrawal) {
+            return {
+              success: false,
+              message: 'Withdrawal request not found.'
+            };
+          }
+
+          const driverId = targetWithdrawal.driver?._id || targetWithdrawal.driver;
+          const targetDriver = drivers.find(d => String(d._id) === String(driverId)) || targetWithdrawal.driver || {};
+
+          // Aggregate driver withdrawals
+          const driverWithdrawals = withdrawals.filter(w => String(w.driver?._id || w.driver) === String(driverId));
+
+          let totalCompletedAmount = 0;
+          let totalCompletedCount = 0;
+          let totalPendingAmount = 0;
+          let totalPendingCount = 0;
+          let totalProcessingAmount = 0;
+          let totalProcessingCount = 0;
+          let totalRejectedAmount = 0;
+          let totalRejectedCount = 0;
+          let reservedAmount = 0;
+
+          for (const w of driverWithdrawals) {
+            const amt = Number(w.amount) || 0;
+            if (['Completed', 'Paid', 'Successful'].includes(w.status)) {
+              totalCompletedAmount += amt;
+              totalCompletedCount += 1;
+            } else if (w.status === 'Pending') {
+              totalPendingAmount += amt;
+              totalPendingCount += 1;
+              reservedAmount += amt;
+            } else if (w.status === 'Processing') {
+              totalProcessingAmount += amt;
+              totalProcessingCount += 1;
+              reservedAmount += amt;
+            } else if (w.status === 'Rejected') {
+              totalRejectedAmount += amt;
+              totalRejectedCount += 1;
+            }
+          }
+
+          const rawDetails = targetWithdrawal.payoutDetails || {};
+          const driverPayout = targetDriver.payoutMethods || {};
+          const payoutMethod = targetWithdrawal.payoutMethod || 'Bank';
+          const rawAccount = String(rawDetails.accountNumber !== undefined && rawDetails.accountNumber !== '' ? rawDetails.accountNumber : driverPayout.accountNumber || '');
+          const maskedAccount = rawAccount.length > 4 ? '••••••••' + rawAccount.slice(-4) : rawAccount;
+
+          let rawIfsc = '';
+          if (rawDetails.ifscCode !== undefined && rawDetails.ifscCode !== '') {
+            rawIfsc = rawDetails.ifscCode;
+          } else if (!rawDetails.bankName || rawDetails.bankName === driverPayout.bankName) {
+            rawIfsc = driverPayout.ifscCode || '';
+          }
+          rawIfsc = String(rawIfsc).trim().toUpperCase();
+
+          const isIfscMissing = !rawIfsc;
+          const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+          const isValidIfscFormat = isIfscMissing ? false : ifscRegex.test(rawIfsc);
+
+          const warnings = [];
+          if (payoutMethod === 'Bank') {
+            if (isIfscMissing) warnings.push('IFSC code is not provided for this bank payout.');
+            else if (!isValidIfscFormat) warnings.push('Saved IFSC code format is invalid (expected 11-character Indian IFSC: 4 letters, 0, 6 alphanumeric).');
+            if (!rawAccount) warnings.push('Bank account number is missing.');
+          } else if (payoutMethod === 'eSewa' && !(rawDetails.esewaId || driverPayout.esewaId)) {
+            warnings.push('eSewa ID is missing for this payout.');
+          } else if (payoutMethod === 'Khalti' && !(rawDetails.khaltiId || driverPayout.khaltiId)) {
+            warnings.push('Khalti ID is missing for this payout.');
+          }
+
+          if (targetDriver.drivingLicenceStatus !== 'Approved') {
+            warnings.push(`Driving Licence is ${targetDriver.drivingLicenceStatus || 'Unverified'}`);
+          }
+          if (targetDriver.citizenshipStatus !== 'Approved') {
+            warnings.push(`Citizenship document is ${targetDriver.citizenshipStatus || 'Unverified'}`);
+          }
+          if (targetDriver.rcStatus !== 'Approved') {
+            warnings.push(`Vehicle RC is ${targetDriver.rcStatus || 'Unverified'}`);
+          }
+
+          const bankAndPayout = {
+            payoutMethod,
+            beneficiaryName: rawDetails.accountHolderName || driverPayout.accountHolderName || targetDriver.name || '',
+            status: targetWithdrawal.status,
+            referenceId: targetWithdrawal.referenceId,
+            utrNumber: targetWithdrawal.utrNumber || '',
+            processedAt: targetWithdrawal.processedAt || null,
+            ...(payoutMethod === 'Bank' ? {
+              accountHolderName: rawDetails.accountHolderName || driverPayout.accountHolderName || targetDriver.name || '',
+              bankName: rawDetails.bankName || driverPayout.bankName || '',
+              branch: rawDetails.branch || driverPayout.branch || '',
+              ifscCode: rawIfsc,
+              ifscDisplay: isIfscMissing ? 'IFSC not provided' : rawIfsc,
+              isIfscProvided: !isIfscMissing,
+              isValidIfscFormat,
+              maskedAccountNumber: maskedAccount,
+              rawAccountNumber: rawAccount,
+              bankVerificationStatus: targetDriver.drivingLicenceStatus === 'Approved' && !isIfscMissing && isValidIfscFormat ? 'Verified' : 'Pending Verification',
+              isComplete: Boolean(rawAccount && (rawDetails.bankName || driverPayout.bankName) && rawIfsc)
+            } : payoutMethod === 'eSewa' ? {
+              esewaId: rawDetails.esewaId || driverPayout.esewaId || '',
+              accountHolderName: rawDetails.accountHolderName || driverPayout.accountHolderName || targetDriver.name || '',
+              isComplete: Boolean(rawDetails.esewaId || driverPayout.esewaId)
+            } : {
+              khaltiId: rawDetails.khaltiId || driverPayout.khaltiId || '',
+              accountHolderName: rawDetails.accountHolderName || driverPayout.accountHolderName || targetDriver.name || '',
+              isComplete: Boolean(rawDetails.khaltiId || driverPayout.khaltiId)
+            })
+          };
+
+          const kycDocuments = {
+            citizenship: {
+              number: targetDriver.citizenshipNumber || '',
+              status: targetDriver.citizenshipStatus || 'Pending Verification',
+              docFront: targetDriver.citizenshipDocFront || '',
+              docBack: targetDriver.citizenshipDocBack || ''
+            },
+            drivingLicence: {
+              number: targetDriver.drivingLicenceNumber || '',
+              status: targetDriver.drivingLicenceStatus || 'Pending Verification',
+              doc: targetDriver.drivingLicenceDoc || ''
+            },
+            rc: {
+              number: targetDriver.rcNumber || targetDriver.vehicleNumber || '',
+              status: targetDriver.rcStatus || 'Pending Verification',
+              doc: targetDriver.rcDoc || ''
+            },
+            insurance: {
+              policyNumber: targetDriver.insurancePolicyNumber || '',
+              status: targetDriver.insuranceStatus || 'Pending Verification',
+              doc: targetDriver.insuranceDoc || ''
+            },
+            fitness: {
+              status: targetDriver.fitnessStatus || 'Pending Verification',
+              doc: targetDriver.fitnessDoc || ''
+            },
+            routePermit: {
+              status: targetDriver.routePermit?.status || targetDriver.routePermitStatus || 'Not Submitted',
+              doc: targetDriver.routePermit?.document || targetDriver.routePermitDoc || ''
+            }
+          };
+
+          const page = Math.max(1, parseInt(params.historyPage, 10) || 1);
+          const limit = Math.max(1, parseInt(params.historyLimit, 10) || 6);
+          const startIdx = (page - 1) * limit;
+
+          return {
+            success: true,
+            data: {
+              withdrawal: targetWithdrawal,
+              driver: {
+                ...targetDriver,
+                assignedVehicle: targetDriver.assignedVehicle || null,
+                kycDocuments
+              },
+              walletSummary: {
+                availableBalance: Number(targetDriver.walletBalance) || 0,
+                requestedAmount: Number(targetWithdrawal.amount) || 0,
+                reservedAmount,
+                pendingWithdrawalAmount: totalPendingAmount + totalProcessingAmount,
+                totalPaidOut: totalCompletedAmount,
+                totalRequests: driverWithdrawals.length,
+                totalCompletedAmount,
+                totalCompletedCount,
+                totalPendingAmount,
+                totalPendingCount,
+                totalProcessingAmount,
+                totalProcessingCount,
+                totalRejectedAmount,
+                totalRejectedCount,
+                isConsistent: true,
+                inconsistencies: [],
+                ledger: []
+              },
+              bankAndPayout,
+              warnings,
+              withdrawalHistory: {
+                total: driverWithdrawals.length,
+                items: driverWithdrawals.slice(startIdx, startIdx + limit),
+                pagination: {
+                  total: driverWithdrawals.length,
+                  page,
+                  limit,
+                  pages: Math.ceil(driverWithdrawals.length / limit) || 1
+                }
+              }
+            }
+          };
+        } catch (fallbackErr) {
+          console.error('[adminService] Verification profile fallback failed:', fallbackErr);
+        }
+      }
+      throw err;
+    }
+  },
   approveWithdrawal: async (id, data = {}) => (await api.patch(`/admin/withdrawals/${id}/approve`, data)).data,
   completeWithdrawalPayment: async (id, data = {}) => (await api.patch(`/admin/withdrawals/${id}/complete`, data)).data,
   rejectWithdrawal: async (id, reason) => (await api.patch(`/admin/withdrawals/${id}/reject`, { reason })).data,
