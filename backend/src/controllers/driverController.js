@@ -652,6 +652,7 @@ exports.updateDriverProfile = async (req, res, next) => {
         accountNumber: payoutMethods.accountNumber || driver.payoutMethods?.accountNumber || '',
         accountHolderName: payoutMethods.accountHolderName || driver.payoutMethods?.accountHolderName || '',
         branch: payoutMethods.branch || driver.payoutMethods?.branch || '',
+        ifscCode: (payoutMethods.ifscCode || payoutMethods.ifsc || driver.payoutMethods?.ifscCode || '').trim().toUpperCase(),
         esewaId: payoutMethods.esewaId || driver.payoutMethods?.esewaId || '',
         khaltiId: payoutMethods.khaltiId || driver.payoutMethods?.khaltiId || ''
       };
@@ -3658,6 +3659,17 @@ exports.requestWithdrawal = async (req, res, next) => {
       ? 'BLOCKED â€” PAYMENT PROVIDER CONFIGURATION REQUIRED (Khalti merchant secret key missing)'
       : 'READY';
 
+    const rawDetails = payoutDetails || accountDetails || driver.payoutMethods || {};
+    const normalizedPayoutDetails = {
+      bankName: rawDetails.bankName || driver.payoutMethods?.bankName || '',
+      accountNumber: rawDetails.accountNumber || driver.payoutMethods?.accountNumber || '',
+      accountHolderName: rawDetails.accountHolderName || driver.payoutMethods?.accountHolderName || '',
+      branch: rawDetails.branch || driver.payoutMethods?.branch || '',
+      ifscCode: (rawDetails.ifscCode || rawDetails.ifsc || driver.payoutMethods?.ifscCode || '').trim().toUpperCase(),
+      esewaId: rawDetails.esewaId || driver.payoutMethods?.esewaId || '',
+      khaltiId: rawDetails.khaltiId || driver.payoutMethods?.khaltiId || ''
+    };
+
     let withdrawal;
     try {
       withdrawal = await Withdrawal.create({
@@ -3665,7 +3677,7 @@ exports.requestWithdrawal = async (req, res, next) => {
         user: driver.user,
         amount: withdrawAmount,
         payoutMethod,
-        payoutDetails: payoutDetails || accountDetails || driver.payoutMethods,
+        payoutDetails: normalizedPayoutDetails,
         status: 'Pending',
         adminNotes: gatewayStatus === 'READY' ? 'Withdrawal request logged.' : gatewayStatus
       });

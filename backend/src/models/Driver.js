@@ -231,6 +231,7 @@ const driverSchema = new mongoose.Schema(
       accountNumber: { type: String, default: '' },
       accountHolderName: { type: String, default: '' },
       branch: { type: String, default: '' },
+      ifscCode: { type: String, default: '', trim: true, uppercase: true },
       esewaId: { type: String, default: '' },
       khaltiId: { type: String, default: '' }
     },

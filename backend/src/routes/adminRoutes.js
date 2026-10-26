@@ -37,6 +37,7 @@ const {
   clearBookingRequests,
   getPayments,
   getWithdrawals,
+  getWithdrawalVerificationDetails,
   approveWithdrawal,
   completeWithdrawalPayment,
   rejectWithdrawal,
@@ -170,6 +171,7 @@ router.put('/bookings/:id/status', requirePermission('booking.status'), updateBo
 // 9. Payment Management
 router.get('/payments', requirePermission('payment.view'), getPayments);
 router.get('/withdrawals', requirePermission('withdrawal.view'), getWithdrawals);
+router.get('/withdrawals/:id/verification-details', requirePermission('withdrawal.view'), getWithdrawalVerificationDetails);
 router.patch('/withdrawals/:id/approve', requirePermission('withdrawal.approve'), approveWithdrawal);
 router.patch('/withdrawals/:id/complete', requirePermission('withdrawal.approve'), completeWithdrawalPayment);
 router.patch('/withdrawals/:id/reject', requirePermission('withdrawal.reject'), rejectWithdrawal);

@@ -242,8 +242,12 @@ export const adminService = {
     params: { _t: Date.now() },
     headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache' }
   })).data,
-  approveWithdrawal: async id => (await api.patch(`/admin/withdrawals/${id}/approve`)).data,
-  completeWithdrawalPayment: async id => (await api.patch(`/admin/withdrawals/${id}/complete`)).data,
+  getWithdrawalVerificationDetails: async (id, params = {}) => (await api.get(`/admin/withdrawals/${id}/verification-details`, {
+    params: { ...params, _t: Date.now() },
+    headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache' }
+  })).data,
+  approveWithdrawal: async (id, data = {}) => (await api.patch(`/admin/withdrawals/${id}/approve`, data)).data,
+  completeWithdrawalPayment: async (id, data = {}) => (await api.patch(`/admin/withdrawals/${id}/complete`, data)).data,
   rejectWithdrawal: async (id, reason) => (await api.patch(`/admin/withdrawals/${id}/reject`, { reason })).data,
 
   // 10. Cancellation Management

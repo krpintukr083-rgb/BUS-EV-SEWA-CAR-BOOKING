@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { Check, RefreshCw, X } from 'lucide-react';
+import { Check, RefreshCw, X, Eye } from 'lucide-react';
 import { adminService } from '../services/adminService';
 import StatusBadge from '../components/StatusBadge';
+import DriverWithdrawalVerificationModal from '../components/DriverWithdrawalVerificationModal';
 
 const WithdrawalManagement = () => {
   const [withdrawals, setWithdrawals] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
   const [paymentConfirmation, setPaymentConfirmation] = useState(null);
+  const [selectedWithdrawalId, setSelectedWithdrawalId] = useState(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
@@ -95,7 +97,7 @@ const WithdrawalManagement = () => {
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: '#0f172a' }}>Driver Withdrawal Requests</h2>
           <p style={{ fontSize: '0.85rem', color: '#64748b' }}>
-            Review pending requests. Approval moves a request to Processing; rejection returns the reserved amount to the driver wallet.
+            Review pending requests. Click <strong>View Details</strong> to inspect the complete financial verification profile, KYC documents, and IFSC information before approval.
           </p>
         </div>
         <button className="btn btn-sm btn-outline" onClick={fetchWithdrawals}>
@@ -153,28 +155,35 @@ const WithdrawalManagement = () => {
                     )}
                   </td>
                   <td>
-                    {item.status === 'Pending' ? (
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button className="btn btn-sm btn-success" disabled={actionLoading === item._id} onClick={() => approve(item._id)}>
-                          <Check size={13} /> Approve
-                        </button>
-                        <button className="btn btn-sm btn-danger" disabled={actionLoading === item._id} onClick={() => reject(item._id)}>
-                          <X size={13} /> Reject
-                        </button>
-                      </div>
-                    ) : item.status === 'Processing' ? (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                       <button
-                        className="btn btn-sm btn-success"
-                        disabled={actionLoading === item._id}
-                        onClick={() => setPaymentConfirmation(item)}
+                        className="btn btn-sm btn-outline"
+                        onClick={() => setSelectedWithdrawalId(item._id)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                        title="View complete financial profile & withdrawal verification"
                       >
-                        <Check size={13} /> Mark Payment Done
+                        <Eye size={13} /> View Details
                       </button>
-                    ) : ['Completed', 'Successful', 'Succeeded', 'Paid'].includes(item.status) ? (
-                      null
-                    ) : item.status === 'Rejected' ? (
-                      null
-                    ) : null}
+
+                      {item.status === 'Pending' ? (
+                        <>
+                          <button className="btn btn-sm btn-success" disabled={actionLoading === item._id} onClick={() => approve(item._id)}>
+                            <Check size={13} /> Approve
+                          </button>
+                          <button className="btn btn-sm btn-danger" disabled={actionLoading === item._id} onClick={() => reject(item._id)}>
+                            <X size={13} /> Reject
+                          </button>
+                        </>
+                      ) : item.status === 'Processing' ? (
+                        <button
+                          className="btn btn-sm btn-success"
+                          disabled={actionLoading === item._id}
+                          onClick={() => setPaymentConfirmation(item)}
+                        >
+                          <Check size={13} /> Mark Payment Done
+                        </button>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               )) : (
@@ -184,6 +193,17 @@ const WithdrawalManagement = () => {
           </table>
         </div>
       </div>
+
+      {selectedWithdrawalId && (
+        <DriverWithdrawalVerificationModal
+          withdrawalId={selectedWithdrawalId}
+          onClose={() => setSelectedWithdrawalId(null)}
+          onActionSuccess={(msg) => {
+            setMessage(msg);
+            fetchWithdrawals();
+          }}
+        />
+      )}
 
       {paymentConfirmation && (
         <div

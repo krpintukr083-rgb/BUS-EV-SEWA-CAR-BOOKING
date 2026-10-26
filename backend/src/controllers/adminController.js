@@ -15,6 +15,7 @@ const Expense = require('../models/Expense');
 const Withdrawal = require('../models/Withdrawal');
 const Incentive = require('../models/Incentive');
 const Schedule = require('../models/Schedule');
+const AuditLog = require('../models/AuditLog');
 const { normalizeScheduleTime } = require('../utils/timeFormat');
 const { dashboardCache } = require('../utils/cache');
 
@@ -1795,14 +1796,27 @@ exports.getPayments = async (req, res, next) => {
   }
 };
 
+const validateIndianIfsc = (code) => {
+  if (!code || typeof code !== 'string') return false;
+  return /^[A-Z]{4}0[A-Z0-9]{6}$/.test(code.trim().toUpperCase());
+};
+
+const maskAccountNumber = (accountNumber) => {
+  if (!accountNumber || typeof accountNumber !== 'string') return '';
+  const trimmed = accountNumber.trim();
+  if (trimmed.length <= 4) return trimmed;
+  const last4 = trimmed.slice(-4);
+  return '••••••••' + last4;
+};
+
 exports.getWithdrawals = async (req, res, next) => {
   try {
     const withdrawals = await Withdrawal.find()
       .populate({
         path: 'driver',
-        select: 'name mobileNumber walletBalance'
+        select: 'name mobileNumber walletBalance driverStatus profilePhoto driverPhoto'
       })
-      .populate('user', 'name phone')
+      .populate('user', 'name phone email')
       .sort({ createdAt: -1 })
       .lean();
     res.set({
@@ -1816,22 +1830,455 @@ exports.getWithdrawals = async (req, res, next) => {
   }
 };
 
+exports.getWithdrawalVerificationDetails = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid withdrawal ID format' });
+    }
+
+    const withdrawal = await Withdrawal.findById(id)
+      .populate('driver')
+      .populate('user', 'name phone email role status createdAt')
+      .lean();
+
+    if (!withdrawal) {
+      return res.status(404).json({ success: false, message: 'Withdrawal request not found' });
+    }
+
+    let driver = withdrawal.driver;
+    if (!driver && withdrawal.driver) {
+      driver = await Driver.findById(withdrawal.driver).lean();
+    }
+    if (!driver) {
+      return res.status(404).json({
+        success: false,
+        message: 'Driver profile associated with this withdrawal was not found'
+      });
+    }
+
+    // Populate assigned vehicle if present
+    let vehicle = null;
+    if (driver.assignedVehicle) {
+      vehicle = await Vehicle.findById(driver.assignedVehicle)
+        .select('vehicleNumber vehicleType vehicleCategory vehicleModel vehicleName seatingCapacity ownerName ownerMobileNumber')
+        .lean();
+    }
+
+    // Associated User record
+    const user = withdrawal.user || (driver.user ? await User.findById(driver.user).select('name phone email role status createdAt').lean() : null);
+
+    // Bank & Payout Details
+    const payoutMethod = withdrawal.payoutMethod || 'Bank';
+    const rawDetails = withdrawal.payoutDetails || {};
+    const driverPayout = driver.payoutMethods || {};
+
+    let bankAndPayout = {
+      payoutMethod,
+      beneficiaryName: rawDetails.accountHolderName || driverPayout.accountHolderName || driver.name || '',
+      status: withdrawal.status,
+      referenceId: withdrawal.referenceId,
+      utrNumber: withdrawal.utrNumber || '',
+      processedAt: withdrawal.processedAt || null
+    };
+
+    const warnings = [];
+
+    if (payoutMethod === 'Bank') {
+      const rawAccount = rawDetails.accountNumber !== undefined && rawDetails.accountNumber !== ''
+        ? rawDetails.accountNumber
+        : driverPayout.accountNumber || '';
+
+      // Use withdrawal's saved IFSC code; do not auto-fill or guess across different banks
+      let rawIfsc = '';
+      if (rawDetails.ifscCode !== undefined && rawDetails.ifscCode !== '') {
+        rawIfsc = rawDetails.ifscCode;
+      } else if (!rawDetails.bankName || rawDetails.bankName === driverPayout.bankName) {
+        rawIfsc = driverPayout.ifscCode || '';
+      }
+      rawIfsc = String(rawIfsc).trim().toUpperCase();
+
+      const isIfscMissing = !rawIfsc;
+      const isValidIfscFormat = isIfscMissing ? false : validateIndianIfsc(rawIfsc);
+
+      if (isIfscMissing) {
+        warnings.push('IFSC code is not provided for this bank payout.');
+      } else if (!isValidIfscFormat) {
+        warnings.push('Saved IFSC code format is invalid (expected 11-character Indian IFSC: 4 letters, 0, 6 alphanumeric).');
+      }
+
+      if (!rawAccount) {
+        warnings.push('Bank account number is missing.');
+      }
+
+      bankAndPayout = {
+        ...bankAndPayout,
+        accountHolderName: rawDetails.accountHolderName || driverPayout.accountHolderName || driver.name || '',
+        bankName: rawDetails.bankName || driverPayout.bankName || '',
+        branch: rawDetails.branch || driverPayout.branch || '',
+        ifscCode: rawIfsc, // Full complete saved IFSC code provided to authorized admin
+        ifscDisplay: isIfscMissing ? 'IFSC not provided' : rawIfsc,
+        isIfscProvided: !isIfscMissing,
+        isValidIfscFormat,
+        maskedAccountNumber: maskAccountNumber(rawAccount),
+        rawAccountNumber: rawAccount,
+        bankVerificationStatus: driver.drivingLicenceStatus === 'Approved' && !isIfscMissing && isValidIfscFormat
+          ? 'Verified'
+          : 'Pending Verification',
+        isComplete: Boolean(rawAccount && (rawDetails.bankName || driverPayout.bankName) && rawIfsc)
+      };
+    } else if (payoutMethod === 'eSewa') {
+      const esewaId = rawDetails.esewaId || driverPayout.esewaId || '';
+      if (!esewaId) {
+        warnings.push('eSewa ID is missing for this payout.');
+      }
+      bankAndPayout = {
+        ...bankAndPayout,
+        esewaId,
+        accountHolderName: rawDetails.accountHolderName || driverPayout.accountHolderName || driver.name || '',
+        isComplete: Boolean(esewaId)
+      };
+    } else if (payoutMethod === 'Khalti') {
+      const khaltiId = rawDetails.khaltiId || driverPayout.khaltiId || '';
+      if (!khaltiId) {
+        warnings.push('Khalti ID is missing for this payout.');
+      }
+      bankAndPayout = {
+        ...bankAndPayout,
+        khaltiId,
+        accountHolderName: rawDetails.accountHolderName || driverPayout.accountHolderName || driver.name || '',
+        isComplete: Boolean(khaltiId)
+      };
+    }
+
+    // Driver KYC Verification Assessment
+    const kycDocuments = {
+      citizenship: {
+        number: driver.citizenshipNumber || '',
+        status: driver.citizenshipStatus || 'Pending Verification',
+        docFront: driver.citizenshipDocFront || driver.citizenshipDoc || '',
+        docBack: driver.citizenshipDocBack || '',
+        issueDate: driver.citizenshipIssueDate || '',
+        expiry: driver.citizenshipExpiry || ''
+      },
+      drivingLicence: {
+        number: driver.drivingLicenceNumber || '',
+        status: driver.drivingLicenceStatus || 'Pending Verification',
+        doc: driver.drivingLicenceDoc || '',
+        expiry: driver.drivingLicenceExpiry || ''
+      },
+      rc: {
+        number: driver.rcNumber || driver.vehicleNumber || '',
+        status: driver.rcStatus || 'Pending Verification',
+        doc: driver.rcDoc || '',
+        expiry: driver.rcExpiry || '',
+        details: driver.rcDetails || ''
+      },
+      insurance: {
+        policyNumber: driver.insurancePolicyNumber || '',
+        status: driver.insuranceStatus || 'Pending Verification',
+        doc: driver.insuranceDoc || '',
+        expiry: driver.insuranceExpiryDetails || '',
+        details: driver.vehicleInsurance || ''
+      },
+      fitness: {
+        status: driver.fitnessStatus || 'Pending Verification',
+        doc: driver.fitnessDoc || '',
+        expiry: driver.fitnessExpiry || '',
+        details: driver.fitnessDetails || ''
+      },
+      routePermit: {
+        status: driver.routePermit?.status || driver.routePermitStatus || 'Not Submitted',
+        doc: driver.routePermit?.document || driver.routePermitDoc || '',
+        description: driver.routePermit?.description || driver.routePermitDescription || ''
+      }
+    };
+
+    if (driver.drivingLicenceStatus !== 'Approved') {
+      warnings.push(`Driving Licence is ${driver.drivingLicenceStatus || 'Unverified'}`);
+    }
+    if (driver.citizenshipStatus !== 'Approved') {
+      warnings.push(`Citizenship document is ${driver.citizenshipStatus || 'Unverified'}`);
+    }
+    if (driver.rcStatus !== 'Approved') {
+      warnings.push(`Vehicle RC is ${driver.rcStatus || 'Unverified'}`);
+    }
+    if (['Blocked', 'Suspended', 'Inactive'].includes(driver.driverStatus)) {
+      warnings.push(`Driver account status is currently ${driver.driverStatus}`);
+    }
+    if (user && ['Blocked', 'Suspended'].includes(user.status)) {
+      warnings.push(`Driver user login is ${user.status}`);
+    }
+
+    // Wallet and Financial Aggregation for this driver
+    const driverWithdrawals = await Withdrawal.find({ driver: driver._id }).sort({ createdAt: -1 }).lean();
+
+    let totalCompletedAmount = 0;
+    let totalCompletedCount = 0;
+    let totalPendingAmount = 0;
+    let totalPendingCount = 0;
+    let totalProcessingAmount = 0;
+    let totalProcessingCount = 0;
+    let totalRejectedAmount = 0;
+    let totalRejectedCount = 0;
+    let reservedAmount = 0;
+
+    for (const w of driverWithdrawals) {
+      const amt = Number(w.amount) || 0;
+      if (['Completed', 'Paid', 'Successful'].includes(w.status)) {
+        totalCompletedAmount += amt;
+        totalCompletedCount += 1;
+      } else if (w.status === 'Pending') {
+        totalPendingAmount += amt;
+        totalPendingCount += 1;
+        reservedAmount += amt;
+      } else if (w.status === 'Processing') {
+        totalProcessingAmount += amt;
+        totalProcessingCount += 1;
+        reservedAmount += amt;
+      } else if (w.status === 'Rejected') {
+        totalRejectedAmount += amt;
+        totalRejectedCount += 1;
+      }
+    }
+
+    const availableBalance = Number(driver.walletBalance) || 0;
+    const requestedAmount = Number(withdrawal.amount) || 0;
+
+    const inconsistencies = [];
+    if (availableBalance < 0) {
+      inconsistencies.push(`Available wallet balance is negative (₹${availableBalance})`);
+    }
+    if (requestedAmount <= 0) {
+      inconsistencies.push(`Requested withdrawal amount is invalid (₹${requestedAmount})`);
+    }
+
+    // Ledger transactions (payments / earnings + deductions)
+    const recentPayments = await Payment.find({ driver: driver._id, paymentStatus: 'Paid' })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .lean();
+
+    const ledger = recentPayments.map(p => ({
+      _id: p._id,
+      date: p.createdAt,
+      type: 'Ride Earning',
+      description: `Ride Earning - Booking ${p.bookingId || p._id}`,
+      amount: p.driverPayment || Math.round((p.bookingAmount || 0) * 0.8),
+      platformCharge: p.platformCharge || 0,
+      status: 'Credited',
+      referenceId: p.transactionReference || `TXN-${p.bookingId || p._id}`
+    }));
+
+    // Withdrawal History for selected driver (with pagination & filtering)
+    const historyPage = Math.max(1, parseInt(req.query.historyPage, 10) || 1);
+    const historyLimit = Math.min(50, Math.max(1, parseInt(req.query.historyLimit, 10) || 10));
+    const historyStatus = req.query.historyStatus ? String(req.query.historyStatus).trim() : null;
+    const historyMethod = req.query.historyMethod ? String(req.query.historyMethod).trim() : null;
+    const historySearch = req.query.historySearch ? String(req.query.historySearch).trim() : null;
+
+    const historyFilter = { driver: driver._id };
+    if (historyStatus && historyStatus !== 'All') {
+      historyFilter.status = historyStatus;
+    }
+    if (historyMethod && historyMethod !== 'All') {
+      historyFilter.payoutMethod = historyMethod;
+    }
+    if (historySearch) {
+      historyFilter.$or = [
+        { referenceId: { $regex: historySearch, $options: 'i' } },
+        { 'payoutDetails.bankName': { $regex: historySearch, $options: 'i' } },
+        { 'payoutDetails.ifscCode': { $regex: historySearch, $options: 'i' } }
+      ];
+    }
+
+    const totalHistoryRecords = await Withdrawal.countDocuments(historyFilter);
+    const historyList = await Withdrawal.find(historyFilter)
+      .sort({ createdAt: -1 })
+      .skip((historyPage - 1) * historyLimit)
+      .limit(historyLimit)
+      .lean();
+
+    const formattedHistory = historyList.map(item => {
+      const details = item.payoutDetails || {};
+      const ifsc = (details.ifscCode || '').trim().toUpperCase();
+      const rawAcct = details.accountNumber || '';
+      return {
+        _id: item._id,
+        referenceId: item.referenceId,
+        createdAt: item.createdAt,
+        amount: item.amount,
+        payoutMethod: item.payoutMethod,
+        status: item.status,
+        actualPaidAmount: ['Completed', 'Paid', 'Successful'].includes(item.status) ? item.amount : 0,
+        bankName: details.bankName || '—',
+        ifscCode: ifsc || (item.payoutMethod === 'Bank' ? 'IFSC not provided' : '—'),
+        maskedAccount: item.payoutMethod === 'Bank'
+          ? maskAccountNumber(rawAcct)
+          : details.esewaId || details.khaltiId || '—',
+        processedAt: item.processedAt,
+        rejectionReason: item.rejectionReason || item.adminNotes || '',
+        utrNumber: item.utrNumber || item.referenceId || ''
+      };
+    });
+
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+
+    res.json({
+      success: true,
+      data: {
+        withdrawal: {
+          _id: withdrawal._id,
+          referenceId: withdrawal.referenceId,
+          amount: withdrawal.amount,
+          status: withdrawal.status,
+          createdAt: withdrawal.createdAt,
+          processedAt: withdrawal.processedAt,
+          adminNotes: withdrawal.adminNotes,
+          rejectionReason: withdrawal.rejectionReason,
+          utrNumber: withdrawal.utrNumber,
+          payoutMethod: withdrawal.payoutMethod,
+          payoutDetails: withdrawal.payoutDetails
+        },
+        driver: {
+          _id: driver._id,
+          name: driver.name,
+          mobileNumber: driver.mobileNumber,
+          email: user?.email || '',
+          profilePhoto: driver.profilePhoto || driver.driverPhoto,
+          driverStatus: driver.driverStatus,
+          userStatus: user?.status || 'Active',
+          registeredDate: driver.createdAt || user?.createdAt,
+          isOnline: driver.isOnline,
+          walletBalance: driver.walletBalance,
+          assignedVehicle: vehicle ? {
+            _id: vehicle._id,
+            vehicleNumber: vehicle.vehicleNumber,
+            vehicleType: vehicle.vehicleType,
+            vehicleCategory: vehicle.vehicleCategory,
+            vehicleModel: vehicle.vehicleModel,
+            vehicleName: vehicle.vehicleName,
+            seatingCapacity: vehicle.seatingCapacity
+          } : (driver.vehicleNumber ? {
+            vehicleNumber: driver.vehicleNumber,
+            vehicleType: 'Assigned',
+            vehicleCategory: 'Standard',
+            vehicleModel: 'Registered Vehicle',
+            vehicleName: driver.vehicleNumber
+          } : null),
+          kycDocuments,
+          accountRestrictions: {
+            isRestricted: ['Blocked', 'Suspended', 'Inactive'].includes(driver.driverStatus) || ['Blocked', 'Suspended'].includes(user?.status),
+            status: driver.driverStatus
+          }
+        },
+        walletSummary: {
+          availableBalance,
+          reservedAmount,
+          pendingWithdrawalAmount: totalPendingAmount,
+          processingWithdrawalAmount: totalProcessingAmount,
+          requestedAmount,
+          totalRequests: driverWithdrawals.length,
+          totalCompletedCount,
+          totalCompletedAmount,
+          totalPendingCount,
+          totalProcessingCount,
+          totalRejectedCount,
+          totalRejectedAmount,
+          isConsistent: inconsistencies.length === 0,
+          inconsistencies,
+          ledger
+        },
+        bankAndPayout,
+        warnings,
+        withdrawalHistory: {
+          items: formattedHistory,
+          pagination: {
+            total: totalHistoryRecords,
+            page: historyPage,
+            limit: historyLimit,
+            totalPages: Math.ceil(totalHistoryRecords / historyLimit) || 1
+          }
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.approveWithdrawal = async (req, res, next) => {
   try {
+    const existing = await Withdrawal.findById(req.params.id).populate('driver');
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Withdrawal request not found' });
+    }
+
+    if (existing.status !== 'Pending') {
+      return res.status(409).json({
+        success: false,
+        message: 'Withdrawal request is no longer pending'
+      });
+    }
+
+    if (!existing.driver) {
+      return res.status(404).json({ success: false, message: 'Associated driver not found' });
+    }
+
+    if (existing.amount <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid withdrawal amount' });
+    }
+
+    // Verify required payout information is present
+    const method = existing.payoutMethod || 'Bank';
+    const details = existing.payoutDetails || {};
+    if (method === 'Bank') {
+      if (!details.accountNumber && !existing.driver.payoutMethods?.accountNumber) {
+        return res.status(400).json({ success: false, message: 'Bank account number is required' });
+      }
+    } else if (method === 'eSewa') {
+      if (!details.esewaId && !existing.driver.payoutMethods?.esewaId) {
+        return res.status(400).json({ success: false, message: 'eSewa ID is required' });
+      }
+    } else if (method === 'Khalti') {
+      if (!details.khaltiId && !existing.driver.payoutMethods?.khaltiId) {
+        return res.status(400).json({ success: false, message: 'Khalti ID is required' });
+      }
+    }
+
     const withdrawal = await Withdrawal.findOneAndUpdate(
       { _id: req.params.id, status: 'Pending' },
-      { $set: { status: 'Processing', processedAt: new Date(), adminNotes: 'Approved for processing.' } },
+      { $set: { status: 'Processing', processedAt: new Date(), adminNotes: req.body?.notes || 'Approved for processing.' } },
       { new: true }
     )
       .populate({ path: 'driver', select: 'name mobileNumber walletBalance' })
-      .populate('user', 'name phone');
+      .populate('user', 'name phone email');
 
     if (!withdrawal) {
-      const exists = await Withdrawal.exists({ _id: req.params.id });
-      return res.status(exists ? 409 : 404).json({
-        success: false,
-        message: exists ? 'Withdrawal request is no longer pending' : 'Withdrawal request not found'
-      });
+      return res.status(409).json({ success: false, message: 'Withdrawal request is no longer pending' });
+    }
+
+    // Audit log
+    if (req.user) {
+      try {
+        await AuditLog.create({
+          adminId: req.user._id,
+          adminName: req.user.name || 'Admin',
+          adminRole: req.user.role || 'admin',
+          action: 'APPROVE_WITHDRAWAL',
+          module: 'payment',
+          targetId: String(withdrawal._id),
+          targetName: `Withdrawal ${withdrawal.referenceId}`,
+          details: `Approved withdrawal of ₹${withdrawal.amount} for driver ${existing.driver.name}`,
+          result: 'success'
+        });
+      } catch (logErr) {
+        console.error('AuditLog error:', logErr);
+      }
     }
 
     res.json({ success: true, message: 'Withdrawal approved and marked for processing', data: withdrawal });
@@ -1842,15 +2289,21 @@ exports.approveWithdrawal = async (req, res, next) => {
 
 exports.completeWithdrawalPayment = async (req, res, next) => {
   try {
+    const utrNumber = String(req.body?.utrNumber || req.body?.transactionReference || '').trim();
+    const notes = String(req.body?.notes || req.body?.adminNotes || 'Payment completed manually by admin.').trim();
+
+    const updateFields = {
+      status: 'Completed',
+      processedAt: new Date(),
+      adminNotes: notes
+    };
+    if (utrNumber) {
+      updateFields.utrNumber = utrNumber;
+    }
+
     const withdrawal = await Withdrawal.findOneAndUpdate(
       { _id: req.params.id, status: 'Processing' },
-      {
-        $set: {
-          status: 'Completed',
-          processedAt: new Date(),
-          adminNotes: 'Payment completed manually by admin.'
-        }
-      },
+      { $set: updateFields },
       { new: true }
     )
       .populate({ path: 'driver', select: 'name mobileNumber walletBalance' })
@@ -1864,6 +2317,25 @@ exports.completeWithdrawalPayment = async (req, res, next) => {
           ? 'Only a withdrawal in Processing status can be marked as payment done.'
           : 'Withdrawal request not found'
       });
+    }
+
+    // Audit log
+    if (req.user) {
+      try {
+        await AuditLog.create({
+          adminId: req.user._id,
+          adminName: req.user.name || 'Admin',
+          adminRole: req.user.role || 'admin',
+          action: 'COMPLETE_WITHDRAWAL',
+          module: 'payment',
+          targetId: String(withdrawal._id),
+          targetName: `Withdrawal ${withdrawal.referenceId}`,
+          details: `Completed payment of ₹${withdrawal.amount}. UTR: ${utrNumber || 'N/A'}`,
+          result: 'success'
+        });
+      } catch (logErr) {
+        console.error('AuditLog error:', logErr);
+      }
     }
 
     res.json({
@@ -1885,7 +2357,14 @@ exports.rejectWithdrawal = async (req, res, next) => {
 
     const withdrawal = await Withdrawal.findOneAndUpdate(
       { _id: req.params.id, status: 'Pending' },
-      { $set: { status: 'Rejected', processedAt: new Date(), adminNotes: reason } },
+      {
+        $set: {
+          status: 'Rejected',
+          processedAt: new Date(),
+          rejectionReason: reason,
+          adminNotes: reason
+        }
+      },
       { new: true }
     );
 
@@ -1913,9 +2392,28 @@ exports.rejectWithdrawal = async (req, res, next) => {
     }
     if (!driver) {
       await Withdrawal.findByIdAndUpdate(withdrawal._id, {
-        $set: { status: 'Pending', processedAt: null, adminNotes: 'Wallet refund failed; request returned to Pending.' }
+        $set: { status: 'Pending', processedAt: null, adminNotes: 'Driver wallet not found; withdrawal remains pending.' }
       });
       return res.status(404).json({ success: false, message: 'Driver wallet not found; withdrawal remains pending' });
+    }
+
+    // Audit log
+    if (req.user) {
+      try {
+        await AuditLog.create({
+          adminId: req.user._id,
+          adminName: req.user.name || 'Admin',
+          adminRole: req.user.role || 'admin',
+          action: 'REJECT_WITHDRAWAL',
+          module: 'payment',
+          targetId: String(withdrawal._id),
+          targetName: `Withdrawal ${withdrawal.referenceId}`,
+          details: `Rejected withdrawal of ₹${withdrawal.amount}. Reason: ${reason}`,
+          result: 'success'
+        });
+      } catch (logErr) {
+        console.error('AuditLog error:', logErr);
+      }
     }
 
     const updated = await Withdrawal.findById(withdrawal._id)

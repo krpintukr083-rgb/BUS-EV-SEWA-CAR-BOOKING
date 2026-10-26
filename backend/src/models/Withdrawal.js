@@ -27,6 +27,7 @@ const withdrawalSchema = new mongoose.Schema(
       accountNumber: { type: String, default: '' },
       accountHolderName: { type: String, default: '' },
       branch: { type: String, default: '' },
+      ifscCode: { type: String, default: '', trim: true, uppercase: true },
       esewaId: { type: String, default: '' },
       khaltiId: { type: String, default: '' }
     },
@@ -40,6 +41,15 @@ const withdrawalSchema = new mongoose.Schema(
       default: function () {
         return `WDR-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
       }
+    },
+    utrNumber: {
+      type: String,
+      default: '',
+      trim: true
+    },
+    rejectionReason: {
+      type: String,
+      default: ''
     },
     adminNotes: {
       type: String,
