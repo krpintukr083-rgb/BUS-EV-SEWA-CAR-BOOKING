@@ -2,22 +2,14 @@ import React, { useState, useEffect } from 'react';
 import {
   X,
   Check,
-  AlertTriangle,
-  ShieldCheck,
-  ShieldAlert,
   CreditCard,
   Wallet,
-  User,
-  Car,
-  Clock,
-  Search,
   Eye,
   EyeOff,
-  Building,
-  ExternalLink,
   RefreshCw,
-  FileText,
-  Smartphone
+  ShieldCheck,
+  ShieldAlert,
+  AlertTriangle
 } from 'lucide-react';
 import { adminService } from '../services/adminService';
 import StatusBadge from './StatusBadge';
@@ -31,14 +23,7 @@ const DriverWithdrawalVerificationModal = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showFullAccount, setShowFullAccount] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'bank' | 'kyc' | 'history' | 'ledger'
-
-  // History filtering state
-  const [historySearch, setHistorySearch] = useState('');
-  const [historyStatus, setHistoryStatus] = useState('All');
-  const [historyMethod, setHistoryMethod] = useState('All');
-  const [historyPage, setHistoryPage] = useState(1);
-  const [historyLoading, setHistoryLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'bank'
 
   // Sub-action dialogs
   const [confirmApprove, setConfirmApprove] = useState(false);
@@ -50,21 +35,11 @@ const DriverWithdrawalVerificationModal = ({
   const [actionError, setActionError] = useState('');
   const [actionSubmitting, setActionSubmitting] = useState(false);
 
-  const fetchDetails = async (page = historyPage) => {
+  const fetchDetails = async () => {
     try {
-      if (!data) setLoading(true);
-      else setHistoryLoading(true);
+      setLoading(true);
       setError('');
-
-      const params = {
-        historyPage: page,
-        historyLimit: 6,
-        historyStatus: historyStatus !== 'All' ? historyStatus : undefined,
-        historyMethod: historyMethod !== 'All' ? historyMethod : undefined,
-        historySearch: historySearch.trim() || undefined
-      };
-
-      const res = await adminService.getWithdrawalVerificationDetails(withdrawalId, params);
+      const res = await adminService.getWithdrawalVerificationDetails(withdrawalId);
       if (res.success && res.data) {
         setData(res.data);
       } else {
@@ -74,26 +49,14 @@ const DriverWithdrawalVerificationModal = ({
       setError(err.response?.data?.message || err.message || 'Unable to load financial details.');
     } finally {
       setLoading(false);
-      setHistoryLoading(false);
     }
   };
 
   useEffect(() => {
     if (withdrawalId) {
-      fetchDetails(1);
+      fetchDetails();
     }
   }, [withdrawalId]);
-
-  const handleFilterHistory = (e) => {
-    e.preventDefault();
-    setHistoryPage(1);
-    fetchDetails(1);
-  };
-
-  const handlePageChange = (newPage) => {
-    setHistoryPage(newPage);
-    fetchDetails(newPage);
-  };
 
   const handleApprove = async () => {
     setActionSubmitting(true);
@@ -103,7 +66,7 @@ const DriverWithdrawalVerificationModal = ({
       if (res.success) {
         setConfirmApprove(false);
         setActionNotes('');
-        await fetchDetails(historyPage);
+        await fetchDetails();
         if (onActionSuccess) onActionSuccess('Withdrawal approved and marked for processing.');
       }
     } catch (err) {
@@ -125,7 +88,7 @@ const DriverWithdrawalVerificationModal = ({
       if (res.success) {
         setConfirmReject(false);
         setRejectionReason('');
-        await fetchDetails(historyPage);
+        await fetchDetails();
         if (onActionSuccess) onActionSuccess('Withdrawal rejected and amount returned to driver wallet.');
       }
     } catch (err) {
@@ -147,7 +110,7 @@ const DriverWithdrawalVerificationModal = ({
         setConfirmPayment(false);
         setUtrNumber('');
         setActionNotes('');
-        await fetchDetails(historyPage);
+        await fetchDetails();
         if (onActionSuccess) onActionSuccess('Withdrawal marked as Payment Done.');
       }
     } catch (err) {
@@ -182,14 +145,14 @@ const DriverWithdrawalVerificationModal = ({
           </p>
           <div style={{ display: 'flex', justifyContent: 'center', gap: 10 }}>
             <button className="btn btn-sm btn-outline" onClick={onClose}>Close</button>
-            <button className="btn btn-sm btn-primary" onClick={() => fetchDetails(1)}>Retry</button>
+            <button className="btn btn-sm btn-primary" onClick={() => fetchDetails()}>Retry</button>
           </div>
         </div>
       </div>
     );
   }
 
-  const { withdrawal, driver, walletSummary, bankAndPayout, warnings, withdrawalHistory } = data;
+  const { withdrawal, driver, walletSummary, bankAndPayout } = data;
 
   return (
     <div className="modal-overlay" style={{ zIndex: 1200, padding: '16px' }} onClick={onClose}>
@@ -281,10 +244,7 @@ const DriverWithdrawalVerificationModal = ({
         >
           {[
             { id: 'overview', label: 'Financial Overview', icon: Wallet },
-            { id: 'bank', label: 'Bank & Payout Details', icon: CreditCard },
-            { id: 'kyc', label: 'Driver KYC & Vehicle', icon: ShieldCheck },
-            { id: 'history', label: `Withdrawal History (${withdrawalHistory.pagination.total})`, icon: Clock },
-            { id: 'ledger', label: 'Earnings Ledger', icon: FileText }
+            { id: 'bank', label: 'Bank & Payout Details', icon: CreditCard }
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -637,36 +597,6 @@ const DriverWithdrawalVerificationModal = ({
 
                     <div style={{ background: '#f8fafc', padding: 14, borderRadius: 8, border: '1px solid #e2e8f0' }}>
                       <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase' }}>
-                        Bank Verification Status
-                      </span>
-                      <div style={{ marginTop: 4 }}>
-                        <span
-                          style={{
-                            background:
-                              bankAndPayout.bankVerificationStatus === 'Verified'
-                                ? '#ecfdf5'
-                                : bankAndPayout.bankVerificationStatus === 'Rejected'
-                                ? '#fef2f2'
-                                : '#fffbeb',
-                            color:
-                              bankAndPayout.bankVerificationStatus === 'Verified'
-                                ? '#047857'
-                                : bankAndPayout.bankVerificationStatus === 'Rejected'
-                                ? '#dc2626'
-                                : '#b45309',
-                            padding: '4px 8px',
-                            borderRadius: 6,
-                            fontSize: '0.78rem',
-                            fontWeight: 600
-                          }}
-                        >
-                          {bankAndPayout.bankVerificationStatus || 'Pending Verification'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div style={{ background: '#f8fafc', padding: 14, borderRadius: 8, border: '1px solid #e2e8f0' }}>
-                      <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase' }}>
                         UTR / Transaction Reference
                       </span>
                       <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#0f172a', marginTop: 4, fontFamily: 'monospace' }}>
@@ -757,356 +687,6 @@ const DriverWithdrawalVerificationModal = ({
             </div>
           )}
 
-          {/* TAB 3: DRIVER KYC & REGISTERED VEHICLE */}
-          {activeTab === 'kyc' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-              {/* KYC Documents Grid */}
-              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '20px' }}>
-                <h4 style={{ margin: '0 0 16px', fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>
-                  Compliance & Verification Documents
-                </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
-                  {/* Driving Licence */}
-                  <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 14, background: '#f8fafc' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>Driving Licence</span>
-                      <StatusBadge status={driver.kycDocuments.drivingLicence.status} />
-                    </div>
-                    <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 6 }}>
-                      Number: <strong>{driver.kycDocuments.drivingLicence.number || 'Not provided'}</strong>
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                      Expiry: {driver.kycDocuments.drivingLicence.expiry || '—'}
-                    </div>
-                    {driver.kycDocuments.drivingLicence.doc && (
-                      <a
-                        href={driver.kycDocuments.drivingLicence.doc}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ fontSize: '0.75rem', color: '#2563eb', display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8 }}
-                      >
-                        <ExternalLink size={12} /> View Licence Document
-                      </a>
-                    )}
-                  </div>
-
-                  {/* Citizenship / National ID */}
-                  <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 14, background: '#f8fafc' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>Citizenship / ID</span>
-                      <StatusBadge status={driver.kycDocuments.citizenship.status} />
-                    </div>
-                    <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 6 }}>
-                      Number: <strong>{driver.kycDocuments.citizenship.number || 'Not provided'}</strong>
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                      Issue Date: {driver.kycDocuments.citizenship.issueDate || '—'}
-                    </div>
-                    {driver.kycDocuments.citizenship.docFront && (
-                      <a
-                        href={driver.kycDocuments.citizenship.docFront}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ fontSize: '0.75rem', color: '#2563eb', display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8 }}
-                      >
-                        <ExternalLink size={12} /> View Citizenship Card
-                      </a>
-                    )}
-                  </div>
-
-                  {/* Vehicle RC */}
-                  <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 14, background: '#f8fafc' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>Registration Certificate (RC)</span>
-                      <StatusBadge status={driver.kycDocuments.rc.status} />
-                    </div>
-                    <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 6 }}>
-                      Reg No: <strong>{driver.kycDocuments.rc.number || '—'}</strong>
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                      Expiry: {driver.kycDocuments.rc.expiry || '—'}
-                    </div>
-                  </div>
-
-                  {/* Insurance */}
-                  <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 14, background: '#f8fafc' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>Vehicle Insurance</span>
-                      <StatusBadge status={driver.kycDocuments.insurance.status} />
-                    </div>
-                    <div style={{ fontSize: '0.8rem', color: '#64748b', marginTop: 6 }}>
-                      Policy: <strong>{driver.kycDocuments.insurance.policyNumber || 'Commercial Fleet'}</strong>
-                    </div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                      Expiry: {driver.kycDocuments.insurance.expiry || '—'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Registered / Assigned Vehicle Card */}
-              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '20px' }}>
-                <h4 style={{ margin: '0 0 14px', fontSize: '1rem', fontWeight: 700, color: '#0f172a' }}>
-                  Assigned Vehicle Information
-                </h4>
-                {driver.assignedVehicle ? (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
-                    <div>
-                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Vehicle Plate Number</span>
-                      <div style={{ fontWeight: 700, fontSize: '1rem', color: '#0f172a' }}>
-                        {driver.assignedVehicle.vehicleNumber}
-                      </div>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Vehicle Type / Category</span>
-                      <div style={{ fontWeight: 600, color: '#0f172a' }}>
-                        {driver.assignedVehicle.vehicleType} — {driver.assignedVehicle.vehicleCategory}
-                      </div>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Make / Model</span>
-                      <div style={{ fontWeight: 600, color: '#0f172a' }}>
-                        {driver.assignedVehicle.vehicleModel || driver.assignedVehicle.vehicleName}
-                      </div>
-                    </div>
-                    <div>
-                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Capacity</span>
-                      <div style={{ fontWeight: 600, color: '#0f172a' }}>
-                        {driver.assignedVehicle.seatingCapacity || 4} Passengers
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div style={{ color: '#64748b', fontSize: '0.88rem' }}>
-                    No vehicle currently linked directly. Driver uses independently registered vehicle or platform dispatch.
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* TAB 4: COMPLETE WITHDRAWAL HISTORY FOR SELECTED DRIVER */}
-          {activeTab === 'history' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {/* Search & Filter Controls */}
-              <form
-                onSubmit={handleFilterHistory}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  flexWrap: 'wrap',
-                  background: '#ffffff',
-                  padding: 14,
-                  borderRadius: 8,
-                  border: '1px solid #e2e8f0'
-                }}
-              >
-                <div style={{ position: 'relative', flex: '1 1 200px' }}>
-                  <Search size={14} style={{ position: 'absolute', left: 10, top: 11, color: '#94a3b8' }} />
-                  <input
-                    type="text"
-                    placeholder="Search ID, Bank, IFSC..."
-                    value={historySearch}
-                    onChange={(e) => setHistorySearch(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '7px 10px 7px 32px',
-                      borderRadius: 6,
-                      border: '1px solid #cbd5e1',
-                      fontSize: '0.82rem'
-                    }}
-                  />
-                </div>
-
-                <select
-                  value={historyStatus}
-                  onChange={(e) => setHistoryStatus(e.target.value)}
-                  style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '0.82rem' }}
-                >
-                  <option value="All">All Statuses</option>
-                  <option value="Pending">Pending</option>
-                  <option value="Processing">Processing</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Rejected">Rejected</option>
-                </select>
-
-                <select
-                  value={historyMethod}
-                  onChange={(e) => setHistoryMethod(e.target.value)}
-                  style={{ padding: '7px 10px', borderRadius: 6, border: '1px solid #cbd5e1', fontSize: '0.82rem' }}
-                >
-                  <option value="All">All Methods</option>
-                  <option value="Bank">Bank Transfer</option>
-                  <option value="eSewa">eSewa</option>
-                  <option value="Khalti">Khalti</option>
-                </select>
-
-                <button type="submit" className="btn btn-sm btn-primary">
-                  Filter
-                </button>
-              </form>
-
-              {/* History Table */}
-              <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
-                <div className="table-responsive">
-                  <table className="data-table" style={{ fontSize: '0.8rem', width: '100%' }}>
-                    <thead>
-                      <tr>
-                        <th>Request ID</th>
-                        <th>Date</th>
-                        <th>Amount</th>
-                        <th>Method</th>
-                        <th>Bank / IFSC</th>
-                        <th>Account / ID</th>
-                        <th>Status</th>
-                        <th>Paid Amt</th>
-                        <th>UTR / Notes</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {withdrawalHistory.items && withdrawalHistory.items.length > 0 ? (
-                        withdrawalHistory.items.map((item) => (
-                          <tr key={item._id} style={item._id === withdrawal._id ? { background: '#f0fdf4' } : {}}>
-                            <td>
-                              <code>{item.referenceId}</code>
-                              {item._id === withdrawal._id && (
-                                <span style={{ marginLeft: 4, color: '#16a34a', fontWeight: 700 }}>(Selected)</span>
-                              )}
-                            </td>
-                            <td style={{ whiteSpace: 'nowrap' }}>
-                              {new Date(item.createdAt).toLocaleDateString('en-IN')}
-                            </td>
-                            <td style={{ fontWeight: 700 }}>₹{Number(item.amount).toLocaleString('en-IN')}</td>
-                            <td>{item.payoutMethod}</td>
-                            <td>
-                              <div>{item.bankName}</div>
-                              <div style={{ fontSize: '0.7rem', color: '#64748b', fontFamily: 'monospace' }}>
-                                {item.ifscCode}
-                              </div>
-                            </td>
-                            <td><code>{item.maskedAccount}</code></td>
-                            <td>
-                              <StatusBadge status={item.status} />
-                            </td>
-                            <td style={{ fontWeight: 600, color: item.actualPaidAmount ? '#15803d' : '#64748b' }}>
-                              ₹{Number(item.actualPaidAmount).toLocaleString('en-IN')}
-                            </td>
-                            <td>
-                              <div style={{ fontSize: '0.72rem', maxWidth: 160, wordBreak: 'break-word' }}>
-                                {item.rejectionReason ? (
-                                  <span style={{ color: '#b91c1c' }}>{item.rejectionReason}</span>
-                                ) : (
-                                  item.utrNumber || '—'
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan="9" style={{ textAlign: 'center', padding: 24, color: '#64748b' }}>
-                            {historyLoading ? 'Loading history...' : 'No previous withdrawals match this filter.'}
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Pagination Controls */}
-                {withdrawalHistory.pagination.totalPages > 1 && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '12px 18px',
-                      borderTop: '1px solid #e2e8f0',
-                      fontSize: '0.82rem'
-                    }}
-                  >
-                    <span>
-                      Page {withdrawalHistory.pagination.page} of {withdrawalHistory.pagination.totalPages} (Total:{' '}
-                      {withdrawalHistory.pagination.total})
-                    </span>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button
-                        className="btn btn-sm btn-outline"
-                        disabled={withdrawalHistory.pagination.page <= 1 || historyLoading}
-                        onClick={() => handlePageChange(withdrawalHistory.pagination.page - 1)}
-                      >
-                        Previous
-                      </button>
-                      <button
-                        className="btn btn-sm btn-outline"
-                        disabled={withdrawalHistory.pagination.page >= withdrawalHistory.pagination.totalPages || historyLoading}
-                        onClick={() => handlePageChange(withdrawalHistory.pagination.page + 1)}
-                      >
-                        Next
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* TAB 5: RECENT RIDE EARNINGS & DEDUCTIONS LEDGER */}
-          {activeTab === 'ledger' && (
-            <div style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid #e2e8f0' }}>
-                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>
-                  Authoritative Ride Earnings Ledger & Deductions
-                </h4>
-                <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: '#64748b' }}>
-                  Recent completed booking payments and platform charges credited to driver wallet.
-                </p>
-              </div>
-              <div className="table-responsive">
-                <table className="data-table" style={{ fontSize: '0.82rem' }}>
-                  <thead>
-                    <tr>
-                      <th>Date / Time</th>
-                      <th>Transaction Type</th>
-                      <th>Description / Booking</th>
-                      <th>Gross Ride Credited</th>
-                      <th>Platform Charge</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {walletSummary.ledger && walletSummary.ledger.length > 0 ? (
-                      walletSummary.ledger.map((entry) => (
-                        <tr key={entry._id}>
-                          <td>{new Date(entry.date).toLocaleString('en-IN')}</td>
-                          <td><strong>{entry.type}</strong></td>
-                          <td>{entry.description}</td>
-                          <td style={{ fontWeight: 700, color: '#16a34a' }}>
-                            +₹{Number(entry.amount).toLocaleString('en-IN')}
-                          </td>
-                          <td style={{ color: '#d97706' }}>
-                            {entry.platformCharge ? `₹${Number(entry.platformCharge).toLocaleString('en-IN')}` : '₹0'}
-                          </td>
-                          <td>
-                            <span style={{ background: '#ecfdf5', color: '#047857', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>
-                              {entry.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="6" style={{ textAlign: 'center', padding: 24, color: '#64748b' }}>
-                          No recent ride ledger entries recorded for this driver.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Modal Action Bar */}
