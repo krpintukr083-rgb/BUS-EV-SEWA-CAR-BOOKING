@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { adminService } from '../services/adminService';
 import StatusBadge from '../components/StatusBadge';
 import {
@@ -42,15 +42,23 @@ const BusPassengerManifest = () => {
   const [error, setError] = useState('');
   const [selectedBookingModal, setSelectedBookingModal] = useState(null);
 
+  // Debouncing refs
+  const isFirstRender = useRef(true);
+  const lastSearchedRef = useRef('');
+
   // Fetch Journeys List (Buses, distinct trips, schedules)
-  const fetchJourneys = async (queryDate = selectedTravelDate) => {
+  const fetchJourneys = async (
+    queryDate = selectedTravelDate,
+    busId = selectedBusId,
+    searchVal = searchTerm
+  ) => {
     try {
       setLoadingJourneys(true);
       setError('');
       const params = {};
       if (queryDate) params.travelDate = queryDate;
-      if (selectedBusId) params.vehicleId = selectedBusId;
-      if (searchTerm) params.search = searchTerm;
+      if (busId) params.vehicleId = busId;
+      if (searchVal && searchVal.trim()) params.search = searchVal.trim();
 
       const res = await adminService.getBusManifestJourneys(params);
       if (res && res.success) {
@@ -79,6 +87,38 @@ const BusPassengerManifest = () => {
     } finally {
       setLoadingJourneys(false);
     }
+  };
+
+  // Debounced search for top search input (350ms)
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      lastSearchedRef.current = searchTerm;
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      if (searchTerm !== lastSearchedRef.current) {
+        lastSearchedRef.current = searchTerm;
+        fetchJourneys(selectedTravelDate, selectedBusId, searchTerm);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const handleClearSearch = () => {
+    setSearchTerm('');
+    lastSearchedRef.current = '';
+    fetchJourneys(selectedTravelDate, selectedBusId, '');
+  };
+
+  const handleClearAllFilters = () => {
+    setSelectedBusId('');
+    setSelectedTravelDate('');
+    setSearchTerm('');
+    lastSearchedRef.current = '';
+    fetchJourneys('', '', '');
   };
 
   // Load Manifest Passengers for a selected journey
@@ -184,7 +224,7 @@ const BusPassengerManifest = () => {
       {/* 2. Top Filter Controls: Search & Select Journey / Bus */}
       <div className="manifest-filter-card">
         <div className="manifest-filter-grid">
-          {/* Search by Registration / Driver / Operator / Route */}
+          {/* Search by Registration / Driver / Operator / Route / Trip ID */}
           <div className="manifest-filter-field">
             <label className="manifest-filter-label">Search Bus / Route / Driver</label>
             <div style={{ position: 'relative' }}>
@@ -202,12 +242,60 @@ const BusPassengerManifest = () => {
               <input
                 type="text"
                 className="input-field"
-                style={{ paddingLeft: '38px', minHeight: '42px' }}
-                placeholder="Reg no, operator, driver, city..."
+                style={{
+                  paddingLeft: '38px',
+                  paddingRight: (loadingJourneys || searchTerm) ? '42px' : '14px',
+                  minHeight: '42px'
+                }}
+                placeholder="Search vehicle, registration, driver, route, trip ID..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && fetchJourneys()}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    lastSearchedRef.current = searchTerm;
+                    fetchJourneys(selectedTravelDate, selectedBusId, searchTerm);
+                  }
+                }}
               />
+              <div
+                style={{
+                  position: 'absolute',
+                  right: '10px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                {loadingJourneys && (
+                  <RotateCw
+                    size={14}
+                    className="spin"
+                    style={{ color: 'var(--primary-blue)', flexShrink: 0 }}
+                  />
+                )}
+                {searchTerm && (
+                  <button
+                    type="button"
+                    onClick={handleClearSearch}
+                    title="Clear search"
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: 'var(--text-muted)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '2px',
+                      borderRadius: '50%'
+                    }}
+                  >
+                    <X size={15} />
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -218,7 +306,11 @@ const BusPassengerManifest = () => {
               className="select-field"
               style={{ minHeight: '42px' }}
               value={selectedBusId}
-              onChange={e => setSelectedBusId(e.target.value)}
+              onChange={e => {
+                const newBusId = e.target.value;
+                setSelectedBusId(newBusId);
+                fetchJourneys(selectedTravelDate, newBusId, searchTerm);
+              }}
             >
               <option value="">All Registered Buses ({buses.length})</option>
               {buses.map(b => (
@@ -249,7 +341,11 @@ const BusPassengerManifest = () => {
                 className="input-field"
                 style={{ paddingLeft: '38px', minHeight: '42px' }}
                 value={selectedTravelDate}
-                onChange={e => setSelectedTravelDate(e.target.value)}
+                onChange={e => {
+                  const newDate = e.target.value;
+                  setSelectedTravelDate(newDate);
+                  fetchJourneys(newDate, selectedBusId, searchTerm);
+                }}
               />
             </div>
           </div>
@@ -258,7 +354,10 @@ const BusPassengerManifest = () => {
           <div className="manifest-filter-actions">
             <button
               className="btn btn-primary"
-              onClick={() => fetchJourneys()}
+              onClick={() => {
+                lastSearchedRef.current = searchTerm;
+                fetchJourneys(selectedTravelDate, selectedBusId, searchTerm);
+              }}
               disabled={loadingJourneys}
             >
               Apply Filter
@@ -266,12 +365,7 @@ const BusPassengerManifest = () => {
             {(selectedBusId || selectedTravelDate || searchTerm) && (
               <button
                 className="btn btn-outline"
-                onClick={() => {
-                  setSelectedBusId('');
-                  setSelectedTravelDate('');
-                  setSearchTerm('');
-                  fetchJourneys('');
-                }}
+                onClick={handleClearAllFilters}
               >
                 Clear
               </button>
@@ -302,9 +396,46 @@ const BusPassengerManifest = () => {
               Loading journeys...
             </div>
           ) : journeys.length === 0 ? (
-            <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              <Bus size={36} style={{ color: 'var(--text-light)', margin: '0 auto 10px', display: 'block' }} />
-              No bus journeys match the selected criteria.
+            <div style={{ padding: '36px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              <Bus size={36} style={{ color: 'var(--text-light)', margin: '0 auto 10px', display: 'block', opacity: 0.7 }} />
+              <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '0.9rem', marginBottom: '6px' }}>
+                No Matching Journeys Found
+              </div>
+              <p style={{ margin: '0 0 12px', lineHeight: '1.4', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                {searchTerm || selectedBusId || selectedTravelDate
+                  ? 'No bus journeys match your search query and active filters.'
+                  : 'No scheduled or booked bus journeys are available.'}
+              </p>
+
+              {(searchTerm || selectedBusId || selectedTravelDate) && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'center' }}>
+                    {searchTerm && (
+                      <span style={{ fontSize: '0.72rem', backgroundColor: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
+                        Search: "{searchTerm}"
+                      </span>
+                    )}
+                    {selectedTravelDate && (
+                      <span style={{ fontSize: '0.72rem', backgroundColor: '#f1f5f9', color: '#475569', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
+                        Date: {selectedTravelDate}
+                      </span>
+                    )}
+                    {selectedBusId && (
+                      <span style={{ fontSize: '0.72rem', backgroundColor: '#f1f5f9', color: '#475569', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
+                        Bus: {buses.find(b => b._id === selectedBusId)?.vehicleNumber || 'Selected'}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    onClick={handleClearAllFilters}
+                    style={{ fontSize: '0.76rem', padding: '5px 12px', minHeight: '30px', marginTop: '4px' }}
+                  >
+                    Clear Search & Filters
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="manifest-journey-list">

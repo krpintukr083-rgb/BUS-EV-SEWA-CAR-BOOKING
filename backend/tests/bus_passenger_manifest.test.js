@@ -332,4 +332,162 @@ describe('Bus Passenger Manifest Feature Tests', () => {
     expect(statusCode).toBe(400);
     expect(errResp.success).toBe(false);
   });
+
+  test('6. Search: Full and partial vehicle registration with space/hyphen normalization', async () => {
+    // 6a. Full vehicle registration
+    const reqFull = { query: { search: testBus1.vehicleNumber } };
+    let respFull = null;
+    await getBusManifestJourneys(reqFull, { json: d => { respFull = d; } }, jest.fn());
+    expect(respFull.success).toBe(true);
+    expect(respFull.data.some(j => j.vehicleNumber === testBus1.vehicleNumber)).toBe(true);
+
+    // 6b. Normalized partial (spaces stripped, lowercase e.g., "ba99kha")
+    const cleanNorm = testBus1.vehicleNumber.replace(/[\s\-_]/g, '').toLowerCase().slice(0, 6);
+    const reqNorm = { query: { search: cleanNorm } };
+    let respNorm = null;
+    await getBusManifestJourneys(reqNorm, { json: d => { respNorm = d; } }, jest.fn());
+    expect(respNorm.success).toBe(true);
+    expect(respNorm.data.some(j => j.vehicleNumber === testBus1.vehicleNumber)).toBe(true);
+  });
+
+  test('7. Search: Driver name and mobile number across journeys', async () => {
+    // Search by driver name
+    const reqName = { query: { search: 'Manifest Test Driver' } };
+    let respName = null;
+    await getBusManifestJourneys(reqName, { json: d => { respName = d; } }, jest.fn());
+    expect(respName.success).toBe(true);
+    expect(respName.data.some(j => j.driverName === 'Manifest Test Driver')).toBe(true);
+
+    // Search by driver mobile number
+    const reqMobile = { query: { search: testDriver.mobileNumber } };
+    let respMobile = null;
+    await getBusManifestJourneys(reqMobile, { json: d => { respMobile = d; } }, jest.fn());
+    expect(respMobile.success).toBe(true);
+    expect(respMobile.data.some(j => j.driverPhone === testDriver.mobileNumber)).toBe(true);
+  });
+
+  test('8. Search: Route origin and destination', async () => {
+    // Search by origin
+    const reqOrigin = { query: { search: 'Kathmandu' } };
+    let respOrigin = null;
+    await getBusManifestJourneys(reqOrigin, { json: d => { respOrigin = d; } }, jest.fn());
+    expect(respOrigin.success).toBe(true);
+    expect(respOrigin.data.some(j => j.origin === 'Kathmandu')).toBe(true);
+
+    // Search by destination
+    const reqDest = { query: { search: 'Pokhara' } };
+    let respDest = null;
+    await getBusManifestJourneys(reqDest, { json: d => { respDest = d; } }, jest.fn());
+    expect(respDest.success).toBe(true);
+    expect(respDest.data.some(j => j.destination === 'Pokhara')).toBe(true);
+  });
+
+  test('9. Search: Schedule ID and Trip ID', async () => {
+    const schedIdStr = testSchedule._id.toString();
+    const reqSched = { query: { search: schedIdStr } };
+    let respSched = null;
+    await getBusManifestJourneys(reqSched, { json: d => { respSched = d; } }, jest.fn());
+    expect(respSched.success).toBe(true);
+    const matched = respSched.data.find(j => j.scheduleId && j.scheduleId.toString() === schedIdStr);
+    expect(matched).toBeDefined();
+    expect(matched.tripId).toBe(schedIdStr);
+  });
+
+  test('10. Search: Booking ID and Passenger Details linking to corresponding journey', async () => {
+    // Search by passenger name Alice Smith -> should find 2026-11-01 journey for testBus1
+    const reqPax = { query: { search: 'Alice Smith' } };
+    let respPax = null;
+    await getBusManifestJourneys(reqPax, { json: d => { respPax = d; } }, jest.fn());
+    expect(respPax.success).toBe(true);
+    const matchedNov1 = respPax.data.find(
+      j => j.vehicleId.toString() === testBus1._id.toString() && j.travelDate === '2026-11-01'
+    );
+    expect(matchedNov1).toBeDefined();
+
+    // In manifest view, passenger search finds Alice Smith
+    const reqManifestPax = {
+      query: {
+        vehicleId: testBus1._id.toString(),
+        travelDate: '2026-11-01',
+        search: 'Alice'
+      }
+    };
+    let respManifestPax = null;
+    await getBusPassengerManifest(reqManifestPax, { json: d => { respManifestPax = d; } }, jest.fn());
+    expect(respManifestPax.success).toBe(true);
+    expect(respManifestPax.data.length).toBe(1);
+    expect(respManifestPax.data[0].passengerName).toBe('Alice Smith');
+  });
+
+  test('11. Search and Filters Combination: AND logic with Vehicle dropdown, Date, and Search text', async () => {
+    // Matching combination: Bus 1 + 2026-11-01 + search "Kathmandu"
+    const reqComboMatch = {
+      query: {
+        vehicleId: testBus1._id.toString(),
+        travelDate: '2026-11-01',
+        search: 'Kathmandu'
+      }
+    };
+    let respComboMatch = null;
+    await getBusManifestJourneys(reqComboMatch, { json: d => { respComboMatch = d; } }, jest.fn());
+    expect(respComboMatch.success).toBe(true);
+    expect(respComboMatch.data.length).toBeGreaterThanOrEqual(1);
+    expect(respComboMatch.data.every(j => j.vehicleId.toString() === testBus1._id.toString())).toBe(true);
+    expect(respComboMatch.data.every(j => j.travelDate === '2026-11-01')).toBe(true);
+
+    // Mismatched combination: Bus 1 + 2026-11-05 + search "Alice" (Alice is booked on Nov 1, not Nov 5)
+    const reqComboMismatch = {
+      query: {
+        vehicleId: testBus1._id.toString(),
+        travelDate: '2026-11-05',
+        search: 'Alice'
+      }
+    };
+    let respComboMismatch = null;
+    await getBusManifestJourneys(reqComboMismatch, { json: d => { respComboMismatch = d; } }, jest.fn());
+    expect(respComboMismatch.success).toBe(true);
+    expect(respComboMismatch.data.length).toBe(0);
+
+    // Clearing search text restores the Nov 5 journey
+    const reqCleared = {
+      query: {
+        vehicleId: testBus1._id.toString(),
+        travelDate: '2026-11-05',
+        search: ''
+      }
+    };
+    let respCleared = null;
+    await getBusManifestJourneys(reqCleared, { json: d => { respCleared = d; } }, jest.fn());
+    expect(respCleared.success).toBe(true);
+    expect(respCleared.data.some(j => j.travelDate === '2026-11-05')).toBe(true);
+  });
+
+  test('12. Search Edge Cases: No-results and Empty search', async () => {
+    // Completely nonexistent search query
+    const reqEmpty = { query: { search: 'NON_EXISTENT_BUS_SEARCH_9999999' } };
+    let respEmpty = null;
+    await getBusManifestJourneys(reqEmpty, { json: d => { respEmpty = d; } }, jest.fn());
+    expect(respEmpty.success).toBe(true);
+    expect(respEmpty.data.length).toBe(0);
+
+    // Whitespace-only search returns full journey collection without error
+    const reqWs = { query: { search: '   ' } };
+    let respWs = null;
+    await getBusManifestJourneys(reqWs, { json: d => { respWs = d; } }, jest.fn());
+    expect(respWs.success).toBe(true);
+    expect(respWs.data.length).toBeGreaterThan(0);
+  });
+
+  test('13. Duplicate Prevention: A journey matching multiple fields returns only once', async () => {
+    // Search query matching testBus1 vehicleNumber
+    const req = { query: { search: testBus1.vehicleNumber } };
+    let resp = null;
+    await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+    expect(resp.success).toBe(true);
+
+    const journeyKeys = resp.data.map(j => j.journeyKey);
+    const uniqueKeys = new Set(journeyKeys);
+    expect(journeyKeys.length).toBe(uniqueKeys.size);
+  });
 });
+
