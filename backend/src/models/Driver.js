@@ -233,7 +233,19 @@ const driverSchema = new mongoose.Schema(
       branch: { type: String, default: '' },
       ifscCode: { type: String, default: '', trim: true, uppercase: true },
       esewaId: { type: String, default: '' },
-      khaltiId: { type: String, default: '' }
+      khaltiId: { type: String, default: '' },
+      bankVerificationStatus: {
+        type: String,
+        enum: ['Pending', 'Pending Verification', 'Verified', 'Rejected'],
+        default: 'Pending Verification'
+      },
+      isVerified: { type: Boolean, default: false },
+      verifiedAt: { type: Date, default: null }
+    },
+    bankVerificationStatus: {
+      type: String,
+      enum: ['Pending', 'Pending Verification', 'Verified', 'Rejected'],
+      default: 'Pending Verification'
     },
     // Ratings & Performance
     rating: {

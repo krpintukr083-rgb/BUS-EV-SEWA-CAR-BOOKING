@@ -436,7 +436,26 @@ export const adminService = {
               ifscStatus: ifscInfo.ifscStatus,
               maskedAccountNumber: maskedAccount,
               rawAccountNumber: rawAccount,
-              bankVerificationStatus: 'Pending Verification',
+              bankVerificationStatus: (() => {
+                const rawStatus =
+                  rawDetails.bankVerificationStatus ||
+                  rawDetails.verificationStatus ||
+                  driverPayout.bankVerificationStatus ||
+                  driverPayout.verificationStatus ||
+                  targetDriver.bankVerificationStatus ||
+                  targetDriver.bankAccountStatus;
+                if (rawStatus) {
+                  const s = String(rawStatus).trim().toLowerCase();
+                  if (s === 'verified' || s === 'approved') return 'Verified';
+                  if (s === 'rejected') return 'Rejected';
+                  if (s === 'pending' || s === 'pending verification' || s === 'unverified') return 'Pending Verification';
+                  return rawStatus;
+                }
+                if (rawDetails.isVerified === true || driverPayout.isVerified === true || targetDriver.isBankVerified === true) {
+                  return 'Verified';
+                }
+                return 'Pending Verification';
+              })(),
               isComplete: Boolean(rawAccount && (rawDetails.bankName || driverPayout.bankName) && rawIfsc)
             } : payoutMethod === 'eSewa' ? {
               esewaId: rawDetails.esewaId || driverPayout.esewaId || '',

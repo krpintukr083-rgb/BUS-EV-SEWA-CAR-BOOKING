@@ -599,6 +599,25 @@ exports.verifyDriverDocuments = async (req, res, next) => {
             driver.routePermit.rejectionReason = rejectionReason.trim();
           }
           break;
+        case 'bank':
+        case 'bankdetails':
+        case 'bankaccount':
+        case 'payout':
+        case 'payoutmethod':
+        case 'payoutmethods':
+          if (!driver.payoutMethods) driver.payoutMethods = {};
+          const bankStatus = (normalizeStatus === 'Approved' || normalizeStatus === 'Verified')
+            ? 'Verified'
+            : (normalizeStatus === 'Rejected')
+            ? 'Rejected'
+            : 'Pending Verification';
+          driver.payoutMethods.bankVerificationStatus = bankStatus;
+          driver.payoutMethods.isVerified = bankStatus === 'Verified';
+          if (bankStatus === 'Verified') {
+            driver.payoutMethods.verifiedAt = new Date();
+          }
+          driver.bankVerificationStatus = bankStatus;
+          break;
         default:
           return res.status(400).json({ success: false, message: `Invalid document type '${targetDocType}'` });
       }
@@ -617,6 +636,17 @@ exports.verifyDriverDocuments = async (req, res, next) => {
         if (!driver.routePermit) driver.routePermit = {};
         driver.routePermit.status = routePermitStatus;
         driver.routePermitStatus = routePermitStatus;
+      }
+      if (req.body.bankVerificationStatus || req.body.bankStatus) {
+        const val = req.body.bankVerificationStatus || req.body.bankStatus;
+        const normVal = (val === 'Approved' || val === 'Verified') ? 'Verified' : val === 'Rejected' ? 'Rejected' : 'Pending Verification';
+        if (!driver.payoutMethods) driver.payoutMethods = {};
+        driver.payoutMethods.bankVerificationStatus = normVal;
+        driver.payoutMethods.isVerified = normVal === 'Verified';
+        if (normVal === 'Verified') {
+          driver.payoutMethods.verifiedAt = new Date();
+        }
+        driver.bankVerificationStatus = normVal;
       }
       if (rejectionReason !== undefined) driver.rejectionReason = rejectionReason;
     }
@@ -1982,6 +2012,38 @@ exports.getWithdrawalVerificationDetails = async (req, res, next) => {
         warnings.push('Bank account number is missing.');
       }
 
+      // Resolve Bank Verification Status from saved records:
+      // Checks explicit verification on withdrawal payoutDetails, driver payoutMethods profile, or driver document.
+      // Payment completion and bank verification remain separate concepts.
+      let bankVerificationStatus = 'Pending Verification';
+      const rawBankStatus =
+        rawDetails.bankVerificationStatus ||
+        rawDetails.verificationStatus ||
+        driverPayout.bankVerificationStatus ||
+        driverPayout.verificationStatus ||
+        driver.bankVerificationStatus ||
+        driver.bankAccountStatus;
+
+      if (rawBankStatus) {
+        const s = String(rawBankStatus).trim().toLowerCase();
+        if (s === 'verified' || s === 'approved') {
+          bankVerificationStatus = 'Verified';
+        } else if (s === 'rejected') {
+          bankVerificationStatus = 'Rejected';
+        } else if (s === 'pending' || s === 'pending verification' || s === 'unverified') {
+          bankVerificationStatus = 'Pending Verification';
+        } else {
+          bankVerificationStatus = rawBankStatus;
+        }
+      } else if (
+        rawDetails.isVerified === true ||
+        driverPayout.isVerified === true ||
+        driver.isBankVerified === true ||
+        driver.bankVerified === true
+      ) {
+        bankVerificationStatus = 'Verified';
+      }
+
       bankAndPayout = {
         ...bankAndPayout,
         accountHolderName: rawDetails.accountHolderName || driverPayout.accountHolderName || driver.name || '',
@@ -1997,7 +2059,7 @@ exports.getWithdrawalVerificationDetails = async (req, res, next) => {
         ifscStatus: ifscInfo.ifscStatus,
         maskedAccountNumber: maskAccountNumber(rawAccount),
         rawAccountNumber: rawAccount,
-        bankVerificationStatus: 'Pending Verification',
+        bankVerificationStatus,
         isComplete: Boolean(rawAccount && (rawDetails.bankName || driverPayout.bankName) && rawIfsc)
       };
     } else if (payoutMethod === 'eSewa') {

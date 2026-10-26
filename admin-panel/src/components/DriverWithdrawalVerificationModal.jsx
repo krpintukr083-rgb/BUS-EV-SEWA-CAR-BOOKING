@@ -642,15 +642,25 @@ const DriverWithdrawalVerificationModal = ({
                       <div style={{ marginTop: 4 }}>
                         <span
                           style={{
-                            background: bankAndPayout.bankVerificationStatus === 'Verified' ? '#ecfdf5' : '#fffbeb',
-                            color: bankAndPayout.bankVerificationStatus === 'Verified' ? '#047857' : '#b45309',
+                            background:
+                              bankAndPayout.bankVerificationStatus === 'Verified'
+                                ? '#ecfdf5'
+                                : bankAndPayout.bankVerificationStatus === 'Rejected'
+                                ? '#fef2f2'
+                                : '#fffbeb',
+                            color:
+                              bankAndPayout.bankVerificationStatus === 'Verified'
+                                ? '#047857'
+                                : bankAndPayout.bankVerificationStatus === 'Rejected'
+                                ? '#dc2626'
+                                : '#b45309',
                             padding: '4px 8px',
                             borderRadius: 6,
                             fontSize: '0.78rem',
                             fontWeight: 600
                           }}
                         >
-                          {bankAndPayout.bankVerificationStatus}
+                          {bankAndPayout.bankVerificationStatus || 'Pending Verification'}
                         </span>
                       </div>
                     </div>

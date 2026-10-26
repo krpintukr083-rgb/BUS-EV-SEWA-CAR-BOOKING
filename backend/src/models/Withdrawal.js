@@ -29,7 +29,9 @@ const withdrawalSchema = new mongoose.Schema(
       branch: { type: String, default: '' },
       ifscCode: { type: String, default: '', trim: true, uppercase: true },
       esewaId: { type: String, default: '' },
-      khaltiId: { type: String, default: '' }
+      khaltiId: { type: String, default: '' },
+      bankVerificationStatus: { type: String, default: '' },
+      isVerified: { type: Boolean, default: false }
     },
     status: {
       type: String,

@@ -526,4 +526,140 @@ describe('Driver Financial Profile & Withdrawal Verification System Tests', () =
     // Clean up
     await Withdrawal.findByIdAndDelete(orphanedWithdrawal._id);
   });
+
+  // TEST 19: Completed withdrawal with pending bank verification preserves 'Pending Verification'
+  test('19. Completed withdrawal with pending bank verification displays "Pending Verification"', async () => {
+    // Withdrawal completed manually by admin, but bank details were never verified
+    const completedPendingWdr = await Withdrawal.create({
+      driver: driver._id,
+      user: driverUser._id,
+      amount: 3000,
+      payoutMethod: 'Bank',
+      payoutDetails: {
+        bankName: 'HDFC Bank',
+        accountNumber: '998811223344',
+        accountHolderName: 'Rajesh Driver Sharma',
+        branch: 'Connaught Place',
+        ifscCode: 'HDFC0001234'
+      },
+      status: 'Completed',
+      utrNumber: 'UTR-COMP-PENDING-001',
+      adminNotes: 'Payment completed manually by admin.',
+      processedAt: new Date(),
+      referenceId: `WDR-COMP-PENDING-${Date.now()}`
+    });
+
+    const res = await request(app)
+      .get(`/api/admin/withdrawals/${completedPendingWdr._id}/verification-details`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.withdrawal.status).toBe('Completed');
+    expect(res.body.data.withdrawal.adminNotes).toBe('Payment completed manually by admin.');
+    // Bank verification remains separate from payment completion
+    expect(res.body.data.bankAndPayout.bankVerificationStatus).toBe('Pending Verification');
+
+    await Withdrawal.findByIdAndDelete(completedPendingWdr._id);
+  });
+
+  // TEST 20: Completed withdrawal with explicitly verified bank details displays 'Verified'
+  test('20. Completed withdrawal with explicitly verified bank details displays "Verified"', async () => {
+    // Explicitly verify driver's bank details
+    await Driver.findByIdAndUpdate(driver._id, {
+      'payoutMethods.bankVerificationStatus': 'Verified',
+      'payoutMethods.isVerified': true,
+      bankVerificationStatus: 'Verified'
+    });
+
+    const completedVerifiedWdr = await Withdrawal.create({
+      driver: driver._id,
+      user: driverUser._id,
+      amount: 4500,
+      payoutMethod: 'Bank',
+      payoutDetails: {
+        bankName: 'State Bank of India',
+        accountNumber: '112233445566',
+        accountHolderName: 'Rajesh Driver Sharma',
+        branch: 'Durbar Marg',
+        ifscCode: 'SBIN0001234',
+        bankVerificationStatus: 'Verified',
+        isVerified: true
+      },
+      status: 'Completed',
+      utrNumber: 'UTR-COMP-VERIFIED-002',
+      adminNotes: 'Payment completed manually by admin.',
+      processedAt: new Date(),
+      referenceId: `WDR-COMP-VERIFIED-${Date.now()}`
+    });
+
+    const res = await request(app)
+      .get(`/api/admin/withdrawals/${completedVerifiedWdr._id}/verification-details`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.withdrawal.status).toBe('Completed');
+    expect(res.body.data.bankAndPayout.bankVerificationStatus).toBe('Verified');
+
+    // Clean up
+    await Withdrawal.findByIdAndDelete(completedVerifiedWdr._id);
+    await Driver.findByIdAndUpdate(driver._id, {
+      'payoutMethods.bankVerificationStatus': 'Pending Verification',
+      'payoutMethods.isVerified': false,
+      bankVerificationStatus: 'Pending Verification'
+    });
+  });
+
+  // TEST 21: Withdrawal with rejected bank details displays 'Rejected'
+  test('21. Withdrawal with explicitly rejected bank details displays "Rejected"', async () => {
+    const rejectedBankWdr = await Withdrawal.create({
+      driver: driver._id,
+      user: driverUser._id,
+      amount: 1500,
+      payoutMethod: 'Bank',
+      payoutDetails: {
+        bankName: 'Axis Bank',
+        accountNumber: '556677889900',
+        accountHolderName: 'Rajesh Driver Sharma',
+        branch: 'Main Branch',
+        ifscCode: 'UTIB0001234',
+        bankVerificationStatus: 'Rejected'
+      },
+      status: 'Pending',
+      referenceId: `WDR-REJ-BANK-${Date.now()}`
+    });
+
+    const res = await request(app)
+      .get(`/api/admin/withdrawals/${rejectedBankWdr._id}/verification-details`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.bankAndPayout.bankVerificationStatus).toBe('Rejected');
+
+    await Withdrawal.findByIdAndDelete(rejectedBankWdr._id);
+  });
+
+  // TEST 22: Admin can verify driver bank details via verifyDriverDocuments
+  test('22. Admin can explicitly verify driver bank details via document verification endpoint', async () => {
+    const res = await request(app)
+      .patch(`/api/admin/drivers/${driver._id}/kyc/documents/bank/approve`)
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    const updatedDriver = await Driver.findById(driver._id);
+    expect(updatedDriver.payoutMethods.bankVerificationStatus).toBe('Verified');
+    expect(updatedDriver.payoutMethods.isVerified).toBe(true);
+    expect(updatedDriver.bankVerificationStatus).toBe('Verified');
+
+    // Reset to Pending Verification
+    await Driver.findByIdAndUpdate(driver._id, {
+      'payoutMethods.bankVerificationStatus': 'Pending Verification',
+      'payoutMethods.isVerified': false,
+      bankVerificationStatus: 'Pending Verification'
+    });
+  });
 });
