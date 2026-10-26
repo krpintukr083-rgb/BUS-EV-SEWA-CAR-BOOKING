@@ -41,6 +41,7 @@ const BusPassengerManifest = () => {
   const [loadingManifest, setLoadingManifest] = useState(false);
   const [error, setError] = useState('');
   const [selectedBookingModal, setSelectedBookingModal] = useState(null);
+  const [nonBusMatch, setNonBusMatch] = useState(null);
 
   // Debouncing refs
   const isFirstRender = useRef(true);
@@ -55,6 +56,7 @@ const BusPassengerManifest = () => {
     try {
       setLoadingJourneys(true);
       setError('');
+      setNonBusMatch(null);
       const params = {};
       if (queryDate) params.travelDate = queryDate;
       if (busId) params.vehicleId = busId;
@@ -64,6 +66,7 @@ const BusPassengerManifest = () => {
       if (res && res.success) {
         setJourneys(res.data || []);
         if (res.buses) setBuses(res.buses);
+        if (res.nonBusMatch) setNonBusMatch(res.nonBusMatch);
 
         // Auto-select first journey if none currently selected or if previously selected is no longer in list
         if (res.data && res.data.length > 0) {
@@ -401,11 +404,18 @@ const BusPassengerManifest = () => {
               <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '0.9rem', marginBottom: '6px' }}>
                 No Matching Journeys Found
               </div>
-              <p style={{ margin: '0 0 12px', lineHeight: '1.4', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                {searchTerm || selectedBusId || selectedTravelDate
-                  ? 'No bus journeys match your search query and active filters.'
-                  : 'No scheduled or booked bus journeys are available.'}
-              </p>
+
+              {nonBusMatch ? (
+                <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '10px 12px', margin: '0 0 12px', fontSize: '0.78rem', color: '#1e40af', textAlign: 'left', lineHeight: '1.45' }}>
+                  <strong>Notice:</strong> Booking <code>{nonBusMatch.bookingId}</code> belongs to <strong>{nonBusMatch.serviceType}</strong>, not Bus. The Bus Manifest only tracks verified bus journeys.
+                </div>
+              ) : (
+                <p style={{ margin: '0 0 12px', lineHeight: '1.4', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
+                  {searchTerm || selectedBusId || selectedTravelDate
+                    ? 'No bus journeys match your search query and active filters.'
+                    : 'No scheduled or booked bus journeys are available.'}
+                </p>
+              )}
 
               {(searchTerm || selectedBusId || selectedTravelDate) && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>

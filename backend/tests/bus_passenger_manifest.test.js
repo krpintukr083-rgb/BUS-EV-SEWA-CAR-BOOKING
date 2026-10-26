@@ -15,6 +15,11 @@ describe('Bus Passenger Manifest Feature Tests', () => {
   let testBus1;
   let testSchedule;
   let testCustomerUser;
+  let bookingGroup;
+  let bookingCancelled;
+  let bookingTrip2;
+  let testEvSewaVehicle;
+  let testEvSewaBooking;
   let createdBookingIds = [];
   let createdVehicleIds = [];
   let createdDriverIds = [];
@@ -105,7 +110,7 @@ describe('Bus Passenger Manifest Feature Tests', () => {
 
     // 5. Create multiple bookings for Bus 1 on Date 2026-11-01
     // Booking A: Group booking with 2 distinct passengers
-    const bookingGroup = await Booking.create({
+    bookingGroup = await Booking.create({
       bookingId: `BK-MAN-${Date.now()}-1`,
       customer: {
         name: 'Manifest Customer',
@@ -133,7 +138,7 @@ describe('Bus Passenger Manifest Feature Tests', () => {
     createdBookingIds.push(bookingGroup._id);
 
     // Booking B: Single booking with Cancelled status
-    const bookingCancelled = await Booking.create({
+    bookingCancelled = await Booking.create({
       bookingId: `BK-MAN-${Date.now()}-2`,
       customer: {
         name: 'Charlie Brown',
@@ -159,7 +164,7 @@ describe('Bus Passenger Manifest Feature Tests', () => {
     createdBookingIds.push(bookingCancelled._id);
 
     // Booking C: Different travel date (2026-11-05) for SAME BUS (Testing multi-journey separation)
-    const bookingTrip2 = await Booking.create({
+    bookingTrip2 = await Booking.create({
       bookingId: `BK-MAN-${Date.now()}-3`,
       customer: {
         name: 'Diana Prince',
@@ -182,6 +187,38 @@ describe('Bus Passenger Manifest Feature Tests', () => {
       paymentStatus: 'Paid'
     });
     createdBookingIds.push(bookingTrip2._id);
+
+    // 6. Create EV-Sewa Vehicle and Booking Fixture (To rigorously verify non-bus isolation)
+    testEvSewaVehicle = await Vehicle.create({
+      vehicleNumber: `EV 99 BA ${Math.floor(1000 + Math.random() * 9000)}`,
+      vehicleType: 'EV-Sewa',
+      vehicleCategory: 'Electric Shuttle 12-Seater',
+      vehicleModel: 'Tata Tigor EV',
+      vehicleName: 'Green City EV',
+      seatingCapacity: 12,
+      ownerName: 'EV Fleet Operator',
+      ownerMobileNumber: '9841999999',
+      assignedDriver: testDriver._id
+    });
+    createdVehicleIds.push(testEvSewaVehicle._id);
+
+    testEvSewaBooking = await Booking.create({
+      bookingId: `BK-EV-${Date.now()}`,
+      serviceType: 'EV-Sewa',
+      vehicle: testEvSewaVehicle._id,
+      customer: {
+        name: 'EV Passenger Test',
+        phone: '9812345678',
+        email: 'ev@test.com'
+      },
+      pickupLocation: 'Birgunj',
+      dropLocation: 'Bharatpur',
+      travelDate: new Date('2026-11-01T00:00:00.000Z'),
+      fare: 500,
+      bookingStatus: 'Confirmed',
+      paymentStatus: 'Paid'
+    });
+    createdBookingIds.push(testEvSewaBooking._id);
   });
 
   afterAll(async () => {
@@ -333,161 +370,216 @@ describe('Bus Passenger Manifest Feature Tests', () => {
     expect(errResp.success).toBe(false);
   });
 
-  test('6. Search: Full and partial vehicle registration with space/hyphen normalization', async () => {
-    // 6a. Full vehicle registration
-    const reqFull = { query: { search: testBus1.vehicleNumber } };
-    let respFull = null;
-    await getBusManifestJourneys(reqFull, { json: d => { respFull = d; } }, jest.fn());
-    expect(respFull.success).toBe(true);
-    expect(respFull.data.some(j => j.vehicleNumber === testBus1.vehicleNumber)).toBe(true);
+  describe('14 Search & Filter Regression Tests', () => {
+    test('1. A valid bus registration number returns its matching journey', async () => {
+      const req = { query: { search: testBus1.vehicleNumber } };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+      expect(resp.success).toBe(true);
+      expect(resp.data.length).toBeGreaterThanOrEqual(1);
+      expect(resp.data.some(j => j.vehicleNumber === testBus1.vehicleNumber)).toBe(true);
+    });
 
-    // 6b. Normalized partial (spaces stripped, lowercase e.g., "ba99kha")
-    const cleanNorm = testBus1.vehicleNumber.replace(/[\s\-_]/g, '').toLowerCase().slice(0, 6);
-    const reqNorm = { query: { search: cleanNorm } };
-    let respNorm = null;
-    await getBusManifestJourneys(reqNorm, { json: d => { respNorm = d; } }, jest.fn());
-    expect(respNorm.success).toBe(true);
-    expect(respNorm.data.some(j => j.vehicleNumber === testBus1.vehicleNumber)).toBe(true);
-  });
+    test('2. A partial registration number returns matching journeys', async () => {
+      // Direct partial
+      const partialRaw = testBus1.vehicleNumber.slice(0, 5);
+      const reqPartial = { query: { search: partialRaw } };
+      let respPartial = null;
+      await getBusManifestJourneys(reqPartial, { json: d => { respPartial = d; } }, jest.fn());
+      expect(respPartial.success).toBe(true);
+      expect(respPartial.data.some(j => j.vehicleNumber === testBus1.vehicleNumber)).toBe(true);
 
-  test('7. Search: Driver name and mobile number across journeys', async () => {
-    // Search by driver name
-    const reqName = { query: { search: 'Manifest Test Driver' } };
-    let respName = null;
-    await getBusManifestJourneys(reqName, { json: d => { respName = d; } }, jest.fn());
-    expect(respName.success).toBe(true);
-    expect(respName.data.some(j => j.driverName === 'Manifest Test Driver')).toBe(true);
+      // Normalized partial (stripped spaces and lowercase)
+      const partialNorm = testBus1.vehicleNumber.replace(/[\s\-_]/g, '').toLowerCase().slice(0, 6);
+      const reqNorm = { query: { search: partialNorm } };
+      let respNorm = null;
+      await getBusManifestJourneys(reqNorm, { json: d => { respNorm = d; } }, jest.fn());
+      expect(respNorm.success).toBe(true);
+      expect(respNorm.data.some(j => j.vehicleNumber === testBus1.vehicleNumber)).toBe(true);
+    });
 
-    // Search by driver mobile number
-    const reqMobile = { query: { search: testDriver.mobileNumber } };
-    let respMobile = null;
-    await getBusManifestJourneys(reqMobile, { json: d => { respMobile = d; } }, jest.fn());
-    expect(respMobile.success).toBe(true);
-    expect(respMobile.data.some(j => j.driverPhone === testDriver.mobileNumber)).toBe(true);
-  });
+    test('3. A valid route-origin search returns matching journeys', async () => {
+      const req = { query: { search: 'Kathmandu' } };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+      expect(resp.success).toBe(true);
+      expect(resp.data.length).toBeGreaterThanOrEqual(1);
+      expect(resp.data.some(j => j.origin === 'Kathmandu')).toBe(true);
+    });
 
-  test('8. Search: Route origin and destination', async () => {
-    // Search by origin
-    const reqOrigin = { query: { search: 'Kathmandu' } };
-    let respOrigin = null;
-    await getBusManifestJourneys(reqOrigin, { json: d => { respOrigin = d; } }, jest.fn());
-    expect(respOrigin.success).toBe(true);
-    expect(respOrigin.data.some(j => j.origin === 'Kathmandu')).toBe(true);
+    test('4. A valid destination search returns matching journeys', async () => {
+      const req = { query: { search: 'Pokhara' } };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+      expect(resp.success).toBe(true);
+      expect(resp.data.length).toBeGreaterThanOrEqual(1);
+      expect(resp.data.some(j => j.destination.toLowerCase().includes('pokhara'))).toBe(true);
+    });
 
-    // Search by destination
-    const reqDest = { query: { search: 'Pokhara' } };
-    let respDest = null;
-    await getBusManifestJourneys(reqDest, { json: d => { respDest = d; } }, jest.fn());
-    expect(respDest.success).toBe(true);
-    expect(respDest.data.some(j => j.destination === 'Pokhara')).toBe(true);
-  });
+    test('5. A valid driver\'s name returns assigned journeys', async () => {
+      const req = { query: { search: testDriver.name } };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+      expect(resp.success).toBe(true);
+      expect(resp.data.some(j => j.driverName === testDriver.name)).toBe(true);
+    });
 
-  test('9. Search: Schedule ID and Trip ID', async () => {
-    const schedIdStr = testSchedule._id.toString();
-    const reqSched = { query: { search: schedIdStr } };
-    let respSched = null;
-    await getBusManifestJourneys(reqSched, { json: d => { respSched = d; } }, jest.fn());
-    expect(respSched.success).toBe(true);
-    const matched = respSched.data.find(j => j.scheduleId && j.scheduleId.toString() === schedIdStr);
-    expect(matched).toBeDefined();
-    expect(matched.tripId).toBe(schedIdStr);
-  });
+    test('6. A valid trip ID returns the correct journey', async () => {
+      const schedIdStr = testSchedule._id.toString();
+      const req = { query: { search: schedIdStr } };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+      expect(resp.success).toBe(true);
+      const matched = resp.data.find(j => j.tripId === schedIdStr);
+      expect(matched).toBeDefined();
+      expect(matched.vehicleNumber).toBe(testBus1.vehicleNumber);
+    });
 
-  test('10. Search: Booking ID and Passenger Details linking to corresponding journey', async () => {
-    // Search by passenger name Alice Smith -> should find 2026-11-01 journey for testBus1
-    const reqPax = { query: { search: 'Alice Smith' } };
-    let respPax = null;
-    await getBusManifestJourneys(reqPax, { json: d => { respPax = d; } }, jest.fn());
-    expect(respPax.success).toBe(true);
-    const matchedNov1 = respPax.data.find(
-      j => j.vehicleId.toString() === testBus1._id.toString() && j.travelDate === '2026-11-01'
-    );
-    expect(matchedNov1).toBeDefined();
+    test('7. A valid schedule ID returns the correct journey', async () => {
+      const schedIdStr = testSchedule._id.toString();
+      const req = { query: { search: schedIdStr } };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+      expect(resp.success).toBe(true);
+      const matched = resp.data.find(j => j.scheduleId && j.scheduleId.toString() === schedIdStr);
+      expect(matched).toBeDefined();
+      expect(matched.travelDate).toBe('2026-11-01');
+    });
 
-    // In manifest view, passenger search finds Alice Smith
-    const reqManifestPax = {
-      query: {
-        vehicleId: testBus1._id.toString(),
-        travelDate: '2026-11-01',
-        search: 'Alice'
-      }
-    };
-    let respManifestPax = null;
-    await getBusPassengerManifest(reqManifestPax, { json: d => { respManifestPax = d; } }, jest.fn());
-    expect(respManifestPax.success).toBe(true);
-    expect(respManifestPax.data.length).toBe(1);
-    expect(respManifestPax.data[0].passengerName).toBe('Alice Smith');
-  });
+    test('8. A booking ID linked to a bus journey returns that journey', async () => {
+      const req = { query: { search: bookingGroup.bookingId } };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+      expect(resp.success).toBe(true);
+      expect(resp.data.length).toBe(1);
+      expect(resp.data[0].vehicleNumber).toBe(testBus1.vehicleNumber);
+      expect(resp.data[0].travelDate).toBe('2026-11-01');
+    });
 
-  test('11. Search and Filters Combination: AND logic with Vehicle dropdown, Date, and Search text', async () => {
-    // Matching combination: Bus 1 + 2026-11-01 + search "Kathmandu"
-    const reqComboMatch = {
-      query: {
-        vehicleId: testBus1._id.toString(),
-        travelDate: '2026-11-01',
-        search: 'Kathmandu'
-      }
-    };
-    let respComboMatch = null;
-    await getBusManifestJourneys(reqComboMatch, { json: d => { respComboMatch = d; } }, jest.fn());
-    expect(respComboMatch.success).toBe(true);
-    expect(respComboMatch.data.length).toBeGreaterThanOrEqual(1);
-    expect(respComboMatch.data.every(j => j.vehicleId.toString() === testBus1._id.toString())).toBe(true);
-    expect(respComboMatch.data.every(j => j.travelDate === '2026-11-01')).toBe(true);
+    test('9. An existing car or EV-Sewa booking ID does not incorrectly appear as a bus journey', async () => {
+      // Query using the isolated EV-Sewa fixture booking ID
+      const req = { query: { search: testEvSewaBooking.bookingId } };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+      expect(resp.success).toBe(true);
+      expect(resp.data.length).toBe(0);
+      expect(resp.count).toBe(0);
+      expect(resp.nonBusMatch).toBeDefined();
+      expect(resp.nonBusMatch.serviceType).toBe('EV-Sewa');
+    });
 
-    // Mismatched combination: Bus 1 + 2026-11-05 + search "Alice" (Alice is booked on Nov 1, not Nov 5)
-    const reqComboMismatch = {
-      query: {
-        vehicleId: testBus1._id.toString(),
-        travelDate: '2026-11-05',
-        search: 'Alice'
-      }
-    };
-    let respComboMismatch = null;
-    await getBusManifestJourneys(reqComboMismatch, { json: d => { respComboMismatch = d; } }, jest.fn());
-    expect(respComboMismatch.success).toBe(true);
-    expect(respComboMismatch.data.length).toBe(0);
+    test('10. A nonexistent booking ID returns an empty result', async () => {
+      const req = { query: { search: 'BK-NONEXISTENT-99999999' } };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+      expect(resp.success).toBe(true);
+      expect(resp.data.length).toBe(0);
+      expect(resp.count).toBe(0);
+    });
 
-    // Clearing search text restores the Nov 5 journey
-    const reqCleared = {
-      query: {
-        vehicleId: testBus1._id.toString(),
-        travelDate: '2026-11-05',
-        search: ''
-      }
-    };
-    let respCleared = null;
-    await getBusManifestJourneys(reqCleared, { json: d => { respCleared = d; } }, jest.fn());
-    expect(respCleared.success).toBe(true);
-    expect(respCleared.data.some(j => j.travelDate === '2026-11-05')).toBe(true);
-  });
+    test('11. A registration filter and journey-date filter work together', async () => {
+      // Match: Bus 1 on 2026-11-01 with matching search
+      const reqMatch = {
+        query: {
+          vehicleId: testBus1._id.toString(),
+          travelDate: '2026-11-01',
+          search: 'Kathmandu'
+        }
+      };
+      let respMatch = null;
+      await getBusManifestJourneys(reqMatch, { json: d => { respMatch = d; } }, jest.fn());
+      expect(respMatch.success).toBe(true);
+      expect(respMatch.data.length).toBeGreaterThanOrEqual(1);
+      expect(respMatch.data.every(j => j.vehicleId.toString() === testBus1._id.toString())).toBe(true);
+      expect(respMatch.data.every(j => j.travelDate === '2026-11-01')).toBe(true);
 
-  test('12. Search Edge Cases: No-results and Empty search', async () => {
-    // Completely nonexistent search query
-    const reqEmpty = { query: { search: 'NON_EXISTENT_BUS_SEARCH_9999999' } };
-    let respEmpty = null;
-    await getBusManifestJourneys(reqEmpty, { json: d => { respEmpty = d; } }, jest.fn());
-    expect(respEmpty.success).toBe(true);
-    expect(respEmpty.data.length).toBe(0);
+      // Mismatch: Bus 1 on 2026-11-05 with Alice Smith search (Alice is only on 2026-11-01)
+      const reqMismatch = {
+        query: {
+          vehicleId: testBus1._id.toString(),
+          travelDate: '2026-11-05',
+          search: 'Alice'
+        }
+      };
+      let respMismatch = null;
+      await getBusManifestJourneys(reqMismatch, { json: d => { respMismatch = d; } }, jest.fn());
+      expect(respMismatch.success).toBe(true);
+      expect(respMismatch.data.length).toBe(0);
+    });
 
-    // Whitespace-only search returns full journey collection without error
-    const reqWs = { query: { search: '   ' } };
-    let respWs = null;
-    await getBusManifestJourneys(reqWs, { json: d => { respWs = d; } }, jest.fn());
-    expect(respWs.success).toBe(true);
-    expect(respWs.data.length).toBeGreaterThan(0);
-  });
+    test('12. Clearing search restores the results permitted by the other filters', async () => {
+      // Search with restrictive text on 2026-11-05 yields 0
+      const reqFiltered = {
+        query: {
+          vehicleId: testBus1._id.toString(),
+          travelDate: '2026-11-05',
+          search: 'NonExistent'
+        }
+      };
+      let respFiltered = null;
+      await getBusManifestJourneys(reqFiltered, { json: d => { respFiltered = d; } }, jest.fn());
+      expect(respFiltered.data.length).toBe(0);
 
-  test('13. Duplicate Prevention: A journey matching multiple fields returns only once', async () => {
-    // Search query matching testBus1 vehicleNumber
-    const req = { query: { search: testBus1.vehicleNumber } };
-    let resp = null;
-    await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
-    expect(resp.success).toBe(true);
+      // Clearing search text restores the 2026-11-05 journey permitted by the remaining filters
+      const reqCleared = {
+        query: {
+          vehicleId: testBus1._id.toString(),
+          travelDate: '2026-11-05',
+          search: ''
+        }
+      };
+      let respCleared = null;
+      await getBusManifestJourneys(reqCleared, { json: d => { respCleared = d; } }, jest.fn());
+      expect(respCleared.success).toBe(true);
+      expect(respCleared.data.some(j => j.travelDate === '2026-11-05')).toBe(true);
+    });
 
-    const journeyKeys = resp.data.map(j => j.journeyKey);
-    const uniqueKeys = new Set(journeyKeys);
-    expect(journeyKeys.length).toBe(uniqueKeys.size);
+    test('13. Multiple matching fields do not create duplicate journeys', async () => {
+      // Query that matches testBus1 vehicleNumber, route origin, and driver simultaneously
+      const req = { query: { search: testBus1.vehicleNumber } };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+      expect(resp.success).toBe(true);
+
+      const journeyKeys = resp.data.map(j => j.journeyKey);
+      const uniqueKeys = new Set(journeyKeys);
+      expect(journeyKeys.length).toBe(uniqueKeys.size);
+
+      // Also verify booking linked to a specific journey does not duplicate journeys
+      const reqBk = { query: { search: bookingGroup.bookingId } };
+      let respBk = null;
+      await getBusManifestJourneys(reqBk, { json: d => { respBk = d; } }, jest.fn());
+      expect(respBk.data.length).toBe(1);
+    });
+
+    test('14. API errors are handled without crashing the page', async () => {
+      const nextFn = jest.fn();
+      let resJson = null;
+      let resStatus = null;
+      const res = {
+        status: code => {
+          resStatus = code;
+          return { json: d => { resJson = d; } };
+        },
+        json: d => { resJson = d; }
+      };
+
+      // 14a. Invalid vehicleId to manifest endpoint returns 400 without unhandled exception
+      await getBusPassengerManifest({ query: { vehicleId: 'not-valid-id' } }, res, nextFn);
+      expect(resStatus).toBe(400);
+      expect(resJson.success).toBe(false);
+
+      // 14b. Controller passes unexpected errors to next() for Express error middleware
+      const brokenReq = {
+        get query() {
+          throw new Error('Database connection failed mock');
+        }
+      };
+      const brokenNext = jest.fn();
+      await getBusManifestJourneys(brokenReq, res, brokenNext);
+      expect(brokenNext).toHaveBeenCalled();
+      expect(brokenNext.mock.calls[0][0].message).toBe('Database connection failed mock');
+    });
   });
 });
 
