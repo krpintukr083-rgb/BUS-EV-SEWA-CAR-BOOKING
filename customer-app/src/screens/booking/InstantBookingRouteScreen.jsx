@@ -1,6 +1,17 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCustomerAuth } from '../../context/CustomerAuthContext';
 import { useBooking } from '../../context/BookingContext';
 import Header from '../../components/Header';
@@ -9,11 +20,30 @@ import Button from '../../components/Button';
 import { COLORS } from '../../constants/colors';
 
 const InstantBookingRouteScreen = ({ navigation, route }) => {
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 0);
   const { user } = useCustomerAuth();
   const { updateDraft, bookingDraft } = useBooking();
   const [pickupLocation, setPickupLocation] = useState('');
   const [dropLocation, setDropLocation] = useState('');
   const [passengerCount, setPassengerCount] = useState(1);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setIsKeyboardOpen(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setIsKeyboardOpen(false)
+    );
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const handleContinue = () => {
     if (!pickupLocation.trim() || !dropLocation.trim()) {
@@ -36,9 +66,17 @@ const InstantBookingRouteScreen = ({ navigation, route }) => {
   const decrement = () => setPassengerCount(prev => Math.max(1, prev - 1));
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={styles.container}
+    >
       <Header title="Instant Booking" onBack={() => navigation.goBack()} />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[styles.content, { paddingBottom: isKeyboardOpen ? 30 : 20 }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.introCard}>
           <Ionicons name="flash" size={25} color={COLORS.primary} />
           <View style={styles.introCopy}>
@@ -62,21 +100,23 @@ const InstantBookingRouteScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
         </View>
-
-        <View style={{ marginTop: 20 }}>
-          <Button 
-            title="Continue" 
-            onPress={handleContinue} 
-          />
-        </View>
       </ScrollView>
-    </View>
+
+      {/* Pinned Action Footer */}
+      <View style={[styles.footer, { paddingBottom: isKeyboardOpen ? 12 : Math.max(bottomInset, 14) }]}>
+        <Button 
+          title="Continue" 
+          onPress={handleContinue} 
+        />
+      </View>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
-  content: { padding: 16, paddingBottom: 32 },
+  scrollView: { flex: 1 },
+  content: { padding: 16, paddingBottom: 24 },
   introCard: { flexDirection: 'row', alignItems: 'center', padding: 14, backgroundColor: '#eff6ff', borderRadius: 12, marginBottom: 18 },
   introCopy: { flex: 1, marginLeft: 10 },
   title: { color: COLORS.darkNavy, fontSize: 16, fontWeight: '800' },
@@ -85,7 +125,19 @@ const styles = StyleSheet.create({
   counterLabel: { fontSize: 14, fontWeight: '700', color: COLORS.darkNavy },
   counterControls: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   counterBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: COLORS.primaryLight, justifyContent: 'center', alignItems: 'center' },
-  counterValue: { fontSize: 16, fontWeight: '800', color: COLORS.primary, width: 24, textAlign: 'center' }
+  counterValue: { fontSize: 16, fontWeight: '800', color: COLORS.primary, width: 24, textAlign: 'center' },
+  footer: {
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4
+  }
 });
 
 export default InstantBookingRouteScreen;

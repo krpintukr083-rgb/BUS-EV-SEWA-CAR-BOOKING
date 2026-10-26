@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
@@ -9,7 +9,10 @@ import {
   TextInput,
   Linking,
   ActivityIndicator,
-  Alert
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { customerService } from '../../services/customerService';
@@ -21,6 +24,7 @@ import { OFFICIAL_CONTACT } from '../../constants/contact';
 const CustomerSupportScreen = ({ navigation }) => {
   const [supportData, setSupportData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
 
   // New ticket state
   const [issueTopic, setIssueTopic] = useState('');
@@ -113,15 +117,37 @@ const CustomerSupportScreen = ({ navigation }) => {
     }
   };
 
-  const handleEmail = email => {
-    Linking.openURL(`mailto:${email || OFFICIAL_CONTACT.SUPPORT_EMAIL}`);
-  };
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setIsKeyboardOpen(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setIsKeyboardOpen(false)
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   return (
     <View style={styles.container}>
       <Header title="Customer Support" onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            isKeyboardOpen && { paddingBottom: 120 }
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
         {/* Support Hero Card */}
         <View style={styles.heroCard}>
           <View style={styles.heroIconBox}>
@@ -280,8 +306,9 @@ const CustomerSupportScreen = ({ navigation }) => {
           </View>
         </View>
       </ScrollView>
-    </View>
-  );
+    </KeyboardAvoidingView>
+  </View>
+);
 };
 
 const styles = StyleSheet.create({

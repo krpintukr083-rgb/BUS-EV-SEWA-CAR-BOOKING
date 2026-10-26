@@ -110,7 +110,7 @@ const ServerSettingsModal = ({ visible, onClose, onSaved }) => {
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             {/* Active URL Status Card */}
             <View style={styles.card}>
               <Text style={styles.cardLabel}>Currently Active API Endpoint:</Text>

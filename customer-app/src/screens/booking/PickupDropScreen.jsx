@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Keyboard,
   Alert
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +22,23 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const PickupDropScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { bookingDraft, updateDraft } = useBooking();
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setIsKeyboardOpen(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setIsKeyboardOpen(false)
+    );
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const [pickup, setPickup] = useState(
     bookingDraft.pickupLocation ||
@@ -85,11 +103,13 @@ const PickupDropScreen = ({ navigation }) => {
       <Header title="Pickup & Drop" onBack={() => navigation.goBack()} />
 
       <ScrollView
+        style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: 90 + Math.max(insets.bottom, 14) }
+          { paddingBottom: isKeyboardOpen ? 40 : 24 }
         ]}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       >
         {/* Selected Vehicle Card */}
         <View style={styles.vehicleSummaryCard}>
@@ -194,7 +214,7 @@ const PickupDropScreen = ({ navigation }) => {
       </ScrollView>
 
       {/* Footer */}
-      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 14) }]}>
+      <View style={[styles.footer, { paddingBottom: isKeyboardOpen ? 12 : Math.max(insets.bottom, 14) }]}>
         <Button
           title="Continue"
           onPress={handleContinue}
@@ -210,9 +230,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background
   },
+  scrollView: {
+    flex: 1
+  },
   scrollContent: {
     padding: 16,
-    paddingBottom: 100
+    paddingBottom: 24
   },
   vehicleSummaryCard: {
     backgroundColor: '#ffffff',
@@ -315,16 +338,16 @@ const styles = StyleSheet.create({
     lineHeight: 18
   },
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: '#ffffff',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
-    elevation: 8
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4
   }
 });
 

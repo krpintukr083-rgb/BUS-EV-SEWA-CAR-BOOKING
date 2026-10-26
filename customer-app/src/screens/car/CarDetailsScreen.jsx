@@ -7,7 +7,10 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   TextInput,
-  Alert
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,6 +29,23 @@ const CarDetailsScreen = ({ route, navigation }) => {
   const initialCar = bookingDraft.vehicle?._id === carId ? bookingDraft.vehicle : null;
   const [car, setCar] = useState(initialCar);
   const [loading, setLoading] = useState(!initialCar);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setIsKeyboardOpen(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setIsKeyboardOpen(false)
+    );
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     console.log("CAR route params:", route.params);
@@ -140,10 +160,21 @@ const CarDetailsScreen = ({ route, navigation }) => {
   const handleProceed = handleBookNow;
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={styles.container}
+    >
       <Header title="Car Details" onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 + bottomInset }]} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: isKeyboardOpen ? 40 : 24 }
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {/* Vehicle images from the selected vehicle */}
         <View style={styles.imageContainer}>
           <VehicleImageSlider vehicle={car} type="Car" imageStyle={styles.heroImage} />
@@ -286,7 +317,7 @@ const CarDetailsScreen = ({ route, navigation }) => {
       </ScrollView>
 
       {/* Bottom Action Footer */}
-      <View style={[styles.footer, { paddingBottom: bottomInset > 0 ? bottomInset + 8 : 14 }]}>
+      <View style={[styles.footer, { paddingBottom: isKeyboardOpen ? 12 : Math.max(bottomInset, 14) }]}>
         <View style={styles.footerFare}>
           <Text style={styles.totalLabel}>Payable Fare</Text>
           <Text style={styles.totalValue}>₹{car.fareRate}</Text>
@@ -296,7 +327,7 @@ const CarDetailsScreen = ({ route, navigation }) => {
           <Ionicons name="arrow-forward" size={16} color="#ffffff" />
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -305,9 +336,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background
   },
+  scrollView: {
+    flex: 1
+  },
   scrollContent: {
     padding: 16,
-    paddingBottom: 100
+    paddingBottom: 24
   },
   imageContainer: {
     position: 'relative',
@@ -479,16 +513,12 @@ const styles = StyleSheet.create({
     flex: 1
   },
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: '#ffffff',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
     elevation: 8,

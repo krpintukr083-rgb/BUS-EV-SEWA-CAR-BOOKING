@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,10 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,6 +26,23 @@ const BookingCancellationScreen = ({ route, navigation }) => {
   const [reason, setReason] = useState('Change of travel plan');
   const [customNote, setCustomNote] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setIsKeyboardOpen(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setIsKeyboardOpen(false)
+    );
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const cancellationReasons = [
     'Change of travel plan',
@@ -78,10 +98,21 @@ const BookingCancellationScreen = ({ route, navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={styles.container}
+    >
       <Header title="Booking Cancellation" onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 + bottomInset }]} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: isKeyboardOpen ? 40 : 24 }
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         {/* Warning Banner */}
         <View style={styles.warningBanner}>
           <Ionicons name="warning-outline" size={24} color="#b45309" />
@@ -180,7 +211,7 @@ const BookingCancellationScreen = ({ route, navigation }) => {
       </ScrollView>
 
       {/* Footer Actions */}
-      <View style={[styles.footer, { paddingBottom: bottomInset > 0 ? bottomInset + 8 : 14 }]}>
+      <View style={[styles.footer, { paddingBottom: isKeyboardOpen ? 12 : Math.max(bottomInset, 14) }]}>
         <Button
           title={loading ? 'Processing Cancellation...' : 'Confirm Cancellation'}
           onPress={handleConfirmCancellation}
@@ -189,7 +220,7 @@ const BookingCancellationScreen = ({ route, navigation }) => {
           style={{ backgroundColor: COLORS.danger }}
         />
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -198,9 +229,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background
   },
+  scrollView: {
+    flex: 1
+  },
   scrollContent: {
     padding: 16,
-    paddingBottom: 100
+    paddingBottom: 24
   },
   warningBanner: {
     flexDirection: 'row',
@@ -314,16 +348,16 @@ const styles = StyleSheet.create({
     lineHeight: 16
   },
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: '#ffffff',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
-    elevation: 8
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4
   }
 });
 

@@ -10,7 +10,8 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
-  Platform
+  Platform,
+  KeyboardAvoidingView
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -476,122 +477,137 @@ const CustomerProfileScreen = ({ navigation }) => {
 
       {/* Edit Profile Modal */}
       <Modal visible={showEditProfileModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
           <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Profile</Text>
-              <TouchableOpacity onPress={() => setShowEditProfileModal(false)}>
-                <Ionicons name="close" size={22} color="#64748b" />
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Edit Profile</Text>
+                <TouchableOpacity onPress={() => setShowEditProfileModal(false)}>
+                  <Ionicons name="close" size={22} color="#64748b" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.inputLabel}>Full Name</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="e.g. John Doe"
+              />
+
+              <Text style={styles.inputLabel}>Mobile Phone</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={editPhone}
+                onChangeText={setEditPhone}
+                placeholder="e.g. +919876543210"
+                keyboardType="phone-pad"
+              />
+
+              <Text style={styles.inputLabel}>Email Address</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={editEmail}
+                onChangeText={setEditEmail}
+                placeholder="e.g. customer@example.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+
+              <TouchableOpacity style={styles.modalBtn} onPress={handleSaveProfile} disabled={saving}>
+                {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.modalBtnText}>Save Profile</Text>}
               </TouchableOpacity>
-            </View>
-
-            <Text style={styles.inputLabel}>Full Name</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={editName}
-              onChangeText={setEditName}
-              placeholder="e.g. John Doe"
-            />
-
-            <Text style={styles.inputLabel}>Mobile Phone</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={editPhone}
-              onChangeText={setEditPhone}
-              placeholder="e.g. +919876543210"
-              keyboardType="phone-pad"
-            />
-
-            <Text style={styles.inputLabel}>Email Address</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={editEmail}
-              onChangeText={setEditEmail}
-              placeholder="e.g. customer@example.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-
-            <TouchableOpacity style={styles.modalBtn} onPress={handleSaveProfile} disabled={saving}>
-              {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.modalBtnText}>Save Profile</Text>}
-            </TouchableOpacity>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Change Login ID Modal */}
       <Modal visible={showLoginIdModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
           <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Change Login ID</Text>
-              <TouchableOpacity onPress={() => setShowLoginIdModal(false)}>
-                <Ionicons name="close" size={22} color="#64748b" />
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Change Login ID</Text>
+                <TouchableOpacity onPress={() => setShowLoginIdModal(false)}>
+                  <Ionicons name="close" size={22} color="#64748b" />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.modalDesc}>
+                Current Login ID: {customer?.email || customer?.phone}
+              </Text>
+
+              <Text style={styles.inputLabel}>New Email / Phone Number *</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={newLoginId}
+                onChangeText={setNewLoginId}
+                placeholder="e.g. new_email@example.com or +919876543210"
+                autoCapitalize="none"
+              />
+
+              <TouchableOpacity style={styles.modalBtn} onPress={handleSaveLoginId} disabled={saving}>
+                {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.modalBtnText}>Update Login ID</Text>}
               </TouchableOpacity>
-            </View>
-            <Text style={styles.modalDesc}>
-              Current Login ID: {customer?.email || customer?.phone}
-            </Text>
-
-            <Text style={styles.inputLabel}>New Email / Phone Number *</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={newLoginId}
-              onChangeText={setNewLoginId}
-              placeholder="e.g. new_email@example.com or +919876543210"
-              autoCapitalize="none"
-            />
-
-            <TouchableOpacity style={styles.modalBtn} onPress={handleSaveLoginId} disabled={saving}>
-              {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.modalBtnText}>Update Login ID</Text>}
-            </TouchableOpacity>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Change Password Modal */}
       <Modal visible={showPasswordModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
           <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Change Password</Text>
-              <TouchableOpacity onPress={() => setShowPasswordModal(false)}>
-                <Ionicons name="close" size={22} color="#64748b" />
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Change Password</Text>
+                <TouchableOpacity onPress={() => setShowPasswordModal(false)}>
+                  <Ionicons name="close" size={22} color="#64748b" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.inputLabel}>Current Password *</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                secureTextEntry
+                placeholder="Enter current password"
+              />
+
+              <Text style={styles.inputLabel}>New Password *</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+                placeholder="Enter new password (min 6 chars)"
+              />
+
+              <Text style={styles.inputLabel}>Confirm New Password *</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+                placeholder="Confirm new password"
+              />
+
+              <TouchableOpacity style={styles.modalBtn} onPress={handleSavePassword} disabled={saving}>
+                {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.modalBtnText}>Change Password</Text>}
               </TouchableOpacity>
-            </View>
-
-            <Text style={styles.inputLabel}>Current Password *</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={currentPassword}
-              onChangeText={setCurrentPassword}
-              secureTextEntry
-              placeholder="Enter current password"
-            />
-
-            <Text style={styles.inputLabel}>New Password *</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={newPassword}
-              onChangeText={setNewPassword}
-              secureTextEntry
-              placeholder="Enter new password (min 6 chars)"
-            />
-
-            <Text style={styles.inputLabel}>Confirm New Password *</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={confirmPassword}
-              onChangeText={setConfirmPassword}
-              secureTextEntry
-              placeholder="Confirm new password"
-            />
-
-            <TouchableOpacity style={styles.modalBtn} onPress={handleSavePassword} disabled={saving}>
-              {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.modalBtnText}>Change Password</Text>}
-            </TouchableOpacity>
+            </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
     </View>
@@ -815,7 +831,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     width: '100%',
-    maxWidth: 400
+    maxWidth: 400,
+    maxHeight: '85%'
   },
   photoPickerContent: {
     backgroundColor: '#ffffff',
