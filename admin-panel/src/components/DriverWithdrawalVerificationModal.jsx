@@ -266,31 +266,7 @@ const DriverWithdrawalVerificationModal = ({
           </button>
         </div>
 
-        {/* System Warnings & Flag Banners */}
-        {warnings && warnings.length > 0 && (
-          <div
-            style={{
-              padding: '12px 24px',
-              background: '#fffbeb',
-              borderBottom: '1px solid #fef3c7',
-              color: '#b45309',
-              fontSize: '0.83rem',
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: 10
-            }}
-          >
-            <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: 1, color: '#d97706' }} />
-            <div>
-              <div style={{ fontWeight: 600, marginBottom: 2 }}>Verification Flags & Action Required:</div>
-              <ul style={{ margin: 0, paddingLeft: 18 }}>
-                {warnings.map((w, idx) => (
-                  <li key={idx}>{w}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        )}
+
 
         {/* Navigation Tabs */}
         <div
@@ -522,8 +498,8 @@ const DriverWithdrawalVerificationModal = ({
                       </div>
                       <div>
                         <span style={{ fontSize: '0.75rem', color: '#64748b' }}>IFSC Code</span>
-                        <div style={{ fontWeight: 700, color: bankAndPayout.isIfscProvided ? '#0f172a' : '#dc2626' }}>
-                          {bankAndPayout.ifscDisplay}
+                        <div style={{ fontWeight: 700, color: bankAndPayout.isIfscProvided ? '#0f172a' : '#64748b' }}>
+                          {bankAndPayout.isIfscProvided ? (bankAndPayout.ifscCode || bankAndPayout.ifsc || bankAndPayout.bankIfsc) : 'Not provided'}
                         </div>
                       </div>
                     </>
@@ -591,56 +567,23 @@ const DriverWithdrawalVerificationModal = ({
                       </div>
                     </div>
 
-                    {/* IFSC SECTION - CRITICAL REQUIREMENT */}
-                    <div
-                      style={{
-                        background: bankAndPayout.isIfscProvided ? '#f0f9ff' : '#fef2f2',
-                        padding: 14,
-                        borderRadius: 8,
-                        border: `1px solid ${bankAndPayout.isIfscProvided ? '#bae6fd' : '#fecaca'}`
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '0.75rem', color: '#0369a1', fontWeight: 600, textTransform: 'uppercase' }}>
-                          IFSC Code
-                        </span>
-                        {bankAndPayout.isIfscProvided && (
-                          <span
-                            style={{
-                              fontSize: '0.68rem',
-                              padding: '2px 6px',
-                              borderRadius: 4,
-                              fontWeight: 700,
-                              background: bankAndPayout.isValidIfscFormat ? '#dcfce7' : '#fee2e2',
-                              color: bankAndPayout.isValidIfscFormat ? '#15803d' : '#b91c1c'
-                            }}
-                          >
-                            {bankAndPayout.isValidIfscFormat ? 'Standard Indian IFSC' : 'Invalid IFSC Format'}
-                          </span>
-                        )}
-                      </div>
+                    {/* IFSC SECTION */}
+                    <div style={{ background: '#f8fafc', padding: 14, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                      <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase' }}>
+                        IFSC Code
+                      </span>
                       <div
                         style={{
-                          fontWeight: 800,
-                          fontSize: '1.15rem',
-                          color: !bankAndPayout.isIfscProvided || !bankAndPayout.isValidIfscFormat ? '#dc2626' : '#0f172a',
+                          fontWeight: 700,
+                          fontSize: '1rem',
+                          color: bankAndPayout.isIfscProvided ? '#0f172a' : '#64748b',
                           marginTop: 4,
                           letterSpacing: '0.05em',
                           fontFamily: 'monospace'
                         }}
                       >
-                        {bankAndPayout.ifscDisplay}
+                        {bankAndPayout.isIfscProvided ? (bankAndPayout.ifscCode || bankAndPayout.ifsc || bankAndPayout.bankIfsc) : 'Not provided'}
                       </div>
-                      {!bankAndPayout.isIfscProvided && (
-                        <div style={{ fontSize: '0.72rem', color: '#dc2626', marginTop: 4 }}>
-                          Flag: Bank details incomplete. Super admin must verify IFSC before approving.
-                        </div>
-                      )}
-                      {bankAndPayout.isIfscProvided && !bankAndPayout.isValidIfscFormat && (
-                        <div style={{ fontSize: '0.72rem', color: '#b91c1c', marginTop: 4, fontWeight: 600 }}>
-                          Warning: Invalid IFSC format. Value does not match standard 11-character Indian IFSC format.
-                        </div>
-                      )}
                     </div>
 
                     <div style={{ background: '#f8fafc', padding: 14, borderRadius: 8, border: '1px solid #e2e8f0' }}>

@@ -156,21 +156,16 @@ const WithdrawalManagement = () => {
                     {item.payoutMethod === 'Bank' && (() => {
                       const ifscInfo = extractIfscInfo(item.payoutDetails);
                       const isMissing = !ifscInfo.isIfscProvided;
-                      const isInvalid = ifscInfo.isIfscProvided && !ifscInfo.isValidIfscFormat;
-                      const textColor = isMissing ? '#ef4444' : isInvalid ? '#dc2626' : '#0284c7';
-                      const displayText = item.payoutDetails?.tableIfscDisplay || ifscInfo.tableIfscDisplay;
                       return (
                         <div
                           style={{
                             fontSize: '.7rem',
-                            color: textColor,
-                            fontWeight: isInvalid ? 700 : 500,
+                            color: '#64748b',
                             fontFamily: 'monospace',
                             marginTop: 2
                           }}
-                          title={isInvalid ? 'Value provided does not match 11-character Indian IFSC format' : undefined}
                         >
-                          {displayText}
+                          {isMissing ? 'IFSC: Not provided' : `IFSC: ${ifscInfo.ifscCode}`}
                         </div>
                       );
                     })()}

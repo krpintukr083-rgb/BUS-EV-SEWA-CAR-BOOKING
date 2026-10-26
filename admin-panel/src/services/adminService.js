@@ -42,11 +42,7 @@ export const extractIfscInfo = (payoutDetails = {}) => {
 
   let tableDisplay = 'IFSC: Not provided';
   if (isProvided) {
-    if (isValidFormat) {
-      tableDisplay = `IFSC: ${rawIfsc}`;
-    } else {
-      tableDisplay = `Invalid IFSC: ${rawIfsc}`;
-    }
+    tableDisplay = `IFSC: ${rawIfsc}`;
   }
 
   return {
@@ -57,7 +53,7 @@ export const extractIfscInfo = (payoutDetails = {}) => {
     isIfscProvided: isProvided,
     isValidIfscFormat: isValidFormat,
     ifscStatus: !isProvided ? 'missing' : isValidFormat ? 'valid' : 'invalid',
-    ifscDisplay: isProvided ? rawIfsc : 'IFSC not provided',
+    ifscDisplay: isProvided ? rawIfsc : 'Not provided',
     tableIfscDisplay: tableDisplay,
     ifscFormatLabel: !isProvided ? 'Not Provided' : isValidFormat ? 'Standard Indian IFSC' : 'Invalid IFSC Format'
   };
@@ -431,7 +427,7 @@ export const adminService = {
               bankName: rawDetails.bankName || driverPayout.bankName || '',
               branch: (rawDetails.branch && rawDetails.branch.toUpperCase() !== rawIfsc ? rawDetails.branch : '') || driverPayout.branch || '',
               ifscCode: rawIfsc,
-              ifscDisplay: isIfscMissing ? 'IFSC not provided' : rawIfsc,
+              ifscDisplay: isIfscMissing ? 'Not provided' : rawIfsc,
               tableIfscDisplay: ifscInfo.tableIfscDisplay,
               isIfscProvided: ifscInfo.isIfscProvided,
               isStandardIndianFormat: isValidIfscFormat,
