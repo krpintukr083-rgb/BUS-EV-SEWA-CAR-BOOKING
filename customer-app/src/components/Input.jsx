@@ -2,7 +2,25 @@ import React from 'react';
 import { View, Text, TextInput, StyleSheet, TouchableOpacity } from 'react-native';
 import { COLORS } from '../constants/colors';
 
-const Input = ({ label, placeholder, value, onChangeText, secureTextEntry, keyboardType, autoCapitalize, multiline, numberOfLines, style, icon, rightIcon, onRightIconPress }) => {
+const Input = ({
+  label,
+  placeholder,
+  value,
+  onChangeText,
+  secureTextEntry,
+  keyboardType,
+  autoCapitalize,
+  multiline,
+  numberOfLines,
+  style,
+  icon,
+  rightIcon,
+  onRightIconPress,
+  error,
+  onFocus,
+  onBlur,
+  ...props
+}) => {
   return (
     <View style={[styles.container, style]}>
       {label && <Text style={styles.label}>{label}</Text>}
@@ -12,7 +30,8 @@ const Input = ({ label, placeholder, value, onChangeText, secureTextEntry, keybo
           style={[
             styles.input,
             icon ? { paddingLeft: 40 } : null,
-            rightIcon ? { paddingRight: 40 } : null
+            rightIcon ? { paddingRight: 40 } : null,
+            error ? styles.inputError : null
           ]}
           placeholder={placeholder}
           placeholderTextColor="#94a3b8"
@@ -23,6 +42,9 @@ const Input = ({ label, placeholder, value, onChangeText, secureTextEntry, keybo
           autoCapitalize={autoCapitalize}
           multiline={multiline}
           numberOfLines={numberOfLines}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          {...props}
         />
         {rightIcon && (
           <TouchableOpacity 
@@ -34,6 +56,7 @@ const Input = ({ label, placeholder, value, onChangeText, secureTextEntry, keybo
           </TouchableOpacity>
         )}
       </View>
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>
   );
 };
@@ -72,6 +95,15 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 15,
     color: COLORS.textPrimary
+  },
+  inputError: {
+    borderColor: '#ef4444'
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: '500'
   }
 });
 

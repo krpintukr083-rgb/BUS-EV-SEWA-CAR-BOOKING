@@ -3,7 +3,7 @@
     "name": "YatraSewanp.com",
     "slug": "travelease-customer-app",
     "scheme": "com.travelease.customer",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -21,7 +21,8 @@
         "backgroundColor": "#FFFFFF"
       },
       "package": "com.travelease.customer",
-      "versionCode": 6
+      "versionCode": 7,
+      "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
       "favicon": "./assets/favicon.png"

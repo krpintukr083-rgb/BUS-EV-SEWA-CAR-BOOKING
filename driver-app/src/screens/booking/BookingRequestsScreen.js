@@ -1,5 +1,24 @@
-import React, { useState, useCallback, useRef } from 'react';
-import { AppState, View, Text, StyleSheet, FlatList, RefreshControl, Alert, Modal, TouchableOpacity, TextInput } from 'react-native';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import {
+  AppState,
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  RefreshControl,
+  Alert,
+  Modal,
+  TouchableOpacity,
+  TextInput,
+  ScrollView,
+  KeyboardAvoidingView,
+  Keyboard,
+  TouchableWithoutFeedback,
+  Platform,
+  ActivityIndicator,
+  useWindowDimensions,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useFocusEffect } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
@@ -32,9 +51,41 @@ const BookingRequestsScreen = ({ route, navigation }) => {
   const [selectedBookingId, setSelectedBookingId] = useState(null);
   const [selectedReason, setSelectedReason] = useState(REJECTION_REASONS[0]);
   const [customReason, setCustomReason] = useState('');
+  const [rejectLoading, setRejectLoading] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
+  const isWeb = Platform.OS === 'web';
+  const scrollRef = useRef(null);
   const latestRequestIdRef = useRef(0);
   const screenFocusedRef = useRef(false);
   const hiddenRequestIdsRef = useRef(new Set());
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      (e) => {
+        setKeyboardVisible(true);
+        if (e?.endCoordinates?.height) {
+          setKeyboardHeight(e.endCoordinates.height);
+        }
+      }
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => {
+        setKeyboardVisible(false);
+        setKeyboardHeight(0);
+      }
+    );
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const loadRequests = useCallback(async () => {
     const requestId = ++latestRequestIdRef.current;
@@ -190,23 +241,35 @@ const BookingRequestsScreen = ({ route, navigation }) => {
 
   const promptReject = (bookingId) => {
     setSelectedBookingId(bookingId);
+    setSelectedReason(REJECTION_REASONS[0]);
+    setCustomReason('');
     setRejectModalVisible(true);
   };
 
+  const closeRejectModal = () => {
+    Keyboard.dismiss();
+    setRejectModalVisible(false);
+    setSelectedBookingId(null);
+  };
+
   const confirmReject = async () => {
-    if (!selectedBookingId) return;
-    const finalReason = selectedReason === 'Other personal reason' && customReason ? customReason : selectedReason;
+    if (!selectedBookingId || rejectLoading) return;
+    const finalReason = selectedReason === 'Other personal reason' && customReason.trim()
+      ? customReason.trim()
+      : selectedReason;
 
     try {
+      setRejectLoading(true);
       const res = await driverService.rejectRide(selectedBookingId, finalReason);
       if (res.data?.success) {
         hiddenRequestIdsRef.current.add(String(selectedBookingId));
         setRequests((prev) => prev.filter((r) => String(r._id) !== String(selectedBookingId)));
-        setRejectModalVisible(false);
-        setSelectedBookingId(null);
+        closeRejectModal();
       }
     } catch (e) {
       Alert.alert('Reject Failed', e.response?.data?.message || 'Could not reject request.');
+    } finally {
+      setRejectLoading(false);
     }
   };
 
@@ -253,46 +316,119 @@ const BookingRequestsScreen = ({ route, navigation }) => {
       />
 
       {/* Reject Modal */}
-      <Modal visible={rejectModalVisible} transparent animationType="slide" onRequestClose={() => setRejectModalVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
+      <Modal
+        visible={rejectModalVisible}
+        transparent
+        animationType={isWeb ? 'fade' : 'slide'}
+        statusBarTranslucent
+        onRequestClose={closeRejectModal}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <TouchableWithoutFeedback onPress={closeRejectModal} accessible={false}>
+            <View style={StyleSheet.absoluteFillObject} />
+          </TouchableWithoutFeedback>
+
+          <View
+            style={[
+              styles.modalCard,
+              {
+                maxHeight: isWeb
+                  ? Math.min(windowHeight * 0.85, 600)
+                  : keyboardVisible && keyboardHeight > 0
+                    ? Math.max(260, windowHeight - keyboardHeight - (Platform.OS === 'android' ? 24 : 40))
+                    : windowHeight * 0.85,
+              },
+            ]}
+            onStartShouldSetResponder={() => true}
+          >
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Rejection Reason</Text>
-              <TouchableOpacity onPress={() => setRejectModalVisible(false)}>
+              <View style={styles.modalTitleRow}>
+                <Ionicons name="close-circle-outline" size={22} color={COLORS.danger} style={styles.modalTitleIcon} />
+                <Text style={styles.modalTitle}>Select Rejection Reason</Text>
+              </View>
+              <TouchableOpacity
+                onPress={closeRejectModal}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                style={styles.closeBtn}
+              >
                 <Ionicons name="close" size={22} color={COLORS.textMuted} />
               </TouchableOpacity>
             </View>
 
-            {REJECTION_REASONS.map((reason, idx) => (
-              <TouchableOpacity
-                key={idx}
-                style={[styles.reasonItem, selectedReason === reason && styles.selectedReasonItem]}
-                onPress={() => setSelectedReason(reason)}
-              >
-                <Ionicons
-                  name={selectedReason === reason ? 'radio-button-on' : 'radio-button-off'}
-                  size={18}
-                  color={selectedReason === reason ? COLORS.primary : COLORS.textMuted}
+            <ScrollView
+              ref={scrollRef}
+              style={styles.modalScrollBody}
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag"
+              showsVerticalScrollIndicator={true}
+              bounces={false}
+            >
+              {REJECTION_REASONS.map((reason, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={[styles.reasonItem, selectedReason === reason && styles.selectedReasonItem]}
+                  onPress={() => setSelectedReason(reason)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name={selectedReason === reason ? 'radio-button-on' : 'radio-button-off'}
+                    size={18}
+                    color={selectedReason === reason ? COLORS.primary : COLORS.textMuted}
+                  />
+                  <Text style={[styles.reasonText, selectedReason === reason && styles.selectedReasonText]}>
+                    {reason}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+
+              {selectedReason === 'Other personal reason' && (
+                <TextInput
+                  style={styles.customInput}
+                  placeholder="Specify rejection reason..."
+                  placeholderTextColor={COLORS.textMuted}
+                  value={customReason}
+                  onChangeText={setCustomReason}
+                  multiline={false}
+                  returnKeyType="done"
+                  onSubmitEditing={Keyboard.dismiss}
+                  onFocus={() => {
+                    setTimeout(() => {
+                      scrollRef.current?.scrollToEnd({ animated: true });
+                    }, 120);
+                  }}
                 />
-                <Text style={styles.reasonText}>{reason}</Text>
+              )}
+            </ScrollView>
+
+            <View
+              style={[
+                styles.modalFooter,
+                {
+                  paddingBottom: isWeb
+                    ? SPACING.md
+                    : Math.max(insets.bottom, SPACING.md),
+                },
+              ]}
+            >
+              <TouchableOpacity
+                style={[styles.confirmRejectBtn, rejectLoading && { opacity: 0.7 }]}
+                onPress={confirmReject}
+                disabled={rejectLoading}
+                activeOpacity={0.8}
+              >
+                {rejectLoading ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={styles.confirmRejectText}>Confirm Rejection</Text>
+                )}
               </TouchableOpacity>
-            ))}
-
-            {selectedReason === 'Other personal reason' && (
-              <TextInput
-                style={styles.customInput}
-                placeholder="Specify rejection reason..."
-                placeholderTextColor={COLORS.textMuted}
-                value={customReason}
-                onChangeText={setCustomReason}
-              />
-            )}
-
-            <TouchableOpacity style={styles.confirmRejectBtn} onPress={confirmReject}>
-              <Text style={styles.confirmRejectText}>Confirm Rejection</Text>
-            </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -350,27 +486,60 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'flex-end'
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: Platform.OS === 'web' ? 'center' : 'flex-end',
+    alignItems: 'center',
+    padding: Platform.OS === 'web' ? SPACING.lg : 0,
   },
   modalCard: {
+    width: Platform.OS === 'web' ? '92%' : '100%',
+    maxWidth: 480,
     backgroundColor: COLORS.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: SPACING.xl,
+    borderBottomLeftRadius: Platform.OS === 'web' ? 24 : 0,
+    borderBottomRightRadius: Platform.OS === 'web' ? 24 : 0,
     borderWidth: 1,
-    borderColor: COLORS.border
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 10,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.lg
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.lg,
+    paddingBottom: SPACING.md,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  modalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  modalTitleIcon: {
+    marginRight: 8,
   },
   modalTitle: {
     fontSize: 16,
     fontWeight: '800',
-    color: COLORS.textPrimary
+    color: COLORS.textPrimary,
+  },
+  closeBtn: {
+    padding: 4,
+  },
+  modalScrollBody: {
+    flexShrink: 1,
+  },
+  modalScrollContent: {
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.md,
+    paddingBottom: SPACING.sm,
   },
   reasonItem: {
     flexDirection: 'row',
@@ -380,16 +549,22 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.md,
     borderRadius: 10,
-    marginBottom: SPACING.sm
+    marginBottom: SPACING.sm,
   },
   selectedReasonItem: {
     borderWidth: 1.5,
-    borderColor: COLORS.primary
+    borderColor: COLORS.primary,
+    backgroundColor: 'rgba(10, 102, 194, 0.12)',
   },
   reasonText: {
     fontSize: 13,
     color: COLORS.textPrimary,
-    fontWeight: '600'
+    fontWeight: '600',
+    flex: 1,
+  },
+  selectedReasonText: {
+    color: COLORS.primary,
+    fontWeight: '700',
   },
   customInput: {
     backgroundColor: COLORS.surfaceLight,
@@ -397,20 +572,29 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     color: COLORS.textPrimary,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    marginBottom: SPACING.md
+    borderColor: COLORS.primary,
+    marginBottom: SPACING.sm,
+    fontSize: 13,
+  },
+  modalFooter: {
+    paddingHorizontal: SPACING.xl,
+    paddingTop: SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    backgroundColor: COLORS.surface,
   },
   confirmRejectBtn: {
     backgroundColor: COLORS.danger,
     borderRadius: 12,
     paddingVertical: SPACING.md,
     alignItems: 'center',
-    marginTop: SPACING.sm
+    justifyContent: 'center',
+    minHeight: 48,
   },
   confirmRejectText: {
     color: '#FFF',
     fontSize: 14,
-    fontWeight: '800'
+    fontWeight: '800',
   }
 });
 

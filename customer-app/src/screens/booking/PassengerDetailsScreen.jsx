@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Alert
 } from 'react-native';
@@ -21,6 +22,42 @@ const PassengerDetailsScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const bottomInset = Math.max(insets.bottom, 0);
   const { bookingDraft, updateDraft } = useBooking();
+  const scrollViewRef = useRef(null);
+  const cardLayoutsRef = useRef({});
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+
+  useEffect(() => {
+    const showSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setIsKeyboardOpen(true)
+    );
+    const hideSub = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setIsKeyboardOpen(false)
+    );
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const handleCardLayout = (index, event) => {
+    if (event?.nativeEvent?.layout?.y !== undefined) {
+      cardLayoutsRef.current[index] = event.nativeEvent.layout.y;
+    }
+  };
+
+  const scrollToInput = (index, fieldOffset = 0) => {
+    const cardY = cardLayoutsRef.current[index] ?? (index * 280 + 80);
+    const targetY = Math.max(0, cardY + fieldOffset - 16);
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: targetY,
+        animated: true,
+      });
+    }, 100);
+  };
 
   const maxAllowedPassengers = bookingDraft.selectedSeats && bookingDraft.selectedSeats.length > 0
     ? bookingDraft.selectedSeats.length
@@ -119,10 +156,18 @@ const PassengerDetailsScreen = ({ navigation }) => {
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.container}
+      keyboardVerticalOffset={0}
     >
       <Header title="Passenger Details" onBack={() => navigation.goBack()} />
 
-      <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 + bottomInset }]} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}
+      >
         {/* Info Header */}
         <View style={styles.topInfo}>
           <Ionicons name="person-circle-outline" size={24} color={serviceColor} />
@@ -143,7 +188,11 @@ const PassengerDetailsScreen = ({ navigation }) => {
 
         {/* Passenger Cards */}
         {passengers.map((p, index) => (
-          <View key={index} style={styles.passengerCard}>
+          <View
+            key={index}
+            style={styles.passengerCard}
+            onLayout={(e) => handleCardLayout(index, e)}
+          >
             <View style={styles.cardHeader}>
               <View style={styles.indexBadge}>
                 <Text style={styles.indexBadgeText}>Passenger {index + 1}</Text>
@@ -171,6 +220,7 @@ const PassengerDetailsScreen = ({ navigation }) => {
                 placeholder="e.g. Ramesh Kumar"
                 value={p.name}
                 onChangeText={v => updatePassengerField(index, 'name', v)}
+                onFocus={() => scrollToInput(index, 0)}
                 error={errors[`${index}_name`]}
               />
             </View>
@@ -184,6 +234,7 @@ const PassengerDetailsScreen = ({ navigation }) => {
                 maxLength={10}
                 value={p.phone}
                 onChangeText={v => updatePassengerField(index, 'phone', v)}
+                onFocus={() => scrollToInput(index, 72)}
                 error={errors[`${index}_phone`]}
               />
             </View>
@@ -198,6 +249,7 @@ const PassengerDetailsScreen = ({ navigation }) => {
                   maxLength={3}
                   value={p.age ? String(p.age) : ''}
                   onChangeText={v => updatePassengerField(index, 'age', v)}
+                  onFocus={() => scrollToInput(index, 144)}
                   error={errors[`${index}_age`]}
                 />
               </View>
@@ -239,7 +291,16 @@ const PassengerDetailsScreen = ({ navigation }) => {
       </ScrollView>
 
       {/* Continue Footer */}
-      <View style={[styles.footer, { paddingBottom: bottomInset > 0 ? bottomInset + 8 : 14 }]}>
+      <View
+        style={[
+          styles.footer,
+          {
+            paddingBottom: isKeyboardOpen
+              ? 12
+              : Math.max(bottomInset, 14),
+          },
+        ]}
+      >
         <Button
           title="Continue to Fare Summary"
           onPress={handleContinue}
@@ -255,9 +316,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background
   },
+  scrollView: {
+    flex: 1
+  },
   scrollContent: {
     padding: 16,
-    paddingBottom: 100
+    paddingBottom: 24
   },
   topInfo: {
     flexDirection: 'row',
@@ -355,15 +419,15 @@ const styles = StyleSheet.create({
     color: COLORS.textSecondary
   },
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: '#ffffff',
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingTop: 12,
     borderTopWidth: 1,
     borderTopColor: COLORS.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
     elevation: 8
   },
   errorBanner: {

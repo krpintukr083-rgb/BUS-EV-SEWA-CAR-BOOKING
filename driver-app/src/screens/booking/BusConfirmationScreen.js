@@ -11,6 +11,7 @@ import {
   Modal,
   TextInput,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -647,9 +648,13 @@ export default function BusConfirmationScreen({ navigation, route }) {
         visible={rejectModalVisible}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() => setRejectModalVisible(false)}
       >
-        <View style={styles.modalBackdrop}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalBackdrop}
+        >
           <View style={styles.rejectModalCard}>
             <Text style={styles.modalTitle}>{t('rejectBooking')}</Text>
             <Text style={styles.modalSub}>
@@ -681,7 +686,7 @@ export default function BusConfirmationScreen({ navigation, route }) {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -1002,6 +1007,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.7)',
     justifyContent: 'center',
+    alignItems: 'center',
     padding: SPACING.l,
   },
   rejectModalCard: {
@@ -1010,6 +1016,8 @@ const styles = StyleSheet.create({
     padding: SPACING.l,
     borderWidth: 1,
     borderColor: COLORS.border,
+    width: '100%',
+    maxWidth: 440,
   },
   modalTitle: {
     fontSize: 18,
