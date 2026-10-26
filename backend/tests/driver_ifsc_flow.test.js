@@ -347,4 +347,246 @@ describe('Driver IFSC Code End-to-End Persistence and Verification Flow', () => 
     expect(updatedDriverA.payoutMethods.ifscCode).toBe('SBIN0001234');
     expect(updatedDriverA.payoutMethods.bankName).toBe('State Bank of India');
   });
+
+  describe('Withdrawal List vs Verification API IFSC Consistency & Format Validation', () => {
+    let testDriverUser, testDriver;
+    let validWdr, invalidWdr, missingWdr, legacyValidWdr, branchOnlyWdr;
+
+    beforeAll(async () => {
+      const suffix = Date.now() + 100;
+      testDriverUser = await User.create({
+        name: 'Consistency Test Driver',
+        email: `driver-consist-${suffix}@platform.com`,
+        phone: `989${String(suffix).slice(-7)}`,
+        password: 'Password123!',
+        role: 'driver',
+        status: 'Active'
+      });
+
+      testDriver = await Driver.create({
+        user: testDriverUser._id,
+        name: 'Consistency Test Driver',
+        phone: testDriverUser.phone,
+        mobileNumber: testDriverUser.phone,
+        drivingLicenceNumber: `DL-CONSIST-${suffix}`,
+        drivingLicenceStatus: 'Approved',
+        walletBalance: 50000,
+        totalEarnings: 60000
+      });
+
+      // 1. Valid IFSC
+      validWdr = await Withdrawal.create({
+        driver: testDriver._id,
+        user: testDriverUser._id,
+        amount: 500,
+        payoutMethod: 'Bank',
+        referenceId: `WDR-VALID-${suffix}`,
+        payoutDetails: {
+          bankName: 'SBI',
+          accountNumber: '123456789012',
+          accountHolderName: 'Consistency Driver',
+          ifscCode: 'SBIN0001234',
+          branch: 'Main Branch'
+        },
+        status: 'Pending'
+      });
+
+      // 2. Invalid non-empty IFSC (e.g. SYC-827272)
+      invalidWdr = await Withdrawal.create({
+        driver: testDriver._id,
+        user: testDriverUser._id,
+        amount: 108,
+        payoutMethod: 'Bank',
+        referenceId: `WDR-1792998317406-${suffix}`,
+        payoutDetails: {
+          bankName: 'Jehej',
+          accountNumber: '987654321098',
+          accountHolderName: 'Hshehh',
+          branch: 'SYC-827272'
+        },
+        status: 'Pending'
+      });
+
+      // 3. Missing IFSC (empty ifsc and branch)
+      missingWdr = await Withdrawal.create({
+        driver: testDriver._id,
+        user: testDriverUser._id,
+        amount: 300,
+        payoutMethod: 'Bank',
+        referenceId: `WDR-MISSING-${suffix}`,
+        payoutDetails: {
+          bankName: 'Axis Bank',
+          accountNumber: '111122223333',
+          accountHolderName: 'Consistency Driver',
+          ifscCode: '',
+          branch: ''
+        },
+        status: 'Pending'
+      });
+
+      // 4. Legacy branch containing a valid IFSC (e.g. HDFC0001234)
+      legacyValidWdr = await Withdrawal.create({
+        driver: testDriver._id,
+        user: testDriverUser._id,
+        amount: 400,
+        payoutMethod: 'Bank',
+        referenceId: `WDR-LEGACY-${suffix}`,
+        payoutDetails: {
+          bankName: 'HDFC Bank',
+          accountNumber: '444455556666',
+          accountHolderName: 'Consistency Driver',
+          branch: 'HDFC0001234'
+        },
+        status: 'Pending'
+      });
+
+      // 5. Branch name only (e.g. 'Connaught Place Branch')
+      branchOnlyWdr = await Withdrawal.create({
+        driver: testDriver._id,
+        user: testDriverUser._id,
+        amount: 600,
+        payoutMethod: 'Bank',
+        referenceId: `WDR-BRANCHONLY-${suffix}`,
+        payoutDetails: {
+          bankName: 'ICICI Bank',
+          accountNumber: '777788889999',
+          accountHolderName: 'Consistency Driver',
+          branch: 'Connaught Place Branch'
+        },
+        status: 'Pending'
+      });
+    });
+
+    afterAll(async () => {
+      if (testDriver) await Withdrawal.deleteMany({ driver: testDriver._id });
+      if (testDriver) await Driver.deleteOne({ _id: testDriver._id });
+      if (testDriverUser) await User.deleteOne({ _id: testDriverUser._id });
+    });
+
+    test('1. Valid IFSC appears in both list and verification APIs with matching driver and values', async () => {
+      const listRes = await request(app)
+        .get('/api/admin/withdrawals')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(listRes.status).toBe(200);
+      const listItem = listRes.body.data.find(w => String(w._id) === String(validWdr._id));
+      expect(listItem).toBeDefined();
+      expect(listItem.driver._id.toString()).toBe(testDriver._id.toString());
+      expect(listItem.payoutDetails.ifscCode).toBe('SBIN0001234');
+      expect(listItem.payoutDetails.isValidIfscFormat).toBe(true);
+      expect(listItem.payoutDetails.isIfscProvided).toBe(true);
+      expect(listItem.payoutDetails.tableIfscDisplay).toBe('IFSC: SBIN0001234');
+
+      const verifyRes = await request(app)
+        .get(`/api/admin/withdrawals/${validWdr._id}/verification-details`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(verifyRes.status).toBe(200);
+      const { bankAndPayout, driver: fetchedDriver } = verifyRes.body.data;
+      expect(fetchedDriver._id.toString()).toBe(testDriver._id.toString());
+      expect(bankAndPayout.ifscCode).toBe('SBIN0001234');
+      expect(bankAndPayout.ifscDisplay).toBe('SBIN0001234');
+      expect(bankAndPayout.tableIfscDisplay).toBe('IFSC: SBIN0001234');
+      expect(bankAndPayout.isValidIfscFormat).toBe(true);
+      expect(bankAndPayout.isIfscProvided).toBe(true);
+    });
+
+    test('2. Invalid non-empty IFSC is shown as invalid, not missing in both list and verification APIs', async () => {
+      const listRes = await request(app)
+        .get('/api/admin/withdrawals')
+        .set('Authorization', `Bearer ${adminToken}`);
+      const listItem = listRes.body.data.find(w => String(w._id) === String(invalidWdr._id));
+      expect(listItem).toBeDefined();
+      expect(listItem.payoutDetails.ifscCode).toBe('SYC-827272');
+      expect(listItem.payoutDetails.isIfscProvided).toBe(true);
+      expect(listItem.payoutDetails.isValidIfscFormat).toBe(false);
+      expect(listItem.payoutDetails.tableIfscDisplay).toBe('Invalid IFSC: SYC-827272');
+
+      const verifyRes = await request(app)
+        .get(`/api/admin/withdrawals/${invalidWdr._id}/verification-details`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(verifyRes.status).toBe(200);
+      const { bankAndPayout, warnings } = verifyRes.body.data;
+      expect(bankAndPayout.ifscCode).toBe('SYC-827272');
+      expect(bankAndPayout.isIfscProvided).toBe(true);
+      expect(bankAndPayout.isValidIfscFormat).toBe(false);
+      expect(bankAndPayout.tableIfscDisplay).toBe('Invalid IFSC: SYC-827272');
+      expect(warnings.some(w => w.includes('IFSC code format is invalid'))).toBe(true);
+      expect(warnings.some(w => w.includes('IFSC code is not provided'))).toBe(false);
+    });
+
+    test('3. Missing IFSC remains marked missing in both list and verification APIs', async () => {
+      const listRes = await request(app)
+        .get('/api/admin/withdrawals')
+        .set('Authorization', `Bearer ${adminToken}`);
+      const listItem = listRes.body.data.find(w => String(w._id) === String(missingWdr._id));
+      expect(listItem).toBeDefined();
+      expect(listItem.payoutDetails.ifscCode).toBe('');
+      expect(listItem.payoutDetails.isIfscProvided).toBe(false);
+      expect(listItem.payoutDetails.isValidIfscFormat).toBe(false);
+      expect(listItem.payoutDetails.tableIfscDisplay).toBe('IFSC: Not provided');
+
+      const verifyRes = await request(app)
+        .get(`/api/admin/withdrawals/${missingWdr._id}/verification-details`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(verifyRes.status).toBe(200);
+      const { bankAndPayout, warnings } = verifyRes.body.data;
+      expect(bankAndPayout.ifscCode).toBe('');
+      expect(bankAndPayout.isIfscProvided).toBe(false);
+      expect(bankAndPayout.ifscDisplay).toBe('IFSC not provided');
+      expect(bankAndPayout.tableIfscDisplay).toBe('IFSC: Not provided');
+      expect(warnings.some(w => w.includes('IFSC code is not provided'))).toBe(true);
+    });
+
+    test('4. Legacy branch containing a valid IFSC is normalized safely', async () => {
+      const listRes = await request(app)
+        .get('/api/admin/withdrawals')
+        .set('Authorization', `Bearer ${adminToken}`);
+      const listItem = listRes.body.data.find(w => String(w._id) === String(legacyValidWdr._id));
+      expect(listItem).toBeDefined();
+      expect(listItem.payoutDetails.ifscCode).toBe('HDFC0001234');
+      expect(listItem.payoutDetails.isValidIfscFormat).toBe(true);
+      expect(listItem.payoutDetails.tableIfscDisplay).toBe('IFSC: HDFC0001234');
+
+      const verifyRes = await request(app)
+        .get(`/api/admin/withdrawals/${legacyValidWdr._id}/verification-details`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(verifyRes.status).toBe(200);
+      expect(verifyRes.body.data.bankAndPayout.ifscCode).toBe('HDFC0001234');
+      expect(verifyRes.body.data.bankAndPayout.isValidIfscFormat).toBe(true);
+    });
+
+    test('5. Branch name is not misclassified as IFSC', async () => {
+      const listRes = await request(app)
+        .get('/api/admin/withdrawals')
+        .set('Authorization', `Bearer ${adminToken}`);
+      const listItem = listRes.body.data.find(w => String(w._id) === String(branchOnlyWdr._id));
+      expect(listItem).toBeDefined();
+      expect(listItem.payoutDetails.ifscCode).toBe('');
+      expect(listItem.payoutDetails.isIfscProvided).toBe(false);
+      expect(listItem.payoutDetails.tableIfscDisplay).toBe('IFSC: Not provided');
+
+      const verifyRes = await request(app)
+        .get(`/api/admin/withdrawals/${branchOnlyWdr._id}/verification-details`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(verifyRes.status).toBe(200);
+      expect(verifyRes.body.data.bankAndPayout.ifscCode).toBe('');
+      expect(verifyRes.body.data.bankAndPayout.isIfscProvided).toBe(false);
+      expect(verifyRes.body.data.bankAndPayout.tableIfscDisplay).toBe('IFSC: Not provided');
+    });
+
+    test('6. The exact same request and driver are used in both APIs', async () => {
+      const listRes = await request(app)
+        .get('/api/admin/withdrawals')
+        .set('Authorization', `Bearer ${adminToken}`);
+      const listItem = listRes.body.data.find(w => String(w._id) === String(invalidWdr._id));
+
+      const verifyRes = await request(app)
+        .get(`/api/admin/withdrawals/${invalidWdr._id}/verification-details`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(listItem.driver._id.toString()).toBe(verifyRes.body.data.driver._id.toString());
+      expect(listItem.amount).toBe(verifyRes.body.data.withdrawal.amount);
+      expect(listItem.referenceId).toBe(verifyRes.body.data.withdrawal.referenceId);
+      expect(listItem.payoutDetails.ifscCode).toBe(verifyRes.body.data.bankAndPayout.ifscCode);
+    });
+  });
 });

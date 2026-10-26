@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Check, RefreshCw, X, Eye } from 'lucide-react';
-import { adminService } from '../services/adminService';
+import { adminService, extractIfscInfo } from '../services/adminService';
 import StatusBadge from '../components/StatusBadge';
 import DriverWithdrawalVerificationModal from '../components/DriverWithdrawalVerificationModal';
 
@@ -153,11 +153,27 @@ const WithdrawalManagement = () => {
                     <div style={{ fontSize: '.75rem', color: '#64748b' }}>
                       {item.payoutDetails?.accountNumber || item.payoutDetails?.esewaId || item.payoutDetails?.khaltiId || '—'}
                     </div>
-                    {item.payoutMethod === 'Bank' && (
-                      <div style={{ fontSize: '.7rem', color: (item.payoutDetails?.ifscCode || item.payoutDetails?.ifsc) ? '#0284c7' : '#ef4444', fontFamily: 'monospace' }}>
-                        IFSC: {item.payoutDetails?.ifscCode || item.payoutDetails?.ifsc || 'Not provided'}
-                      </div>
-                    )}
+                    {item.payoutMethod === 'Bank' && (() => {
+                      const ifscInfo = extractIfscInfo(item.payoutDetails);
+                      const isMissing = !ifscInfo.isIfscProvided;
+                      const isInvalid = ifscInfo.isIfscProvided && !ifscInfo.isValidIfscFormat;
+                      const textColor = isMissing ? '#ef4444' : isInvalid ? '#dc2626' : '#0284c7';
+                      const displayText = item.payoutDetails?.tableIfscDisplay || ifscInfo.tableIfscDisplay;
+                      return (
+                        <div
+                          style={{
+                            fontSize: '.7rem',
+                            color: textColor,
+                            fontWeight: isInvalid ? 700 : 500,
+                            fontFamily: 'monospace',
+                            marginTop: 2
+                          }}
+                          title={isInvalid ? 'Value provided does not match 11-character Indian IFSC format' : undefined}
+                        >
+                          {displayText}
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td>
                     <StatusBadge status={getStatusLabel(item.status)} />

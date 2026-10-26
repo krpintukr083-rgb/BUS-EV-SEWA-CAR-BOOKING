@@ -611,11 +611,11 @@ const DriverWithdrawalVerificationModal = ({
                               padding: '2px 6px',
                               borderRadius: 4,
                               fontWeight: 700,
-                              background: bankAndPayout.isValidIfscFormat ? '#dcfce7' : '#f1f5f9',
-                              color: bankAndPayout.isValidIfscFormat ? '#15803d' : '#475569'
+                              background: bankAndPayout.isValidIfscFormat ? '#dcfce7' : '#fee2e2',
+                              color: bankAndPayout.isValidIfscFormat ? '#15803d' : '#b91c1c'
                             }}
                           >
-                            {bankAndPayout.ifscFormatLabel || (bankAndPayout.isValidIfscFormat ? 'Standard Indian IFSC' : 'Branch / Routing Code')}
+                            {bankAndPayout.isValidIfscFormat ? 'Standard Indian IFSC' : 'Invalid IFSC Format'}
                           </span>
                         )}
                       </div>
@@ -623,7 +623,7 @@ const DriverWithdrawalVerificationModal = ({
                         style={{
                           fontWeight: 800,
                           fontSize: '1.15rem',
-                          color: bankAndPayout.isIfscProvided ? '#0f172a' : '#dc2626',
+                          color: !bankAndPayout.isIfscProvided || !bankAndPayout.isValidIfscFormat ? '#dc2626' : '#0f172a',
                           marginTop: 4,
                           letterSpacing: '0.05em',
                           fontFamily: 'monospace'
@@ -634,6 +634,11 @@ const DriverWithdrawalVerificationModal = ({
                       {!bankAndPayout.isIfscProvided && (
                         <div style={{ fontSize: '0.72rem', color: '#dc2626', marginTop: 4 }}>
                           Flag: Bank details incomplete. Super admin must verify IFSC before approving.
+                        </div>
+                      )}
+                      {bankAndPayout.isIfscProvided && !bankAndPayout.isValidIfscFormat && (
+                        <div style={{ fontSize: '0.72rem', color: '#b91c1c', marginTop: 4, fontWeight: 600 }}>
+                          Warning: Invalid IFSC format. Value does not match standard 11-character Indian IFSC format.
                         </div>
                       )}
                     </div>

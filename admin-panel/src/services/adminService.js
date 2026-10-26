@@ -1,5 +1,68 @@
 import api from './api';
 
+export const validateIndianIfsc = (code) => {
+  if (!code || typeof code !== 'string') return false;
+  return /^[A-Z]{4}0[A-Z0-9]{6}$/.test(code.trim().toUpperCase());
+};
+
+export const isCodeLike = (str) => {
+  if (!str || typeof str !== 'string') return false;
+  const trimmed = str.trim();
+  if (!trimmed) return false;
+  if (/\s/.test(trimmed)) return false;
+  if (/^[A-Z]{4}0[A-Z0-9]{6}$/i.test(trimmed)) return true;
+  if (/\d/.test(trimmed) && /^[A-Z0-9-]{4,25}$/i.test(trimmed)) return true;
+  return false;
+};
+
+export const extractIfscInfo = (payoutDetails = {}) => {
+  const details = payoutDetails || {};
+  let rawIfsc = (
+    details.ifscCode !== undefined && details.ifscCode !== null && String(details.ifscCode).trim() !== ''
+      ? String(details.ifscCode).trim()
+      : details.ifsc !== undefined && details.ifsc !== null && String(details.ifsc).trim() !== ''
+      ? String(details.ifsc).trim()
+      : details.bankIfsc !== undefined && details.bankIfsc !== null && String(details.bankIfsc).trim() !== ''
+      ? String(details.bankIfsc).trim()
+      : ''
+  ).toUpperCase();
+
+  if (!rawIfsc && details.branch) {
+    const trimmedBranch = String(details.branch).trim().toUpperCase();
+    if (!/\s/.test(trimmedBranch) && (
+      /^[A-Z]{4}0[A-Z0-9]{6}$/.test(trimmedBranch) ||
+      (/\d/.test(trimmedBranch) && /^[A-Z0-9-]{4,25}$/.test(trimmedBranch))
+    )) {
+      rawIfsc = trimmedBranch;
+    }
+  }
+
+  const isProvided = Boolean(rawIfsc);
+  const isValidFormat = isProvided ? validateIndianIfsc(rawIfsc) : false;
+
+  let tableDisplay = 'IFSC: Not provided';
+  if (isProvided) {
+    if (isValidFormat) {
+      tableDisplay = `IFSC: ${rawIfsc}`;
+    } else {
+      tableDisplay = `Invalid IFSC: ${rawIfsc}`;
+    }
+  }
+
+  return {
+    rawIfsc,
+    ifscCode: rawIfsc,
+    ifsc: rawIfsc,
+    bankIfsc: rawIfsc,
+    isIfscProvided: isProvided,
+    isValidIfscFormat: isValidFormat,
+    ifscStatus: !isProvided ? 'missing' : isValidFormat ? 'valid' : 'invalid',
+    ifscDisplay: isProvided ? rawIfsc : 'IFSC not provided',
+    tableIfscDisplay: tableDisplay,
+    ifscFormatLabel: !isProvided ? 'Not Provided' : isValidFormat ? 'Standard Indian IFSC' : 'Invalid IFSC Format'
+  };
+};
+
 export const adminService = {
   // Auth
   login: async (identifier, password) => {
@@ -238,10 +301,31 @@ export const adminService = {
     const res = await api.get('/admin/payments');
     return res.data;
   },
-  getWithdrawals: async () => (await api.get('/admin/withdrawals', {
-    params: { _t: Date.now() },
-    headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache' }
-  })).data,
+  getWithdrawals: async () => {
+    const res = await api.get('/admin/withdrawals', {
+      params: { _t: Date.now() },
+      headers: { 'Cache-Control': 'no-cache, no-store', Pragma: 'no-cache' }
+    });
+    const payload = res.data;
+    if (payload && Array.isArray(payload.data)) {
+      payload.data = payload.data.map(item => {
+        if (item && item.payoutDetails) {
+          const ifscInfo = extractIfscInfo(item.payoutDetails);
+          item.payoutDetails.ifscCode = ifscInfo.ifscCode;
+          item.payoutDetails.ifsc = ifscInfo.ifsc;
+          item.payoutDetails.bankIfsc = ifscInfo.bankIfsc;
+          item.payoutDetails.isIfscProvided = ifscInfo.isIfscProvided;
+          item.payoutDetails.isValidIfscFormat = ifscInfo.isValidIfscFormat;
+          item.payoutDetails.ifscStatus = ifscInfo.ifscStatus;
+          item.payoutDetails.ifscDisplay = ifscInfo.tableIfscDisplay;
+          item.payoutDetails.tableIfscDisplay = ifscInfo.tableIfscDisplay;
+          item.payoutDetails.ifscFormatLabel = ifscInfo.ifscFormatLabel;
+        }
+        return item;
+      });
+    }
+    return payload;
+  },
   getWithdrawalVerificationDetails: async (id, params = {}) => {
     try {
       const res = await api.get(`/admin/withdrawals/${id}/verification-details`, {
@@ -309,35 +393,15 @@ export const adminService = {
           const rawAccount = String(rawDetails.accountNumber !== undefined && rawDetails.accountNumber !== '' ? rawDetails.accountNumber : driverPayout.accountNumber || '');
           const maskedAccount = rawAccount.length > 4 ? '••••••••' + rawAccount.slice(-4) : rawAccount;
 
-          const isCodeLike = (str) => {
-            if (!str || typeof str !== 'string') return false;
-            const trimmed = str.trim();
-            if (!trimmed) return false;
-            if (/\s/.test(trimmed)) return false;
-            if (/^[A-Z]{4}0[A-Z0-9]{6}$/i.test(trimmed)) return true;
-            if (/\d/.test(trimmed) && /^[A-Z0-9-]{4,25}$/i.test(trimmed)) return true;
-            return false;
-          };
-
-          let rawIfsc = '';
-          if (rawDetails.ifscCode !== undefined && rawDetails.ifscCode !== '') {
-            rawIfsc = rawDetails.ifscCode;
-          } else if (rawDetails.ifsc !== undefined && rawDetails.ifsc !== '') {
-            rawIfsc = rawDetails.ifsc;
-          } else if (rawDetails.bankIfsc !== undefined && rawDetails.bankIfsc !== '') {
-            rawIfsc = rawDetails.bankIfsc;
-          } else if (rawDetails.branch && isCodeLike(rawDetails.branch)) {
-            rawIfsc = String(rawDetails.branch).trim().toUpperCase();
-          }
-          rawIfsc = String(rawIfsc).trim().toUpperCase();
-
-          const isIfscMissing = !rawIfsc;
-          const isStandardIndianFormat = isIfscMissing ? false : /^[A-Z]{4}0[A-Z0-9]{6}$/.test(rawIfsc);
+          const ifscInfo = extractIfscInfo(rawDetails);
+          const rawIfsc = ifscInfo.rawIfsc;
+          const isIfscMissing = !ifscInfo.isIfscProvided;
+          const isValidIfscFormat = ifscInfo.isValidIfscFormat;
 
           const warnings = [];
           if (payoutMethod === 'Bank') {
             if (isIfscMissing) warnings.push('IFSC code is not provided for this bank payout.');
-            else if (!isStandardIndianFormat) warnings.push('Saved IFSC code format is invalid (expected 11-character Indian IFSC: 4 letters, 0, 6 alphanumeric).');
+            else if (!isValidIfscFormat) warnings.push('Saved IFSC code format is invalid (expected 11-character Indian IFSC: 4 letters, 0, 6 alphanumeric).');
             if (!rawAccount) warnings.push('Bank account number is missing.');
           } else if (payoutMethod === 'eSewa' && !(rawDetails.esewaId || driverPayout.esewaId)) {
             warnings.push('eSewa ID is missing for this payout.');
@@ -368,10 +432,12 @@ export const adminService = {
               branch: (rawDetails.branch && rawDetails.branch.toUpperCase() !== rawIfsc ? rawDetails.branch : '') || driverPayout.branch || '',
               ifscCode: rawIfsc,
               ifscDisplay: isIfscMissing ? 'IFSC not provided' : rawIfsc,
-              isIfscProvided: !isIfscMissing,
-              isStandardIndianFormat,
-              isValidIfscFormat: isStandardIndianFormat,
-              ifscFormatLabel: isIfscMissing ? 'Not Provided' : isStandardIndianFormat ? 'Standard Indian IFSC' : 'Branch / Routing Code',
+              tableIfscDisplay: ifscInfo.tableIfscDisplay,
+              isIfscProvided: ifscInfo.isIfscProvided,
+              isStandardIndianFormat: isValidIfscFormat,
+              isValidIfscFormat,
+              ifscFormatLabel: ifscInfo.ifscFormatLabel,
+              ifscStatus: ifscInfo.ifscStatus,
               maskedAccountNumber: maskedAccount,
               rawAccountNumber: rawAccount,
               bankVerificationStatus: 'Pending Verification',
@@ -425,10 +491,8 @@ export const adminService = {
 
           const formattedHistoryItems = driverWithdrawals.map(item => {
             const details = item.payoutDetails || {};
-            let ifsc = (details.ifscCode || details.ifsc || details.bankIfsc || '').trim().toUpperCase();
-            if (!ifsc && details.branch && isCodeLike(details.branch)) {
-              ifsc = String(details.branch).trim().toUpperCase();
-            }
+            const ifscInfo = extractIfscInfo(details);
+            const ifsc = ifscInfo.ifscCode;
             const itemRawAcct = details.accountNumber || '';
             const itemMasked = itemRawAcct.length > 4 ? '••••••••' + itemRawAcct.slice(-4) : itemRawAcct;
             return {
@@ -441,6 +505,9 @@ export const adminService = {
               actualPaidAmount: ['Completed', 'Paid', 'Successful'].includes(item.status) ? item.amount : 0,
               bankName: details.bankName || '—',
               ifscCode: ifsc || (item.payoutMethod === 'Bank' ? 'IFSC not provided' : '—'),
+              tableIfscDisplay: ifscInfo.tableIfscDisplay,
+              isValidIfscFormat: ifscInfo.isValidIfscFormat,
+              isIfscProvided: ifscInfo.isIfscProvided,
               maskedAccount: item.payoutMethod === 'Bank'
                 ? itemMasked
                 : details.esewaId || details.khaltiId || '—',
