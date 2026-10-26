@@ -117,8 +117,14 @@ const WithdrawalManagement = () => {
       )}
 
       <div className="content-card">
-        <div className="table-responsive">
-          <table className="data-table">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: '0.78rem', color: '#64748b' }}>
+          <span>Showing {withdrawals.length} withdrawal {withdrawals.length === 1 ? 'request' : 'requests'}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: '#1d4ed8', fontWeight: 500 }}>
+            <Eye size={14} /> Click <strong>View Details</strong> to verify driver KYC, wallet, bank &amp; IFSC
+          </span>
+        </div>
+        <div className="withdrawal-table-container">
+          <table className="data-table" style={{ minWidth: 980 }}>
             <thead>
               <tr>
                 <th>Driver</th>
@@ -128,7 +134,7 @@ const WithdrawalManagement = () => {
                 <th>Request Date</th>
                 <th>Payout</th>
                 <th>Status / Rejection Reason</th>
-                <th>Actions</th>
+                <th style={{ minWidth: 260, whiteSpace: 'nowrap' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -154,15 +160,15 @@ const WithdrawalManagement = () => {
                       <div style={{ maxWidth: 220, marginTop: 6, color: '#b91c1c', fontSize: '.75rem' }}>{item.adminNotes}</div>
                     )}
                   </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <td style={{ minWidth: 260, whiteSpace: 'nowrap' }}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'nowrap' }}>
                       <button
-                        className="btn btn-sm btn-outline"
+                        type="button"
+                        className="btn-view-details"
                         onClick={() => setSelectedWithdrawalId(item._id)}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
                         title="View complete financial profile & withdrawal verification"
                       >
-                        <Eye size={13} /> View Details
+                        <Eye size={14} /> View Details
                       </button>
 
                       {item.status === 'Pending' ? (
