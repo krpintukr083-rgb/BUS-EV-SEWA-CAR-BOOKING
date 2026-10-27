@@ -2,7 +2,7 @@
   "expo": {
     "name": "YatraSewanp.com",
     "slug": "travelease-driver-app",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -21,7 +21,7 @@
       },
       "package": "com.travelease.driver",
       "googleServicesFile": "./google-services.json",
-      "versionCode": 11,
+      "versionCode": 12,
       "softwareKeyboardLayoutMode": "resize"
     },
     "web": {

@@ -98,8 +98,8 @@ android {
         applicationId 'com.travelease.driver'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode (findProperty('android.versionCode') ? Integer.parseInt(findProperty('android.versionCode')) : 11)
-        versionName (findProperty('android.versionName') ?: "1.0.5")
+        versionCode (findProperty('android.versionCode') ? Integer.parseInt(findProperty('android.versionCode')) : 12)
+        versionName (findProperty('android.versionName') ?: "1.0.6")
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
