@@ -31,7 +31,6 @@ const BusPassengerManifest = () => {
   const [selectedJourneyKey, setSelectedJourneyKey] = useState('');
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
   const [selectedTravelDate, setSelectedTravelDate] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
   const [registrationSearch, setRegistrationSearch] = useState('');
   const [passengerSearch, setPassengerSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
@@ -53,7 +52,6 @@ const BusPassengerManifest = () => {
 
   // Debouncing refs
   const isFirstRender = useRef(true);
-  const lastSearchedRef = useRef('');
   const lastRegistrationRef = useRef('');
 
   // Render Service Icon & Badge helper
@@ -85,7 +83,6 @@ const BusPassengerManifest = () => {
     queryService = selectedServiceType,
     queryDate = selectedTravelDate,
     vehicleId = selectedVehicleId,
-    searchVal = searchTerm,
     regSearchVal = registrationSearch
   ) => {
     try {
@@ -98,7 +95,6 @@ const BusPassengerManifest = () => {
       if (queryService && queryService !== 'All') params.serviceType = queryService;
       if (queryDate) params.travelDate = queryDate;
       if (vehicleId) params.vehicleId = vehicleId;
-      if (searchVal && searchVal.trim()) params.search = searchVal.trim();
       if (regSearchVal && regSearchVal.trim()) params.vehicleRegistration = regSearchVal.trim();
 
       const res = await adminService.getBusManifestJourneys(params);
@@ -112,7 +108,7 @@ const BusPassengerManifest = () => {
         if (res.nonBusMatch) setNonBusMatch(res.nonBusMatch);
         if (res.bookingNotFound) {
           setBookingNotFound(true);
-          setSearchedBookingId(res.searchedBookingId || searchVal);
+          setSearchedBookingId(res.searchedBookingId || '');
         }
 
         // When a match exists, display/select the corresponding journey and show its passenger manifest
@@ -124,8 +120,6 @@ const BusPassengerManifest = () => {
               const num = (j.vehicleNumber || '').toLowerCase().replace(/[\s\-_/\\,.]/g, '');
               return num.includes(rNorm);
             }) || res.data[0];
-          } else if (searchVal && searchVal.trim()) {
-            targetJourney = res.data.find(j => j.matchedBookingId) || res.data[0];
           } else {
             targetJourney = res.data.find(j => j.journeyKey === selectedJourneyKey) || res.data[0];
           }
@@ -135,10 +129,6 @@ const BusPassengerManifest = () => {
 
           if (res.matchedBookingId) {
             setPassengerSearch(res.matchedBookingId);
-          } else if (searchVal && /^bk[-_\s]*\d+/i.test(searchVal.trim())) {
-            setPassengerSearch(searchVal.trim());
-          } else {
-            setPassengerSearch('');
           }
         } else {
           setSelectedJourneyKey('');
@@ -169,55 +159,23 @@ const BusPassengerManifest = () => {
     }
   };
 
-  // Debounced search for top manifest search input (350ms)
+  // Debounced search for dedicated vehicle registration input (350ms)
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
-      lastSearchedRef.current = searchTerm;
       lastRegistrationRef.current = registrationSearch;
       return;
     }
 
     const timer = setTimeout(() => {
-      if (searchTerm !== lastSearchedRef.current) {
-        lastSearchedRef.current = searchTerm;
-        // If searching a booking ID or keyword in manifest search, clear conflicting registrationSearch
-        const regToPass = searchTerm.trim() ? '' : registrationSearch;
-        fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, searchTerm, regToPass);
-      }
-    }, 350);
-
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  // Debounced search for dedicated vehicle registration input (350ms)
-  useEffect(() => {
-    if (isFirstRender.current) return;
-
-    const timer = setTimeout(() => {
       if (registrationSearch !== lastRegistrationRef.current) {
         lastRegistrationRef.current = registrationSearch;
-        // If searching vehicle registration, clear conflicting searchTerm
-        const searchToPass = registrationSearch.trim() ? '' : searchTerm;
-        fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, searchToPass, registrationSearch);
+        fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, registrationSearch);
       }
     }, 350);
 
     return () => clearTimeout(timer);
   }, [registrationSearch]);
-
-  const handleClearSearch = () => {
-    setSearchTerm('');
-    setPassengerSearch('');
-    setBookingNotFound(false);
-    setSearchedBookingId('');
-    setSelectedJourneyKey('');
-    setManifestData([]);
-    setJourneyInfo(null);
-    setManifestSummary(null);
-    lastSearchedRef.current = '';
-    fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, '', registrationSearch);
-  };
 
   const handleClearRegistrationSearch = () => {
     setRegistrationSearch('');
@@ -226,14 +184,13 @@ const BusPassengerManifest = () => {
     setJourneyInfo(null);
     setManifestSummary(null);
     lastRegistrationRef.current = '';
-    fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, searchTerm, '');
+    fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, '');
   };
 
   const handleClearAllFilters = () => {
     setSelectedServiceType('All');
     setSelectedVehicleId('');
     setSelectedTravelDate('');
-    setSearchTerm('');
     setRegistrationSearch('');
     setPassengerSearch('');
     setSelectedJourneyKey('');
@@ -242,9 +199,8 @@ const BusPassengerManifest = () => {
     setManifestSummary(null);
     setBookingNotFound(false);
     setSearchedBookingId('');
-    lastSearchedRef.current = '';
     lastRegistrationRef.current = '';
-    fetchJourneys('All', '', '', '', '');
+    fetchJourneys('All', '', '', '');
   };
 
   // Load Manifest Passengers for a selected journey
@@ -462,7 +418,7 @@ const BusPassengerManifest = () => {
               onClick={() => {
                 setSelectedServiceType(nonBusMatch.serviceType);
                 setSelectedVehicleId('');
-                fetchJourneys(nonBusMatch.serviceType, selectedTravelDate, '', searchTerm);
+                fetchJourneys(nonBusMatch.serviceType, selectedTravelDate, '', registrationSearch);
               }}
             >
               Switch Tab to {nonBusMatch.serviceType}
@@ -492,7 +448,7 @@ const BusPassengerManifest = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <AlertTriangle size={18} style={{ color: '#d97706', flexShrink: 0 }} />
             <span>
-              No trips or bookings were found matching ID <strong>{searchedBookingId || searchTerm}</strong>.
+              No trips or bookings were found{searchedBookingId ? <> matching ID <strong>{searchedBookingId}</strong></> : '.'}
             </span>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -503,7 +459,7 @@ const BusPassengerManifest = () => {
                 onClick={() => {
                   setSelectedServiceType('All');
                   setSelectedVehicleId('');
-                  fetchJourneys('All', selectedTravelDate, '', searchTerm, registrationSearch);
+                  fetchJourneys('All', selectedTravelDate, '', registrationSearch);
                 }}
               >
                 Search in All Services
@@ -512,18 +468,18 @@ const BusPassengerManifest = () => {
             <button
               className="btn btn-outline"
               style={{ fontSize: '0.78rem', padding: '4px 10px', height: 'auto', minHeight: '30px' }}
-              onClick={handleClearSearch}
+              onClick={handleClearAllFilters}
             >
-              Clear Search
+              Clear Filters
             </button>
           </div>
         </div>
       )}
 
-      {/* 2. Top Filter Controls: Service Type, Vehicle Reg Search, Vehicle Dropdown, Manifest Search, Journey Date */}
+      {/* 2. Top Filter Controls: Service Type, Vehicle Reg Search, Vehicle Dropdown, Journey Date, Action Buttons */}
       <div className="manifest-filter-card">
         <div className="manifest-filter-grid">
-          {/* Service Type Filter */}
+          {/* 1. Service Type Filter */}
           <div className="manifest-filter-field">
             <label className="manifest-filter-label">Service Type</label>
             <select
@@ -534,7 +490,7 @@ const BusPassengerManifest = () => {
                 const newService = e.target.value;
                 setSelectedServiceType(newService);
                 setSelectedVehicleId('');
-                fetchJourneys(newService, selectedTravelDate, '', searchTerm, registrationSearch);
+                fetchJourneys(newService, selectedTravelDate, '', registrationSearch);
               }}
             >
               <option value="All">All Services (Bus, EV, Car)</option>
@@ -544,7 +500,7 @@ const BusPassengerManifest = () => {
             </select>
           </div>
 
-          {/* Search Vehicle Registration */}
+          {/* 2. Search Vehicle Registration */}
           <div className="manifest-filter-field">
             <label className="manifest-filter-label">Search Vehicle Registration</label>
             <div style={{ position: 'relative' }}>
@@ -572,11 +528,6 @@ const BusPassengerManifest = () => {
                 onChange={e => {
                   const val = e.target.value;
                   setRegistrationSearch(val);
-                  // If user enters vehicle registration, clear manifest search to prevent silent query conflicts
-                  if (val.trim() && searchTerm.trim()) {
-                    setSearchTerm('');
-                    lastSearchedRef.current = '';
-                  }
                   // If selected dropdown vehicle conflicts with the new typed search, reset dropdown
                   if (selectedVehicleId) {
                     const selVeh = vehicles.find(v => v._id === selectedVehicleId);
@@ -592,7 +543,7 @@ const BusPassengerManifest = () => {
                 onKeyDown={e => {
                   if (e.key === 'Enter') {
                     lastRegistrationRef.current = registrationSearch;
-                    fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, '', registrationSearch);
+                    fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, registrationSearch);
                   }
                 }}
               />
@@ -638,7 +589,7 @@ const BusPassengerManifest = () => {
             </div>
           </div>
 
-          {/* Vehicle Registration Dropdown */}
+          {/* 3. Vehicle Registration Dropdown */}
           <div className="manifest-filter-field">
             <label className="manifest-filter-label">Vehicle Dropdown</label>
             <select
@@ -648,7 +599,7 @@ const BusPassengerManifest = () => {
               onChange={e => {
                 const newVehId = e.target.value;
                 setSelectedVehicleId(newVehId);
-                fetchJourneys(selectedServiceType, selectedTravelDate, newVehId, searchTerm, registrationSearch);
+                fetchJourneys(selectedServiceType, selectedTravelDate, newVehId, registrationSearch);
               }}
             >
               <option value="">
@@ -664,90 +615,7 @@ const BusPassengerManifest = () => {
             </select>
           </div>
 
-          {/* Search by Registration / Driver / Operator / Route / Booking ID */}
-          <div className="manifest-filter-field">
-            <label className="manifest-filter-label">Search Manifest</label>
-            <div style={{ position: 'relative' }}>
-              <Search
-                size={16}
-                style={{
-                  position: 'absolute',
-                  left: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  color: 'var(--text-light)',
-                  pointerEvents: 'none'
-                }}
-              />
-              <input
-                type="text"
-                className="input-field"
-                style={{
-                  paddingLeft: '38px',
-                  paddingRight: (loadingJourneys || searchTerm) ? '42px' : '14px',
-                  minHeight: '42px'
-                }}
-                placeholder="Booking ID (e.g. BK-6441910), driver, route..."
-                value={searchTerm}
-                onChange={e => {
-                  const val = e.target.value;
-                  setSearchTerm(val);
-                  // If user enters a manifest search or booking ID, clear registrationSearch to prevent silent query conflicts
-                  if (val.trim() && registrationSearch.trim()) {
-                    setRegistrationSearch('');
-                    lastRegistrationRef.current = '';
-                  }
-                }}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') {
-                    lastSearchedRef.current = searchTerm;
-                    fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, searchTerm, '');
-                  }
-                }}
-              />
-              <div
-                style={{
-                  position: 'absolute',
-                  right: '10px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}
-              >
-                {loadingJourneys && (
-                  <RotateCw
-                    size={14}
-                    className="spin"
-                    style={{ color: 'var(--primary-blue)', flexShrink: 0 }}
-                  />
-                )}
-                {searchTerm && (
-                  <button
-                    type="button"
-                    onClick={handleClearSearch}
-                    title="Clear search"
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: 'var(--text-muted)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '2px',
-                      borderRadius: '50%'
-                    }}
-                  >
-                    <X size={15} />
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Journey Date Filter */}
+          {/* 4. Journey Date Filter */}
           <div className="manifest-filter-field">
             <label className="manifest-filter-label">Journey Date</label>
             <div style={{ position: 'relative' }}>
@@ -770,26 +638,25 @@ const BusPassengerManifest = () => {
                 onChange={e => {
                   const newDate = e.target.value;
                   setSelectedTravelDate(newDate);
-                  fetchJourneys(selectedServiceType, newDate, selectedVehicleId, searchTerm, registrationSearch);
+                  fetchJourneys(selectedServiceType, newDate, selectedVehicleId, registrationSearch);
                 }}
               />
             </div>
           </div>
 
-          {/* Action Buttons */}
+          {/* 5 & 6. Action Buttons: Apply Filter and Clear */}
           <div className="manifest-filter-actions">
             <button
               className="btn btn-primary"
               onClick={() => {
-                lastSearchedRef.current = searchTerm;
                 lastRegistrationRef.current = registrationSearch;
-                fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, searchTerm, registrationSearch);
+                fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, registrationSearch);
               }}
               disabled={loadingJourneys}
             >
               Apply Filter
             </button>
-            {(selectedServiceType !== 'All' || selectedVehicleId || selectedTravelDate || searchTerm || registrationSearch) && (
+            {(selectedServiceType !== 'All' || selectedVehicleId || selectedTravelDate || registrationSearch) && (
               <button
                 className="btn btn-outline"
                 onClick={handleClearAllFilters}
@@ -844,17 +711,17 @@ const BusPassengerManifest = () => {
                     <AlertTriangle size={15} style={{ color: '#ea580c', flexShrink: 0 }} />
                     <span>No matching booking found</span>
                   </div>
-                  <div>No record exists matching <code>{searchedBookingId || searchTerm}</code> across Bus, EV-Sewa or Car services.</div>
+                  <div>No record exists matching <code>{searchedBookingId}</code> across Bus, EV-Sewa or Car services.</div>
                 </div>
               ) : (
                 <p style={{ margin: '0 0 12px', lineHeight: '1.4', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                  {searchTerm || selectedVehicleId || selectedTravelDate || selectedServiceType !== 'All'
-                    ? 'No journeys match your search query and active filters.'
+                  {registrationSearch || selectedVehicleId || selectedTravelDate || selectedServiceType !== 'All'
+                    ? 'No journeys match your active filters.'
                     : 'No scheduled or booked journeys are available.'}
                 </p>
               )}
 
-              {(searchTerm || selectedVehicleId || selectedTravelDate || selectedServiceType !== 'All') && (
+              {(registrationSearch || selectedVehicleId || selectedTravelDate || selectedServiceType !== 'All') && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'center' }}>
                     {selectedServiceType !== 'All' && (
@@ -862,9 +729,9 @@ const BusPassengerManifest = () => {
                         Service: {selectedServiceType}
                       </span>
                     )}
-                    {searchTerm && (
+                    {registrationSearch && (
                       <span style={{ fontSize: '0.72rem', backgroundColor: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
-                        Search: "{searchTerm}"
+                        Registration: "{registrationSearch}"
                       </span>
                     )}
                     {selectedTravelDate && (
@@ -884,7 +751,7 @@ const BusPassengerManifest = () => {
                     onClick={handleClearAllFilters}
                     style={{ fontSize: '0.76rem', padding: '5px 12px', minHeight: '30px', marginTop: '4px' }}
                   >
-                    Clear Search & Filters
+                    Clear Filters
                   </button>
                 </div>
               )}
@@ -1167,8 +1034,7 @@ const BusPassengerManifest = () => {
                   <tbody>
                     {displayedManifestRows.map(row => {
                       const isHighlightedBooking = Boolean(
-                        (searchTerm && row.bookingId && row.bookingId.toLowerCase().includes(searchTerm.trim().toLowerCase())) ||
-                        (passengerSearch && row.bookingId && row.bookingId.toLowerCase().includes(passengerSearch.trim().toLowerCase()))
+                        passengerSearch && row.bookingId && row.bookingId.toLowerCase().includes(passengerSearch.trim().toLowerCase())
                       );
                       const isRowBus = (row.serviceType || '').toLowerCase() === 'bus';
 
