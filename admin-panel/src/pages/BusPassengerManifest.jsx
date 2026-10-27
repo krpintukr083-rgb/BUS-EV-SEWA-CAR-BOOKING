@@ -133,9 +133,17 @@ const BusPassengerManifest = () => {
         }
       } else {
         setError(res?.message || 'Failed to load journeys.');
+        setJourneys([]);
+        setManifestData([]);
+        setJourneyInfo(null);
+        setManifestSummary(null);
       }
     } catch (err) {
       setError(err?.response?.data?.message || err.message || 'Error fetching journeys.');
+      setJourneys([]);
+      setManifestData([]);
+      setJourneyInfo(null);
+      setManifestSummary(null);
     } finally {
       setLoadingJourneys(false);
     }
@@ -349,6 +357,95 @@ const BusPassengerManifest = () => {
         >
           <AlertTriangle size={18} style={{ flexShrink: 0 }} />
           <span>{error}</span>
+        </div>
+      )}
+
+      {/* Cross-Service Discovery Banner */}
+      {nonBusMatch && (
+        <div
+          style={{
+            backgroundColor: '#eff6ff',
+            border: '1px solid #bfdbfe',
+            color: '#1d4ed8',
+            padding: '12px 18px',
+            borderRadius: 'var(--radius-md)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+            fontSize: '0.85rem',
+            fontWeight: '500'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Shield size={18} style={{ color: '#2563eb', flexShrink: 0 }} />
+            <span>
+              Booking <strong>{nonBusMatch.bookingId}</strong> was located under <strong>{nonBusMatch.serviceType}</strong> service. Displaying journey & manifest details below.
+            </span>
+          </div>
+          {selectedServiceType !== nonBusMatch.serviceType && (
+            <button
+              className="btn btn-outline"
+              style={{ fontSize: '0.78rem', padding: '4px 10px', height: 'auto', minHeight: '30px' }}
+              onClick={() => {
+                setSelectedServiceType(nonBusMatch.serviceType);
+                setSelectedVehicleId('');
+                fetchJourneys(nonBusMatch.serviceType, selectedTravelDate, '', searchTerm);
+              }}
+            >
+              Switch Tab to {nonBusMatch.serviceType}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Booking Not Found Banner */}
+      {bookingNotFound && (
+        <div
+          style={{
+            backgroundColor: '#fffbeb',
+            border: '1px solid #fde68a',
+            color: '#b45309',
+            padding: '12px 18px',
+            borderRadius: 'var(--radius-md)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '12px',
+            fontSize: '0.85rem',
+            fontWeight: '500'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <AlertTriangle size={18} style={{ color: '#d97706', flexShrink: 0 }} />
+            <span>
+              No trips or bookings were found matching ID <strong>{searchedBookingId || searchTerm}</strong>.
+            </span>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {selectedServiceType !== 'All' && (
+              <button
+                className="btn btn-outline"
+                style={{ fontSize: '0.78rem', padding: '4px 10px', height: 'auto', minHeight: '30px' }}
+                onClick={() => {
+                  setSelectedServiceType('All');
+                  setSelectedVehicleId('');
+                  fetchJourneys('All', selectedTravelDate, '', searchTerm);
+                }}
+              >
+                Search in All Services
+              </button>
+            )}
+            <button
+              className="btn btn-outline"
+              style={{ fontSize: '0.78rem', padding: '4px 10px', height: 'auto', minHeight: '30px' }}
+              onClick={handleClearSearch}
+            >
+              Clear Search
+            </button>
+          </div>
         </div>
       )}
 

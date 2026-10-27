@@ -1071,6 +1071,55 @@ describe('Bus Passenger Manifest Feature Tests', () => {
       expect(statusCalled).toBe(404);
       expect(resp.success).toBe(false);
     });
+
+    test('12. On-demand booking with vehicle null resolves correctly in journeys and passenger manifest', async () => {
+      // Create an on-demand car booking where vehicle is null
+      const unassignedBooking = await Booking.create({
+        bookingId: `BK-UNASSIGNED-${Date.now()}`,
+        customer: {
+          name: 'OnDemand Traveler',
+          phone: '9849999999',
+          email: 'ondemand@test.com'
+        },
+        driver: testDriver._id,
+        vehicle: null,
+        scheduleId: null,
+        serviceType: 'Car',
+        pickupLocation: 'Thamel, Kathmandu',
+        dropLocation: 'Tribhuvan International Airport',
+        travelDate: new Date('2026-11-05T00:00:00.000Z'),
+        passengerDetails: [
+          { name: 'OnDemand Traveler', age: 30, gender: 'Male' }
+        ],
+        fare: 650,
+        finalFare: 650,
+        bookingStatus: 'Confirmed',
+        paymentStatus: 'Paid'
+      });
+      createdBookingIds.push(unassignedBooking._id);
+
+      // Search journeys by this booking ID
+      const journeyReq = { query: { search: unassignedBooking.bookingId } };
+      let journeyResp = null;
+      await getBusManifestJourneys(journeyReq, { json: d => { journeyResp = d; } }, jest.fn());
+
+      expect(journeyResp.success).toBe(true);
+      expect(journeyResp.data.length).toBe(1);
+      expect(journeyResp.data[0].matchedBookingId).toBe(unassignedBooking.bookingId);
+      expect(journeyResp.data[0].serviceType).toBe('Car');
+      const unassignedVehKey = journeyResp.data[0].vehicleId;
+
+      // Now fetch passenger manifest for this unassigned trip
+      const paxReq = { query: { vehicleId: unassignedVehKey.toString() } };
+      let paxResp = null;
+      await getBusPassengerManifest(paxReq, { json: d => { paxResp = d; } }, jest.fn());
+
+      expect(paxResp.success).toBe(true);
+      expect(paxResp.data.length).toBe(1);
+      expect(paxResp.data[0].bookingId).toBe(unassignedBooking.bookingId);
+      expect(paxResp.data[0].pickupLocation).toBe('Thamel, Kathmandu');
+      expect(paxResp.data[0].dropLocation).toBe('Tribhuvan International Airport');
+    });
   });
 });
 

@@ -3304,6 +3304,21 @@ exports.getBusManifestJourneys = async (req, res, next) => {
         .populate('driver')
         .lean();
 
+      if (filteredService) {
+        // If the admin explicitly filtered by a specific service, check if this booking belongs to another service for banner notification
+        const otherServiceBooking = await Booking.findOne({
+          serviceType: { $nin: [filteredService, filteredService.toLowerCase()] },
+          $or: bookingIdConditions
+        }).select('bookingId serviceType').lean();
+
+        if (otherServiceBooking && otherServiceBooking.serviceType) {
+          nonBusMatch = {
+            bookingId: otherServiceBooking.bookingId,
+            serviceType: otherServiceBooking.serviceType
+          };
+        }
+      }
+
       if (matchingBookings.length > 0) {
         matchedBookingId = matchingBookings[0].bookingId;
         nonBusMatch = null;
@@ -3313,6 +3328,39 @@ exports.getBusManifestJourneys = async (req, res, next) => {
         let vObj = mb.vehicle;
         if (!vObj && mb.scheduleId && mb.scheduleId.vehicle) {
           vObj = mb.scheduleId.vehicle;
+        }
+
+        // If booking has no vehicle directly assigned, attempt resolution via driver assigned vehicle
+        if (!vObj && mb.driver && mb.driver.assignedVehicle) {
+          const drvVehId = mb.driver.assignedVehicle;
+          if (mongoose.Types.ObjectId.isValid(drvVehId)) {
+            vObj = await Vehicle.findById(drvVehId)
+              .populate('assignedDriver', 'name phone email licenseNumber mobileNumber drivingLicenceNumber')
+              .lean();
+          }
+        }
+
+        // If still no vehicle (e.g. on-demand Car / EV-Sewa booking or unassigned stage),
+        // synthesize an On-Demand / Unassigned vehicle representation so the booking journey is NEVER dropped!
+        if (!vObj) {
+          const pseudoId = `unassigned_${mb._id}`;
+          vObj = {
+            _id: pseudoId,
+            vehicleNumber: 'Unassigned Vehicle',
+            vehicleName: `${mb.serviceType || 'On-Demand'} Trip (${mb.bookingId})`,
+            vehicleType: mb.serviceType || 'Car',
+            vehicleCategory: 'On-Demand',
+            ownerName: 'Self / Operator',
+            ownerMobileNumber: '',
+            assignedDriver: mb.driver || null,
+            route: {
+              origin: mb.pickupLocation || 'N/A',
+              destination: mb.dropLocation || 'N/A',
+              departureTime: 'On Schedule'
+            }
+          };
+          vehicles.push(vObj);
+          vehicleIds.push(vObj._id);
         }
 
         let vId = null;
@@ -3456,6 +3504,7 @@ exports.getBusManifestJourneys = async (req, res, next) => {
 
     // 3. For vehicles with defined routes that don't have bookings/schedules yet, add default journey representation
     for (const v of vehicles) {
+      if (String(v._id).startsWith('unassigned_')) continue;
       if (travelDate) {
         const key = `${v._id}_${travelDate}_direct`;
         if (!journeysMap.has(key)) {
@@ -3476,6 +3525,13 @@ exports.getBusManifestJourneys = async (req, res, next) => {
         let vObj = mb.vehicle;
         if (!vObj && mb.scheduleId && mb.scheduleId.vehicle) {
           vObj = mb.scheduleId.vehicle;
+        }
+        if (!vObj && mb.driver && mb.driver.assignedVehicle) {
+          const drvVehId = mb.driver.assignedVehicle;
+          vObj = vehicles.find(b => b._id.toString() === drvVehId.toString());
+        }
+        if (!vObj) {
+          vObj = vehicles.find(b => b._id.toString() === `unassigned_${mb._id}`);
         }
         const vId = vObj?._id ? vObj._id.toString() : (vObj ? vObj.toString() : null);
         const v = vId ? vehicles.find(b => b._id.toString() === vId) : null;
@@ -3661,44 +3717,83 @@ exports.getBusPassengerManifest = async (req, res, next) => {
   try {
     const { vehicleId, travelDate, scheduleId, status, search, boardingPoint, serviceType } = req.query;
 
-    if (!vehicleId) {
-      return res.status(400).json({
-        success: false,
-        message: 'Vehicle ID is required to fetch passenger manifest.'
-      });
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(vehicleId)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid Vehicle ID format.'
-      });
-    }
-
-    // 1. Fetch Vehicle and Driver context
-    const vehicle = await Vehicle.findById(vehicleId)
-      .populate('assignedDriver', 'name phone email licenseNumber mobileNumber drivingLicenceNumber')
-      .lean();
-
-    if (!vehicle) {
-      return res.status(404).json({
-        success: false,
-        message: 'Selected vehicle was not found.'
-      });
-    }
-
-    // 2. Fetch Schedule context if scheduleId provided
+    let vehicle = null;
     let schedule = null;
-    if (scheduleId && scheduleId !== 'direct' && mongoose.Types.ObjectId.isValid(scheduleId)) {
-      schedule = await Schedule.findById(scheduleId)
-        .populate('driver', 'name phone email licenseNumber mobileNumber drivingLicenceNumber')
+    let isUnassignedTrip = false;
+    let unassignedBooking = null;
+
+    if (vehicleId && String(vehicleId).startsWith('unassigned_')) {
+      const bObjId = String(vehicleId).replace('unassigned_', '');
+      if (mongoose.Types.ObjectId.isValid(bObjId)) {
+        unassignedBooking = await Booking.findById(bObjId)
+          .populate('driver')
+          .populate('user')
+          .populate('vehicle')
+          .lean();
+      }
+
+      if (!unassignedBooking) {
+        return res.status(404).json({
+          success: false,
+          message: 'On-demand trip booking not found.'
+        });
+      }
+
+      isUnassignedTrip = true;
+      vehicle = unassignedBooking.vehicle || {
+        _id: `unassigned_${unassignedBooking._id}`,
+        vehicleNumber: 'Unassigned',
+        vehicleName: `${unassignedBooking.serviceType || 'Car'} On-Demand Trip`,
+        vehicleType: unassignedBooking.serviceType || 'Car',
+        serviceType: unassignedBooking.serviceType || 'Car',
+        vehicleCategory: 'On-Demand',
+        ownerName: 'Operator',
+        assignedDriver: unassignedBooking.driver || null,
+        route: {
+          origin: unassignedBooking.pickupLocation || 'N/A',
+          destination: unassignedBooking.dropLocation || 'N/A',
+          departureTime: 'On Schedule'
+        }
+      };
+    } else {
+      if (!vehicleId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Vehicle ID is required to fetch passenger manifest.'
+        });
+      }
+
+      if (!mongoose.Types.ObjectId.isValid(vehicleId)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid Vehicle ID format.'
+        });
+      }
+
+      // 1. Fetch Vehicle and Driver context
+      vehicle = await Vehicle.findById(vehicleId)
+        .populate('assignedDriver', 'name phone email licenseNumber mobileNumber drivingLicenceNumber')
         .lean();
+
+      if (!vehicle) {
+        return res.status(404).json({
+          success: false,
+          message: 'Selected vehicle was not found.'
+        });
+      }
+
+      // 2. Fetch Schedule context if scheduleId provided
+      if (scheduleId && scheduleId !== 'direct' && mongoose.Types.ObjectId.isValid(scheduleId)) {
+        schedule = await Schedule.findById(scheduleId)
+          .populate('driver', 'name phone email licenseNumber mobileNumber drivingLicenceNumber')
+          .lean();
+      }
     }
 
     // 3. Build Booking query
-    const bookingQuery = {
-      vehicle: vehicle._id
-    };
+    const bookingQuery = isUnassignedTrip && unassignedBooking
+      ? { _id: unassignedBooking._id }
+      : { vehicle: vehicle._id };
 
     if (serviceType && serviceType !== 'All' && serviceType !== 'All Services') {
       bookingQuery.serviceType = { $regex: new RegExp(`^${serviceType}$`, 'i') };
