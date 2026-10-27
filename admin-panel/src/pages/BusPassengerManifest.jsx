@@ -181,7 +181,9 @@ const BusPassengerManifest = () => {
     const timer = setTimeout(() => {
       if (searchTerm !== lastSearchedRef.current) {
         lastSearchedRef.current = searchTerm;
-        fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, searchTerm, registrationSearch);
+        // If searching a booking ID or keyword in manifest search, clear conflicting registrationSearch
+        const regToPass = searchTerm.trim() ? '' : registrationSearch;
+        fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, searchTerm, regToPass);
       }
     }, 350);
 
@@ -195,7 +197,9 @@ const BusPassengerManifest = () => {
     const timer = setTimeout(() => {
       if (registrationSearch !== lastRegistrationRef.current) {
         lastRegistrationRef.current = registrationSearch;
-        fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, searchTerm, registrationSearch);
+        // If searching vehicle registration, clear conflicting searchTerm
+        const searchToPass = registrationSearch.trim() ? '' : searchTerm;
+        fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, searchToPass, registrationSearch);
       }
     }, 350);
 
@@ -568,8 +572,8 @@ const BusPassengerManifest = () => {
                 onChange={e => {
                   const val = e.target.value;
                   setRegistrationSearch(val);
-                  // If user enters vehicle registration and an old booking ID search was active, clear it
-                  if (val.trim() && searchTerm.trim() && /^bk[-_\s]*\d+/i.test(searchTerm.trim())) {
+                  // If user enters vehicle registration, clear manifest search to prevent silent query conflicts
+                  if (val.trim() && searchTerm.trim()) {
                     setSearchTerm('');
                     lastSearchedRef.current = '';
                   }
@@ -588,7 +592,7 @@ const BusPassengerManifest = () => {
                 onKeyDown={e => {
                   if (e.key === 'Enter') {
                     lastRegistrationRef.current = registrationSearch;
-                    fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, searchTerm, registrationSearch);
+                    fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, '', registrationSearch);
                   }
                 }}
               />
@@ -688,8 +692,8 @@ const BusPassengerManifest = () => {
                 onChange={e => {
                   const val = e.target.value;
                   setSearchTerm(val);
-                  // If user enters a booking ID search, clear registrationSearch
-                  if (val.trim() && /^bk[-_\s]*\d+/i.test(val.trim()) && registrationSearch.trim()) {
+                  // If user enters a manifest search or booking ID, clear registrationSearch to prevent silent query conflicts
+                  if (val.trim() && registrationSearch.trim()) {
                     setRegistrationSearch('');
                     lastRegistrationRef.current = '';
                   }
@@ -697,7 +701,7 @@ const BusPassengerManifest = () => {
                 onKeyDown={e => {
                   if (e.key === 'Enter') {
                     lastSearchedRef.current = searchTerm;
-                    fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, searchTerm, registrationSearch);
+                    fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, searchTerm, '');
                   }
                 }}
               />

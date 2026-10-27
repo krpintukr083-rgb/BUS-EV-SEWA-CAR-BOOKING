@@ -3633,6 +3633,10 @@ exports.getBusManifestJourneys = async (req, res, next) => {
     // Apply vehicle registration filter across journeys
     if (rawRegSearch) {
       journeys = journeys.filter(j => {
+        // If this journey contains a directly matched booking from search, retain it to avoid silent conflicts
+        if (isBookingIdFormat && j.matchedBookingId) {
+          return true;
+        }
         const vNum = j.vehicleNumber || '';
         const vRc = j.tripReference || '';
         return (

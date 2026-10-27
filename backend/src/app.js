@@ -130,7 +130,8 @@ app.use('/api/uploads', express.static(uploadsDir));
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'online',
-    version: '1.1.0-persistent-upload-storage-fix',
+    version: '1.2.0-manifest-search-and-vehicle-reg-fix',
+    commit: '44fd091',
     platform: 'Bus Booking + EV-Sewa + Car Booking MERN Platform',
     timestamp: new Date().toISOString()
   });
