@@ -3186,32 +3186,68 @@ exports.getBusManifestJourneys = async (req, res, next) => {
     const rawSearch = (search || '').trim();
     const searchLower = rawSearch.toLowerCase();
     const searchNorm = normalizeText(rawSearch);
+    const digitsOnly = rawSearch.replace(/\D/g, '');
+    const isBookingIdFormat =
+      /^bk/i.test(rawSearch) ||
+      /^[\d-_\s]{4,}$/.test(rawSearch) ||
+      (searchNorm && searchNorm.length >= 4 && (/^bk/i.test(searchNorm) || /^\d+$/.test(searchNorm)));
 
     let nonBusMatch = null;
+    let matchedBusBookingId = null;
+    let matchingBusBookings = [];
     const matchingBookingJourneySet = new Set();
     const matchingBookingScheduleIds = new Set();
+    const matchingBookingMap = new Map();
 
     if (rawSearch) {
       const escapedSearch = rawSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const escapedNorm = searchNorm ? searchNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
 
+      // Build robust, flexible Booking ID conditions
+      const bookingIdConditions = [
+        { bookingId: { $regex: escapedSearch, $options: 'i' } }
+      ];
+
+      // If query has digits (e.g. 6441910 or BK-644), match bookingId containing those digits
+      if (digitsOnly && digitsOnly.length >= 3) {
+        bookingIdConditions.push({ bookingId: { $regex: digitsOnly, $options: 'i' } });
+      }
+
+      // Flexible BK prefix matching with optional whitespace/hyphen/underscore (e.g. 'BK 6441910', 'bk6441910', 'BK-644')
+      if (/^bk/i.test(rawSearch)) {
+        const rest = rawSearch.replace(/^bk[-_\s]*/i, '');
+        if (rest) {
+          const escapedRest = rest.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          bookingIdConditions.push(
+            { bookingId: { $regex: `^BK[-_\\s]*${escapedRest}`, $options: 'i' } },
+            { bookingId: { $regex: `^BK[-_\\s]*.*${escapedRest}`, $options: 'i' } }
+          );
+        } else {
+          bookingIdConditions.push({ bookingId: { $regex: '^BK', $options: 'i' } });
+        }
+      }
+
+      // Normalized alphanumeric without punctuation
+      if (escapedNorm && escapedNorm !== escapedSearch.toLowerCase()) {
+        bookingIdConditions.push({ bookingId: { $regex: escapedNorm, $options: 'i' } });
+      }
+
       // Check if this booking ID belongs to another service type (e.g. EV-Sewa or Car)
-      const anyBooking = await Booking.findOne({
-        $or: [
-          { bookingId: { $regex: `^${escapedSearch}$`, $options: 'i' } },
-          { bookingId: escapedSearch }
-        ]
+      const nonBusBooking = await Booking.findOne({
+        serviceType: { $nin: ['Bus', 'bus'] },
+        $or: bookingIdConditions
       }).select('bookingId serviceType').lean();
 
-      if (anyBooking && anyBooking.serviceType && anyBooking.serviceType !== 'Bus') {
+      if (nonBusBooking && nonBusBooking.serviceType) {
         nonBusMatch = {
-          bookingId: anyBooking.bookingId,
-          serviceType: anyBooking.serviceType
+          bookingId: nonBusBooking.bookingId,
+          serviceType: nonBusBooking.serviceType
         };
       }
 
-      const bookingOrConditions = [
-        { bookingId: { $regex: escapedSearch, $options: 'i' } },
+      // Find matching bus bookings across booking ID, passenger details, seats, locations
+      const busBookingOrConditions = [
+        ...bookingIdConditions,
         { 'customer.name': { $regex: escapedSearch, $options: 'i' } },
         { 'customer.phone': { $regex: escapedSearch, $options: 'i' } },
         { 'customer.email': { $regex: escapedSearch, $options: 'i' } },
@@ -3223,20 +3259,12 @@ exports.getBusManifestJourneys = async (req, res, next) => {
       ];
 
       if (escapedNorm && escapedNorm !== escapedSearch.toLowerCase()) {
-        bookingOrConditions.push(
-          { bookingId: { $regex: escapedNorm, $options: 'i' } },
-          { 'customer.phone': { $regex: escapedNorm, $options: 'i' } }
-        );
-      }
-
-      if (/^bk/i.test(rawSearch)) {
-        const bkFlexible = rawSearch.replace(/^bk/i, 'BK[-_\\s]*');
-        bookingOrConditions.push({ bookingId: { $regex: bkFlexible, $options: 'i' } });
+        busBookingOrConditions.push({ 'customer.phone': { $regex: escapedNorm, $options: 'i' } });
       }
 
       if (mongoose.Types.ObjectId.isValid(rawSearch)) {
         const objId = new mongoose.Types.ObjectId(rawSearch);
-        bookingOrConditions.push(
+        busBookingOrConditions.push(
           { _id: objId },
           { scheduleId: objId },
           { vehicle: objId },
@@ -3244,37 +3272,65 @@ exports.getBusManifestJourneys = async (req, res, next) => {
         );
       }
 
-      const bookingSearchMatch = {
-        serviceType: 'Bus',
-        vehicle: { $in: busIds },
-        $or: bookingOrConditions
-      };
-      if (vehicleId && mongoose.Types.ObjectId.isValid(vehicleId)) {
-        bookingSearchMatch.vehicle = new mongoose.Types.ObjectId(vehicleId);
-      }
-      if (travelDate) {
-        const startOfDay = new Date(travelDate);
-        startOfDay.setUTCHours(0, 0, 0, 0);
-        const endOfDay = new Date(travelDate);
-        endOfDay.setUTCHours(23, 59, 59, 999);
-        bookingSearchMatch.travelDate = { $gte: startOfDay, $lte: endOfDay };
-      }
-
-      const matchingBookings = await Booking.find(bookingSearchMatch)
-        .select('_id bookingId vehicle travelDate scheduleId')
+      matchingBusBookings = await Booking.find({
+        serviceType: { $regex: '^bus$', $options: 'i' },
+        $or: busBookingOrConditions
+      })
+        .select('_id bookingId vehicle travelDate createdAt scheduleId serviceType bookingStatus customer passengerDetails busSeatNumbers pickupLocation dropLocation')
+        .populate('vehicle')
+        .populate('scheduleId')
         .lean();
 
-      for (const mb of matchingBookings) {
-        if (mb.vehicle) {
-          const vIdStr = mb.vehicle.toString();
-          const mbDate = mb.travelDate ? new Date(mb.travelDate).toISOString().split('T')[0] : '';
-          if (mb.scheduleId) {
-            const schedStr = mb.scheduleId.toString();
-            matchingBookingJourneySet.add(`${vIdStr}_${mbDate}_${schedStr}`);
-            matchingBookingScheduleIds.add(schedStr);
-          } else {
-            matchingBookingJourneySet.add(`${vIdStr}_${mbDate}_direct`);
+      if (matchingBusBookings.length > 0) {
+        matchedBusBookingId = matchingBusBookings[0].bookingId;
+        nonBusMatch = null;
+      }
+
+      for (const mb of matchingBusBookings) {
+        let vObj = mb.vehicle;
+        if (!vObj && mb.scheduleId && mb.scheduleId.vehicle) {
+          vObj = mb.scheduleId.vehicle;
+        }
+
+        let vId = null;
+        let bus = null;
+        if (vObj && vObj._id) {
+          vId = vObj._id.toString();
+          bus = buses.find(b => b._id.toString() === vId);
+          if (!bus) {
+            bus = vObj;
+            buses.push(bus);
+            busIds.push(bus._id);
           }
+        } else if (vObj) {
+          vId = vObj.toString();
+          bus = buses.find(b => b._id.toString() === vId);
+          if (!bus && mongoose.Types.ObjectId.isValid(vId)) {
+            bus = await Vehicle.findById(vId)
+              .populate('assignedDriver', 'name phone email licenseNumber mobileNumber drivingLicenceNumber')
+              .lean();
+            if (bus) {
+              buses.push(bus);
+              busIds.push(bus._id);
+            }
+          }
+        }
+
+        const rawDate = mb.travelDate || mb.createdAt;
+        const mbDate = rawDate ? new Date(rawDate).toISOString().split('T')[0] : '';
+        const schedId = mb.scheduleId ? (mb.scheduleId._id || mb.scheduleId).toString() : 'direct';
+
+        if (vId) {
+          const key = `${vId}_${mbDate}_${schedId}`;
+          matchingBookingJourneySet.add(key);
+          matchingBookingJourneySet.add(`${vId}_${mbDate}_direct`);
+          matchingBookingJourneySet.add(`${vId}_${mbDate}`);
+          if (mb.scheduleId) {
+            matchingBookingScheduleIds.add(schedId);
+          }
+          matchingBookingMap.set(key, mb.bookingId);
+          matchingBookingMap.set(`${vId}_${mbDate}_direct`, mb.bookingId);
+          matchingBookingMap.set(`${vId}_${mbDate}`, mb.bookingId);
         }
       }
     }
@@ -3487,11 +3543,85 @@ exports.getBusManifestJourneys = async (req, res, next) => {
       }
     }
 
+    // Incorporate journeys for any directly matched bus bookings (e.g. searching by Booking ID)
+    if (matchingBusBookings && matchingBusBookings.length > 0) {
+      for (const mb of matchingBusBookings) {
+        let vObj = mb.vehicle;
+        if (!vObj && mb.scheduleId && mb.scheduleId.vehicle) {
+          vObj = mb.scheduleId.vehicle;
+        }
+        const vId = vObj?._id ? vObj._id.toString() : (vObj ? vObj.toString() : null);
+        const bus = vId ? buses.find(b => b._id.toString() === vId) : null;
+        if (!bus || !vId) continue;
+
+        const rawDate = mb.travelDate || mb.createdAt;
+        const mbDate = rawDate ? new Date(rawDate).toISOString().split('T')[0] : '';
+        const schedId = mb.scheduleId ? (mb.scheduleId._id || mb.scheduleId).toString() : 'direct';
+        const key = `${vId}_${mbDate}_${schedId}`;
+
+        if (!journeysMap.has(key)) {
+          const dObj = bus.assignedDriver;
+          const dName = bus.assignedDriver?.name || bus.thirdPartyDriver?.driverName || 'Unassigned';
+          const dPhone = bus.assignedDriver?.mobileNumber || bus.assignedDriver?.phone || bus.thirdPartyDriver?.driverMobile || '';
+          const dLicense = bus.assignedDriver?.drivingLicenceNumber || bus.assignedDriver?.licenseNumber || bus.thirdPartyDriver?.driverLicenseNumber || '';
+          const dId = dObj?._id ? dObj._id.toString() : null;
+
+          journeysMap.set(key, {
+            journeyKey: key,
+            vehicleId: bus._id,
+            vehicleNumber: bus.vehicleNumber || '',
+            vehicleName: bus.vehicleName || '',
+            vehicleModel: bus.vehicleModel || '',
+            vehicleType: bus.vehicleType || 'Bus',
+            vehicleCategory: bus.vehicleCategory || '',
+            busType: bus.busDetails?.busType || '',
+            seatLayout: bus.busDetails?.seatLayout || '',
+            operatorName: bus.ownerName || 'Self / Operator',
+            operatorPhone: bus.ownerMobileNumber || '',
+            driverId: dId,
+            driverName: dName,
+            driverPhone: dPhone,
+            driverLicense: dLicense,
+            travelDate: mbDate,
+            scheduleId: mb.scheduleId ? (mb.scheduleId._id || mb.scheduleId) : null,
+            tripId: mb.scheduleId ? schedId : (bus.hireDetails?.tripReference || null),
+            tripReference: bus.hireDetails?.tripReference || '',
+            origin: mb.pickupLocation || bus.route?.origin || 'Kathmandu',
+            destination: mb.dropLocation || bus.route?.destination || 'Birgunj',
+            departureTime: bus.route?.departureTime || '07:00 AM',
+            arrivalTime: bus.route?.arrivalTime || '02:30 PM',
+            boardingPoints: bus.route?.boardingPoints || [],
+            droppingPoints: bus.route?.droppingPoints || [],
+            stops: (bus.route?.stops || []).map(st => (typeof st === 'string' ? st : (st?.name || ''))).filter(Boolean),
+            seatingCapacity: bus.busDetails?.availableSeats || bus.seatingCapacity || 36,
+            totalBookings: 1,
+            confirmedBookings: ['Confirmed', 'Admin Confirmed', 'ADMIN_CONFIRMED', 'Completed'].includes(mb.bookingStatus) ? 1 : 0,
+            cancelledBookings: ['Cancelled', 'Rejected'].includes(mb.bookingStatus) ? 1 : 0,
+            totalPassengers: Array.isArray(mb.passengerDetails) && mb.passengerDetails.length > 0 ? mb.passengerDetails.length : 1,
+            status: bus.vehicleStatus || 'Active',
+            matchedBookingId: mb.bookingId
+          });
+        } else {
+          const existing = journeysMap.get(key);
+          existing.matchedBookingId = mb.bookingId;
+        }
+      }
+    }
+
     let journeys = Array.from(journeysMap.values());
 
     // Apply comprehensive multi-field search filter across related records
     if (rawSearch) {
       journeys = journeys.filter(j => {
+        // If vehicleId filter was explicitly passed and doesn't match, respect the filter
+        if (vehicleId && mongoose.Types.ObjectId.isValid(vehicleId) && j.vehicleId.toString() !== vehicleId.toString()) {
+          return false;
+        }
+        // If travelDate filter was explicitly passed and doesn't match, respect the filter
+        if (travelDate && j.travelDate && j.travelDate !== travelDate) {
+          return false;
+        }
+
         // 1. Vehicle Registration Number (exact/partial and normalized without spaces/hyphens)
         const vNum = j.vehicleNumber || '';
         if (vNum.toLowerCase().includes(searchLower) || (searchNorm && normalizeText(vNum).includes(searchNorm))) {
@@ -3562,8 +3692,14 @@ exports.getBusManifestJourneys = async (req, res, next) => {
         // 8. Linked Bookings match (bookingId, passenger name/phone, customer name/phone)
         if (
           matchingBookingJourneySet.has(j.journeyKey) ||
-          (j.scheduleId && matchingBookingScheduleIds.has(j.scheduleId.toString()))
+          matchingBookingJourneySet.has(`${j.vehicleId}_${j.travelDate}_direct`) ||
+          matchingBookingJourneySet.has(`${j.vehicleId}_${j.travelDate}`) ||
+          (j.scheduleId && matchingBookingScheduleIds.has(j.scheduleId.toString())) ||
+          j.matchedBookingId
         ) {
+          if (!j.matchedBookingId && matchingBookingMap.has(j.journeyKey)) {
+            j.matchedBookingId = matchingBookingMap.get(j.journeyKey);
+          }
           return true;
         }
 
@@ -3590,6 +3726,9 @@ exports.getBusManifestJourneys = async (req, res, next) => {
         assignedDriver: b.assignedDriver
       })),
       nonBusMatch,
+      bookingNotFound: Boolean(isBookingIdFormat && journeys.length === 0 && !nonBusMatch),
+      searchedBookingId: isBookingIdFormat ? rawSearch : null,
+      matchedBookingId: matchedBusBookingId,
       data: journeys
     });
   } catch (error) {

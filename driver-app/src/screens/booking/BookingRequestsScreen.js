@@ -240,6 +240,7 @@ const BookingRequestsScreen = ({ route, navigation }) => {
   };
 
   const promptReject = (bookingId) => {
+    Keyboard.dismiss();
     setSelectedBookingId(bookingId);
     setSelectedReason(REJECTION_REASONS[0]);
     setCustomReason('');
@@ -337,9 +338,8 @@ const BookingRequestsScreen = ({ route, navigation }) => {
               {
                 maxHeight: isWeb
                   ? Math.min(windowHeight * 0.85, 600)
-                  : keyboardVisible && keyboardHeight > 0
-                    ? Math.max(260, windowHeight - keyboardHeight - (Platform.OS === 'android' ? 24 : 40))
-                    : windowHeight * 0.85,
+                  : Math.max(260, windowHeight - (keyboardVisible && keyboardHeight > 0 ? keyboardHeight : 0) - (insets.top || (Platform.OS === 'android' ? 24 : 0)) - SPACING.md),
+                marginBottom: keyboardVisible && keyboardHeight > 0 ? keyboardHeight : 0,
               },
             ]}
             onStartShouldSetResponder={() => true}
@@ -371,7 +371,12 @@ const BookingRequestsScreen = ({ route, navigation }) => {
                 <TouchableOpacity
                   key={idx}
                   style={[styles.reasonItem, selectedReason === reason && styles.selectedReasonItem]}
-                  onPress={() => setSelectedReason(reason)}
+                  onPress={() => {
+                    setSelectedReason(reason);
+                    if (reason !== 'Other personal reason') {
+                      Keyboard.dismiss();
+                    }
+                  }}
                   activeOpacity={0.7}
                 >
                   <Ionicons
@@ -410,7 +415,9 @@ const BookingRequestsScreen = ({ route, navigation }) => {
                 {
                   paddingBottom: isWeb
                     ? SPACING.md
-                    : Math.max(insets.bottom, SPACING.md),
+                    : keyboardVisible
+                      ? SPACING.md
+                      : Math.max(insets.bottom, SPACING.md),
                 },
               ]}
             >

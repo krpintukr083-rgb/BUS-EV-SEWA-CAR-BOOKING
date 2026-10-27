@@ -70,7 +70,7 @@ const CarListingScreen = ({ navigation, route }) => {
 
   const handleSelectCar = (car) => {
     const schedule = car.schedule;
-    
+
     updateDraft({
       serviceType: 'Car',
       vehicle: car,
@@ -82,7 +82,7 @@ const CarListingScreen = ({ navigation, route }) => {
       schedule: schedule || null,
       travelDate: schedule?.travelDate || route.params?.travelDate || bookingDraft?.travelDate || new Date().toISOString()
     });
-    
+
     if (isInstant) {
       navigation.navigate('InstantBookingRoute', { serviceType: 'Car', carId: car._id });
     } else {

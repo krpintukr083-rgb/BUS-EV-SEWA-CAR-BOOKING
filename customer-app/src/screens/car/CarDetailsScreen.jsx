@@ -50,18 +50,18 @@ const CarDetailsScreen = ({ route, navigation }) => {
   useEffect(() => {
     console.log("CAR route params:", route.params);
     console.log("CAR vehicle ID:", carId);
-    
+
     if (carId && (!car || car._id !== carId)) {
       const fetchDetail = async () => {
         setLoading(true);
         try {
           const res = await customerService.getCarDetails(carId);
           console.log("CAR API response:", res);
-          
+
           // Safe extraction depending on exact backend response nesting
           const vehicle = res?.data?.data || res?.data || res?.vehicle;
           console.log("CAR vehicle:", vehicle);
-          
+
           if (res.success && vehicle) {
             setCar(vehicle);
             updateDraft({

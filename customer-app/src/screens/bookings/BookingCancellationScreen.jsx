@@ -27,15 +27,26 @@ const BookingCancellationScreen = ({ route, navigation }) => {
   const [customNote, setCustomNote] = useState('');
   const [loading, setLoading] = useState(false);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   useEffect(() => {
+    const onShow = (e) => {
+      const height = e?.endCoordinates?.height;
+      if (height && height > 0) setKeyboardHeight(Math.round(height));
+      setIsKeyboardOpen(true);
+    };
+    const onHide = () => {
+      setIsKeyboardOpen(false);
+      setKeyboardHeight(0);
+    };
+
     const showSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => setIsKeyboardOpen(true)
+      onShow
     );
     const hideSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setIsKeyboardOpen(false)
+      onHide
     );
 
     return () => {
@@ -108,7 +119,7 @@ const BookingCancellationScreen = ({ route, navigation }) => {
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: isKeyboardOpen ? 40 : 24 }
+          { paddingBottom: isKeyboardOpen ? Math.max(keyboardHeight, 200) : 24 }
         ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}

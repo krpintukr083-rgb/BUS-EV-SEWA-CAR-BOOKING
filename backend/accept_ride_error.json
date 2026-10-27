@@ -1,0 +1,62 @@
+{
+  "error": "Plan executor error during findAndModify :: caused by :: E11000 duplicate key error collection: transport_booking_test.bookings index: one_active_instant_booking_per_driver dup key: { driver: ObjectId('6adf19103aed0593be9ae1fc') }",
+  "code": 11000,
+  "driverId": "6adf19103aed0593be9ae1fc",
+  "bookingMode": "INSTANT",
+  "rawError": {
+    "errorLabelSet": {},
+    "errorResponse": {
+      "ok": 0,
+      "errmsg": "Plan executor error during findAndModify :: caused by :: E11000 duplicate key error collection: transport_booking_test.bookings index: one_active_instant_booking_per_driver dup key: { driver: ObjectId('6adf19103aed0593be9ae1fc') }",
+      "code": 11000,
+      "codeName": "DuplicateKey",
+      "keyPattern": {
+        "driver": 1
+      },
+      "keyValue": {
+        "driver": "6adf19103aed0593be9ae1fc"
+      },
+      "$clusterTime": {
+        "clusterTime": {
+          "$timestamp": "7700901607545765895"
+        },
+        "signature": {
+          "hash": "JGzAelCeb9diptNq8sz9vq1MrRI=",
+          "keyId": {
+            "low": 2,
+            "high": 1777910652,
+            "unsigned": false
+          }
+        }
+      },
+      "operationTime": {
+        "$timestamp": "7700901607545765893"
+      }
+    },
+    "ok": 0,
+    "code": 11000,
+    "codeName": "DuplicateKey",
+    "keyPattern": {
+      "driver": 1
+    },
+    "keyValue": {
+      "driver": "6adf19103aed0593be9ae1fc"
+    },
+    "$clusterTime": {
+      "clusterTime": {
+        "$timestamp": "7700901607545765895"
+      },
+      "signature": {
+        "hash": "JGzAelCeb9diptNq8sz9vq1MrRI=",
+        "keyId": {
+          "low": 2,
+          "high": 1777910652,
+          "unsigned": false
+        }
+      }
+    },
+    "operationTime": {
+      "$timestamp": "7700901607545765893"
+    }
+  }
+}

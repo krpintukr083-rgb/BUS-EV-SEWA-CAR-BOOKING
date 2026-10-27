@@ -24,16 +24,52 @@ const PassengerDetailsScreen = ({ navigation }) => {
   const { bookingDraft, updateDraft } = useBooking();
   const scrollViewRef = useRef(null);
   const cardLayoutsRef = useRef({});
+  const lastFocusedRef = useRef(null);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  const performScroll = (index, fieldOffset = 0) => {
+    const cardY = cardLayoutsRef.current[index] ?? (index * 280 + 80);
+    const targetY = Math.max(0, cardY + fieldOffset - 16);
+    setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        y: targetY,
+        animated: true,
+      });
+    }, 100);
+  };
+
+  const scrollToInput = (index, fieldOffset = 0) => {
+    lastFocusedRef.current = { index, fieldOffset };
+    performScroll(index, fieldOffset);
+  };
 
   useEffect(() => {
+    const onShow = (event) => {
+      const height = event?.endCoordinates?.height;
+      if (height && height > 0) {
+        setKeyboardHeight(Math.round(height));
+      }
+      setIsKeyboardOpen(true);
+      if (lastFocusedRef.current) {
+        const { index, fieldOffset } = lastFocusedRef.current;
+        performScroll(index, fieldOffset);
+      }
+    };
+
+    const onHide = () => {
+      setIsKeyboardOpen(false);
+      setKeyboardHeight(0);
+      lastFocusedRef.current = null;
+    };
+
     const showSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => setIsKeyboardOpen(true)
+      onShow
     );
     const hideSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setIsKeyboardOpen(false)
+      onHide
     );
 
     return () => {
@@ -48,25 +84,24 @@ const PassengerDetailsScreen = ({ navigation }) => {
     }
   };
 
-  const scrollToInput = (index, fieldOffset = 0) => {
-    const cardY = cardLayoutsRef.current[index] ?? (index * 280 + 80);
-    const targetY = Math.max(0, cardY + fieldOffset - 16);
-    setTimeout(() => {
-      scrollViewRef.current?.scrollTo({
-        y: targetY,
-        animated: true,
-      });
-    }, 100);
-  };
-
   const maxAllowedPassengers = bookingDraft.selectedSeats && bookingDraft.selectedSeats.length > 0
     ? bookingDraft.selectedSeats.length
     : Math.max(1, Number(bookingDraft.passengerCount) || 1);
 
   const buildPassengers = () => {
     const existing = bookingDraft.passengerDetails;
-    if (existing && existing.length > 0) {
-      return existing;
+    if (existing && Array.isArray(existing) && existing.length > 0) {
+      return existing.map((p, idx) => ({
+        name: p?.name || '',
+        phone: p?.phone || '',
+        age: p?.age !== undefined && p?.age !== null ? String(p.age) : '',
+        gender: p?.gender || 'Male',
+        ...(bookingDraft.selectedSeats?.[idx]
+          ? { seatNumber: bookingDraft.selectedSeats[idx] }
+          : p?.seatNumber
+          ? { seatNumber: p.seatNumber }
+          : {})
+      }));
     }
     return [{
       name: '',
@@ -81,34 +116,38 @@ const PassengerDetailsScreen = ({ navigation }) => {
 
   const addPassenger = () => {
     if (passengers.length < maxAllowedPassengers) {
-      setPassengers([...passengers, {
-        name: '',
-        phone: '',
-        age: '',
-        gender: 'Male',
-        seatNumber: bookingDraft.selectedSeats?.[passengers.length] || undefined
-      }]);
+      setPassengers(prev => [
+        ...prev,
+        {
+          name: '',
+          phone: '',
+          age: '',
+          gender: 'Male',
+          seatNumber: bookingDraft.selectedSeats?.[prev.length] || undefined
+        }
+      ]);
     }
   };
 
   const removePassenger = (indexToRemove) => {
     if (indexToRemove === 0) return;
-    const updated = passengers.filter((_, idx) => idx !== indexToRemove);
-    setPassengers(updated);
+    setPassengers(prev => prev.filter((_, idx) => idx !== indexToRemove));
   };
 
   const [errors, setErrors] = useState({});
 
   const updatePassengerField = (index, field, value) => {
-    const updated = [...passengers];
-    updated[index][field] = value;
-    setPassengers(updated);
+    setPassengers(prev =>
+      prev.map((p, idx) => (idx === index ? { ...p, [field]: value } : p))
+    );
 
     // clear error
     if (errors[`${index}_${field}`]) {
-      const newErrs = { ...errors };
-      delete newErrs[`${index}_${field}`];
-      setErrors(newErrs);
+      setErrors(prev => {
+        const next = { ...prev };
+        delete next[`${index}_${field}`];
+        return next;
+      });
     }
   };
 
@@ -165,7 +204,7 @@ const PassengerDetailsScreen = ({ navigation }) => {
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: isKeyboardOpen ? 60 : 24 }
+          { paddingBottom: isKeyboardOpen ? Math.max(keyboardHeight, 260) : 24 }
         ]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
@@ -291,6 +330,16 @@ const PassengerDetailsScreen = ({ navigation }) => {
             <Text style={[styles.addPassengerText, { color: serviceColor }]}>+ Add Passenger</Text>
           </TouchableOpacity>
         )}
+
+        {isKeyboardOpen && (
+          <View style={styles.inScrollCta}>
+            <Button
+              title="Continue to Fare Summary"
+              onPress={handleContinue}
+              style={{ backgroundColor: serviceColor }}
+            />
+          </View>
+        )}
       </ScrollView>
 
       {/* Continue Footer */}
@@ -318,6 +367,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background
+  },
+  inScrollCta: {
+    marginTop: 8,
+    marginBottom: 16
   },
   scrollView: {
     flex: 1

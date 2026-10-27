@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -24,19 +24,31 @@ const InstantBookingRouteScreen = ({ navigation, route }) => {
   const bottomInset = Math.max(insets.bottom, 0);
   const { user } = useCustomerAuth();
   const { updateDraft, bookingDraft } = useBooking();
+  const scrollViewRef = useRef(null);
   const [pickupLocation, setPickupLocation] = useState('');
   const [dropLocation, setDropLocation] = useState('');
   const [passengerCount, setPassengerCount] = useState(1);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   useEffect(() => {
+    const onShow = (e) => {
+      const height = e?.endCoordinates?.height;
+      if (height && height > 0) setKeyboardHeight(Math.round(height));
+      setIsKeyboardOpen(true);
+    };
+    const onHide = () => {
+      setIsKeyboardOpen(false);
+      setKeyboardHeight(0);
+    };
+
     const showSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => setIsKeyboardOpen(true)
+      onShow
     );
     const hideSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setIsKeyboardOpen(false)
+      onHide
     );
 
     return () => {
@@ -72,8 +84,9 @@ const InstantBookingRouteScreen = ({ navigation, route }) => {
     >
       <Header title="Instant Booking" onBack={() => navigation.goBack()} />
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
-        contentContainerStyle={[styles.content, { paddingBottom: isKeyboardOpen ? 30 : 20 }]}
+        contentContainerStyle={[styles.content, { paddingBottom: isKeyboardOpen ? Math.max(keyboardHeight, 200) : 20 }]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -86,7 +99,17 @@ const InstantBookingRouteScreen = ({ navigation, route }) => {
         </View>
 
         <Input label="From / Pickup Location" placeholder="e.g. Nepalgunj" value={pickupLocation} onChangeText={setPickupLocation} />
-        <Input label="To / Destination" placeholder="e.g. Kathmandu" value={dropLocation} onChangeText={setDropLocation} />
+        <Input
+          label="To / Destination"
+          placeholder="e.g. Kathmandu"
+          value={dropLocation}
+          onChangeText={setDropLocation}
+          onFocus={() => {
+            setTimeout(() => {
+              scrollViewRef.current?.scrollToEnd({ animated: true });
+            }, 120);
+          }}
+        />
         
         <View style={styles.counterContainer}>
           <Text style={styles.counterLabel}>How many passengers?</Text>
@@ -100,6 +123,16 @@ const InstantBookingRouteScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* In-Scroll Continue button when keyboard is open */}
+        {isKeyboardOpen && (
+          <View style={{ marginTop: 16, marginBottom: 8 }}>
+            <Button 
+              title="Continue" 
+              onPress={handleContinue} 
+            />
+          </View>
+        )}
       </ScrollView>
 
       {/* Pinned Action Footer */}

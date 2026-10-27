@@ -42,6 +42,8 @@ const BusPassengerManifest = () => {
   const [error, setError] = useState('');
   const [selectedBookingModal, setSelectedBookingModal] = useState(null);
   const [nonBusMatch, setNonBusMatch] = useState(null);
+  const [bookingNotFound, setBookingNotFound] = useState(false);
+  const [searchedBookingId, setSearchedBookingId] = useState('');
 
   // Debouncing refs
   const isFirstRender = useRef(true);
@@ -57,6 +59,8 @@ const BusPassengerManifest = () => {
       setLoadingJourneys(true);
       setError('');
       setNonBusMatch(null);
+      setBookingNotFound(false);
+      setSearchedBookingId('');
       const params = {};
       if (queryDate) params.travelDate = queryDate;
       if (busId) params.vehicleId = busId;
@@ -67,14 +71,25 @@ const BusPassengerManifest = () => {
         setJourneys(res.data || []);
         if (res.buses) setBuses(res.buses);
         if (res.nonBusMatch) setNonBusMatch(res.nonBusMatch);
+        if (res.bookingNotFound) {
+          setBookingNotFound(true);
+          setSearchedBookingId(res.searchedBookingId || searchVal);
+        }
 
-        // Auto-select first journey if none currently selected or if previously selected is no longer in list
+        // When a match exists, display/select the corresponding journey and show its passenger manifest
         if (res.data && res.data.length > 0) {
-          const currentExists = res.data.some(j => j.journeyKey === selectedJourneyKey);
-          if (!selectedJourneyKey || !currentExists) {
-            const first = res.data[0];
-            setSelectedJourneyKey(first.journeyKey);
-            loadManifestForJourney(first);
+          const targetJourney = (searchVal && searchVal.trim())
+            ? (res.data.find(j => j.matchedBookingId) || res.data[0])
+            : (res.data.find(j => j.journeyKey === selectedJourneyKey) || res.data[0]);
+
+          setSelectedJourneyKey(targetJourney.journeyKey);
+          loadManifestForJourney(targetJourney);
+
+          // If a booking was matched, pre-set passengerSearch so the manifest table immediately highlights or filters to that booking
+          if (res.matchedBookingId) {
+            setPassengerSearch(res.matchedBookingId);
+          } else if (searchVal && /^bk[-_\s]*\d+/i.test(searchVal.trim())) {
+            setPassengerSearch(searchVal.trim());
           }
         } else {
           setSelectedJourneyKey('');
@@ -112,6 +127,9 @@ const BusPassengerManifest = () => {
 
   const handleClearSearch = () => {
     setSearchTerm('');
+    setPassengerSearch('');
+    setBookingNotFound(false);
+    setSearchedBookingId('');
     lastSearchedRef.current = '';
     fetchJourneys(selectedTravelDate, selectedBusId, '');
   };
@@ -120,6 +138,9 @@ const BusPassengerManifest = () => {
     setSelectedBusId('');
     setSelectedTravelDate('');
     setSearchTerm('');
+    setPassengerSearch('');
+    setBookingNotFound(false);
+    setSearchedBookingId('');
     lastSearchedRef.current = '';
     fetchJourneys('', '', '');
   };
@@ -280,9 +301,9 @@ const BusPassengerManifest = () => {
       {/* 2. Top Filter Controls: Search & Select Journey / Bus */}
       <div className="manifest-filter-card">
         <div className="manifest-filter-grid">
-          {/* Search by Registration / Driver / Operator / Route / Trip ID */}
+          {/* Search by Registration / Driver / Operator / Route / Booking ID / Trip ID */}
           <div className="manifest-filter-field">
-            <label className="manifest-filter-label">Search Bus / Route / Driver</label>
+            <label className="manifest-filter-label">Search Bus / Route / Driver / Booking ID</label>
             <div style={{ position: 'relative' }}>
               <Search
                 size={16}
@@ -303,7 +324,7 @@ const BusPassengerManifest = () => {
                   paddingRight: (loadingJourneys || searchTerm) ? '42px' : '14px',
                   minHeight: '42px'
                 }}
-                placeholder="Search vehicle, registration, driver, route, trip ID..."
+                placeholder="Search Booking ID (e.g. BK-6441910), vehicle, driver, route..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 onKeyDown={e => {
@@ -459,8 +480,20 @@ const BusPassengerManifest = () => {
               </div>
 
               {nonBusMatch ? (
-                <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '10px 12px', margin: '0 0 12px', fontSize: '0.78rem', color: '#1e40af', textAlign: 'left', lineHeight: '1.45' }}>
-                  <strong>Notice:</strong> Booking <code>{nonBusMatch.bookingId}</code> belongs to <strong>{nonBusMatch.serviceType}</strong>, not Bus. The Bus Manifest only tracks verified bus journeys.
+                <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '12px 14px', margin: '0 0 12px', fontSize: '0.8rem', color: '#1e40af', textAlign: 'left', lineHeight: '1.45' }}>
+                  <div style={{ fontWeight: '700', fontSize: '0.85rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <AlertTriangle size={15} style={{ color: '#2563eb', flexShrink: 0 }} />
+                    <span>Non-Bus Service Booking</span>
+                  </div>
+                  <div>Booking <code>{nonBusMatch.bookingId}</code> belongs to <strong>{nonBusMatch.serviceType}</strong>, not Bus. The Bus Manifest only tracks verified bus journeys.</div>
+                </div>
+              ) : bookingNotFound ? (
+                <div style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '8px', padding: '12px 14px', margin: '0 0 12px', fontSize: '0.8rem', color: '#9a3412', textAlign: 'left', lineHeight: '1.45' }}>
+                  <div style={{ fontWeight: '700', fontSize: '0.85rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <AlertTriangle size={15} style={{ color: '#ea580c', flexShrink: 0 }} />
+                    <span>No matching bus booking found</span>
+                  </div>
+                  <div>No bus booking exists matching <code>{searchedBookingId || searchTerm}</code>. Please check the Booking ID or verify whether it was booked under EV-Sewa or Car.</div>
                 </div>
               ) : (
                 <p style={{ margin: '0 0 12px', lineHeight: '1.4', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
@@ -514,9 +547,16 @@ const BusPassengerManifest = () => {
                       <span style={{ fontWeight: '800', fontSize: '0.9rem', color: isSelected ? 'var(--primary-blue)' : 'var(--text-main)', letterSpacing: '-0.01em' }}>
                         {j.vehicleNumber}
                       </span>
-                      <span style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
-                        {j.travelDate || 'Any Date'}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {j.matchedBookingId && (
+                          <span style={{ fontSize: '0.68rem', fontWeight: '750', color: '#1d4ed8', backgroundColor: '#dbeafe', padding: '1px 6px', borderRadius: '4px', letterSpacing: '-0.01em' }}>
+                            {j.matchedBookingId}
+                          </span>
+                        )}
+                        <span style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', backgroundColor: '#f1f5f9', padding: '2px 6px', borderRadius: '4px' }}>
+                          {j.travelDate || 'Any Date'}
+                        </span>
+                      </div>
                     </div>
 
                     <div style={{ fontSize: '0.82rem', color: 'var(--text-main)', fontWeight: '600' }}>
@@ -733,8 +773,13 @@ const BusPassengerManifest = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {displayedManifestRows.map(row => (
-                      <tr key={row.manifestId}>
+                    {displayedManifestRows.map(row => {
+                      const isHighlightedBooking = Boolean(
+                        (searchTerm && row.bookingId && row.bookingId.toLowerCase().includes(searchTerm.trim().toLowerCase())) ||
+                        (passengerSearch && row.bookingId && row.bookingId.toLowerCase().includes(passengerSearch.trim().toLowerCase()))
+                      );
+                      return (
+                      <tr key={row.manifestId} style={isHighlightedBooking ? { backgroundColor: '#f0f9ff' } : undefined}>
                         <td>
                           <span className="seat-pill">
                             {row.seatNumber}
@@ -792,7 +837,8 @@ const BusPassengerManifest = () => {
                           </button>
                         </td>
                       </tr>
-                    ))}
+                    );
+                  })}
                   </tbody>
                 </table>
               </div>

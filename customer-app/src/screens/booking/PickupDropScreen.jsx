@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -22,16 +22,46 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const PickupDropScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { bookingDraft, updateDraft } = useBooking();
+  const scrollViewRef = useRef(null);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  const lastFocusedFieldRef = useRef(null);
+  const pickupLayoutRef = useRef(0);
+  const dropLayoutRef = useRef(0);
+
+  const performScroll = (field) => {
+    if (field === 'drop') {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    } else if (field === 'pickup') {
+      const targetY = Math.max(0, (pickupLayoutRef.current || 120) - 30);
+      scrollViewRef.current?.scrollTo({ y: targetY, animated: true });
+    }
+  };
 
   useEffect(() => {
+    const onShow = (e) => {
+      const height = e?.endCoordinates?.height;
+      if (height && height > 0) setKeyboardHeight(Math.round(height));
+      setIsKeyboardOpen(true);
+      if (lastFocusedFieldRef.current) {
+        setTimeout(() => {
+          performScroll(lastFocusedFieldRef.current);
+        }, 80);
+      }
+    };
+    const onHide = () => {
+      setIsKeyboardOpen(false);
+      setKeyboardHeight(0);
+    };
+
     const showSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => setIsKeyboardOpen(true)
+      onShow
     );
     const hideSub = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => setIsKeyboardOpen(false)
+      onHide
     );
 
     return () => {
@@ -55,6 +85,13 @@ const PickupDropScreen = ({ navigation }) => {
   const [errors, setErrors] = useState({});
   const routePoints = getRoutePoints(bookingDraft.vehicle?.route);
   const hasPricedStops = (bookingDraft.vehicle?.route?.stops || []).length > 0;
+
+  const handleSwapLocations = () => {
+    if (hasPricedStops) return;
+    setPickup(drop);
+    setDrop(pickup);
+    setErrors({});
+  };
 
   const selectRoutePoint = (kind, point) => {
     if (kind === 'pickup') {
@@ -103,12 +140,14 @@ const PickupDropScreen = ({ navigation }) => {
       <Header title="Pickup & Drop" onBack={() => navigation.goBack()} />
 
       <ScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: isKeyboardOpen ? 40 : 24 }
+          { paddingBottom: isKeyboardOpen ? Math.max(keyboardHeight, 260) : 24 }
         ]}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         showsVerticalScrollIndicator={false}
       >
         {/* Selected Vehicle Card */}
@@ -131,7 +170,12 @@ const PickupDropScreen = ({ navigation }) => {
           <Text style={styles.sectionHeader}>Boarding & Dropping Points</Text>
 
           {/* Pickup Input */}
-          <View style={styles.inputGroup}>
+          <View
+            style={styles.inputGroup}
+            onLayout={(e) => {
+              pickupLayoutRef.current = e.nativeEvent.layout.y;
+            }}
+          >
             <View style={styles.labelRow}>
               <Ionicons name="radio-button-on" size={16} color={COLORS.primary} />
               <Text style={styles.inputLabel}>Pickup Location / Terminal</Text>
@@ -156,6 +200,10 @@ const PickupDropScreen = ({ navigation }) => {
                   setPickup(t);
                   if (errors.pickup) setErrors({ ...errors, pickup: null });
                 }}
+                onFocus={() => {
+                  lastFocusedFieldRef.current = 'pickup';
+                  setTimeout(() => performScroll('pickup'), 80);
+                }}
                 error={errors.pickup}
               />
             )}
@@ -165,14 +213,26 @@ const PickupDropScreen = ({ navigation }) => {
           {/* Swap Indicator */}
           <View style={styles.routeConnector}>
             <View style={styles.verticalLine} />
-            <View style={styles.iconCircle}>
+            <TouchableOpacity
+              onPress={handleSwapLocations}
+              style={styles.iconCircle}
+              activeOpacity={0.7}
+              disabled={hasPricedStops}
+              accessibilityLabel="Swap pickup and drop-off locations"
+              accessibilityRole="button"
+            >
               <Ionicons name="swap-vertical" size={16} color={COLORS.textSecondary} />
-            </View>
+            </TouchableOpacity>
             <View style={styles.verticalLine} />
           </View>
 
           {/* Drop Input */}
-          <View style={styles.inputGroup}>
+          <View
+            style={styles.inputGroup}
+            onLayout={(e) => {
+              dropLayoutRef.current = e.nativeEvent.layout.y;
+            }}
+          >
             <View style={styles.labelRow}>
               <Ionicons name="location" size={16} color="#ef4444" />
               <Text style={styles.inputLabel}>Drop-off Location / Stand</Text>
@@ -197,6 +257,10 @@ const PickupDropScreen = ({ navigation }) => {
                   setDrop(t);
                   if (errors.drop) setErrors({ ...errors, drop: null });
                 }}
+                onFocus={() => {
+                  lastFocusedFieldRef.current = 'drop';
+                  setTimeout(() => performScroll('drop'), 80);
+                }}
                 error={errors.drop}
               />
             )}
@@ -211,6 +275,17 @@ const PickupDropScreen = ({ navigation }) => {
             Driver will arrive at your designated pickup point 15 minutes before the departure time.
           </Text>
         </View>
+
+        {/* In-Scroll Continue button when keyboard is open */}
+        {isKeyboardOpen && (
+          <View style={styles.inScrollCta}>
+            <Button
+              title="Continue"
+              onPress={handleContinue}
+              style={{ backgroundColor: serviceColor }}
+            />
+          </View>
+        )}
       </ScrollView>
 
       {/* Footer */}
@@ -336,6 +411,10 @@ const styles = StyleSheet.create({
     color: '#1e40af',
     flex: 1,
     lineHeight: 18
+  },
+  inScrollCta: {
+    marginTop: 16,
+    marginBottom: 8
   },
   footer: {
     backgroundColor: '#ffffff',

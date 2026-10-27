@@ -793,5 +793,68 @@ describe('Bus Passenger Manifest Feature Tests', () => {
       expect(resp.data.length).toBe(0);
     });
   });
+
+  describe('Booking ID Search & Journey Resolution Regression Tests', () => {
+    test('1. Full Booking ID locates the bus journey and sets matchedBookingId', async () => {
+      const req = { query: { search: bookingGroup.bookingId } };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+      expect(resp.success).toBe(true);
+      expect(resp.data.length).toBeGreaterThanOrEqual(1);
+      const matched = resp.data.find(j => j.vehicleNumber === testBus1.vehicleNumber);
+      expect(matched).toBeDefined();
+      expect(matched.travelDate).toBe('2026-11-01');
+      expect(resp.matchedBookingId).toBe(bookingGroup.bookingId);
+    });
+
+    test('2. Partial Booking ID (numeric digits only) locates the bus journey', async () => {
+      // Extract numeric timestamp part from booking ID (e.g. 1793014...)
+      const partialId = bookingGroup.bookingId.split('-')[2];
+      const req = { query: { search: partialId } };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+      expect(resp.success).toBe(true);
+      expect(resp.data.length).toBeGreaterThanOrEqual(1);
+      expect(resp.data.some(j => j.vehicleNumber === testBus1.vehicleNumber)).toBe(true);
+    });
+
+    test('3. Booking ID with space or unhyphenated format locates the journey', async () => {
+      const partialId = bookingGroup.bookingId.split('-')[2];
+      const reqSpaced = { query: { search: `BK ${partialId}` } };
+      let respSpaced = null;
+      await getBusManifestJourneys(reqSpaced, { json: d => { respSpaced = d; } }, jest.fn());
+      expect(respSpaced.success).toBe(true);
+      expect(respSpaced.data.length).toBeGreaterThanOrEqual(1);
+      expect(respSpaced.data.some(j => j.vehicleNumber === testBus1.vehicleNumber)).toBe(true);
+
+      const reqNoHyphen = { query: { search: `bk${partialId}` } };
+      let respNoHyphen = null;
+      await getBusManifestJourneys(reqNoHyphen, { json: d => { respNoHyphen = d; } }, jest.fn());
+      expect(respNoHyphen.success).toBe(true);
+      expect(respNoHyphen.data.length).toBeGreaterThanOrEqual(1);
+      expect(respNoHyphen.data.some(j => j.vehicleNumber === testBus1.vehicleNumber)).toBe(true);
+    });
+
+    test('4. Partial EV-Sewa or Car booking ID returns nonBusMatch without returning bus journeys', async () => {
+      const evDigits = testEvSewaBooking.bookingId.replace(/\D/g, '');
+      const req = { query: { search: evDigits } };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+      expect(resp.success).toBe(true);
+      expect(resp.data.length).toBe(0);
+      expect(resp.nonBusMatch).toBeDefined();
+      expect(resp.nonBusMatch.serviceType).toBe('EV-Sewa');
+    });
+
+    test('5. Nonexistent Booking ID returns count 0 and bookingNotFound: true', async () => {
+      const req = { query: { search: 'BK-999999999' } };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+      expect(resp.success).toBe(true);
+      expect(resp.data.length).toBe(0);
+      expect(resp.bookingNotFound).toBe(true);
+      expect(resp.searchedBookingId).toBe('BK-999999999');
+    });
+  });
 });
 

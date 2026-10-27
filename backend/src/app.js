@@ -78,7 +78,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Uploads directory path
 const uploadsDir = path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadsDir)) {
-  try { fs.mkdirSync(uploadsDir, { recursive: true }); } catch (e) {}
+  try { fs.mkdirSync(uploadsDir, { recursive: true }); } catch (e) { }
 }
 const { generateDocumentFallbackSvg } = require('./utils/documentFallbackSvg');
 const UploadedFile = require('./models/UploadedFile');
@@ -101,7 +101,7 @@ app.get(['/uploads/:filename', '/api/uploads/:filename'], async (req, res) => {
         // Cache to local disk for fast subsequent delivery
         try {
           fs.writeFileSync(localFilePath, dbFile.data);
-        } catch (e) {}
+        } catch (e) { }
 
         res.set('Content-Type', dbFile.contentType || 'image/jpeg');
         return res.send(dbFile.data);
