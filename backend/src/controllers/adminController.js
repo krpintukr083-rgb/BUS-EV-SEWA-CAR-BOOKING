@@ -3087,7 +3087,7 @@ exports.resetDemoDatabase = async (req, res, next) => {
  */
 exports.getBusManifestJourneys = async (req, res, next) => {
   try {
-    const { search, travelDate, vehicleId, serviceType, status } = req.query;
+    const { search, travelDate, vehicleId, serviceType, status, vehicleRegistration } = req.query;
 
     const normalizeService = st => {
       if (!st) return null;
@@ -3098,14 +3098,66 @@ exports.getBusManifestJourneys = async (req, res, next) => {
       return null;
     };
 
+    const normalizeText = val => {
+      if (!val) return '';
+      return String(val).toLowerCase().replace(/[\s\-_/\\,.]/g, '');
+    };
+
+    const buildFlexibleRegistrationRegex = str => {
+      if (!str) return null;
+      const trimmed = String(str).trim();
+      if (!trimmed) return null;
+
+      const tokenized = trimmed
+        .replace(/([a-zA-Z]+)(\d+)/g, '$1 $2')
+        .replace(/(\d+)([a-zA-Z]+)/g, '$1 $2')
+        .split(/[\s\-_/\\,.]+/)
+        .filter(Boolean);
+
+      if (tokenized.length === 0) return null;
+
+      const escapedTokens = tokenized.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      return new RegExp(escapedTokens.join('[-_\\s]*'), 'i');
+    };
+
     const isSpecificService = Boolean(serviceType && serviceType !== 'All' && serviceType !== 'All Services');
     const filteredService = isSpecificService ? normalizeService(serviceType) : null;
     const targetServices = filteredService ? [filteredService] : ['Bus', 'EV-Sewa', 'Car'];
+
+    const rawRegSearch = (vehicleRegistration || '').trim();
+    const regRegex = buildFlexibleRegistrationRegex(rawRegSearch);
+    const regNorm = normalizeText(rawRegSearch);
+    const regLower = rawRegSearch.toLowerCase();
 
     // Fetch vehicles matching target service types with assigned drivers
     const vehicleQuery = { vehicleType: { $in: targetServices } };
     if (vehicleId && mongoose.Types.ObjectId.isValid(vehicleId)) {
       vehicleQuery._id = vehicleId;
+    }
+
+    if (rawRegSearch) {
+      const regOrConditions = [];
+      if (regRegex) {
+        regOrConditions.push({ vehicleNumber: regRegex });
+        regOrConditions.push({ rcNumber: regRegex });
+      }
+      const escapedReg = rawRegSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      regOrConditions.push({ vehicleNumber: { $regex: escapedReg, $options: 'i' } });
+      regOrConditions.push({ rcNumber: { $regex: escapedReg, $options: 'i' } });
+      if (regNorm && regNorm !== escapedReg.toLowerCase()) {
+        regOrConditions.push({ vehicleNumber: { $regex: regNorm, $options: 'i' } });
+      }
+
+      if (vehicleQuery._id) {
+        // If specific vehicleId was also selected, combine with $and so both apply cleanly
+        vehicleQuery.$and = [
+          { _id: vehicleQuery._id },
+          { $or: regOrConditions }
+        ];
+        delete vehicleQuery._id;
+      } else {
+        vehicleQuery.$or = regOrConditions;
+      }
     }
 
     const vehicles = await Vehicle.find(vehicleQuery)
@@ -3196,12 +3248,7 @@ exports.getBusManifestJourneys = async (req, res, next) => {
         }
       }
     ]);
-
     // Query related bookings when search text is provided
-    const normalizeText = val => {
-      if (!val) return '';
-      return String(val).toLowerCase().replace(/[\s\-_/\\,.]/g, '');
-    };
 
     const rawSearch = (search || '').trim();
     const searchLower = rawSearch.toLowerCase();
@@ -3506,8 +3553,11 @@ exports.getBusManifestJourneys = async (req, res, next) => {
     for (const v of vehicles) {
       if (String(v._id).startsWith('unassigned_')) continue;
       if (travelDate) {
-        const key = `${v._id}_${travelDate}_direct`;
-        if (!journeysMap.has(key)) {
+        const hasExistingOnDate = Array.from(journeysMap.values()).some(
+          j => j.vehicleId.toString() === v._id.toString() && j.travelDate === travelDate
+        );
+        if (!hasExistingOnDate) {
+          const key = `${v._id}_${travelDate}_direct`;
           journeysMap.set(key, makeJourney(v, travelDate));
         }
       } else {
@@ -3576,8 +3626,22 @@ exports.getBusManifestJourneys = async (req, res, next) => {
 
     let journeys = Array.from(journeysMap.values());
 
+    // Apply vehicle registration filter across journeys
+    if (rawRegSearch) {
+      journeys = journeys.filter(j => {
+        const vNum = j.vehicleNumber || '';
+        const vRc = j.tripReference || '';
+        return (
+          vNum.toLowerCase().includes(regLower) ||
+          (regNorm && normalizeText(vNum).includes(regNorm)) ||
+          (regRegex && (regRegex.test(vNum) || regRegex.test(vRc)))
+        );
+      });
+    }
+
     // Apply comprehensive multi-field search filter across related records
     if (rawSearch) {
+      const searchRegRegex = buildFlexibleRegistrationRegex(rawSearch);
       journeys = journeys.filter(j => {
         // If vehicleId filter was explicitly passed and doesn't match, respect the filter
         if (vehicleId && mongoose.Types.ObjectId.isValid(vehicleId) && j.vehicleId.toString() !== vehicleId.toString()) {
@@ -3590,7 +3654,11 @@ exports.getBusManifestJourneys = async (req, res, next) => {
 
         // 1. Vehicle Registration Number (exact/partial and normalized without spaces/hyphens)
         const vNum = j.vehicleNumber || '';
-        if (vNum.toLowerCase().includes(searchLower) || (searchNorm && normalizeText(vNum).includes(searchNorm))) {
+        if (
+          vNum.toLowerCase().includes(searchLower) ||
+          (searchNorm && normalizeText(vNum).includes(searchNorm)) ||
+          (searchRegRegex && searchRegRegex.test(vNum))
+        ) {
           return true;
         }
 
@@ -3701,6 +3769,7 @@ exports.getBusManifestJourneys = async (req, res, next) => {
       nonBusMatch,
       bookingNotFound: Boolean(isBookingIdFormat && journeys.length === 0 && !nonBusMatch),
       searchedBookingId: isBookingIdFormat ? rawSearch : null,
+      searchedRegistration: rawRegSearch || null,
       matchedBookingId: matchedBookingId,
       data: journeys
     });

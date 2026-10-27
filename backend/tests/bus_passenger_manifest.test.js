@@ -1121,5 +1121,257 @@ describe('Bus Passenger Manifest Feature Tests', () => {
       expect(paxResp.data[0].dropLocation).toBe('Tribhuvan International Airport');
     });
   });
+
+  describe('Vehicle Registration Number Search Regression Tests', () => {
+    test('1. Exact vehicle registration search returns matching journeys', async () => {
+      const req = {
+        query: {
+          serviceType: 'All',
+          vehicleRegistration: testBus1.vehicleNumber
+        }
+      };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+
+      expect(resp.success).toBe(true);
+      expect(resp.data.length).toBeGreaterThanOrEqual(1);
+      expect(resp.data.every(j => j.vehicleNumber === testBus1.vehicleNumber)).toBe(true);
+      expect(resp.searchedRegistration).toBe(testBus1.vehicleNumber);
+    });
+
+    test('2. Partial vehicle registration search (numeric digits or prefix) returns matching journeys', async () => {
+      const parts = testBus1.vehicleNumber.split(' ');
+      const numericPart = parts[parts.length - 1]; // e.g. "7788"
+      const prefixPart = parts.slice(0, 2).join(' '); // e.g. "BA 99"
+
+      // 2a. Search by numeric part
+      let respNum = null;
+      await getBusManifestJourneys(
+        { query: { serviceType: 'All', vehicleRegistration: numericPart } },
+        { json: d => { respNum = d; } },
+        jest.fn()
+      );
+      expect(respNum.success).toBe(true);
+      expect(respNum.data.some(j => j.vehicleNumber === testBus1.vehicleNumber)).toBe(true);
+
+      // 2b. Search by prefix part
+      let respPre = null;
+      await getBusManifestJourneys(
+        { query: { serviceType: 'All', vehicleRegistration: prefixPart } },
+        { json: d => { respPre = d; } },
+        jest.fn()
+      );
+      expect(respPre.success).toBe(true);
+      expect(respPre.data.some(j => j.vehicleNumber === testBus1.vehicleNumber)).toBe(true);
+    });
+
+    test('3. Search with lowercase letters, hyphens and extra spaces resolves correctly', async () => {
+      // Convert "BA 99 KHA 1234" to "ba-99-kha-1234"
+      const hyphenatedLower = testBus1.vehicleNumber.toLowerCase().replace(/\s+/g, '-');
+      // Convert to "  ba 99  kha  1234  "
+      const paddedSpaced = `  ${testBus1.vehicleNumber.toLowerCase().replace(/\s+/g, '   ')}  `;
+
+      let respHyphen = null;
+      await getBusManifestJourneys(
+        { query: { serviceType: 'All', vehicleRegistration: hyphenatedLower } },
+        { json: d => { respHyphen = d; } },
+        jest.fn()
+      );
+      expect(respHyphen.success).toBe(true);
+      expect(respHyphen.data.some(j => j.vehicleNumber === testBus1.vehicleNumber)).toBe(true);
+
+      let respSpaced = null;
+      await getBusManifestJourneys(
+        { query: { serviceType: 'All', vehicleRegistration: paddedSpaced } },
+        { json: d => { respSpaced = d; } },
+        jest.fn()
+      );
+      expect(respSpaced.success).toBe(true);
+      expect(respSpaced.data.some(j => j.vehicleNumber === testBus1.vehicleNumber)).toBe(true);
+    });
+
+    test('4. Bus vehicle search returns its correct journeys', async () => {
+      const req = {
+        query: {
+          serviceType: 'Bus',
+          vehicleRegistration: testBus1.vehicleNumber
+        }
+      };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+
+      expect(resp.success).toBe(true);
+      expect(resp.data.length).toBeGreaterThanOrEqual(1);
+      expect(resp.data.every(j => j.serviceType === 'Bus')).toBe(true);
+      expect(resp.data.every(j => j.vehicleNumber === testBus1.vehicleNumber)).toBe(true);
+    });
+
+    test('5. EV-Sewa vehicle search returns its correct journeys and passenger manifest', async () => {
+      const req = {
+        query: {
+          serviceType: 'EV-Sewa',
+          vehicleRegistration: testEvSewaVehicle.vehicleNumber
+        }
+      };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+
+      expect(resp.success).toBe(true);
+      expect(resp.data.length).toBeGreaterThanOrEqual(1);
+      expect(resp.data.every(j => j.serviceType === 'EV-Sewa')).toBe(true);
+      expect(resp.data.every(j => j.vehicleNumber === testEvSewaVehicle.vehicleNumber)).toBe(true);
+
+      // Verify manifest for this EV journey
+      const evJourney = resp.data[0];
+      let paxResp = null;
+      await getBusPassengerManifest(
+        { query: { vehicleId: evJourney.vehicleId.toString() } },
+        { json: d => { paxResp = d; } },
+        jest.fn()
+      );
+      expect(paxResp.success).toBe(true);
+      expect(paxResp.data.some(r => r.bookingId === testEvSewaBooking.bookingId)).toBe(true);
+    });
+
+    test('6. Car vehicle search returns its correct journeys and passenger manifest', async () => {
+      const req = {
+        query: {
+          serviceType: 'Car',
+          vehicleRegistration: testCarVehicle.vehicleNumber
+        }
+      };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+
+      expect(resp.success).toBe(true);
+      expect(resp.data.length).toBeGreaterThanOrEqual(1);
+      expect(resp.data.every(j => j.serviceType === 'Car')).toBe(true);
+      expect(resp.data.every(j => j.vehicleNumber === testCarVehicle.vehicleNumber)).toBe(true);
+
+      // Verify manifest for this Car journey
+      const carJourney = resp.data[0];
+      let paxResp = null;
+      await getBusPassengerManifest(
+        { query: { vehicleId: carJourney.vehicleId.toString() } },
+        { json: d => { paxResp = d; } },
+        jest.fn()
+      );
+      expect(paxResp.success).toBe(true);
+      expect(paxResp.data.some(r => r.bookingId === testCarBooking.bookingId)).toBe(true);
+    });
+
+    test('7. Registration search works with service type and date filters', async () => {
+      // testBus1 has 2 trips: 2026-11-01 and 2026-11-02
+      const req = {
+        query: {
+          serviceType: 'Bus',
+          travelDate: '2026-11-01',
+          vehicleRegistration: testBus1.vehicleNumber
+        }
+      };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+
+      expect(resp.success).toBe(true);
+      expect(resp.data.length).toBe(1);
+      expect(resp.data[0].travelDate).toBe('2026-11-01');
+      expect(resp.data[0].vehicleNumber).toBe(testBus1.vehicleNumber);
+    });
+
+    test('8. Vehicle search does not return another vehicle bookings or journeys', async () => {
+      // Searching Car vehicle registration
+      const req = {
+        query: {
+          serviceType: 'All',
+          vehicleRegistration: testCarVehicle.vehicleNumber
+        }
+      };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+
+      expect(resp.success).toBe(true);
+      // All returned journeys must strictly belong to testCarVehicle
+      expect(resp.data.every(j => j.vehicleNumber === testCarVehicle.vehicleNumber)).toBe(true);
+      expect(resp.data.some(j => j.vehicleNumber === testBus1.vehicleNumber)).toBe(false);
+      expect(resp.data.some(j => j.vehicleNumber === testEvSewaVehicle.vehicleNumber)).toBe(false);
+    });
+
+    test('9. Combined vehicle dropdown and typed registration search behave harmoniously', async () => {
+      // 9a. Aligning dropdown vehicleId and registration returns the vehicle
+      const reqMatching = {
+        query: {
+          serviceType: 'All',
+          vehicleId: testBus1._id.toString(),
+          vehicleRegistration: testBus1.vehicleNumber
+        }
+      };
+      let respMatching = null;
+      await getBusManifestJourneys(reqMatching, { json: d => { respMatching = d; } }, jest.fn());
+      expect(respMatching.success).toBe(true);
+      expect(respMatching.data.every(j => j.vehicleNumber === testBus1.vehicleNumber)).toBe(true);
+
+      // 9b. Conflicting dropdown vehicleId and typed registration returns empty results without crashing
+      const reqConflict = {
+        query: {
+          serviceType: 'All',
+          vehicleId: testCarVehicle._id.toString(),
+          vehicleRegistration: testBus1.vehicleNumber
+        }
+      };
+      let respConflict = null;
+      await getBusManifestJourneys(reqConflict, { json: d => { respConflict = d; } }, jest.fn());
+      expect(respConflict.success).toBe(true);
+      expect(respConflict.data.length).toBe(0);
+    });
+
+    test('10. Existing booking ID search still works independently of vehicle registration search', async () => {
+      const req = {
+        query: {
+          serviceType: 'All',
+          search: bookingGroup.bookingId
+        }
+      };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+
+      expect(resp.success).toBe(true);
+      expect(resp.data.some(j => j.matchedBookingId === bookingGroup.bookingId)).toBe(true);
+    });
+
+    test('11. Empty results and invalid search inputs are handled gracefully', async () => {
+      const req = {
+        query: {
+          serviceType: 'All',
+          vehicleRegistration: 'NONEXISTENT-VEHICLE-99999'
+        }
+      };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+
+      expect(resp.success).toBe(true);
+      expect(resp.count).toBe(0);
+      expect(resp.data).toEqual([]);
+    });
+
+    test('12. Admin authentication and permissions remain enforced on manifest routes', () => {
+      const adminRoutes = require('../src/routes/adminRoutes');
+      
+      // Locate manifest route layers in the router stack
+      const routeLayers = adminRoutes.stack.filter(layer => layer.route);
+      const journeysRoute = routeLayers.find(layer => layer.route.path === '/bus-manifest/journeys');
+      const manifestRoute = routeLayers.find(layer => layer.route.path === '/bus-manifest');
+
+      expect(journeysRoute).toBeDefined();
+      expect(manifestRoute).toBeDefined();
+
+      // Check method
+      expect(journeysRoute.route.methods.get).toBe(true);
+      expect(manifestRoute.route.methods.get).toBe(true);
+
+      // Both routes have multiple stack handlers (permission checker + controller)
+      expect(journeysRoute.route.stack.length).toBeGreaterThanOrEqual(2);
+      expect(manifestRoute.route.stack.length).toBeGreaterThanOrEqual(2);
+    });
+  });
 });
 
