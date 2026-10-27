@@ -15,7 +15,7 @@ const titlesMap = {
   '/schedule-approval': 'Schedule Approval Review',
   '/vehicles': 'Unified Vehicle Management',
   '/bus-management': 'Intercity Bus Fleet & Route Management',
-  '/bus-passenger-manifest': 'Bus Passenger Manifest & Journey Manifests',
+  '/bus-passenger-manifest': 'Passenger Manifest',
   '/ev-sewa-management': 'EV-Sewa Green Mobility Management',
   '/car-management': 'Car & Outstation Chauffeur Management',
   '/driver-assignment': 'Vehicle-to-Driver Assignment Hub',

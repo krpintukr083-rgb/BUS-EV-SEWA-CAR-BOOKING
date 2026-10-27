@@ -20,6 +20,8 @@ describe('Bus Passenger Manifest Feature Tests', () => {
   let bookingTrip2;
   let testEvSewaVehicle;
   let testEvSewaBooking;
+  let testCarVehicle;
+  let testCarBooking;
   let createdBookingIds = [];
   let createdVehicleIds = [];
   let createdDriverIds = [];
@@ -219,6 +221,53 @@ describe('Bus Passenger Manifest Feature Tests', () => {
       paymentStatus: 'Paid'
     });
     createdBookingIds.push(testEvSewaBooking._id);
+
+    // 7. Create Car Vehicle and Booking Fixture
+    testCarVehicle = await Vehicle.create({
+      vehicleNumber: `BA 1 PA ${Math.floor(1000 + Math.random() * 9000)}`,
+      vehicleType: 'Car',
+      vehicleCategory: 'Sedan / Prime EV',
+      vehicleModel: 'Hyundai Ioniq 5',
+      vehicleName: 'Premier Car Ride',
+      seatingCapacity: 4,
+      ownerName: 'Car Fleet Operator',
+      ownerMobileNumber: '9841888888',
+      assignedDriver: testDriver._id,
+      route: {
+        origin: 'Thamel Kathmandu',
+        destination: 'Tribhuvan International Airport',
+        departureTime: '10:00 AM',
+        arrivalTime: '11:00 AM'
+      },
+      carDetails: {
+        ac: true,
+        fuelType: 'Electric / Hybrid'
+      }
+    });
+    createdVehicleIds.push(testCarVehicle._id);
+
+    testCarBooking = await Booking.create({
+      bookingId: `BK-CAR-${Date.now()}`,
+      serviceType: 'Car',
+      vehicle: testCarVehicle._id,
+      driver: testDriver._id,
+      customer: {
+        name: 'Car Passenger Test',
+        phone: '9819999999',
+        email: 'car@test.com'
+      },
+      passengerDetails: [
+        { name: 'Car Passenger Test', age: 31, gender: 'Male' }
+      ],
+      pickupLocation: 'Thamel Kathmandu',
+      dropLocation: 'Tribhuvan International Airport',
+      travelDate: new Date('2026-11-01T00:00:00.000Z'),
+      fare: 850,
+      bookingStatus: 'Confirmed',
+      rideStatus: 'Accepted',
+      paymentStatus: 'Paid'
+    });
+    createdBookingIds.push(testCarBooking._id);
   });
 
   afterAll(async () => {
@@ -457,8 +506,8 @@ describe('Bus Passenger Manifest Feature Tests', () => {
     });
 
     test('9. An existing car or EV-Sewa booking ID does not incorrectly appear as a bus journey', async () => {
-      // Query using the isolated EV-Sewa fixture booking ID
-      const req = { query: { search: testEvSewaBooking.bookingId } };
+      // Query using the isolated EV-Sewa fixture booking ID with Bus service filter
+      const req = { query: { serviceType: 'Bus', search: testEvSewaBooking.bookingId } };
       let resp = null;
       await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
       expect(resp.success).toBe(true);
@@ -837,7 +886,7 @@ describe('Bus Passenger Manifest Feature Tests', () => {
 
     test('4. Partial EV-Sewa or Car booking ID returns nonBusMatch without returning bus journeys', async () => {
       const evDigits = testEvSewaBooking.bookingId.replace(/\D/g, '');
-      const req = { query: { search: evDigits } };
+      const req = { query: { serviceType: 'Bus', search: evDigits } };
       let resp = null;
       await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
       expect(resp.success).toBe(true);
@@ -854,6 +903,173 @@ describe('Bus Passenger Manifest Feature Tests', () => {
       expect(resp.data.length).toBe(0);
       expect(resp.bookingNotFound).toBe(true);
       expect(resp.searchedBookingId).toBe('BK-999999999');
+    });
+  });
+
+  describe('Unified Multi-Service (Bus, EV-Sewa, Car) Manifest Tests', () => {
+    test('1. Bus manifest continues working with seat numbers and boarding points', async () => {
+      const req = { query: { vehicleId: testBus1._id.toString(), travelDate: '2026-11-01' } };
+      let resp = null;
+      await getBusPassengerManifest(req, { json: d => { resp = d; } }, jest.fn());
+
+      expect(resp.success).toBe(true);
+      expect(resp.journeyInfo.vehicleType).toBe('Bus');
+      expect(resp.data.length).toBeGreaterThanOrEqual(2);
+      expect(resp.data.some(p => p.seatNumber === 'S01')).toBe(true);
+      expect(resp.data.some(p => p.boardingPoint === 'Kalanki Bus Stop')).toBe(true);
+    });
+
+    test('2. EV-Sewa bookings appear in Passenger Manifest without fabricating seat numbers', async () => {
+      const req = { query: { vehicleId: testEvSewaVehicle._id.toString(), travelDate: '2026-11-01' } };
+      let resp = null;
+      await getBusPassengerManifest(req, { json: d => { resp = d; } }, jest.fn());
+
+      expect(resp.success).toBe(true);
+      expect(resp.journeyInfo.vehicleType).toBe('EV-Sewa');
+      expect(resp.data.length).toBeGreaterThanOrEqual(1);
+      const evRow = resp.data.find(r => r.bookingId === testEvSewaBooking.bookingId);
+      expect(evRow).toBeDefined();
+      expect(evRow.serviceType).toBe('EV-Sewa');
+      expect(evRow.seatNumber).toBe('N/A'); // No fabricated bus seats
+      expect(evRow.pickupLocation).toBe('Birgunj');
+      expect(evRow.dropLocation).toBe('Bharatpur');
+    });
+
+    test('3. Car bookings appear in Passenger Manifest with ride status, vehicle details, and assigned driver', async () => {
+      const req = { query: { vehicleId: testCarVehicle._id.toString(), travelDate: '2026-11-01' } };
+      let resp = null;
+      await getBusPassengerManifest(req, { json: d => { resp = d; } }, jest.fn());
+
+      expect(resp.success).toBe(true);
+      expect(resp.journeyInfo.vehicleType).toBe('Car');
+      expect(resp.data.length).toBeGreaterThanOrEqual(1);
+      const carRow = resp.data.find(r => r.bookingId === testCarBooking.bookingId);
+      expect(carRow).toBeDefined();
+      expect(carRow.serviceType).toBe('Car');
+      expect(carRow.rideStatus).toBe('Accepted');
+      expect(carRow.fare).toBe(850);
+      expect(carRow.assignedDriver).toBe('Manifest Test Driver');
+      expect(carRow.seatNumber).toBe('N/A');
+    });
+
+    test('4. All Services returns all three service types (Bus, EV-Sewa, Car)', async () => {
+      const req = { query: { serviceType: 'All', travelDate: '2026-11-01' } };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+
+      expect(resp.success).toBe(true);
+      const serviceTypes = new Set(resp.data.map(j => j.serviceType || j.vehicleType));
+      expect(serviceTypes.has('Bus')).toBe(true);
+      expect(serviceTypes.has('EV-Sewa')).toBe(true);
+      expect(serviceTypes.has('Car')).toBe(true);
+    });
+
+    test('5. Filtering by individual service works correctly', async () => {
+      // 5a. Bus only
+      let busResp = null;
+      await getBusManifestJourneys({ query: { serviceType: 'Bus' } }, { json: d => { busResp = d; } }, jest.fn());
+      expect(busResp.success).toBe(true);
+      expect(busResp.data.every(j => (j.serviceType || j.vehicleType) === 'Bus')).toBe(true);
+
+      // 5b. EV-Sewa only
+      let evResp = null;
+      await getBusManifestJourneys({ query: { serviceType: 'EV-Sewa' } }, { json: d => { evResp = d; } }, jest.fn());
+      expect(evResp.success).toBe(true);
+      expect(evResp.data.every(j => (j.serviceType || j.vehicleType) === 'EV-Sewa')).toBe(true);
+
+      // 5c. Car only
+      let carResp = null;
+      await getBusManifestJourneys({ query: { serviceType: 'Car' } }, { json: d => { carResp = d; } }, jest.fn());
+      expect(carResp.success).toBe(true);
+      expect(carResp.data.every(j => (j.serviceType || j.vehicleType) === 'Car')).toBe(true);
+    });
+
+    test('6. Search by booking ID works for all three services', async () => {
+      // 6a. Search Bus booking ID
+      let busSearch = null;
+      await getBusManifestJourneys({ query: { serviceType: 'All', search: bookingGroup.bookingId } }, { json: d => { busSearch = d; } }, jest.fn());
+      expect(busSearch.success).toBe(true);
+      expect(busSearch.data.some(j => j.matchedBookingId === bookingGroup.bookingId)).toBe(true);
+
+      // 6b. Search EV-Sewa booking ID
+      let evSearch = null;
+      await getBusManifestJourneys({ query: { serviceType: 'All', search: testEvSewaBooking.bookingId } }, { json: d => { evSearch = d; } }, jest.fn());
+      expect(evSearch.success).toBe(true);
+      expect(evSearch.data.some(j => j.matchedBookingId === testEvSewaBooking.bookingId)).toBe(true);
+
+      // 6c. Search Car booking ID
+      let carSearch = null;
+      await getBusManifestJourneys({ query: { serviceType: 'All', search: testCarBooking.bookingId } }, { json: d => { carSearch = d; } }, jest.fn());
+      expect(carSearch.success).toBe(true);
+      expect(carSearch.data.some(j => j.matchedBookingId === testCarBooking.bookingId)).toBe(true);
+    });
+
+    test('7. Date and status filters work together across services', async () => {
+      const req = {
+        query: {
+          serviceType: 'All',
+          travelDate: '2026-11-01',
+          status: 'Confirmed'
+        }
+      };
+      let resp = null;
+      await getBusManifestJourneys(req, { json: d => { resp = d; } }, jest.fn());
+
+      expect(resp.success).toBe(true);
+      expect(resp.data.length).toBeGreaterThanOrEqual(1);
+      expect(resp.data.every(j => !j.travelDate || j.travelDate === '2026-11-01')).toBe(true);
+    });
+
+    test('8. Bookings without a schedule ID are handled correctly', async () => {
+      // testEvSewaBooking has scheduleId null
+      expect(testEvSewaBooking.scheduleId).toBeNull();
+
+      const req = { query: { vehicleId: testEvSewaVehicle._id.toString() } };
+      let resp = null;
+      await getBusPassengerManifest(req, { json: d => { resp = d; } }, jest.fn());
+
+      expect(resp.success).toBe(true);
+      expect(resp.data.some(r => r.bookingId === testEvSewaBooking.bookingId)).toBe(true);
+    });
+
+    test('9. No duplicate bookings or passengers appear in the manifest', async () => {
+      const req = { query: { vehicleId: testBus1._id.toString(), travelDate: '2026-11-01' } };
+      let resp = null;
+      await getBusPassengerManifest(req, { json: d => { resp = d; } }, jest.fn());
+
+      const keys = resp.data.map(r => r.manifestId);
+      const uniqueKeys = new Set(keys);
+      expect(keys.length).toBe(uniqueKeys.size);
+    });
+
+    test('10. Unrelated vehicles, drivers and bookings are never incorrectly associated', async () => {
+      const req = { query: { vehicleId: testCarVehicle._id.toString() } };
+      let resp = null;
+      await getBusPassengerManifest(req, { json: d => { resp = d; } }, jest.fn());
+
+      expect(resp.success).toBe(true);
+      // Car manifest should never include Bus or EV-Sewa bookings
+      expect(resp.data.every(r => r.bookingId !== bookingGroup.bookingId)).toBe(true);
+      expect(resp.data.every(r => r.bookingId !== testEvSewaBooking.bookingId)).toBe(true);
+      expect(resp.data.every(r => r.serviceType === 'Car')).toBe(true);
+    });
+
+    test('11. Empty results and missing optional fields do not crash the API or manifest', async () => {
+      const fakeId = new mongoose.Types.ObjectId();
+      const req = { query: { vehicleId: fakeId.toString() } };
+      let resp = null;
+      let statusCalled = null;
+      const res = {
+        status: code => {
+          statusCalled = code;
+          return { json: d => { resp = d; } };
+        },
+        json: d => { resp = d; }
+      };
+
+      await getBusPassengerManifest(req, res, jest.fn());
+      expect(statusCalled).toBe(404);
+      expect(resp.success).toBe(false);
     });
   });
 });

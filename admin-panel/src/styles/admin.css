@@ -1364,9 +1364,63 @@ input, select, textarea {
 
 .manifest-filter-grid {
   display: grid;
-  grid-template-columns: 2.2fr 2fr 1.6fr auto;
+  grid-template-columns: 1.3fr 2fr 1.8fr 1.4fr auto;
   gap: 14px;
   align-items: flex-end;
+}
+
+.service-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  font-weight: 750;
+  padding: 2px 8px;
+  border-radius: 999px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.service-pill-badge.service-bus {
+  background-color: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.service-pill-badge.service-ev {
+  background-color: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.service-pill-badge.service-car {
+  background-color: #f5f3ff;
+  color: #6d28d9;
+  border: 1px solid #ddd6fe;
+}
+
+.ride-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background-color: #f1f5f9;
+  color: #475569;
+}
+.ride-status-pill.started {
+  background-color: #eff6ff;
+  color: #2563eb;
+}
+.ride-status-pill.completed {
+  background-color: #ecfdf5;
+  color: #059669;
+}
+.ride-status-pill.accepted {
+  background-color: #fef3c7;
+  color: #b45309;
 }
 
 .manifest-filter-field {

@@ -3087,22 +3087,35 @@ exports.resetDemoDatabase = async (req, res, next) => {
  */
 exports.getBusManifestJourneys = async (req, res, next) => {
   try {
-    const { search, travelDate, vehicleId } = req.query;
+    const { search, travelDate, vehicleId, serviceType, status } = req.query;
 
-    // Fetch all buses with assigned drivers
-    const busQuery = { vehicleType: 'Bus' };
+    const normalizeService = st => {
+      if (!st) return null;
+      const s = String(st).trim().toLowerCase();
+      if (s === 'bus') return 'Bus';
+      if (s === 'ev-sewa' || s === 'ev' || s === 'evsewa') return 'EV-Sewa';
+      if (s === 'car') return 'Car';
+      return null;
+    };
+
+    const isSpecificService = Boolean(serviceType && serviceType !== 'All' && serviceType !== 'All Services');
+    const filteredService = isSpecificService ? normalizeService(serviceType) : null;
+    const targetServices = filteredService ? [filteredService] : ['Bus', 'EV-Sewa', 'Car'];
+
+    // Fetch vehicles matching target service types with assigned drivers
+    const vehicleQuery = { vehicleType: { $in: targetServices } };
     if (vehicleId && mongoose.Types.ObjectId.isValid(vehicleId)) {
-      busQuery._id = vehicleId;
+      vehicleQuery._id = vehicleId;
     }
 
-    const buses = await Vehicle.find(busQuery)
+    const vehicles = await Vehicle.find(vehicleQuery)
       .populate('assignedDriver', 'name phone email licenseNumber mobileNumber drivingLicenceNumber')
       .lean();
 
-    const busIds = buses.map(b => b._id);
+    const vehicleIds = vehicles.map(v => v._id);
 
-    // Fetch schedules for these buses
-    const scheduleQuery = { vehicle: { $in: busIds } };
+    // Fetch schedules for these vehicles
+    const scheduleQuery = { vehicle: { $in: vehicleIds } };
     if (travelDate) {
       const startOfDay = new Date(travelDate);
       startOfDay.setUTCHours(0, 0, 0, 0);
@@ -3115,10 +3128,10 @@ exports.getBusManifestJourneys = async (req, res, next) => {
       .populate('driver', 'name phone email licenseNumber mobileNumber drivingLicenceNumber')
       .lean();
 
-    // Fetch distinct bookings travel dates and count per bus
+    // Fetch distinct bookings travel dates and count per vehicle
     const bookingMatch = {
-      serviceType: 'Bus',
-      vehicle: { $in: busIds }
+      serviceType: { $in: targetServices },
+      vehicle: { $in: vehicleIds }
     };
     if (travelDate) {
       const startOfDay = new Date(travelDate);
@@ -3126,6 +3139,13 @@ exports.getBusManifestJourneys = async (req, res, next) => {
       const endOfDay = new Date(travelDate);
       endOfDay.setUTCHours(23, 59, 59, 999);
       bookingMatch.travelDate = { $gte: startOfDay, $lte: endOfDay };
+    }
+    if (status && status !== 'All') {
+      if (status === 'Confirmed') {
+        bookingMatch.bookingStatus = { $in: ['Confirmed', 'Admin Confirmed', 'ADMIN_CONFIRMED', 'Completed'] };
+      } else {
+        bookingMatch.bookingStatus = status;
+      }
     }
 
     const bookingAgg = await Booking.aggregate([
@@ -3193,8 +3213,8 @@ exports.getBusManifestJourneys = async (req, res, next) => {
       (searchNorm && searchNorm.length >= 4 && (/^bk/i.test(searchNorm) || /^\d+$/.test(searchNorm)));
 
     let nonBusMatch = null;
-    let matchedBusBookingId = null;
-    let matchingBusBookings = [];
+    let matchedBookingId = null;
+    let matchingBookings = [];
     const matchingBookingJourneySet = new Set();
     const matchingBookingScheduleIds = new Set();
     const matchingBookingMap = new Map();
@@ -3232,21 +3252,23 @@ exports.getBusManifestJourneys = async (req, res, next) => {
         bookingIdConditions.push({ bookingId: { $regex: escapedNorm, $options: 'i' } });
       }
 
-      // Check if this booking ID belongs to another service type (e.g. EV-Sewa or Car)
-      const nonBusBooking = await Booking.findOne({
-        serviceType: { $nin: ['Bus', 'bus'] },
-        $or: bookingIdConditions
-      }).select('bookingId serviceType').lean();
+      // If the admin explicitly filtered by 'Bus', check if this booking belongs to EV-Sewa or Car for notification
+      if (filteredService === 'Bus') {
+        const nonBusBooking = await Booking.findOne({
+          serviceType: { $nin: ['Bus', 'bus'] },
+          $or: bookingIdConditions
+        }).select('bookingId serviceType').lean();
 
-      if (nonBusBooking && nonBusBooking.serviceType) {
-        nonBusMatch = {
-          bookingId: nonBusBooking.bookingId,
-          serviceType: nonBusBooking.serviceType
-        };
+        if (nonBusBooking && nonBusBooking.serviceType) {
+          nonBusMatch = {
+            bookingId: nonBusBooking.bookingId,
+            serviceType: nonBusBooking.serviceType
+          };
+        }
       }
 
-      // Find matching bus bookings across booking ID, passenger details, seats, locations
-      const busBookingOrConditions = [
+      // Find matching bookings across target services
+      const bookingOrConditions = [
         ...bookingIdConditions,
         { 'customer.name': { $regex: escapedSearch, $options: 'i' } },
         { 'customer.phone': { $regex: escapedSearch, $options: 'i' } },
@@ -3259,12 +3281,12 @@ exports.getBusManifestJourneys = async (req, res, next) => {
       ];
 
       if (escapedNorm && escapedNorm !== escapedSearch.toLowerCase()) {
-        busBookingOrConditions.push({ 'customer.phone': { $regex: escapedNorm, $options: 'i' } });
+        bookingOrConditions.push({ 'customer.phone': { $regex: escapedNorm, $options: 'i' } });
       }
 
       if (mongoose.Types.ObjectId.isValid(rawSearch)) {
         const objId = new mongoose.Types.ObjectId(rawSearch);
-        busBookingOrConditions.push(
+        bookingOrConditions.push(
           { _id: objId },
           { scheduleId: objId },
           { vehicle: objId },
@@ -3272,46 +3294,47 @@ exports.getBusManifestJourneys = async (req, res, next) => {
         );
       }
 
-      matchingBusBookings = await Booking.find({
-        serviceType: { $regex: '^bus$', $options: 'i' },
-        $or: busBookingOrConditions
+      matchingBookings = await Booking.find({
+        serviceType: { $in: targetServices },
+        $or: bookingOrConditions
       })
-        .select('_id bookingId vehicle travelDate createdAt scheduleId serviceType bookingStatus customer passengerDetails busSeatNumbers pickupLocation dropLocation')
+        .select('_id bookingId vehicle travelDate createdAt scheduleId serviceType bookingStatus customer passengerDetails busSeatNumbers pickupLocation dropLocation driver')
         .populate('vehicle')
         .populate('scheduleId')
+        .populate('driver')
         .lean();
 
-      if (matchingBusBookings.length > 0) {
-        matchedBusBookingId = matchingBusBookings[0].bookingId;
+      if (matchingBookings.length > 0) {
+        matchedBookingId = matchingBookings[0].bookingId;
         nonBusMatch = null;
       }
 
-      for (const mb of matchingBusBookings) {
+      for (const mb of matchingBookings) {
         let vObj = mb.vehicle;
         if (!vObj && mb.scheduleId && mb.scheduleId.vehicle) {
           vObj = mb.scheduleId.vehicle;
         }
 
         let vId = null;
-        let bus = null;
+        let vRecord = null;
         if (vObj && vObj._id) {
           vId = vObj._id.toString();
-          bus = buses.find(b => b._id.toString() === vId);
-          if (!bus) {
-            bus = vObj;
-            buses.push(bus);
-            busIds.push(bus._id);
+          vRecord = vehicles.find(b => b._id.toString() === vId);
+          if (!vRecord) {
+            vRecord = vObj;
+            vehicles.push(vRecord);
+            vehicleIds.push(vRecord._id);
           }
         } else if (vObj) {
           vId = vObj.toString();
-          bus = buses.find(b => b._id.toString() === vId);
-          if (!bus && mongoose.Types.ObjectId.isValid(vId)) {
-            bus = await Vehicle.findById(vId)
+          vRecord = vehicles.find(b => b._id.toString() === vId);
+          if (!vRecord && mongoose.Types.ObjectId.isValid(vId)) {
+            vRecord = await Vehicle.findById(vId)
               .populate('assignedDriver', 'name phone email licenseNumber mobileNumber drivingLicenceNumber')
               .lean();
-            if (bus) {
-              buses.push(bus);
-              busIds.push(bus._id);
+            if (vRecord) {
+              vehicles.push(vRecord);
+              vehicleIds.push(vRecord._id);
             }
           }
         }
@@ -3335,275 +3358,162 @@ exports.getBusManifestJourneys = async (req, res, next) => {
       }
     }
 
+    // Helper to construct a unified journey object
+    const makeJourney = (v, dateStr, s = null, agg = null, extra = {}) => {
+      const vType = v.vehicleType || 'Bus';
+      const schedId = s?._id ? s._id.toString() : (extra.scheduleId ? extra.scheduleId.toString() : 'direct');
+      const key = `${v._id}_${dateStr || 'direct'}_${schedId}`;
+      const dObj = s?.driver || extra.driver || v.assignedDriver;
+      const dName = s?.driver?.name || extra.driver?.name || v.assignedDriver?.name || v.thirdPartyDriver?.driverName || 'Unassigned';
+      const dPhone = s?.driver?.mobileNumber || s?.driver?.phone || extra.driver?.mobileNumber || extra.driver?.phone || v.assignedDriver?.mobileNumber || v.assignedDriver?.phone || v.thirdPartyDriver?.driverMobile || '';
+      const dLicense = s?.driver?.drivingLicenceNumber || s?.driver?.licenseNumber || extra.driver?.drivingLicenceNumber || extra.driver?.licenseNumber || v.assignedDriver?.drivingLicenceNumber || v.assignedDriver?.licenseNumber || v.thirdPartyDriver?.driverLicenseNumber || '';
+      const dId = dObj?._id ? dObj._id.toString() : (dObj ? dObj.toString() : null);
+
+      let capacity = v.seatingCapacity || 1;
+      if (vType === 'Bus') {
+        capacity = v.busDetails?.availableSeats || v.seatingCapacity || 36;
+      } else if (vType === 'EV-Sewa') {
+        capacity = v.seatingCapacity || 12;
+      } else if (vType === 'Car') {
+        capacity = v.seatingCapacity || 4;
+      }
+
+      return {
+        journeyKey: key,
+        vehicleId: v._id,
+        vehicleNumber: v.vehicleNumber || '',
+        vehicleName: v.vehicleName || '',
+        vehicleModel: v.vehicleModel || '',
+        vehicleType: vType,
+        serviceType: vType,
+        vehicleCategory: v.vehicleCategory || '',
+        busType: v.busDetails?.busType || '',
+        seatLayout: v.busDetails?.seatLayout || '',
+        evDetails: v.evDetails || null,
+        carDetails: v.carDetails || null,
+        operatorName: v.ownerName || 'Self / Operator',
+        operatorPhone: v.ownerMobileNumber || '',
+        driverId: dId,
+        driverName: dName,
+        driverPhone: dPhone,
+        driverLicense: dLicense,
+        travelDate: dateStr || '',
+        scheduleId: s?._id || extra.scheduleId || null,
+        tripId: s?._id ? s._id.toString() : (extra.tripId || v.hireDetails?.tripReference || null),
+        tripReference: v.hireDetails?.tripReference || '',
+        origin: extra.origin || s?.origin || v.route?.origin || 'N/A',
+        destination: extra.destination || s?.destination || v.route?.destination || 'N/A',
+        departureTime: extra.departureTime || s?.departureTime || v.route?.departureTime || (vType === 'Bus' ? '07:00 AM' : 'On Schedule'),
+        arrivalTime: extra.arrivalTime || s?.arrivalTime || v.route?.arrivalTime || 'N/A',
+        boardingPoints: v.route?.boardingPoints || [],
+        droppingPoints: v.route?.droppingPoints || [],
+        stops: (v.route?.stops || []).map(st => (typeof st === 'string' ? st : (st?.name || ''))).filter(Boolean),
+        seatingCapacity: capacity,
+        totalBookings: agg ? agg.totalBookings : (extra.totalBookings || 0),
+        confirmedBookings: agg ? agg.confirmedBookings : (extra.confirmedBookings || 0),
+        cancelledBookings: agg ? agg.cancelledBookings : (extra.cancelledBookings || 0),
+        totalPassengers: agg ? agg.totalPassengers : (extra.totalPassengers || 0),
+        status: s?.status || v.vehicleStatus || 'Active',
+        matchedBookingId: extra.matchedBookingId || null
+      };
+    };
+
     // Build journeys list combining schedules and distinct booking dates
     const journeysMap = new Map();
 
     // 1. Incorporate journeys from Schedules
     for (const s of schedules) {
-      const bus = buses.find(b => b._id.toString() === s.vehicle.toString());
-      if (!bus) continue;
+      const v = vehicles.find(b => b._id.toString() === s.vehicle.toString());
+      if (!v) continue;
 
       const dateStr = s.travelDate ? new Date(s.travelDate).toISOString().split('T')[0] : '';
-      const key = `${bus._id}_${dateStr}_${s._id}`;
+      const key = `${v._id}_${dateStr}_${s._id}`;
 
       const matchedAgg = bookingAgg.find(
         a =>
-          a._id.vehicle.toString() === bus._id.toString() &&
+          a._id.vehicle.toString() === v._id.toString() &&
           a._id.travelDateStr === dateStr &&
           a._id.scheduleId &&
           a._id.scheduleId.toString() === s._id.toString()
       );
 
-      const dObj = s.driver || bus.assignedDriver;
-      const dName = s.driver?.name || bus.assignedDriver?.name || bus.thirdPartyDriver?.driverName || 'Unassigned';
-      const dPhone = s.driver?.mobileNumber || s.driver?.phone || bus.assignedDriver?.mobileNumber || bus.assignedDriver?.phone || bus.thirdPartyDriver?.driverMobile || '';
-      const dLicense = s.driver?.drivingLicenceNumber || s.driver?.licenseNumber || bus.assignedDriver?.drivingLicenceNumber || bus.assignedDriver?.licenseNumber || bus.thirdPartyDriver?.driverLicenseNumber || '';
-      const dId = dObj?._id ? dObj._id.toString() : null;
-
-      journeysMap.set(key, {
-        journeyKey: key,
-        vehicleId: bus._id,
-        vehicleNumber: bus.vehicleNumber || '',
-        vehicleName: bus.vehicleName || '',
-        vehicleModel: bus.vehicleModel || '',
-        vehicleType: bus.vehicleType || 'Bus',
-        vehicleCategory: bus.vehicleCategory || '',
-        busType: bus.busDetails?.busType || '',
-        seatLayout: bus.busDetails?.seatLayout || '',
-        operatorName: bus.ownerName || 'Self / Operator',
-        operatorPhone: bus.ownerMobileNumber || '',
-        driverId: dId,
-        driverName: dName,
-        driverPhone: dPhone,
-        driverLicense: dLicense,
-        travelDate: dateStr,
-        scheduleId: s._id,
-        tripId: s._id.toString(),
-        tripReference: bus.hireDetails?.tripReference || '',
-        origin: s.origin || bus.route?.origin || 'N/A',
-        destination: s.destination || bus.route?.destination || 'N/A',
-        departureTime: s.departureTime || bus.route?.departureTime || 'N/A',
-        arrivalTime: s.arrivalTime || bus.route?.arrivalTime || 'N/A',
-        boardingPoints: bus.route?.boardingPoints || [],
-        droppingPoints: bus.route?.droppingPoints || [],
-        stops: (bus.route?.stops || []).map(st => (typeof st === 'string' ? st : (st?.name || ''))).filter(Boolean),
-        seatingCapacity: bus.busDetails?.availableSeats || bus.seatingCapacity || 36,
-        totalBookings: matchedAgg ? matchedAgg.totalBookings : 0,
-        confirmedBookings: matchedAgg ? matchedAgg.confirmedBookings : 0,
-        cancelledBookings: matchedAgg ? matchedAgg.cancelledBookings : 0,
-        totalPassengers: matchedAgg ? matchedAgg.totalPassengers : 0,
-        status: s.status || 'Active'
-      });
+      journeysMap.set(key, makeJourney(v, dateStr, s, matchedAgg));
     }
 
-    // 2. Incorporate journeys that have bookings directly linked to bus & date (with or without scheduleId)
+    // 2. Incorporate journeys that have bookings directly linked to vehicle & date
     for (const a of bookingAgg) {
-      const bus = buses.find(b => b._id.toString() === a._id.vehicle.toString());
-      if (!bus) continue;
+      const v = vehicles.find(b => b._id.toString() === a._id.vehicle.toString());
+      if (!v) continue;
 
       const dateStr = a._id.travelDateStr;
       const schedId = a._id.scheduleId ? a._id.scheduleId.toString() : 'direct';
-      const key = `${bus._id}_${dateStr}_${schedId}`;
+      const key = `${v._id}_${dateStr}_${schedId}`;
 
       if (!journeysMap.has(key)) {
-        const dObj = bus.assignedDriver;
-        const dName = bus.assignedDriver?.name || bus.thirdPartyDriver?.driverName || 'Unassigned';
-        const dPhone = bus.assignedDriver?.mobileNumber || bus.assignedDriver?.phone || bus.thirdPartyDriver?.driverMobile || '';
-        const dLicense = bus.assignedDriver?.drivingLicenceNumber || bus.assignedDriver?.licenseNumber || bus.thirdPartyDriver?.driverLicenseNumber || '';
-        const dId = dObj?._id ? dObj._id.toString() : null;
-
-        journeysMap.set(key, {
-          journeyKey: key,
-          vehicleId: bus._id,
-          vehicleNumber: bus.vehicleNumber || '',
-          vehicleName: bus.vehicleName || '',
-          vehicleModel: bus.vehicleModel || '',
-          vehicleType: bus.vehicleType || 'Bus',
-          vehicleCategory: bus.vehicleCategory || '',
-          busType: bus.busDetails?.busType || '',
-          seatLayout: bus.busDetails?.seatLayout || '',
-          operatorName: bus.ownerName || 'Self / Operator',
-          operatorPhone: bus.ownerMobileNumber || '',
-          driverId: dId,
-          driverName: dName,
-          driverPhone: dPhone,
-          driverLicense: dLicense,
-          travelDate: dateStr,
-          scheduleId: a._id.scheduleId || null,
-          tripId: a._id.scheduleId ? a._id.scheduleId.toString() : (bus.hireDetails?.tripReference || null),
-          tripReference: bus.hireDetails?.tripReference || '',
-          origin: bus.route?.origin || 'Kathmandu',
-          destination: bus.route?.destination || 'Birgunj',
-          departureTime: bus.route?.departureTime || '07:00 AM',
-          arrivalTime: bus.route?.arrivalTime || '02:30 PM',
-          boardingPoints: bus.route?.boardingPoints || [],
-          droppingPoints: bus.route?.droppingPoints || [],
-          stops: (bus.route?.stops || []).map(st => (typeof st === 'string' ? st : (st?.name || ''))).filter(Boolean),
-          seatingCapacity: bus.busDetails?.availableSeats || bus.seatingCapacity || 36,
-          totalBookings: a.totalBookings,
-          confirmedBookings: a.confirmedBookings,
-          cancelledBookings: a.cancelledBookings,
-          totalPassengers: a.totalPassengers,
-          status: bus.vehicleStatus || 'Active'
-        });
+        journeysMap.set(key, makeJourney(v, dateStr, null, a, { scheduleId: a._id.scheduleId }));
       }
     }
 
-    // 3. For buses with defined routes that don't have bookings/schedules yet, add default journey representation
-    for (const bus of buses) {
+    // 3. For vehicles with defined routes that don't have bookings/schedules yet, add default journey representation
+    for (const v of vehicles) {
       if (travelDate) {
-        const key = `${bus._id}_${travelDate}_direct`;
+        const key = `${v._id}_${travelDate}_direct`;
         if (!journeysMap.has(key)) {
-          const dObj = bus.assignedDriver;
-          const dName = bus.assignedDriver?.name || bus.thirdPartyDriver?.driverName || 'Unassigned';
-          const dPhone = bus.assignedDriver?.mobileNumber || bus.assignedDriver?.phone || bus.thirdPartyDriver?.driverMobile || '';
-          const dLicense = bus.assignedDriver?.drivingLicenceNumber || bus.assignedDriver?.licenseNumber || bus.thirdPartyDriver?.driverLicenseNumber || '';
-          const dId = dObj?._id ? dObj._id.toString() : null;
-
-          journeysMap.set(key, {
-            journeyKey: key,
-            vehicleId: bus._id,
-            vehicleNumber: bus.vehicleNumber || '',
-            vehicleName: bus.vehicleName || '',
-            vehicleModel: bus.vehicleModel || '',
-            vehicleType: bus.vehicleType || 'Bus',
-            vehicleCategory: bus.vehicleCategory || '',
-            busType: bus.busDetails?.busType || '',
-            seatLayout: bus.busDetails?.seatLayout || '',
-            operatorName: bus.ownerName || 'Self / Operator',
-            operatorPhone: bus.ownerMobileNumber || '',
-            driverId: dId,
-            driverName: dName,
-            driverPhone: dPhone,
-            driverLicense: dLicense,
-            travelDate,
-            scheduleId: null,
-            tripId: bus.hireDetails?.tripReference || null,
-            tripReference: bus.hireDetails?.tripReference || '',
-            origin: bus.route?.origin || 'N/A',
-            destination: bus.route?.destination || 'N/A',
-            departureTime: bus.route?.departureTime || 'N/A',
-            arrivalTime: bus.route?.arrivalTime || 'N/A',
-            boardingPoints: bus.route?.boardingPoints || [],
-            droppingPoints: bus.route?.droppingPoints || [],
-            stops: (bus.route?.stops || []).map(st => (typeof st === 'string' ? st : (st?.name || ''))).filter(Boolean),
-            seatingCapacity: bus.busDetails?.availableSeats || bus.seatingCapacity || 36,
-            totalBookings: 0,
-            confirmedBookings: 0,
-            cancelledBookings: 0,
-            totalPassengers: 0,
-            status: bus.vehicleStatus || 'Active'
-          });
+          journeysMap.set(key, makeJourney(v, travelDate));
         }
       } else {
-        const hasExisting = Array.from(journeysMap.values()).some(j => j.vehicleId.toString() === bus._id.toString());
+        const hasExisting = Array.from(journeysMap.values()).some(j => j.vehicleId.toString() === v._id.toString());
         if (!hasExisting) {
-          const key = `${bus._id}_direct`;
-          const dObj = bus.assignedDriver;
-          const dName = bus.assignedDriver?.name || bus.thirdPartyDriver?.driverName || 'Unassigned';
-          const dPhone = bus.assignedDriver?.mobileNumber || bus.assignedDriver?.phone || bus.thirdPartyDriver?.driverMobile || '';
-          const dLicense = bus.assignedDriver?.drivingLicenceNumber || bus.assignedDriver?.licenseNumber || bus.thirdPartyDriver?.driverLicenseNumber || '';
-          const dId = dObj?._id ? dObj._id.toString() : null;
-
-          journeysMap.set(key, {
-            journeyKey: key,
-            vehicleId: bus._id,
-            vehicleNumber: bus.vehicleNumber || '',
-            vehicleName: bus.vehicleName || '',
-            vehicleModel: bus.vehicleModel || '',
-            vehicleType: bus.vehicleType || 'Bus',
-            vehicleCategory: bus.vehicleCategory || '',
-            busType: bus.busDetails?.busType || '',
-            seatLayout: bus.busDetails?.seatLayout || '',
-            operatorName: bus.ownerName || 'Self / Operator',
-            operatorPhone: bus.ownerMobileNumber || '',
-            driverId: dId,
-            driverName: dName,
-            driverPhone: dPhone,
-            driverLicense: dLicense,
-            travelDate: '',
-            scheduleId: null,
-            tripId: bus.hireDetails?.tripReference || null,
-            tripReference: bus.hireDetails?.tripReference || '',
-            origin: bus.route?.origin || 'N/A',
-            destination: bus.route?.destination || 'N/A',
-            departureTime: bus.route?.departureTime || 'N/A',
-            arrivalTime: bus.route?.arrivalTime || 'N/A',
-            boardingPoints: bus.route?.boardingPoints || [],
-            droppingPoints: bus.route?.droppingPoints || [],
-            stops: (bus.route?.stops || []).map(st => (typeof st === 'string' ? st : (st?.name || ''))).filter(Boolean),
-            seatingCapacity: bus.busDetails?.availableSeats || bus.seatingCapacity || 36,
-            totalBookings: 0,
-            confirmedBookings: 0,
-            cancelledBookings: 0,
-            totalPassengers: 0,
-            status: bus.vehicleStatus || 'Active'
-          });
+          const key = `${v._id}_direct`;
+          journeysMap.set(key, makeJourney(v, ''));
         }
       }
     }
 
-    // Incorporate journeys for any directly matched bus bookings (e.g. searching by Booking ID)
-    if (matchingBusBookings && matchingBusBookings.length > 0) {
-      for (const mb of matchingBusBookings) {
+    // 4. Incorporate journeys for any directly matched bookings (e.g. searching by Booking ID)
+    if (matchingBookings && matchingBookings.length > 0) {
+      for (const mb of matchingBookings) {
         let vObj = mb.vehicle;
         if (!vObj && mb.scheduleId && mb.scheduleId.vehicle) {
           vObj = mb.scheduleId.vehicle;
         }
         const vId = vObj?._id ? vObj._id.toString() : (vObj ? vObj.toString() : null);
-        const bus = vId ? buses.find(b => b._id.toString() === vId) : null;
-        if (!bus || !vId) continue;
+        const v = vId ? vehicles.find(b => b._id.toString() === vId) : null;
+        if (!v || !vId) continue;
 
         const rawDate = mb.travelDate || mb.createdAt;
         const mbDate = rawDate ? new Date(rawDate).toISOString().split('T')[0] : '';
         const schedId = mb.scheduleId ? (mb.scheduleId._id || mb.scheduleId).toString() : 'direct';
         const key = `${vId}_${mbDate}_${schedId}`;
 
-        if (!journeysMap.has(key)) {
-          const dObj = bus.assignedDriver;
-          const dName = bus.assignedDriver?.name || bus.thirdPartyDriver?.driverName || 'Unassigned';
-          const dPhone = bus.assignedDriver?.mobileNumber || bus.assignedDriver?.phone || bus.thirdPartyDriver?.driverMobile || '';
-          const dLicense = bus.assignedDriver?.drivingLicenceNumber || bus.assignedDriver?.licenseNumber || bus.thirdPartyDriver?.driverLicenseNumber || '';
-          const dId = dObj?._id ? dObj._id.toString() : null;
+        const isConfirmed = ['Confirmed', 'Admin Confirmed', 'ADMIN_CONFIRMED', 'Completed'].includes(mb.bookingStatus);
+        const isCancelled = ['Cancelled', 'Rejected'].includes(mb.bookingStatus);
+        const paxCount = Array.isArray(mb.passengerDetails) && mb.passengerDetails.length > 0 ? mb.passengerDetails.length : 1;
 
-          journeysMap.set(key, {
-            journeyKey: key,
-            vehicleId: bus._id,
-            vehicleNumber: bus.vehicleNumber || '',
-            vehicleName: bus.vehicleName || '',
-            vehicleModel: bus.vehicleModel || '',
-            vehicleType: bus.vehicleType || 'Bus',
-            vehicleCategory: bus.vehicleCategory || '',
-            busType: bus.busDetails?.busType || '',
-            seatLayout: bus.busDetails?.seatLayout || '',
-            operatorName: bus.ownerName || 'Self / Operator',
-            operatorPhone: bus.ownerMobileNumber || '',
-            driverId: dId,
-            driverName: dName,
-            driverPhone: dPhone,
-            driverLicense: dLicense,
-            travelDate: mbDate,
-            scheduleId: mb.scheduleId ? (mb.scheduleId._id || mb.scheduleId) : null,
-            tripId: mb.scheduleId ? schedId : (bus.hireDetails?.tripReference || null),
-            tripReference: bus.hireDetails?.tripReference || '',
-            origin: mb.pickupLocation || bus.route?.origin || 'Kathmandu',
-            destination: mb.dropLocation || bus.route?.destination || 'Birgunj',
-            departureTime: bus.route?.departureTime || '07:00 AM',
-            arrivalTime: bus.route?.arrivalTime || '02:30 PM',
-            boardingPoints: bus.route?.boardingPoints || [],
-            droppingPoints: bus.route?.droppingPoints || [],
-            stops: (bus.route?.stops || []).map(st => (typeof st === 'string' ? st : (st?.name || ''))).filter(Boolean),
-            seatingCapacity: bus.busDetails?.availableSeats || bus.seatingCapacity || 36,
-            totalBookings: 1,
-            confirmedBookings: ['Confirmed', 'Admin Confirmed', 'ADMIN_CONFIRMED', 'Completed'].includes(mb.bookingStatus) ? 1 : 0,
-            cancelledBookings: ['Cancelled', 'Rejected'].includes(mb.bookingStatus) ? 1 : 0,
-            totalPassengers: Array.isArray(mb.passengerDetails) && mb.passengerDetails.length > 0 ? mb.passengerDetails.length : 1,
-            status: bus.vehicleStatus || 'Active',
-            matchedBookingId: mb.bookingId
-          });
+        if (!journeysMap.has(key)) {
+          journeysMap.set(
+            key,
+            makeJourney(v, mbDate, null, null, {
+              scheduleId: mb.scheduleId ? (mb.scheduleId._id || mb.scheduleId) : null,
+              tripId: mb.scheduleId ? schedId : (v.hireDetails?.tripReference || null),
+              origin: mb.pickupLocation || v.route?.origin || 'N/A',
+              destination: mb.dropLocation || v.route?.destination || 'N/A',
+              totalBookings: 1,
+              confirmedBookings: isConfirmed ? 1 : 0,
+              cancelledBookings: isCancelled ? 1 : 0,
+              totalPassengers: paxCount,
+              matchedBookingId: mb.bookingId,
+              driver: mb.driver
+            })
+          );
         } else {
           const existing = journeysMap.get(key);
           existing.matchedBookingId = mb.bookingId;
+          if (mb.driver && (!existing.driverId || existing.driverName === 'Unassigned')) {
+            existing.driverId = mb.driver._id ? mb.driver._id.toString() : mb.driver.toString();
+            existing.driverName = mb.driver.name || existing.driverName;
+            existing.driverPhone = mb.driver.mobileNumber || mb.driver.phone || existing.driverPhone;
+          }
         }
       }
     }
@@ -3628,12 +3538,13 @@ exports.getBusManifestJourneys = async (req, res, next) => {
           return true;
         }
 
-        // 2. Vehicle Name, Model, Category, Type, Bus Type
+        // 2. Vehicle Name, Model, Category, Type, ServiceType, Bus Type
         if (
           (j.vehicleName && j.vehicleName.toLowerCase().includes(searchLower)) ||
           (j.vehicleModel && j.vehicleModel.toLowerCase().includes(searchLower)) ||
           (j.vehicleCategory && j.vehicleCategory.toLowerCase().includes(searchLower)) ||
           (j.vehicleType && j.vehicleType.toLowerCase().includes(searchLower)) ||
+          (j.serviceType && j.serviceType.toLowerCase().includes(searchLower)) ||
           (j.busType && j.busType.toLowerCase().includes(searchLower))
         ) {
           return true;
@@ -3715,20 +3626,26 @@ exports.getBusManifestJourneys = async (req, res, next) => {
       return (a.vehicleNumber || '').localeCompare(b.vehicleNumber || '');
     });
 
+    const vehicleDTOs = vehicles.map(v => ({
+      _id: v._id,
+      vehicleNumber: v.vehicleNumber,
+      vehicleName: v.vehicleName,
+      vehicleType: v.vehicleType,
+      serviceType: v.vehicleType,
+      vehicleCategory: v.vehicleCategory,
+      operatorName: v.ownerName,
+      assignedDriver: v.assignedDriver
+    }));
+
     res.json({
       success: true,
       count: journeys.length,
-      buses: buses.map(b => ({
-        _id: b._id,
-        vehicleNumber: b.vehicleNumber,
-        vehicleName: b.vehicleName,
-        operatorName: b.ownerName,
-        assignedDriver: b.assignedDriver
-      })),
+      vehicles: vehicleDTOs,
+      buses: vehicleDTOs, // Backwards compatibility for existing clients expecting buses
       nonBusMatch,
       bookingNotFound: Boolean(isBookingIdFormat && journeys.length === 0 && !nonBusMatch),
       searchedBookingId: isBookingIdFormat ? rawSearch : null,
-      matchedBookingId: matchedBusBookingId,
+      matchedBookingId: matchedBookingId,
       data: journeys
     });
   } catch (error) {
@@ -3737,12 +3654,12 @@ exports.getBusManifestJourneys = async (req, res, next) => {
 };
 
 /**
- * Get Passenger Manifest for a selected bus journey
- * Filters by vehicleId, travelDate, and optional scheduleId / status / search
+ * Get Passenger Manifest for a selected journey (Bus, EV-Sewa, Car)
+ * Filters by vehicleId, travelDate, and optional scheduleId / status / search / boardingPoint / serviceType
  */
 exports.getBusPassengerManifest = async (req, res, next) => {
   try {
-    const { vehicleId, travelDate, scheduleId, status, search, boardingPoint } = req.query;
+    const { vehicleId, travelDate, scheduleId, status, search, boardingPoint, serviceType } = req.query;
 
     if (!vehicleId) {
       return res.status(400).json({
@@ -3766,13 +3683,13 @@ exports.getBusPassengerManifest = async (req, res, next) => {
     if (!vehicle) {
       return res.status(404).json({
         success: false,
-        message: 'Selected bus was not found.'
+        message: 'Selected vehicle was not found.'
       });
     }
 
     // 2. Fetch Schedule context if scheduleId provided
     let schedule = null;
-    if (scheduleId && mongoose.Types.ObjectId.isValid(scheduleId)) {
+    if (scheduleId && scheduleId !== 'direct' && mongoose.Types.ObjectId.isValid(scheduleId)) {
       schedule = await Schedule.findById(scheduleId)
         .populate('driver', 'name phone email licenseNumber mobileNumber drivingLicenceNumber')
         .lean();
@@ -3780,11 +3697,16 @@ exports.getBusPassengerManifest = async (req, res, next) => {
 
     // 3. Build Booking query
     const bookingQuery = {
-      serviceType: 'Bus',
       vehicle: vehicle._id
     };
 
-    if (travelDate) {
+    if (serviceType && serviceType !== 'All' && serviceType !== 'All Services') {
+      bookingQuery.serviceType = { $regex: new RegExp(`^${serviceType}$`, 'i') };
+    } else if (vehicle.vehicleType) {
+      bookingQuery.serviceType = { $regex: new RegExp(`^${vehicle.vehicleType}$`, 'i') };
+    }
+
+    if (travelDate && travelDate !== 'All Dates' && travelDate !== 'Any Date') {
       const startOfDay = new Date(travelDate);
       startOfDay.setUTCHours(0, 0, 0, 0);
       const endOfDay = new Date(travelDate);
@@ -3792,7 +3714,7 @@ exports.getBusPassengerManifest = async (req, res, next) => {
       bookingQuery.travelDate = { $gte: startOfDay, $lte: endOfDay };
     }
 
-    if (scheduleId && mongoose.Types.ObjectId.isValid(scheduleId)) {
+    if (scheduleId && scheduleId !== 'direct' && mongoose.Types.ObjectId.isValid(scheduleId)) {
       bookingQuery.$or = [
         { scheduleId: scheduleId },
         { scheduleId: null }
@@ -3800,7 +3722,11 @@ exports.getBusPassengerManifest = async (req, res, next) => {
     }
 
     if (status && status !== 'All') {
-      bookingQuery.bookingStatus = status;
+      if (status === 'Confirmed') {
+        bookingQuery.bookingStatus = { $in: ['Confirmed', 'Admin Confirmed', 'ADMIN_CONFIRMED', 'Completed'] };
+      } else {
+        bookingQuery.bookingStatus = status;
+      }
     }
 
     const bookings = await Booking.find(bookingQuery)
@@ -3808,6 +3734,8 @@ exports.getBusPassengerManifest = async (req, res, next) => {
       .populate('driver', 'name phone mobileNumber drivingLicenceNumber licenseNumber')
       .sort({ createdAt: -1 })
       .lean();
+
+    const isBus = (vehicle.vehicleType || '').toLowerCase() === 'bus';
 
     // 4. Transform into Manifest Passenger rows
     const manifestRows = [];
@@ -3822,7 +3750,7 @@ exports.getBusPassengerManifest = async (req, res, next) => {
         ? new Date(booking.travelDate).toISOString().split('T')[0]
         : (travelDate || 'N/A');
 
-      const departureTimeFormatted = schedule?.departureTime || vehicle.route?.departureTime || 'N/A';
+      const departureTimeFormatted = schedule?.departureTime || vehicle.route?.departureTime || (isBus ? '07:00 AM' : 'On Schedule');
 
       const emergencyInfo = booking.user?.emergencyContact || null;
       const emergencyContactDisplay = emergencyInfo && emergencyInfo.name
@@ -3833,11 +3761,21 @@ exports.getBusPassengerManifest = async (req, res, next) => {
           }
         : null;
 
+      const driverObj = booking.driver || schedule?.driver || vehicle.assignedDriver;
+      const assignedDriverName = driverObj?.name || vehicle.thirdPartyDriver?.driverName || 'Unassigned';
+      const assignedDriverPhone = driverObj?.mobileNumber || driverObj?.phone || vehicle.thirdPartyDriver?.driverMobile || 'N/A';
+
       if (passengerList.length > 0) {
         passengerList.forEach((pax, idx) => {
-          let seatNo = pax.seatNumber || (seatList[idx] ? seatList[idx] : '');
-          if (!seatNo && seatList.length === 1 && idx === 0) {
-            seatNo = seatList[0];
+          let seatNo = '';
+          if (isBus) {
+            seatNo = pax.seatNumber || (seatList[idx] ? seatList[idx] : '');
+            if (!seatNo && seatList.length === 1 && idx === 0) {
+              seatNo = seatList[0];
+            }
+          } else {
+            // For EV-Sewa and Car, only use real seat if specified, do not fabricate
+            seatNo = pax.seatNumber || 'N/A';
           }
 
           const uniqueKey = `${booking.bookingId}_pax_${idx}_${pax.name || ''}_${seatNo}`;
@@ -3849,21 +3787,32 @@ exports.getBusPassengerManifest = async (req, res, next) => {
             bookingObjectId: booking._id,
             bookingId: booking.bookingId,
             bookingReference: booking.bookingId,
+            serviceType: booking.serviceType || vehicle.vehicleType || 'Bus',
+            vehicleType: vehicle.vehicleType || booking.serviceType || 'Bus',
+            vehicleNumber: vehicle.vehicleNumber || 'N/A',
+            vehicleModel: vehicle.vehicleModel || 'N/A',
+            vehicleCategory: vehicle.vehicleCategory || 'N/A',
             passengerName: pax.name || booking.customer?.name || 'N/A',
             isLeadPassenger: idx === 0,
             mobileNumber: booking.customer?.phone || booking.user?.phone || 'N/A',
             email: booking.customer?.email || booking.user?.email || 'N/A',
             age: pax.age !== undefined && pax.age !== null ? pax.age : null,
             gender: pax.gender || 'N/A',
-            seatNumber: seatNo || 'N/A',
-            allBookingSeats: seatList,
+            seatNumber: isBus ? (seatNo || 'N/A') : seatNo,
+            allBookingSeats: isBus ? seatList : [],
             passengerCountInBooking: totalPaxInBooking,
             passengerIndex: idx + 1,
             boardingPoint: booking.pickupLocation || vehicle.route?.origin || 'N/A',
             destination: booking.dropLocation || vehicle.route?.destination || 'N/A',
+            pickupLocation: booking.pickupLocation || vehicle.route?.origin || 'N/A',
+            dropLocation: booking.dropLocation || vehicle.route?.destination || 'N/A',
             journeyDate: journeyDateFormatted,
             departureTime: departureTimeFormatted,
             bookingStatus: booking.bookingStatus,
+            rideStatus: booking.rideStatus || 'None',
+            driverConfirmationStatus: booking.driverConfirmationStatus || 'Pending',
+            assignedDriver: assignedDriverName,
+            driverPhone: assignedDriverPhone,
             paymentStatus: booking.paymentStatus,
             paymentMethod: booking.paymentMethod || 'N/A',
             fare: booking.finalFare || booking.fare || 0,
@@ -3881,21 +3830,32 @@ exports.getBusPassengerManifest = async (req, res, next) => {
             bookingObjectId: booking._id,
             bookingId: booking.bookingId,
             bookingReference: booking.bookingId,
+            serviceType: booking.serviceType || vehicle.vehicleType || 'Bus',
+            vehicleType: vehicle.vehicleType || booking.serviceType || 'Bus',
+            vehicleNumber: vehicle.vehicleNumber || 'N/A',
+            vehicleModel: vehicle.vehicleModel || 'N/A',
+            vehicleCategory: vehicle.vehicleCategory || 'N/A',
             passengerName: booking.customer?.name || 'N/A',
             isLeadPassenger: true,
             mobileNumber: booking.customer?.phone || booking.user?.phone || 'N/A',
             email: booking.customer?.email || booking.user?.email || 'N/A',
             age: null,
             gender: 'N/A',
-            seatNumber: seatList.length > 0 ? seatList.join(', ') : 'Unassigned',
-            allBookingSeats: seatList,
+            seatNumber: isBus ? (seatList.length > 0 ? seatList.join(', ') : 'Unassigned') : 'N/A',
+            allBookingSeats: isBus ? seatList : [],
             passengerCountInBooking: totalPaxInBooking,
             passengerIndex: 1,
             boardingPoint: booking.pickupLocation || vehicle.route?.origin || 'N/A',
             destination: booking.dropLocation || vehicle.route?.destination || 'N/A',
+            pickupLocation: booking.pickupLocation || vehicle.route?.origin || 'N/A',
+            dropLocation: booking.dropLocation || vehicle.route?.destination || 'N/A',
             journeyDate: journeyDateFormatted,
             departureTime: departureTimeFormatted,
             bookingStatus: booking.bookingStatus,
+            rideStatus: booking.rideStatus || 'None',
+            driverConfirmationStatus: booking.driverConfirmationStatus || 'Pending',
+            assignedDriver: assignedDriverName,
+            driverPhone: assignedDriverPhone,
             paymentStatus: booking.paymentStatus,
             paymentMethod: booking.paymentMethod || 'N/A',
             fare: booking.finalFare || booking.fare || 0,
@@ -3928,11 +3888,15 @@ exports.getBusPassengerManifest = async (req, res, next) => {
           (row.bookingReference && row.bookingReference.toLowerCase().includes(qLower)) ||
           (row.mobileNumber && row.mobileNumber.toLowerCase().includes(qLower)) ||
           (row.email && row.email.toLowerCase().includes(qLower)) ||
-          (row.seatNumber && row.seatNumber.toLowerCase().includes(qLower)) ||
+          (row.seatNumber && row.seatNumber !== 'N/A' && row.seatNumber.toLowerCase().includes(qLower)) ||
           (isSeatUnassigned && row.allBookingSeats && row.allBookingSeats.some(s => s.toLowerCase().includes(qLower))) ||
           (row.boardingPoint && row.boardingPoint.toLowerCase().includes(qLower)) ||
           (row.destination && row.destination.toLowerCase().includes(qLower)) ||
+          (row.pickupLocation && row.pickupLocation.toLowerCase().includes(qLower)) ||
+          (row.dropLocation && row.dropLocation.toLowerCase().includes(qLower)) ||
+          (row.assignedDriver && row.assignedDriver.toLowerCase().includes(qLower)) ||
           (row.bookingStatus && row.bookingStatus.toLowerCase().includes(qLower)) ||
+          (row.rideStatus && row.rideStatus.toLowerCase().includes(qLower)) ||
           (row.paymentStatus && row.paymentStatus.toLowerCase().includes(qLower)) ||
           (row.paymentMethod && row.paymentMethod.toLowerCase().includes(qLower)) ||
           (row.gender && row.gender.toLowerCase() === qLower) ||
@@ -3944,9 +3908,10 @@ exports.getBusPassengerManifest = async (req, res, next) => {
           (normalizeTextLocal(row.bookingId).includes(qNorm) ||
             normalizeTextLocal(row.bookingReference).includes(qNorm) ||
             normalizeTextLocal(row.passengerName).includes(qNorm) ||
-            normalizeTextLocal(row.seatNumber).includes(qNorm) ||
+            (row.seatNumber !== 'N/A' && normalizeTextLocal(row.seatNumber).includes(qNorm)) ||
             (isSeatUnassigned && row.allBookingSeats && row.allBookingSeats.some(s => normalizeTextLocal(s).includes(qNorm))) ||
             normalizeTextLocal(row.mobileNumber).includes(qNorm) ||
+            normalizeTextLocal(row.assignedDriver).includes(qNorm) ||
             (row.emergencyContact && normalizeTextLocal(row.emergencyContact.phone).includes(qNorm)));
 
         return Boolean(textMatch || normMatch);
@@ -3960,13 +3925,22 @@ exports.getBusPassengerManifest = async (req, res, next) => {
       );
     }
 
-    // Sort manifest by seat number if present, otherwise by passenger name
+    // Sort manifest by seat number if present and bus, otherwise by passenger name
     filteredManifest.sort((a, b) => {
-      if (a.seatNumber && b.seatNumber && a.seatNumber !== 'N/A' && b.seatNumber !== 'N/A') {
+      if (isBus && a.seatNumber && b.seatNumber && a.seatNumber !== 'N/A' && b.seatNumber !== 'N/A') {
         return a.seatNumber.localeCompare(b.seatNumber, undefined, { numeric: true, sensitivity: 'base' });
       }
       return (a.passengerName || '').localeCompare(b.passengerName || '');
     });
+
+    let capacity = vehicle.seatingCapacity || 1;
+    if (isBus) {
+      capacity = vehicle.busDetails?.availableSeats || vehicle.seatingCapacity || 36;
+    } else if (vehicle.vehicleType === 'EV-Sewa') {
+      capacity = vehicle.seatingCapacity || 12;
+    } else if (vehicle.vehicleType === 'Car') {
+      capacity = vehicle.seatingCapacity || 4;
+    }
 
     res.json({
       success: true,
@@ -3974,19 +3948,26 @@ exports.getBusPassengerManifest = async (req, res, next) => {
         vehicleId: vehicle._id,
         vehicleNumber: vehicle.vehicleNumber,
         vehicleName: vehicle.vehicleName,
+        vehicleType: vehicle.vehicleType || 'Bus',
+        serviceType: vehicle.vehicleType || 'Bus',
         vehicleCategory: vehicle.vehicleCategory,
+        vehicleModel: vehicle.vehicleModel,
+        busType: vehicle.busDetails?.busType || '',
+        seatLayout: vehicle.busDetails?.seatLayout || '',
+        evDetails: vehicle.evDetails || null,
+        carDetails: vehicle.carDetails || null,
         operatorName: vehicle.ownerName || 'Self / Operator',
-        driverName: schedule?.driver?.name || vehicle.assignedDriver?.name || 'Unassigned',
-        driverPhone: schedule?.driver?.mobileNumber || schedule?.driver?.phone || vehicle.assignedDriver?.mobileNumber || vehicle.assignedDriver?.phone || 'N/A',
+        driverName: schedule?.driver?.name || vehicle.assignedDriver?.name || vehicle.thirdPartyDriver?.driverName || 'Unassigned',
+        driverPhone: schedule?.driver?.mobileNumber || schedule?.driver?.phone || vehicle.assignedDriver?.mobileNumber || vehicle.assignedDriver?.phone || vehicle.thirdPartyDriver?.driverMobile || 'N/A',
         travelDate: travelDate || 'All Dates',
         scheduleId: schedule?._id || null,
         origin: schedule?.origin || vehicle.route?.origin || 'N/A',
         destination: schedule?.destination || vehicle.route?.destination || 'N/A',
-        departureTime: schedule?.departureTime || vehicle.route?.departureTime || 'N/A',
+        departureTime: schedule?.departureTime || vehicle.route?.departureTime || (isBus ? '07:00 AM' : 'On Schedule'),
         arrivalTime: schedule?.arrivalTime || vehicle.route?.arrivalTime || 'N/A',
         boardingPoints: vehicle.route?.boardingPoints || [],
         droppingPoints: vehicle.route?.droppingPoints || [],
-        seatingCapacity: vehicle.busDetails?.availableSeats || vehicle.seatingCapacity || 36
+        seatingCapacity: capacity
       },
       summary: {
         totalManifestPassengers: filteredManifest.length,
@@ -4001,4 +3982,8 @@ exports.getBusPassengerManifest = async (req, res, next) => {
     next(error);
   }
 };
+
+// Aliases for unified naming convention
+exports.getPassengerManifestJourneys = exports.getBusManifestJourneys;
+exports.getPassengerManifest = exports.getBusPassengerManifest;
 

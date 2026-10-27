@@ -260,13 +260,23 @@ export const adminService = {
     return res.data;
   },
 
-  // Bus Passenger Manifest & Journeys
+  // Passenger Manifest & Journeys (Bus, EV-Sewa, Car)
   getBusManifestJourneys: async (params = {}) => {
     const res = await api.get('/admin/bus-manifest/journeys', { params });
     return res.data;
   },
 
   getBusPassengerManifest: async (params = {}) => {
+    const res = await api.get('/admin/bus-manifest', { params });
+    return res.data;
+  },
+
+  getPassengerManifestJourneys: async (params = {}) => {
+    const res = await api.get('/admin/bus-manifest/journeys', { params });
+    return res.data;
+  },
+
+  getPassengerManifest: async (params = {}) => {
     const res = await api.get('/admin/bus-manifest', { params });
     return res.data;
   },

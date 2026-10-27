@@ -3,6 +3,8 @@ import { adminService } from '../services/adminService';
 import StatusBadge from '../components/StatusBadge';
 import {
   Bus,
+  Zap,
+  Car,
   Search,
   Filter,
   Calendar,
@@ -16,15 +18,18 @@ import {
   User,
   AlertTriangle,
   RotateCw,
-  ChevronRight
+  ChevronRight,
+  Shield,
+  Layers
 } from 'lucide-react';
 
 const BusPassengerManifest = () => {
   // 1. Filter and Search States
-  const [buses, setBuses] = useState([]);
+  const [selectedServiceType, setSelectedServiceType] = useState('All');
+  const [vehicles, setVehicles] = useState([]);
   const [journeys, setJourneys] = useState([]);
   const [selectedJourneyKey, setSelectedJourneyKey] = useState('');
-  const [selectedBusId, setSelectedBusId] = useState('');
+  const [selectedVehicleId, setSelectedVehicleId] = useState('');
   const [selectedTravelDate, setSelectedTravelDate] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [passengerSearch, setPassengerSearch] = useState('');
@@ -49,10 +54,35 @@ const BusPassengerManifest = () => {
   const isFirstRender = useRef(true);
   const lastSearchedRef = useRef('');
 
-  // Fetch Journeys List (Buses, distinct trips, schedules)
+  // Render Service Icon & Badge helper
+  const renderServiceBadge = (serviceType, size = 11) => {
+    const s = String(serviceType || '').toLowerCase();
+    if (s === 'ev-sewa' || s === 'ev') {
+      return (
+        <span className="service-pill-badge service-ev">
+          <Zap size={size} /> EV-Sewa
+        </span>
+      );
+    }
+    if (s === 'car') {
+      return (
+        <span className="service-pill-badge service-car">
+          <Car size={size} /> Car
+        </span>
+      );
+    }
+    return (
+      <span className="service-pill-badge service-bus">
+        <Bus size={size} /> Bus
+      </span>
+    );
+  };
+
+  // Fetch Journeys List (Buses, EV-Sewa, Cars, schedules, trips)
   const fetchJourneys = async (
+    queryService = selectedServiceType,
     queryDate = selectedTravelDate,
-    busId = selectedBusId,
+    vehicleId = selectedVehicleId,
     searchVal = searchTerm
   ) => {
     try {
@@ -62,14 +92,19 @@ const BusPassengerManifest = () => {
       setBookingNotFound(false);
       setSearchedBookingId('');
       const params = {};
+      if (queryService && queryService !== 'All') params.serviceType = queryService;
       if (queryDate) params.travelDate = queryDate;
-      if (busId) params.vehicleId = busId;
+      if (vehicleId) params.vehicleId = vehicleId;
       if (searchVal && searchVal.trim()) params.search = searchVal.trim();
 
       const res = await adminService.getBusManifestJourneys(params);
       if (res && res.success) {
         setJourneys(res.data || []);
-        if (res.buses) setBuses(res.buses);
+        if (res.vehicles) {
+          setVehicles(res.vehicles);
+        } else if (res.buses) {
+          setVehicles(res.buses);
+        }
         if (res.nonBusMatch) setNonBusMatch(res.nonBusMatch);
         if (res.bookingNotFound) {
           setBookingNotFound(true);
@@ -85,7 +120,6 @@ const BusPassengerManifest = () => {
           setSelectedJourneyKey(targetJourney.journeyKey);
           loadManifestForJourney(targetJourney);
 
-          // If a booking was matched, pre-set passengerSearch so the manifest table immediately highlights or filters to that booking
           if (res.matchedBookingId) {
             setPassengerSearch(res.matchedBookingId);
           } else if (searchVal && /^bk[-_\s]*\d+/i.test(searchVal.trim())) {
@@ -98,7 +132,7 @@ const BusPassengerManifest = () => {
           setManifestSummary(null);
         }
       } else {
-        setError(res?.message || 'Failed to load bus journeys.');
+        setError(res?.message || 'Failed to load journeys.');
       }
     } catch (err) {
       setError(err?.response?.data?.message || err.message || 'Error fetching journeys.');
@@ -118,7 +152,7 @@ const BusPassengerManifest = () => {
     const timer = setTimeout(() => {
       if (searchTerm !== lastSearchedRef.current) {
         lastSearchedRef.current = searchTerm;
-        fetchJourneys(selectedTravelDate, selectedBusId, searchTerm);
+        fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, searchTerm);
       }
     }, 350);
 
@@ -131,18 +165,19 @@ const BusPassengerManifest = () => {
     setBookingNotFound(false);
     setSearchedBookingId('');
     lastSearchedRef.current = '';
-    fetchJourneys(selectedTravelDate, selectedBusId, '');
+    fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, '');
   };
 
   const handleClearAllFilters = () => {
-    setSelectedBusId('');
+    setSelectedServiceType('All');
+    setSelectedVehicleId('');
     setSelectedTravelDate('');
     setSearchTerm('');
     setPassengerSearch('');
     setBookingNotFound(false);
     setSearchedBookingId('');
     lastSearchedRef.current = '';
-    fetchJourneys('', '', '');
+    fetchJourneys('All', '', '', '');
   };
 
   // Load Manifest Passengers for a selected journey
@@ -155,6 +190,7 @@ const BusPassengerManifest = () => {
         vehicleId: journey.vehicleId,
         travelDate: journey.travelDate !== 'All Dates' ? journey.travelDate : undefined,
         scheduleId: journey.scheduleId || undefined,
+        serviceType: journey.serviceType || journey.vehicleType || undefined,
         status: filterStatus !== 'All' ? filterStatus : undefined,
         boardingPoint: filterBoardingPoint !== 'All' ? filterBoardingPoint : undefined
       };
@@ -206,7 +242,7 @@ const BusPassengerManifest = () => {
     const qNorm = normalize(query);
 
     return manifestData.filter(row => {
-      // 1. Actual Booking ID matching (exact, partial, normalized without hyphens)
+      // 1. Booking ID matching
       const bookingId = row.bookingId ? String(row.bookingId).toLowerCase() : '';
       const bookingRef = row.bookingReference ? String(row.bookingReference).toLowerCase() : '';
       const normBookingId = normalize(row.bookingId);
@@ -245,11 +281,29 @@ const BusPassengerManifest = () => {
         mobileNumber.includes(qLower) ||
         (Boolean(qNorm) && normMobile.includes(qNorm));
 
-      return Boolean(matchesBookingId || matchesName || matchesSeat || matchesMobile);
+      // 5. Driver / Pickup / Drop
+      const driver = row.assignedDriver ? String(row.assignedDriver).toLowerCase() : '';
+      const pickup = row.pickupLocation ? String(row.pickupLocation).toLowerCase() : '';
+      const drop = row.dropLocation ? String(row.dropLocation).toLowerCase() : '';
+      const matchesLocationOrDriver =
+        driver.includes(qLower) ||
+        pickup.includes(qLower) ||
+        drop.includes(qLower);
+
+      return Boolean(matchesBookingId || matchesName || matchesSeat || matchesMobile || matchesLocationOrDriver);
     });
   }, [manifestData, passengerSearch]);
 
   const activeJourney = journeys.find(j => j.journeyKey === selectedJourneyKey) || null;
+  const isBusActive = activeJourney && (activeJourney.serviceType === 'Bus' || activeJourney.vehicleType === 'Bus');
+  const isEvActive = activeJourney && (activeJourney.serviceType === 'EV-Sewa' || activeJourney.vehicleType === 'EV-Sewa');
+  const isCarActive = activeJourney && (activeJourney.serviceType === 'Car' || activeJourney.vehicleType === 'Car');
+
+  // Filter available vehicle options based on selectedServiceType
+  const filteredVehicles = useMemo(() => {
+    if (!selectedServiceType || selectedServiceType === 'All') return vehicles;
+    return vehicles.filter(v => (v.vehicleType || '').toLowerCase() === selectedServiceType.toLowerCase());
+  }, [vehicles, selectedServiceType]);
 
   return (
     <div className="manifest-page-wrapper">
@@ -257,11 +311,11 @@ const BusPassengerManifest = () => {
       <div className="manifest-header">
         <div className="manifest-title-area">
           <h1 className="manifest-title">
-            <Bus size={24} style={{ color: 'var(--primary-blue)' }} />
-            Bus Passenger Manifest
+            <Users size={24} style={{ color: 'var(--primary-blue)' }} />
+            Passenger Manifest
           </h1>
           <p className="manifest-subtitle">
-            Search and select bus trips to inspect verified passenger manifests, allocated seats, boarding points, and booking statuses.
+            Unified passenger and journey manifest for <strong>Bus, EV-Sewa and Car</strong> services. Inspect passenger lists, vehicle allocations, assigned drivers, and live journey statuses.
           </p>
         </div>
         <div>
@@ -298,12 +352,33 @@ const BusPassengerManifest = () => {
         </div>
       )}
 
-      {/* 2. Top Filter Controls: Search & Select Journey / Bus */}
+      {/* 2. Top Filter Controls: Service Type, Search, Vehicle Registration, Journey Date */}
       <div className="manifest-filter-card">
         <div className="manifest-filter-grid">
-          {/* Search by Registration / Driver / Operator / Route / Booking ID / Trip ID */}
+          {/* Service Type Filter */}
           <div className="manifest-filter-field">
-            <label className="manifest-filter-label">Search Bus / Route / Driver / Booking ID</label>
+            <label className="manifest-filter-label">Service Type</label>
+            <select
+              className="select-field"
+              style={{ minHeight: '42px', fontWeight: '600' }}
+              value={selectedServiceType}
+              onChange={e => {
+                const newService = e.target.value;
+                setSelectedServiceType(newService);
+                setSelectedVehicleId('');
+                fetchJourneys(newService, selectedTravelDate, '', searchTerm);
+              }}
+            >
+              <option value="All">All Services (Bus, EV, Car)</option>
+              <option value="Bus">Bus</option>
+              <option value="EV-Sewa">EV-Sewa</option>
+              <option value="Car">Car</option>
+            </select>
+          </div>
+
+          {/* Search by Registration / Driver / Operator / Route / Booking ID */}
+          <div className="manifest-filter-field">
+            <label className="manifest-filter-label">Search Manifest</label>
             <div style={{ position: 'relative' }}>
               <Search
                 size={16}
@@ -324,13 +399,13 @@ const BusPassengerManifest = () => {
                   paddingRight: (loadingJourneys || searchTerm) ? '42px' : '14px',
                   minHeight: '42px'
                 }}
-                placeholder="Search Booking ID (e.g. BK-6441910), vehicle, driver, route..."
+                placeholder="Booking ID (e.g. BK-6441910), vehicle, driver, route..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 onKeyDown={e => {
                   if (e.key === 'Enter') {
                     lastSearchedRef.current = searchTerm;
-                    fetchJourneys(selectedTravelDate, selectedBusId, searchTerm);
+                    fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, searchTerm);
                   }
                 }}
               />
@@ -376,23 +451,27 @@ const BusPassengerManifest = () => {
             </div>
           </div>
 
-          {/* Specific Bus Dropdown */}
+          {/* Vehicle Registration Dropdown */}
           <div className="manifest-filter-field">
-            <label className="manifest-filter-label">Filter by Bus Registration</label>
+            <label className="manifest-filter-label">Vehicle Registration</label>
             <select
               className="select-field"
               style={{ minHeight: '42px' }}
-              value={selectedBusId}
+              value={selectedVehicleId}
               onChange={e => {
-                const newBusId = e.target.value;
-                setSelectedBusId(newBusId);
-                fetchJourneys(selectedTravelDate, newBusId, searchTerm);
+                const newVehId = e.target.value;
+                setSelectedVehicleId(newVehId);
+                fetchJourneys(selectedServiceType, selectedTravelDate, newVehId, searchTerm);
               }}
             >
-              <option value="">All Registered Buses ({buses.length})</option>
-              {buses.map(b => (
-                <option key={b._id} value={b._id}>
-                  {b.vehicleNumber} — {b.vehicleName}
+              <option value="">
+                {selectedServiceType === 'All'
+                  ? `All Registered Vehicles (${filteredVehicles.length})`
+                  : `All ${selectedServiceType} Vehicles (${filteredVehicles.length})`}
+              </option>
+              {filteredVehicles.map(v => (
+                <option key={v._id} value={v._id}>
+                  {v.vehicleNumber} — {v.vehicleName} ({v.vehicleType || 'Bus'})
                 </option>
               ))}
             </select>
@@ -421,7 +500,7 @@ const BusPassengerManifest = () => {
                 onChange={e => {
                   const newDate = e.target.value;
                   setSelectedTravelDate(newDate);
-                  fetchJourneys(newDate, selectedBusId, searchTerm);
+                  fetchJourneys(selectedServiceType, newDate, selectedVehicleId, searchTerm);
                 }}
               />
             </div>
@@ -433,13 +512,13 @@ const BusPassengerManifest = () => {
               className="btn btn-primary"
               onClick={() => {
                 lastSearchedRef.current = searchTerm;
-                fetchJourneys(selectedTravelDate, selectedBusId, searchTerm);
+                fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, searchTerm);
               }}
               disabled={loadingJourneys}
             >
               Apply Filter
             </button>
-            {(selectedBusId || selectedTravelDate || searchTerm) && (
+            {(selectedServiceType !== 'All' || selectedVehicleId || selectedTravelDate || searchTerm) && (
               <button
                 className="btn btn-outline"
                 onClick={handleClearAllFilters}
@@ -454,15 +533,16 @@ const BusPassengerManifest = () => {
       {/* 3. Main Workspace: Journeys & Active Manifest */}
       <div className="manifest-workspace-grid">
         
-        {/* Left Column: Bus & Journey Selection List */}
+        {/* Left Column: Journeys & Trips Selection List */}
         <div className="manifest-journey-card">
           <div className="manifest-journey-header">
             <div>
               <div style={{ fontSize: '0.92rem', fontWeight: '800', color: 'var(--text-main)' }}>
-                Bus Journeys & Trips
+                Journeys & Trips
               </div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                 {journeys.length} trip{journeys.length === 1 ? '' : 's'} available
+                {selectedServiceType !== 'All' ? ` (${selectedServiceType})` : ''}
               </div>
             </div>
           </div>
@@ -474,7 +554,7 @@ const BusPassengerManifest = () => {
             </div>
           ) : journeys.length === 0 ? (
             <div style={{ padding: '36px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              <Bus size={36} style={{ color: 'var(--text-light)', margin: '0 auto 10px', display: 'block', opacity: 0.7 }} />
+              <Layers size={36} style={{ color: 'var(--text-light)', margin: '0 auto 10px', display: 'block', opacity: 0.7 }} />
               <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '0.9rem', marginBottom: '6px' }}>
                 No Matching Journeys Found
               </div>
@@ -483,29 +563,34 @@ const BusPassengerManifest = () => {
                 <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '12px 14px', margin: '0 0 12px', fontSize: '0.8rem', color: '#1e40af', textAlign: 'left', lineHeight: '1.45' }}>
                   <div style={{ fontWeight: '700', fontSize: '0.85rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <AlertTriangle size={15} style={{ color: '#2563eb', flexShrink: 0 }} />
-                    <span>Non-Bus Service Booking</span>
+                    <span>Booking Belongs to {nonBusMatch.serviceType}</span>
                   </div>
-                  <div>Booking <code>{nonBusMatch.bookingId}</code> belongs to <strong>{nonBusMatch.serviceType}</strong>, not Bus. The Bus Manifest only tracks verified bus journeys.</div>
+                  <div>Booking <code>{nonBusMatch.bookingId}</code> belongs to <strong>{nonBusMatch.serviceType}</strong>. Switch the Service Type filter to <em>All Services</em> or <em>{nonBusMatch.serviceType}</em> to inspect this manifest.</div>
                 </div>
               ) : bookingNotFound ? (
                 <div style={{ backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '8px', padding: '12px 14px', margin: '0 0 12px', fontSize: '0.8rem', color: '#9a3412', textAlign: 'left', lineHeight: '1.45' }}>
                   <div style={{ fontWeight: '700', fontSize: '0.85rem', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <AlertTriangle size={15} style={{ color: '#ea580c', flexShrink: 0 }} />
-                    <span>No matching bus booking found</span>
+                    <span>No matching booking found</span>
                   </div>
-                  <div>No bus booking exists matching <code>{searchedBookingId || searchTerm}</code>. Please check the Booking ID or verify whether it was booked under EV-Sewa or Car.</div>
+                  <div>No record exists matching <code>{searchedBookingId || searchTerm}</code> across Bus, EV-Sewa or Car services.</div>
                 </div>
               ) : (
                 <p style={{ margin: '0 0 12px', lineHeight: '1.4', color: 'var(--text-muted)', fontSize: '0.78rem' }}>
-                  {searchTerm || selectedBusId || selectedTravelDate
-                    ? 'No bus journeys match your search query and active filters.'
-                    : 'No scheduled or booked bus journeys are available.'}
+                  {searchTerm || selectedVehicleId || selectedTravelDate || selectedServiceType !== 'All'
+                    ? 'No journeys match your search query and active filters.'
+                    : 'No scheduled or booked journeys are available.'}
                 </p>
               )}
 
-              {(searchTerm || selectedBusId || selectedTravelDate) && (
+              {(searchTerm || selectedVehicleId || selectedTravelDate || selectedServiceType !== 'All') && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', justifyContent: 'center' }}>
+                    {selectedServiceType !== 'All' && (
+                      <span style={{ fontSize: '0.72rem', backgroundColor: '#eff6ff', color: '#1e40af', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
+                        Service: {selectedServiceType}
+                      </span>
+                    )}
                     {searchTerm && (
                       <span style={{ fontSize: '0.72rem', backgroundColor: '#e0f2fe', color: '#0369a1', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
                         Search: "{searchTerm}"
@@ -516,9 +601,9 @@ const BusPassengerManifest = () => {
                         Date: {selectedTravelDate}
                       </span>
                     )}
-                    {selectedBusId && (
+                    {selectedVehicleId && (
                       <span style={{ fontSize: '0.72rem', backgroundColor: '#f1f5f9', color: '#475569', padding: '2px 8px', borderRadius: '12px', fontWeight: '600' }}>
-                        Bus: {buses.find(b => b._id === selectedBusId)?.vehicleNumber || 'Selected'}
+                        Vehicle: {vehicles.find(v => v._id === selectedVehicleId)?.vehicleNumber || 'Selected'}
                       </span>
                     )}
                   </div>
@@ -544,9 +629,12 @@ const BusPassengerManifest = () => {
                     className={`manifest-journey-item ${isSelected ? 'active' : ''}`}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontWeight: '800', fontSize: '0.9rem', color: isSelected ? 'var(--primary-blue)' : 'var(--text-main)', letterSpacing: '-0.01em' }}>
-                        {j.vehicleNumber}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {renderServiceBadge(j.serviceType || j.vehicleType, 11)}
+                        <span style={{ fontWeight: '800', fontSize: '0.88rem', color: isSelected ? 'var(--primary-blue)' : 'var(--text-main)', letterSpacing: '-0.01em' }}>
+                          {j.vehicleNumber}
+                        </span>
+                      </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         {j.matchedBookingId && (
                           <span style={{ fontSize: '0.68rem', fontWeight: '750', color: '#1d4ed8', backgroundColor: '#dbeafe', padding: '1px 6px', borderRadius: '4px', letterSpacing: '-0.01em' }}>
@@ -595,6 +683,7 @@ const BusPassengerManifest = () => {
               <div className="manifest-active-journey-inner">
                 <div className="manifest-active-journey-primary">
                   <div className="manifest-badges-row">
+                    {renderServiceBadge(activeJourney.serviceType || activeJourney.vehicleType, 13)}
                     <span className="manifest-active-reg">{activeJourney.vehicleNumber}</span>
                     <span className="manifest-active-vname">({activeJourney.vehicleName})</span>
                     <StatusBadge status={activeJourney.status || 'Active'} />
@@ -612,6 +701,18 @@ const BusPassengerManifest = () => {
                       <Clock size={15} style={{ color: 'var(--primary-blue)', flexShrink: 0 }} />
                       <span><strong>Departure:</strong> {activeJourney.departureTime}</span>
                     </span>
+                    {activeJourney.evDetails && activeJourney.evDetails.rangeKm && (
+                      <span className="manifest-meta-item" style={{ color: '#059669' }}>
+                        <Zap size={14} />
+                        <span><strong>Range:</strong> {activeJourney.evDetails.rangeKm} km</span>
+                      </span>
+                    )}
+                    {activeJourney.carDetails && activeJourney.carDetails.fuelType && (
+                      <span className="manifest-meta-item" style={{ color: '#6d28d9' }}>
+                        <Car size={14} />
+                        <span><strong>Fuel:</strong> {activeJourney.carDetails.fuelType}</span>
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -656,7 +757,7 @@ const BusPassengerManifest = () => {
                   <input
                     type="text"
                     className="input-field manifest-subfilter-search-input"
-                    placeholder="Search passenger, seat, booking ID..."
+                    placeholder="Search passenger, seat, booking ID, driver..."
                     value={passengerSearch}
                     onChange={e => setPassengerSearch(e.target.value)}
                     style={{ paddingRight: passengerSearch ? '28px' : '10px' }}
@@ -695,12 +796,13 @@ const BusPassengerManifest = () => {
                   <option value="All">All Statuses</option>
                   <option value="Confirmed">Confirmed / Admin Confirmed</option>
                   <option value="Pending Driver Confirmation">Pending Driver Confirmation</option>
+                  <option value="Ongoing">Ongoing</option>
                   <option value="Completed">Completed</option>
                   <option value="Cancelled">Cancelled</option>
                 </select>
 
-                {/* Boarding Point filter */}
-                {activeJourney.boardingPoints && activeJourney.boardingPoints.length > 0 && (
+                {/* Boarding Point filter (only for Bus when boardingPoints exist) */}
+                {isBusActive && activeJourney.boardingPoints && activeJourney.boardingPoints.length > 0 && (
                   <select
                     className="select-field manifest-subfilter-select"
                     value={filterBoardingPoint}
@@ -734,7 +836,7 @@ const BusPassengerManifest = () => {
             </div>
           )}
 
-          {/* 4. Manifest Passenger Table */}
+          {/* 4. Manifest Passenger & Booking Table */}
           <div className="manifest-table-card">
             {loadingManifest ? (
               <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
@@ -743,13 +845,13 @@ const BusPassengerManifest = () => {
               </div>
             ) : !activeJourney ? (
               <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                <Bus size={36} style={{ color: 'var(--text-light)', margin: '0 auto 12px', display: 'block' }} />
-                Please select a bus journey from the list on the left to view its passenger manifest.
+                <Layers size={36} style={{ color: 'var(--text-light)', margin: '0 auto 12px', display: 'block' }} />
+                Please select a journey from the list on the left to view its passenger and booking manifest.
               </div>
             ) : displayedManifestRows.length === 0 ? (
               <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
                 <Users size={36} style={{ color: 'var(--text-light)', margin: '0 auto 12px', display: 'block' }} />
-                No passengers or bookings found
+                No passengers or bookings found for this trip
               </div>
             ) : (
               <>
@@ -760,16 +862,35 @@ const BusPassengerManifest = () => {
                   <table className="manifest-table">
                   <thead>
                     <tr>
-                      <th style={{ width: '70px' }}>Seat</th>
-                      <th style={{ minWidth: '160px' }}>Passenger Name</th>
-                      <th style={{ width: '100px' }}>Age / Gender</th>
-                      <th style={{ minWidth: '120px' }}>Mobile Number</th>
-                      <th style={{ minWidth: '125px' }}>Booking ID</th>
-                      <th style={{ minWidth: '130px' }}>Boarding Point</th>
-                      <th style={{ minWidth: '130px' }}>Destination</th>
-                      <th style={{ minWidth: '120px' }}>Booking Status</th>
-                      <th style={{ minWidth: '95px' }}>Payment</th>
-                      <th style={{ width: '85px', textAlign: 'right' }}>Action</th>
+                      {/* Adapt columns based on service */}
+                      {isBusActive ? (
+                        <>
+                          <th style={{ width: '70px' }}>Seat</th>
+                          <th style={{ minWidth: '160px' }}>Passenger Name</th>
+                          <th style={{ width: '100px' }}>Age / Gender</th>
+                          <th style={{ minWidth: '120px' }}>Mobile Number</th>
+                          <th style={{ minWidth: '125px' }}>Booking ID</th>
+                          <th style={{ minWidth: '130px' }}>Boarding Point</th>
+                          <th style={{ minWidth: '130px' }}>Destination</th>
+                          <th style={{ minWidth: '120px' }}>Booking Status</th>
+                          <th style={{ minWidth: '95px' }}>Payment</th>
+                          <th style={{ width: '85px', textAlign: 'right' }}>Action</th>
+                        </>
+                      ) : (
+                        <>
+                          <th style={{ minWidth: '100px' }}>Service</th>
+                          <th style={{ minWidth: '125px' }}>Booking ID</th>
+                          <th style={{ minWidth: '160px' }}>Passenger / Customer</th>
+                          <th style={{ minWidth: '120px' }}>Contact</th>
+                          <th style={{ minWidth: '140px' }}>Pickup Location</th>
+                          <th style={{ minWidth: '140px' }}>Drop Location</th>
+                          <th style={{ minWidth: '120px' }}>Assigned Driver</th>
+                          <th style={{ minWidth: '120px' }}>Booking Status</th>
+                          <th style={{ minWidth: '95px' }}>Fare</th>
+                          <th style={{ minWidth: '95px' }}>Payment</th>
+                          <th style={{ width: '85px', textAlign: 'right' }}>Action</th>
+                        </>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -778,46 +899,102 @@ const BusPassengerManifest = () => {
                         (searchTerm && row.bookingId && row.bookingId.toLowerCase().includes(searchTerm.trim().toLowerCase())) ||
                         (passengerSearch && row.bookingId && row.bookingId.toLowerCase().includes(passengerSearch.trim().toLowerCase()))
                       );
+                      const isRowBus = (row.serviceType || '').toLowerCase() === 'bus';
+
                       return (
                       <tr key={row.manifestId} style={isHighlightedBooking ? { backgroundColor: '#f0f9ff' } : undefined}>
-                        <td>
-                          <span className="seat-pill">
-                            {row.seatNumber}
-                          </span>
-                        </td>
-                        <td>
-                          <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '0.84rem' }}>
-                            {row.passengerName}
-                          </div>
-                          {row.isLeadPassenger && row.passengerCountInBooking > 1 && (
-                            <div style={{ fontSize: '0.7rem', color: 'var(--primary-blue)', fontWeight: '600' }}>
-                              Lead Passenger ({row.passengerCountInBooking} pax total)
-                            </div>
-                          )}
-                        </td>
-                        <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                          {row.age !== null ? `${row.age} yrs` : 'N/A'} • {row.gender || 'N/A'}
-                        </td>
-                        <td style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '500', whiteSpace: 'nowrap' }}>
-                          {row.mobileNumber}
-                        </td>
-                        <td>
-                          <span className="booking-ref-code">
-                            {row.bookingId}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          {row.boardingPoint}
-                        </td>
-                        <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          {row.destination}
-                        </td>
-                        <td>
-                          <StatusBadge status={row.bookingStatus} />
-                        </td>
-                        <td>
-                          <StatusBadge status={row.paymentStatus} />
-                        </td>
+                        {isBusActive ? (
+                          <>
+                            <td>
+                              <span className="seat-pill">
+                                {row.seatNumber || 'N/A'}
+                              </span>
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '0.84rem' }}>
+                                {row.passengerName}
+                              </div>
+                              {row.isLeadPassenger && row.passengerCountInBooking > 1 && (
+                                <div style={{ fontSize: '0.7rem', color: 'var(--primary-blue)', fontWeight: '600' }}>
+                                  Lead Passenger ({row.passengerCountInBooking} pax total)
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ fontSize: '0.78rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                              {row.age !== null ? `${row.age} yrs` : 'N/A'} • {row.gender || 'N/A'}
+                            </td>
+                            <td style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '500', whiteSpace: 'nowrap' }}>
+                              {row.mobileNumber}
+                            </td>
+                            <td>
+                              <span className="booking-ref-code">
+                                {row.bookingId}
+                              </span>
+                            </td>
+                            <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                              {row.boardingPoint}
+                            </td>
+                            <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                              {row.destination}
+                            </td>
+                            <td>
+                              <StatusBadge status={row.bookingStatus} />
+                            </td>
+                            <td>
+                              <StatusBadge status={row.paymentStatus} />
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td>
+                              {renderServiceBadge(row.serviceType, 11)}
+                            </td>
+                            <td>
+                              <span className="booking-ref-code">
+                                {row.bookingId}
+                              </span>
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: '750', color: 'var(--text-main)', fontSize: '0.84rem' }}>
+                                {row.passengerName}
+                              </div>
+                              {row.isLeadPassenger && row.passengerCountInBooking > 1 && (
+                                <div style={{ fontSize: '0.7rem', color: 'var(--primary-blue)', fontWeight: '600' }}>
+                                  Group Booking ({row.passengerCountInBooking} pax)
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ fontSize: '0.8rem', color: 'var(--text-main)', fontWeight: '500', whiteSpace: 'nowrap' }}>
+                              {row.mobileNumber}
+                            </td>
+                            <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                              {row.pickupLocation || row.boardingPoint || 'N/A'}
+                            </td>
+                            <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                              {row.dropLocation || row.destination || 'N/A'}
+                            </td>
+                            <td style={{ fontSize: '0.8rem', color: 'var(--text-main)' }}>
+                              {row.assignedDriver || 'Unassigned'}
+                            </td>
+                            <td>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <StatusBadge status={row.bookingStatus} />
+                                {row.rideStatus && row.rideStatus !== 'None' && (
+                                  <span className={`ride-status-pill ${row.rideStatus.toLowerCase()}`}>
+                                    Ride: {row.rideStatus}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--text-main)' }}>
+                              NPR {row.fare}
+                            </td>
+                            <td>
+                              <StatusBadge status={row.paymentStatus} />
+                            </td>
+                          </>
+                        )}
+
                         <td style={{ textAlign: 'right' }}>
                           <button
                             className="btn btn-outline"
@@ -851,15 +1028,18 @@ const BusPassengerManifest = () => {
       {/* 5. Passenger & Booking Details Modal */}
       {selectedBookingModal && (
         <div className="modal-backdrop">
-          <div className="modal-content" style={{ maxWidth: '600px', width: '92%' }}>
+          <div className="modal-content" style={{ maxWidth: '620px', width: '92%' }}>
             <div className="modal-header">
               <div>
-                <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <User size={19} style={{ color: 'var(--primary-blue)' }} />
-                  Passenger & Booking Information
-                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  {renderServiceBadge(selectedBookingModal.serviceType, 12)}
+                  <h3 className="modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                    <User size={18} style={{ color: 'var(--primary-blue)' }} />
+                    Passenger & Booking Information
+                  </h3>
+                </div>
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
-                  Booking Ref: {selectedBookingModal.bookingId}
+                  Booking ID: {selectedBookingModal.bookingId} • Vehicle: {selectedBookingModal.vehicleNumber || 'N/A'}
                 </span>
               </div>
               <button
@@ -871,6 +1051,31 @@ const BusPassengerManifest = () => {
             </div>
 
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px', fontSize: '0.85rem' }}>
+              {/* Service & Vehicle Details */}
+              <div style={{ backgroundColor: 'var(--bg-light)', padding: '14px 16px', borderRadius: 'var(--radius-md)', border: '1px solid #f1f5f9' }}>
+                <div style={{ fontWeight: '750', color: 'var(--text-main)', marginBottom: '8px', fontSize: '0.88rem' }}>
+                  Vehicle & Service Details
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Vehicle Registration</span>
+                    <strong style={{ color: 'var(--text-main)' }}>{selectedBookingModal.vehicleNumber || 'N/A'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Vehicle Model & Name</span>
+                    <span>{selectedBookingModal.vehicleModel} ({selectedBookingModal.vehicleCategory || selectedBookingModal.serviceType})</span>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Assigned Driver</span>
+                    <strong style={{ color: 'var(--primary-blue)' }}>{selectedBookingModal.assignedDriver || 'Unassigned'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Driver Mobile</span>
+                    <span>{selectedBookingModal.driverPhone || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+
               {/* Passenger Core Details */}
               <div style={{ backgroundColor: 'var(--bg-light)', padding: '14px 16px', borderRadius: 'var(--radius-md)', border: '1px solid #f1f5f9' }}>
                 <div style={{ fontWeight: '750', color: 'var(--text-main)', marginBottom: '8px', fontSize: '0.88rem' }}>
@@ -881,10 +1086,13 @@ const BusPassengerManifest = () => {
                     <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Full Name</span>
                     <strong style={{ color: 'var(--text-main)' }}>{selectedBookingModal.passengerName}</strong>
                   </div>
-                  <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Allocated Seat</span>
-                    <strong style={{ color: 'var(--primary-blue)' }}>{selectedBookingModal.seatNumber}</strong>
-                  </div>
+                  {/* Seat only shown meaningfully if Bus or assigned */}
+                  {(selectedBookingModal.serviceType === 'Bus' || (selectedBookingModal.seatNumber && selectedBookingModal.seatNumber !== 'N/A')) && (
+                    <div>
+                      <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Allocated Seat</span>
+                      <strong style={{ color: 'var(--primary-blue)' }}>{selectedBookingModal.seatNumber}</strong>
+                    </div>
+                  )}
                   <div>
                     <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Age / Gender</span>
                     <span>{selectedBookingModal.age ? `${selectedBookingModal.age} years` : 'N/A'} • {selectedBookingModal.gender || 'N/A'}</span>
@@ -919,19 +1127,19 @@ const BusPassengerManifest = () => {
                 </div>
               </div>
 
-              {/* Journey & Boarding */}
+              {/* Journey & Boarding / Pickup & Drop */}
               <div style={{ backgroundColor: 'var(--bg-light)', padding: '14px 16px', borderRadius: 'var(--radius-md)', border: '1px solid #f1f5f9' }}>
                 <div style={{ fontWeight: '750', color: 'var(--text-main)', marginBottom: '8px', fontSize: '0.88rem' }}>
-                  Journey & Boarding
+                  Journey & Route
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Boarding Point</span>
-                    <strong>{selectedBookingModal.boardingPoint}</strong>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Pickup / Boarding Point</span>
+                    <strong>{selectedBookingModal.pickupLocation || selectedBookingModal.boardingPoint}</strong>
                   </div>
                   <div>
-                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Destination</span>
-                    <strong>{selectedBookingModal.destination}</strong>
+                    <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Drop / Destination</span>
+                    <strong>{selectedBookingModal.dropLocation || selectedBookingModal.destination}</strong>
                   </div>
                   <div>
                     <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem' }}>Journey Date</span>
@@ -944,16 +1152,24 @@ const BusPassengerManifest = () => {
                 </div>
               </div>
 
-              {/* Booking & Financial Status */}
+              {/* Booking, Ride & Financial Status */}
               <div style={{ backgroundColor: 'var(--bg-light)', padding: '14px 16px', borderRadius: 'var(--radius-md)', border: '1px solid #f1f5f9' }}>
                 <div style={{ fontWeight: '750', color: 'var(--text-main)', marginBottom: '8px', fontSize: '0.88rem' }}>
-                  Booking & Payment Status
+                  Booking, Ride & Payment Status
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', alignItems: 'center' }}>
                   <div>
                     <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem', marginBottom: '3px' }}>Booking Status</span>
                     <StatusBadge status={selectedBookingModal.bookingStatus} />
                   </div>
+                  {selectedBookingModal.rideStatus && selectedBookingModal.rideStatus !== 'None' && (
+                    <div>
+                      <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem', marginBottom: '3px' }}>Ride Status</span>
+                      <span className={`ride-status-pill ${selectedBookingModal.rideStatus.toLowerCase()}`}>
+                        {selectedBookingModal.rideStatus}
+                      </span>
+                    </div>
+                  )}
                   <div>
                     <span style={{ color: 'var(--text-muted)', display: 'block', fontSize: '0.73rem', marginBottom: '3px' }}>Payment Status</span>
                     <StatusBadge status={selectedBookingModal.paymentStatus} />

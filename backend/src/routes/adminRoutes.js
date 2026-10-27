@@ -148,6 +148,8 @@ router.get('/hire-expenses', requirePermission('payment.view'), getHireExpenses)
 router.get('/buses', requirePermission('vehicle.view'), getBuses);
 router.get('/bus-manifest/journeys', requirePermission('vehicle.view'), getBusManifestJourneys);
 router.get('/bus-manifest', requirePermission('booking.view'), getBusPassengerManifest);
+router.get('/manifest/journeys', requirePermission('vehicle.view'), getBusManifestJourneys);
+router.get('/manifest', requirePermission('booking.view'), getBusPassengerManifest);
 router.get('/ev-sewa', requirePermission('vehicle.view'), getEvSewa);
 router.get('/cars', requirePermission('vehicle.view'), getCars);
 
