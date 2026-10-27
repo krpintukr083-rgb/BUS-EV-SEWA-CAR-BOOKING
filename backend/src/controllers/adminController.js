@@ -3128,8 +3128,12 @@ exports.getBusManifestJourneys = async (req, res, next) => {
     const regRegex = buildFlexibleRegistrationRegex(rawRegSearch);
     const regNorm = normalizeText(rawRegSearch);
     const regLower = rawRegSearch.toLowerCase();
+    // Fetch all fleet vehicles for target services to populate the vehicle dropdown reliably
+    const allFleetVehicles = await Vehicle.find({ vehicleType: { $in: targetServices } })
+      .populate('assignedDriver', 'name phone email licenseNumber mobileNumber drivingLicenceNumber')
+      .lean();
 
-    // Fetch vehicles matching target service types with assigned drivers
+    // Fetch vehicles matching target service types and registration/id filters for journeys calculation
     const vehicleQuery = { vehicleType: { $in: targetServices } };
     if (vehicleId && mongoose.Types.ObjectId.isValid(vehicleId)) {
       vehicleQuery._id = vehicleId;
@@ -3750,7 +3754,7 @@ exports.getBusManifestJourneys = async (req, res, next) => {
       return (a.vehicleNumber || '').localeCompare(b.vehicleNumber || '');
     });
 
-    const vehicleDTOs = vehicles.map(v => ({
+    const vehicleDTOs = allFleetVehicles.map(v => ({
       _id: v._id,
       vehicleNumber: v.vehicleNumber,
       vehicleName: v.vehicleName,

@@ -1372,6 +1372,83 @@ describe('Bus Passenger Manifest Feature Tests', () => {
       expect(journeysRoute.route.stack.length).toBeGreaterThanOrEqual(2);
       expect(manifestRoute.route.stack.length).toBeGreaterThanOrEqual(2);
     });
+
+    test('13. Vehicle number 234555 exact and partial searches (234, 555) resolve correctly with fleet dropdown preservation', async () => {
+      const v234 = await Vehicle.create({
+        vehicleNumber: '234555',
+        vehicleType: 'EV-Sewa',
+        vehicleCategory: 'Driver Submitted Vehicle',
+        vehicleModel: 'Electric Van',
+        vehicleName: 'Kyc EV',
+        seatingCapacity: 11,
+        ownerName: 'Test Owner',
+        ownerMobileNumber: '9800000000'
+      });
+      createdVehicleIds.push(v234._id);
+
+      const b234 = await Booking.create({
+        bookingId: `BK-TEST-234555-${Date.now()}`,
+        serviceType: 'EV-Sewa',
+        vehicle: v234._id,
+        scheduleId: null,
+        travelDate: new Date('2026-11-03T00:00:00.000Z'),
+        pickupLocation: 'Birgunj',
+        dropLocation: 'Bharatpur',
+        bookingStatus: 'Completed',
+        paymentStatus: 'Paid',
+        fare: 550,
+        finalFare: 550,
+        customer: { name: 'Passenger 234', phone: '9811111111' },
+        passengerDetails: [{ name: 'Passenger 234', age: 28, gender: 'Male' }]
+      });
+      createdBookingIds.push(b234._id);
+
+      // 13a. Exact search "234555"
+      let respExact = null;
+      await getBusManifestJourneys(
+        { query: { serviceType: 'All', vehicleRegistration: '234555' } },
+        { json: d => { respExact = d; } },
+        jest.fn()
+      );
+      expect(respExact.success).toBe(true);
+      expect(respExact.data.length).toBeGreaterThanOrEqual(1);
+      expect(respExact.data.some(j => j.vehicleNumber === '234555')).toBe(true);
+      // Ensure res.vehicles contains full fleet, not 0
+      expect(respExact.vehicles.length).toBeGreaterThan(1);
+      expect(respExact.vehicles.some(v => v.vehicleNumber === '234555')).toBe(true);
+
+      // 13b. Partial search "234"
+      let respPartial1 = null;
+      await getBusManifestJourneys(
+        { query: { serviceType: 'All', vehicleRegistration: '234' } },
+        { json: d => { respPartial1 = d; } },
+        jest.fn()
+      );
+      expect(respPartial1.success).toBe(true);
+      expect(respPartial1.data.some(j => j.vehicleNumber === '234555')).toBe(true);
+
+      // 13c. Partial search "555"
+      let respPartial2 = null;
+      await getBusManifestJourneys(
+        { query: { serviceType: 'All', vehicleRegistration: '555' } },
+        { json: d => { respPartial2 = d; } },
+        jest.fn()
+      );
+      expect(respPartial2.success).toBe(true);
+      expect(respPartial2.data.some(j => j.vehicleNumber === '234555')).toBe(true);
+
+      // 13d. Passenger manifest retrieval for 234555 journey
+      const journey234 = respExact.data.find(j => j.vehicleNumber === '234555');
+      let paxResp = null;
+      await getBusPassengerManifest(
+        { query: { vehicleId: journey234.vehicleId.toString() } },
+        { json: d => { paxResp = d; } },
+        jest.fn()
+      );
+      expect(paxResp.success).toBe(true);
+      expect(paxResp.data.some(r => r.bookingId === b234.bookingId)).toBe(true);
+      expect(paxResp.data.find(r => r.bookingId === b234.bookingId).serviceType).toBe('EV-Sewa');
+    });
   });
 });
 

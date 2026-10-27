@@ -117,9 +117,18 @@ const BusPassengerManifest = () => {
 
         // When a match exists, display/select the corresponding journey and show its passenger manifest
         if (res.data && res.data.length > 0) {
-          const targetJourney = (searchVal && searchVal.trim())
-            ? (res.data.find(j => j.matchedBookingId) || res.data[0])
-            : (res.data.find(j => j.journeyKey === selectedJourneyKey) || res.data[0]);
+          let targetJourney = null;
+          if (regSearchVal && regSearchVal.trim()) {
+            const rNorm = regSearchVal.trim().toLowerCase().replace(/[\s\-_/\\,.]/g, '');
+            targetJourney = res.data.find(j => {
+              const num = (j.vehicleNumber || '').toLowerCase().replace(/[\s\-_/\\,.]/g, '');
+              return num.includes(rNorm);
+            }) || res.data[0];
+          } else if (searchVal && searchVal.trim()) {
+            targetJourney = res.data.find(j => j.matchedBookingId) || res.data[0];
+          } else {
+            targetJourney = res.data.find(j => j.journeyKey === selectedJourneyKey) || res.data[0];
+          }
 
           setSelectedJourneyKey(targetJourney.journeyKey);
           loadManifestForJourney(targetJourney);
@@ -128,26 +137,33 @@ const BusPassengerManifest = () => {
             setPassengerSearch(res.matchedBookingId);
           } else if (searchVal && /^bk[-_\s]*\d+/i.test(searchVal.trim())) {
             setPassengerSearch(searchVal.trim());
+          } else {
+            setPassengerSearch('');
           }
         } else {
           setSelectedJourneyKey('');
           setManifestData([]);
           setJourneyInfo(null);
           setManifestSummary(null);
+          setPassengerSearch('');
         }
       } else {
         setError(res?.message || 'Failed to load journeys.');
         setJourneys([]);
+        setSelectedJourneyKey('');
         setManifestData([]);
         setJourneyInfo(null);
         setManifestSummary(null);
+        setPassengerSearch('');
       }
     } catch (err) {
       setError(err?.response?.data?.message || err.message || 'Error fetching journeys.');
       setJourneys([]);
+      setSelectedJourneyKey('');
       setManifestData([]);
       setJourneyInfo(null);
       setManifestSummary(null);
+      setPassengerSearch('');
     } finally {
       setLoadingJourneys(false);
     }
@@ -191,12 +207,20 @@ const BusPassengerManifest = () => {
     setPassengerSearch('');
     setBookingNotFound(false);
     setSearchedBookingId('');
+    setSelectedJourneyKey('');
+    setManifestData([]);
+    setJourneyInfo(null);
+    setManifestSummary(null);
     lastSearchedRef.current = '';
     fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, '', registrationSearch);
   };
 
   const handleClearRegistrationSearch = () => {
     setRegistrationSearch('');
+    setSelectedJourneyKey('');
+    setManifestData([]);
+    setJourneyInfo(null);
+    setManifestSummary(null);
     lastRegistrationRef.current = '';
     fetchJourneys(selectedServiceType, selectedTravelDate, selectedVehicleId, searchTerm, '');
   };
@@ -208,6 +232,10 @@ const BusPassengerManifest = () => {
     setSearchTerm('');
     setRegistrationSearch('');
     setPassengerSearch('');
+    setSelectedJourneyKey('');
+    setManifestData([]);
+    setJourneyInfo(null);
+    setManifestSummary(null);
     setBookingNotFound(false);
     setSearchedBookingId('');
     lastSearchedRef.current = '';
@@ -540,6 +568,11 @@ const BusPassengerManifest = () => {
                 onChange={e => {
                   const val = e.target.value;
                   setRegistrationSearch(val);
+                  // If user enters vehicle registration and an old booking ID search was active, clear it
+                  if (val.trim() && searchTerm.trim() && /^bk[-_\s]*\d+/i.test(searchTerm.trim())) {
+                    setSearchTerm('');
+                    lastSearchedRef.current = '';
+                  }
                   // If selected dropdown vehicle conflicts with the new typed search, reset dropdown
                   if (selectedVehicleId) {
                     const selVeh = vehicles.find(v => v._id === selectedVehicleId);
@@ -652,7 +685,15 @@ const BusPassengerManifest = () => {
                 }}
                 placeholder="Booking ID (e.g. BK-6441910), driver, route..."
                 value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
+                onChange={e => {
+                  const val = e.target.value;
+                  setSearchTerm(val);
+                  // If user enters a booking ID search, clear registrationSearch
+                  if (val.trim() && /^bk[-_\s]*\d+/i.test(val.trim()) && registrationSearch.trim()) {
+                    setRegistrationSearch('');
+                    lastRegistrationRef.current = '';
+                  }
+                }}
                 onKeyDown={e => {
                   if (e.key === 'Enter') {
                     lastSearchedRef.current = searchTerm;
