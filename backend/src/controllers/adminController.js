@@ -3794,6 +3794,14 @@ exports.getBusManifestJourneys = async (req, res, next) => {
       });
     }
 
+    // Strict service isolation: if a specific service was requested, guarantee no other service journeys appear
+    if (filteredService) {
+      journeys = journeys.filter(j => {
+        const jService = normalizeService(j.serviceType || j.vehicleType);
+        return jService === filteredService;
+      });
+    }
+
     // Sort journeys by travelDate descending, then vehicleNumber
     journeys.sort((a, b) => {
       if (b.travelDate && a.travelDate) {

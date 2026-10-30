@@ -50,9 +50,10 @@ const BusPassengerManifest = () => {
   const [bookingNotFound, setBookingNotFound] = useState(false);
   const [searchedBookingId, setSearchedBookingId] = useState('');
 
-  // Debouncing refs
+  // Debouncing & race-condition refs
   const isFirstRender = useRef(true);
   const lastRegistrationRef = useRef('');
+  const requestSeqRef = useRef(0);
 
   // Render Service Icon & Badge helper
   const renderServiceBadge = (serviceType, size = 11) => {
@@ -85,6 +86,7 @@ const BusPassengerManifest = () => {
     vehicleId = selectedVehicleId,
     regSearchVal = registrationSearch
   ) => {
+    const currentSeq = ++requestSeqRef.current;
     try {
       setLoadingJourneys(true);
       setError('');
@@ -98,30 +100,72 @@ const BusPassengerManifest = () => {
       if (regSearchVal && regSearchVal.trim()) params.vehicleRegistration = regSearchVal.trim();
 
       const res = await adminService.getBusManifestJourneys(params);
+
+      // Race-condition guard: ignore outdated response if a newer query was issued
+      if (currentSeq !== requestSeqRef.current) {
+        return;
+      }
+
       if (res && res.success) {
-        setJourneys(res.data || []);
-        if (res.vehicles) {
-          setVehicles(res.vehicles);
-        } else if (res.buses) {
-          setVehicles(res.buses);
+        if (Array.isArray(res.vehicles) && res.vehicles.length > 0) {
+          setVehicles(prev => {
+            const map = new Map((prev || []).map(v => [v._id.toString(), v]));
+            res.vehicles.forEach(v => map.set(v._id.toString(), v));
+            return Array.from(map.values());
+          });
+        } else if (Array.isArray(res.buses) && res.buses.length > 0) {
+          setVehicles(prev => {
+            const map = new Map((prev || []).map(v => [v._id.toString(), v]));
+            res.buses.forEach(v => map.set(v._id.toString(), v));
+            return Array.from(map.values());
+          });
         }
+
         if (res.nonBusMatch) setNonBusMatch(res.nonBusMatch);
         if (res.bookingNotFound) {
           setBookingNotFound(true);
           setSearchedBookingId(res.searchedBookingId || '');
         }
 
+        let rawJourneys = Array.isArray(res.data) ? res.data : [];
+
+        // Client-side strict service type isolation
+        if (queryService && queryService !== 'All' && queryService !== 'All Services') {
+          const normTarget = queryService.toLowerCase().replace(/[-_\s]/g, '');
+          rawJourneys = rawJourneys.filter(j => {
+            const jType = (j.serviceType || j.vehicleType || '').toLowerCase().replace(/[-_\s]/g, '');
+            if (normTarget === 'evsewa' || normTarget === 'ev') {
+              return jType === 'evsewa' || jType === 'ev';
+            }
+            return jType === normTarget;
+          });
+        }
+
+        // Client-side strict registration search matching
+        if (regSearchVal && regSearchVal.trim()) {
+          const rNorm = regSearchVal.trim().toLowerCase().replace(/[\s\-_/\\,.]/g, '');
+          rawJourneys = rawJourneys.filter(j => {
+            const num = (j.vehicleNumber || '').toLowerCase().replace(/[\s\-_/\\,.]/g, '');
+            const rc = (j.rcNumber || '').toLowerCase().replace(/[\s\-_/\\,.]/g, '');
+            const name = (j.vehicleName || '').toLowerCase().replace(/[\s\-_/\\,.]/g, '');
+            return num.includes(rNorm) || rc.includes(rNorm) || name.includes(rNorm);
+          });
+        }
+
+        setJourneys(rawJourneys);
+
         // When a match exists, display/select the corresponding journey and show its passenger manifest
-        if (res.data && res.data.length > 0) {
+        if (rawJourneys.length > 0) {
           let targetJourney = null;
           if (regSearchVal && regSearchVal.trim()) {
             const rNorm = regSearchVal.trim().toLowerCase().replace(/[\s\-_/\\,.]/g, '');
-            targetJourney = res.data.find(j => {
+            targetJourney = rawJourneys.find(j => {
               const num = (j.vehicleNumber || '').toLowerCase().replace(/[\s\-_/\\,.]/g, '');
-              return num.includes(rNorm);
-            }) || res.data[0];
+              const rc = (j.rcNumber || '').toLowerCase().replace(/[\s\-_/\\,.]/g, '');
+              return num.includes(rNorm) || rc.includes(rNorm);
+            }) || rawJourneys[0];
           } else {
-            targetJourney = res.data.find(j => j.journeyKey === selectedJourneyKey) || res.data[0];
+            targetJourney = rawJourneys.find(j => j.journeyKey === selectedJourneyKey) || rawJourneys[0];
           }
 
           setSelectedJourneyKey(targetJourney.journeyKey);
@@ -131,6 +175,7 @@ const BusPassengerManifest = () => {
             setPassengerSearch(res.matchedBookingId);
           }
         } else {
+          // Zero matching journeys: cleanly clear manifest state and selection
           setSelectedJourneyKey('');
           setManifestData([]);
           setJourneyInfo(null);
@@ -147,6 +192,9 @@ const BusPassengerManifest = () => {
         setPassengerSearch('');
       }
     } catch (err) {
+      if (currentSeq !== requestSeqRef.current) {
+        return;
+      }
       setError(err?.response?.data?.message || err.message || 'Error fetching journeys.');
       setJourneys([]);
       setSelectedJourneyKey('');
@@ -155,7 +203,9 @@ const BusPassengerManifest = () => {
       setManifestSummary(null);
       setPassengerSearch('');
     } finally {
-      setLoadingJourneys(false);
+      if (currentSeq === requestSeqRef.current) {
+        setLoadingJourneys(false);
+      }
     }
   };
 
@@ -180,6 +230,7 @@ const BusPassengerManifest = () => {
   const handleClearRegistrationSearch = () => {
     setRegistrationSearch('');
     setSelectedJourneyKey('');
+    setJourneys([]);
     setManifestData([]);
     setJourneyInfo(null);
     setManifestSummary(null);
@@ -194,6 +245,7 @@ const BusPassengerManifest = () => {
     setRegistrationSearch('');
     setPassengerSearch('');
     setSelectedJourneyKey('');
+    setJourneys([]);
     setManifestData([]);
     setJourneyInfo(null);
     setManifestSummary(null);
@@ -489,6 +541,7 @@ const BusPassengerManifest = () => {
                 setSelectedServiceType(newService);
                 setSelectedVehicleId('');
                 setSelectedJourneyKey('');
+                setJourneys([]);
                 setManifestData([]);
                 setJourneyInfo(null);
                 setManifestSummary(null);
@@ -599,6 +652,7 @@ const BusPassengerManifest = () => {
                 setRegistrationSearch('');
                 lastRegistrationRef.current = '';
                 setSelectedJourneyKey('');
+                setJourneys([]);
                 setManifestData([]);
                 setJourneyInfo(null);
                 setManifestSummary(null);
