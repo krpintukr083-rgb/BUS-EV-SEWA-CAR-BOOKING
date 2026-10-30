@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { adminService } from '../services/adminService';
 import StatusBadge from '../components/StatusBadge';
+import { generatePassengerManifestPdf } from '../utils/passengerManifestPdf';
 import {
   Bus,
   Zap,
@@ -20,7 +21,9 @@ import {
   RotateCw,
   ChevronRight,
   Shield,
-  Layers
+  Layers,
+  FileDown,
+  CheckCircle
 } from 'lucide-react';
 
 const BusPassengerManifest = () => {
@@ -49,6 +52,8 @@ const BusPassengerManifest = () => {
   const [nonBusMatch, setNonBusMatch] = useState(null);
   const [bookingNotFound, setBookingNotFound] = useState(false);
   const [searchedBookingId, setSearchedBookingId] = useState('');
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
+  const [pdfNotification, setPdfNotification] = useState(null);
 
   // Debouncing & race-condition refs
   const isFirstRender = useRef(true);
@@ -306,6 +311,76 @@ const BusPassengerManifest = () => {
     }
   }, [filterStatus, filterBoardingPoint]);
 
+  // Auto-dismiss PDF notification
+  useEffect(() => {
+    if (pdfNotification) {
+      const timer = setTimeout(() => setPdfNotification(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [pdfNotification]);
+
+  // Professional PDF Manifest Export Handler
+  const handleExportPdf = async () => {
+    const active = journeys.find(j => j.journeyKey === selectedJourneyKey) || null;
+    if (!active) {
+      setPdfNotification({
+        type: 'error',
+        message: 'Please select a journey from the list before exporting the manifest.'
+      });
+      return;
+    }
+
+    const rowsToExport = displayedManifestRows && displayedManifestRows.length > 0
+      ? displayedManifestRows
+      : manifestData;
+
+    if (!rowsToExport || rowsToExport.length === 0) {
+      setPdfNotification({
+        type: 'error',
+        message: 'No passenger or booking records are available to export for this journey.'
+      });
+      return;
+    }
+
+    const isFiltered = Boolean(
+      (passengerSearch && passengerSearch.trim()) ||
+      (filterStatus && filterStatus !== 'All') ||
+      (filterBoardingPoint && filterBoardingPoint !== 'All')
+    );
+
+    try {
+      setIsExportingPdf(true);
+      setPdfNotification(null);
+
+      const result = await generatePassengerManifestPdf({
+        journey: active,
+        passengers: rowsToExport,
+        summary: manifestSummary,
+        filterInfo: isFiltered
+          ? {
+              isFiltered: true,
+              status: filterStatus,
+              boardingPoint: filterBoardingPoint,
+              search: passengerSearch.trim(),
+              totalRecords: manifestData.length
+            }
+          : null
+      });
+
+      setPdfNotification({
+        type: 'success',
+        message: `Passenger Manifest PDF "${result.filename}" exported successfully (${result.totalPassengers} passengers, ${result.totalPages} page${result.totalPages === 1 ? '' : 's'}).`
+      });
+    } catch (err) {
+      setPdfNotification({
+        type: 'error',
+        message: err.message || 'Failed to export passenger manifest PDF.'
+      });
+    } finally {
+      setIsExportingPdf(false);
+    }
+  };
+
   // Client-side immediate filtering across passenger rows as user types
   const displayedManifestRows = useMemo(() => {
     if (!manifestData || manifestData.length === 0) return [];
@@ -403,7 +478,34 @@ const BusPassengerManifest = () => {
             Unified passenger and journey manifest for <strong>Bus, EV-Sewa and Car</strong> services. Inspect passenger lists, vehicle allocations, assigned drivers, and live journey statuses.
           </p>
         </div>
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <button
+            className="btn btn-primary"
+            onClick={handleExportPdf}
+            disabled={!activeJourney || manifestData.length === 0 || loadingManifest || isExportingPdf}
+            title={
+              !activeJourney
+                ? 'Select a journey first'
+                : manifestData.length === 0
+                ? 'No passenger records to export'
+                : 'Export official PDF manifest'
+            }
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              minHeight: '40px',
+              fontWeight: '600'
+            }}
+          >
+            {isExportingPdf ? (
+              <RotateCw size={15} className="spin" />
+            ) : (
+              <FileDown size={16} />
+            )}
+            <span>{isExportingPdf ? 'Generating PDF...' : 'Export PDF'}</span>
+          </button>
+
           <button
             className="btn btn-outline"
             onClick={() => fetchJourneys()}
@@ -415,6 +517,51 @@ const BusPassengerManifest = () => {
           </button>
         </div>
       </div>
+
+      {/* PDF Export Success/Error Notification Banner */}
+      {pdfNotification && (
+        <div
+          style={{
+            backgroundColor: pdfNotification.type === 'success' ? '#ecfdf5' : '#fef2f2',
+            border: `1px solid ${pdfNotification.type === 'success' ? '#a7f3d0' : '#fecaca'}`,
+            color: pdfNotification.type === 'success' ? '#065f46' : '#991b1b',
+            padding: '12px 18px',
+            borderRadius: 'var(--radius-md)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            fontSize: '0.86rem',
+            fontWeight: '600',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+            marginBottom: '4px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {pdfNotification.type === 'success' ? (
+              <CheckCircle size={18} style={{ color: '#059669', flexShrink: 0 }} />
+            ) : (
+              <AlertTriangle size={18} style={{ color: '#dc2626', flexShrink: 0 }} />
+            )}
+            <span>{pdfNotification.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPdfNotification(null)}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: pdfNotification.type === 'success' ? '#065f46' : '#991b1b',
+              padding: '2px',
+              display: 'flex'
+            }}
+            title="Dismiss"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {/* Global Error Banner */}
       {error && (
@@ -1009,6 +1156,31 @@ const BusPassengerManifest = () => {
                     ))}
                   </select>
                 )}
+
+                {/* Subfilter Export PDF Button */}
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={handleExportPdf}
+                  disabled={!activeJourney || manifestData.length === 0 || loadingManifest || isExportingPdf}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '0.82rem',
+                    padding: '6px 12px',
+                    minHeight: '36px',
+                    whiteSpace: 'nowrap'
+                  }}
+                  title="Export official PDF manifest"
+                >
+                  {isExportingPdf ? (
+                    <RotateCw size={13} className="spin" />
+                  ) : (
+                    <FileDown size={14} />
+                  )}
+                  <span>{isExportingPdf ? 'Exporting...' : 'Export PDF'}</span>
+                </button>
               </div>
 
               {/* Compact Manifest Stats */}
