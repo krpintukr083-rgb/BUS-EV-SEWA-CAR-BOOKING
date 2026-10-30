@@ -3092,10 +3092,21 @@ exports.getBusManifestJourneys = async (req, res, next) => {
     const normalizeService = st => {
       if (!st) return null;
       const s = String(st).trim().toLowerCase();
-      if (s === 'bus') return 'Bus';
-      if (s === 'ev-sewa' || s === 'ev' || s === 'evsewa') return 'EV-Sewa';
-      if (s === 'car') return 'Car';
+      const clean = s.replace(/[-_\s]/g, '');
+      if (clean === 'bus') return 'Bus';
+      if (clean === 'evsewa' || clean === 'ev') return 'EV-Sewa';
+      if (clean === 'car') return 'Car';
       return null;
+    };
+
+    const buildServiceTypeQuery = services => {
+      const patterns = services.map(s => {
+        if (s === 'EV-Sewa') return '(?:EV-Sewa|EV|EVSEWA|ev-sewa|ev)';
+        if (s === 'Car') return '(?:Car|car)';
+        if (s === 'Bus') return '(?:Bus|bus)';
+        return s;
+      });
+      return { $regex: new RegExp('^(?:' + patterns.join('|') + ')$', 'i') };
     };
 
     const normalizeText = val => {
@@ -3123,18 +3134,19 @@ exports.getBusManifestJourneys = async (req, res, next) => {
     const isSpecificService = Boolean(serviceType && serviceType !== 'All' && serviceType !== 'All Services');
     const filteredService = isSpecificService ? normalizeService(serviceType) : null;
     const targetServices = filteredService ? [filteredService] : ['Bus', 'EV-Sewa', 'Car'];
+    const serviceTypeFilter = buildServiceTypeQuery(targetServices);
 
     const rawRegSearch = (vehicleRegistration || '').trim();
     const regRegex = buildFlexibleRegistrationRegex(rawRegSearch);
     const regNorm = normalizeText(rawRegSearch);
     const regLower = rawRegSearch.toLowerCase();
     // Fetch all fleet vehicles for target services to populate the vehicle dropdown reliably
-    const allFleetVehicles = await Vehicle.find({ vehicleType: { $in: targetServices } })
+    const allFleetVehicles = await Vehicle.find({ vehicleType: serviceTypeFilter })
       .populate('assignedDriver', 'name phone email licenseNumber mobileNumber drivingLicenceNumber')
       .lean();
 
     // Fetch vehicles matching target service types and registration/id filters for journeys calculation
-    const vehicleQuery = { vehicleType: { $in: targetServices } };
+    const vehicleQuery = { vehicleType: serviceTypeFilter };
     if (vehicleId && mongoose.Types.ObjectId.isValid(vehicleId)) {
       vehicleQuery._id = vehicleId;
     }
@@ -3144,12 +3156,19 @@ exports.getBusManifestJourneys = async (req, res, next) => {
       if (regRegex) {
         regOrConditions.push({ vehicleNumber: regRegex });
         regOrConditions.push({ rcNumber: regRegex });
+        regOrConditions.push({ vehicleName: regRegex });
+        regOrConditions.push({ vehicleModel: regRegex });
+        regOrConditions.push({ 'hireDetails.tripReference': regRegex });
       }
       const escapedReg = rawRegSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       regOrConditions.push({ vehicleNumber: { $regex: escapedReg, $options: 'i' } });
       regOrConditions.push({ rcNumber: { $regex: escapedReg, $options: 'i' } });
+      regOrConditions.push({ vehicleName: { $regex: escapedReg, $options: 'i' } });
+      regOrConditions.push({ vehicleModel: { $regex: escapedReg, $options: 'i' } });
+      regOrConditions.push({ 'hireDetails.tripReference': { $regex: escapedReg, $options: 'i' } });
       if (regNorm && regNorm !== escapedReg.toLowerCase()) {
         regOrConditions.push({ vehicleNumber: { $regex: regNorm, $options: 'i' } });
+        regOrConditions.push({ rcNumber: { $regex: regNorm, $options: 'i' } });
       }
 
       if (vehicleQuery._id) {
@@ -3185,10 +3204,20 @@ exports.getBusManifestJourneys = async (req, res, next) => {
       .lean();
 
     // Fetch distinct bookings travel dates and count per vehicle
+    const vehicleObjIds = vehicleIds.filter(id => mongoose.Types.ObjectId.isValid(id)).map(id => new mongoose.Types.ObjectId(id));
+    const vehicleStrIds = vehicleIds.map(id => id.toString());
+    const allMatchingVehIds = [...new Set([...vehicleObjIds, ...vehicleStrIds])];
+
     const bookingMatch = {
-      serviceType: { $in: targetServices },
-      vehicle: { $in: vehicleIds }
+      $or: [
+        { vehicle: { $in: allMatchingVehIds } },
+        { vehicleId: { $in: allMatchingVehIds } },
+        { 'hiredVehicleDetails.vehicle': { $in: allMatchingVehIds } }
+      ]
     };
+    if (filteredService) {
+      bookingMatch.serviceType = { $regex: new RegExp('^(?:' + filteredService + '|Any)$', 'i') };
+    }
     if (travelDate) {
       const startOfDay = new Date(travelDate);
       startOfDay.setUTCHours(0, 0, 0, 0);
@@ -3481,6 +3510,7 @@ exports.getBusManifestJourneys = async (req, res, next) => {
         journeyKey: key,
         vehicleId: v._id,
         vehicleNumber: v.vehicleNumber || '',
+        rcNumber: v.rcNumber || '',
         vehicleName: v.vehicleName || '',
         vehicleModel: v.vehicleModel || '',
         vehicleType: vType,
@@ -3638,11 +3668,25 @@ exports.getBusManifestJourneys = async (req, res, next) => {
           return true;
         }
         const vNum = j.vehicleNumber || '';
-        const vRc = j.tripReference || '';
+        const vRc = j.rcNumber || j.tripReference || '';
+        const vName = j.vehicleName || '';
+        const vModel = j.vehicleModel || '';
         return (
           vNum.toLowerCase().includes(regLower) ||
-          (regNorm && normalizeText(vNum).includes(regNorm)) ||
-          (regRegex && (regRegex.test(vNum) || regRegex.test(vRc)))
+          vRc.toLowerCase().includes(regLower) ||
+          vName.toLowerCase().includes(regLower) ||
+          vModel.toLowerCase().includes(regLower) ||
+          (regNorm && (
+            normalizeText(vNum).includes(regNorm) ||
+            normalizeText(vRc).includes(regNorm) ||
+            normalizeText(vName).includes(regNorm)
+          )) ||
+          (regRegex && (
+            regRegex.test(vNum) ||
+            regRegex.test(vRc) ||
+            regRegex.test(vName) ||
+            regRegex.test(vModel)
+          ))
         );
       });
     }
@@ -3761,7 +3805,9 @@ exports.getBusManifestJourneys = async (req, res, next) => {
     const vehicleDTOs = allFleetVehicles.map(v => ({
       _id: v._id,
       vehicleNumber: v.vehicleNumber,
+      rcNumber: v.rcNumber || '',
       vehicleName: v.vehicleName,
+      vehicleModel: v.vehicleModel || '',
       vehicleType: v.vehicleType,
       serviceType: v.vehicleType,
       vehicleCategory: v.vehicleCategory,
@@ -3867,15 +3913,27 @@ exports.getBusPassengerManifest = async (req, res, next) => {
       }
     }
 
-    // 3. Build Booking query
+    // 3. Build Booking query supporting ObjectId, String ID, vehicleId and hired vehicles
+    const vehIdStr = vehicle._id ? vehicle._id.toString() : '';
+    const vehObjId = mongoose.Types.ObjectId.isValid(vehIdStr) ? new mongoose.Types.ObjectId(vehIdStr) : null;
+    const matchVehIds = vehObjId ? [vehObjId, vehIdStr] : [vehIdStr];
+
     const bookingQuery = isUnassignedTrip && unassignedBooking
       ? { _id: unassignedBooking._id }
-      : { vehicle: vehicle._id };
+      : {
+          $or: [
+            { vehicle: { $in: matchVehIds } },
+            { vehicleId: { $in: matchVehIds } },
+            { 'hiredVehicleDetails.vehicle': { $in: matchVehIds } }
+          ]
+        };
 
     if (serviceType && serviceType !== 'All' && serviceType !== 'All Services') {
-      bookingQuery.serviceType = { $regex: new RegExp(`^${serviceType}$`, 'i') };
-    } else if (vehicle.vehicleType) {
-      bookingQuery.serviceType = { $regex: new RegExp(`^${vehicle.vehicleType}$`, 'i') };
+      const normSt = serviceType.toLowerCase().replace(/[-_\s]/g, '');
+      const sPattern = (normSt === 'evsewa' || normSt === 'ev')
+        ? '^(?:EV-Sewa|EV|EVSEWA|ev-sewa|ev|Any)$'
+        : '^(' + serviceType + '|Any)$';
+      bookingQuery.serviceType = { $regex: new RegExp(sPattern, 'i') };
     }
 
     if (travelDate && travelDate !== 'All Dates' && travelDate !== 'Any Date') {
@@ -3883,14 +3941,19 @@ exports.getBusPassengerManifest = async (req, res, next) => {
       startOfDay.setUTCHours(0, 0, 0, 0);
       const endOfDay = new Date(travelDate);
       endOfDay.setUTCHours(23, 59, 59, 999);
-      bookingQuery.travelDate = { $gte: startOfDay, $lte: endOfDay };
+      bookingQuery.$and = bookingQuery.$and || [];
+      bookingQuery.$and.push({
+        $or: [
+          { travelDate: { $gte: startOfDay, $lte: endOfDay } },
+          { travelDate: null, createdAt: { $gte: startOfDay, $lte: endOfDay } }
+        ]
+      });
     }
 
     if (scheduleId && scheduleId !== 'direct' && mongoose.Types.ObjectId.isValid(scheduleId)) {
-      bookingQuery.$or = [
-        { scheduleId: scheduleId },
-        { scheduleId: null }
-      ];
+      bookingQuery.scheduleId = scheduleId;
+    } else if (scheduleId === 'direct') {
+      bookingQuery.scheduleId = { $in: [null, undefined] };
     }
 
     if (status && status !== 'All') {
@@ -4119,6 +4182,7 @@ exports.getBusPassengerManifest = async (req, res, next) => {
       journeyInfo: {
         vehicleId: vehicle._id,
         vehicleNumber: vehicle.vehicleNumber,
+        rcNumber: vehicle.rcNumber || '',
         vehicleName: vehicle.vehicleName,
         vehicleType: vehicle.vehicleType || 'Bus',
         serviceType: vehicle.vehicleType || 'Bus',

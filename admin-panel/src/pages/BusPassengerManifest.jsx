@@ -322,23 +322,21 @@ const BusPassengerManifest = () => {
   const isEvActive = activeJourney && (activeJourney.serviceType === 'EV-Sewa' || activeJourney.vehicleType === 'EV-Sewa');
   const isCarActive = activeJourney && (activeJourney.serviceType === 'Car' || activeJourney.vehicleType === 'Car');
 
-  // Filter available vehicle options based on selectedServiceType and registrationSearch
+  // Filter available vehicle options based strictly on selectedServiceType so the dropdown retains the full fleet
   const filteredVehicles = useMemo(() => {
-    let list = vehicles;
-    if (selectedServiceType && selectedServiceType !== 'All') {
-      list = list.filter(v => (v.vehicleType || '').toLowerCase() === selectedServiceType.toLowerCase());
+    if (!vehicles || vehicles.length === 0) return [];
+    if (!selectedServiceType || selectedServiceType === 'All' || selectedServiceType === 'All Services') {
+      return vehicles;
     }
-    if (registrationSearch && registrationSearch.trim()) {
-      const qNorm = registrationSearch.trim().toLowerCase().replace(/[\s\-_/\\,.]/g, '');
-      const qLower = registrationSearch.trim().toLowerCase();
-      list = list.filter(v => {
-        const num = (v.vehicleNumber || '').toLowerCase();
-        const normNum = num.replace(/[\s\-_/\\,.]/g, '');
-        return num.includes(qLower) || normNum.includes(qNorm);
-      });
-    }
-    return list;
-  }, [vehicles, selectedServiceType, registrationSearch]);
+    const targetService = selectedServiceType.toLowerCase().replace(/[-_\s]/g, '');
+    return vehicles.filter(v => {
+      const vType = (v.vehicleType || v.serviceType || '').toLowerCase().replace(/[-_\s]/g, '');
+      if (targetService === 'evsewa' || targetService === 'ev') {
+        return vType === 'evsewa' || vType === 'ev';
+      }
+      return vType === targetService;
+    });
+  }, [vehicles, selectedServiceType]);
 
   return (
     <div className="manifest-page-wrapper">
@@ -490,6 +488,11 @@ const BusPassengerManifest = () => {
                 const newService = e.target.value;
                 setSelectedServiceType(newService);
                 setSelectedVehicleId('');
+                setSelectedJourneyKey('');
+                setManifestData([]);
+                setJourneyInfo(null);
+                setManifestSummary(null);
+                setBookingNotFound(false);
                 fetchJourneys(newService, selectedTravelDate, '', registrationSearch);
               }}
             >
@@ -528,16 +531,9 @@ const BusPassengerManifest = () => {
                 onChange={e => {
                   const val = e.target.value;
                   setRegistrationSearch(val);
-                  // If selected dropdown vehicle conflicts with the new typed search, reset dropdown
+                  // Registration search works independently: reset dropdown selection so both do not conflict
                   if (selectedVehicleId) {
-                    const selVeh = vehicles.find(v => v._id === selectedVehicleId);
-                    if (selVeh) {
-                      const num = (selVeh.vehicleNumber || '').toLowerCase().replace(/[\s\-_/\\,.]/g, '');
-                      const typedNorm = val.toLowerCase().replace(/[\s\-_/\\,.]/g, '');
-                      if (typedNorm && !num.includes(typedNorm)) {
-                        setSelectedVehicleId('');
-                      }
-                    }
+                    setSelectedVehicleId('');
                   }
                 }}
                 onKeyDown={e => {
@@ -599,7 +595,14 @@ const BusPassengerManifest = () => {
               onChange={e => {
                 const newVehId = e.target.value;
                 setSelectedVehicleId(newVehId);
-                fetchJourneys(selectedServiceType, selectedTravelDate, newVehId, registrationSearch);
+                // Selecting a vehicle from dropdown works independently: clear typed registration search
+                setRegistrationSearch('');
+                lastRegistrationRef.current = '';
+                setSelectedJourneyKey('');
+                setManifestData([]);
+                setJourneyInfo(null);
+                setManifestSummary(null);
+                fetchJourneys(selectedServiceType, selectedTravelDate, newVehId, '');
               }}
             >
               <option value="">
