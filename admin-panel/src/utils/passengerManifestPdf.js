@@ -21,6 +21,41 @@ const formatDateTime = (date = new Date()) => {
 };
 
 /**
+ * Safely normalize Devanagari numerals and common Nepali transport prefixes
+ * to ensure crisp, clean rendering in standard PDF fonts
+ */
+export const safePdfText = (val) => {
+  if (val === null || val === undefined) return '';
+  let str = String(val);
+
+  // Map Devanagari digits to standard Latin digits
+  const nepaliDigits = {
+    '०': '0', '१': '1', '२': '2', '३': '3', '४': '4',
+    '५': '5', '६': '6', '७': '7', '८': '8', '९': '9'
+  };
+  str = str.replace(/[०-९]/g, d => nepaliDigits[d] || d);
+
+  // Normalize common Nepali currency and vehicle registration prefixes
+  str = str
+    .replace(/रु\.?/g, 'NPR ')
+    .replace(/रू\.?/g, 'NPR ')
+    .replace(/बा\.?\s*/g, 'BA ')
+    .replace(/ना\.?\s*/g, 'NA ')
+    .replace(/मे\.?\s*/g, 'ME ')
+    .replace(/को\.?\s*/g, 'KO ')
+    .replace(/स\.?\s*/g, 'SA ')
+    .replace(/ध\.?\s*/g, 'DHA ')
+    .replace(/ग\.?\s*/g, 'GA ')
+    .replace(/लु\.?\s*/g, 'LU ')
+    .replace(/भे\.?\s*/g, 'BHE ')
+    .replace(/ख(?=[\s\d]|$)/g, 'KHA')
+    .replace(/च(?=[\s\d]|$)/g, 'CHA')
+    .replace(/प(?=[\s\d]|$)/g, 'PA');
+
+  return str.replace(/\s+/g, ' ').trim();
+};
+
+/**
  * Convert an image URL to Base64 in browser environment
  */
 const loadLogoAsBase64 = async (url = '/logo.png') => {
@@ -196,7 +231,7 @@ export const generatePassengerManifestPdf = async ({
 
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(15, 23, 42); // #0f172a
-    const safeVal = String(value || 'N/A');
+    const safeVal = safePdfText(value) || 'N/A';
     doc.text(safeVal, x + labelW, y, { maxWidth: maxWidth - labelW });
   };
 
@@ -547,8 +582,8 @@ export const generatePassengerManifestPdf = async ({
   }
 
   // Generate safe sanitized filename
-  const cleanReg = String(journey.vehicleNumber || 'Vehicle').replace(/[\s\-_/\\,.]/g, '_');
-  const cleanDate = String(journey.travelDate || 'AllDates').replace(/[\s\-_/\\,.]/g, '_');
+  const cleanReg = safePdfText(journey.vehicleNumber || 'Vehicle').replace(/[\s\-_/\\,.]/g, '_');
+  const cleanDate = safePdfText(journey.travelDate || 'AllDates').replace(/[\s\-_/\\,.]/g, '_');
   const filename = `Passenger_Manifest_${service}_${cleanReg}_${cleanDate}.pdf`;
 
   // Trigger browser download if applicable

@@ -291,5 +291,43 @@ describe('Passenger Manifest PDF Export Feature Test Suite', () => {
     assert.strictEqual(result.totalPassengers, 1);
     assert.ok(result.pdfBytes.byteLength > 3000);
   });
+
+  test('8. Special characters and Devanagari text are normalized and rendered safely', async () => {
+    const journey = {
+      serviceType: 'Bus',
+      vehicleNumber: 'बा २ ख ७७८८',
+      travelDate: '२०२६-१०-३१',
+      origin: 'Kathmandu',
+      destination: 'Pokhara',
+      driverName: 'Ram Bahadur',
+      operatorName: 'YatraSewa'
+    };
+
+    const passengers = [
+      {
+        seatNumber: 'A१',
+        bookingId: 'BK-९१४०२७',
+        passengerName: 'Pintu & Kumar (Special Chars: @#$%)',
+        mobileNumber: '९८०१२३४५६७',
+        boardingPoint: 'Kalanki / कलंकी',
+        destination: 'Pokhara / पोखरा',
+        fare: 1500,
+        bookingStatus: 'Confirmed',
+        paymentStatus: 'Completed'
+      }
+    ];
+
+    const result = await generatePassengerManifestPdf({
+      journey,
+      passengers,
+      returnOutput: 'arraybuffer'
+    });
+
+    assert.strictEqual(result.success, true);
+    assert.strictEqual(result.totalPassengers, 1);
+    // Devanagari vehicle number was transliterated cleanly to Latin in filename
+    assert.ok(result.filename.includes('BA_2_KHA_7788'));
+    assert.ok(result.pdfBytes.byteLength > 3000);
+  });
 });
 
